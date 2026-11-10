@@ -1,0 +1,125 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Throwaway values for the job's own service containers; they match .env.example (dev-only defaults).
+env:
+  PGHOST: 127.0.0.1
+  PGPORT: "55432"
+  PGPASSWORD: dev-postgres-superuser
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: dev-postgres-superuser
+          TZ: UTC
+        ports: ["55432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 3s --health-retries 30
+      redis:
+        image: redis:7-alpine
+        ports: ["56379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 2s --health-timeout 3s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Docs gates (overview section 5)
+        run: |
+          test "$(wc -l < CLAUDE.md)" -lt 120
+          for dir in backend/app/modules/*/; do test -f "$dir/README.md" || { echo "missing $dir/README.md"; exit 1; }; done
+      - name: Database roles (same script Compose runs at first start)
+        run: |
+          cp .env.example .env
+          set -a && . ./.env && set +a
+          sh infra/postgres/init/01-roles.sh
+      - run: cd backend && uv sync --frozen
+      - run: make lint
+      - run: make migrate
+      - name: Migration is reversible
+        run: cd backend && uv run alembic downgrade base && uv run alembic upgrade head
+      - name: Tests (real PostgreSQL as fh_app) and the 80% domain coverage gate
+        run: make test
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: cd web && pnpm install --frozen-lockfile
+      - name: Generated API types match backend/openapi.json
+        run: make web-api && git diff --exit-code web/src/api/schema.d.ts
+      - run: make web-check
+      - run: make web-test
+      - run: cd web && pnpm build
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: dev-postgres-superuser
+          TZ: UTC
+        ports: ["55432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 3s --health-retries 30
+      redis:
+        image: redis:7-alpine
+        ports: ["56379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 2s --health-timeout 3s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Database roles, schema and demo data
+        run: |
+          cp .env.example .env
+          set -a && . ./.env && set +a
+          sh infra/postgres/init/01-roles.sh
+          make migrate seed
+      - name: Start the API
+        run: |
+          make api > api.log 2>&1 &
+          for _ in $(seq 1 60); do curl -fs http://127.0.0.1:8100/api/v1/health/ready && exit 0; sleep 1; done
+          cat api.log; exit 1
+      - run: cd web && pnpm install --frozen-lockfile && pnpm exec playwright install --with-deps chromium
+      - name: Playwright smoke and axe WCAG 2.1 AA scan
+        run: make web-e2e
+      - if: failure()
+        run: cat api.log
