@@ -115,6 +115,20 @@ _BODIES = {
     "putSessionAttendance": {
         "marks": [{"enrollment_id": "00000000-0000-7000-8000-000000000000", "status": "attended"}]
     },
+    "updateRentalType": {"name": "Renamed"},
+    "createRentalRate": {"name": "Other", "amount_minor": 100, "basis": "per_hour"},
+    "updateRentalRate": {"name": "Renamed"},
+    "cancelRental": {},
+    "extendRental": {
+        "start_on": "2030-09-03",
+        "start_time": "09:00",
+        "end_time": "10:00",
+        "rule": {"pattern": "single", "range_type": "count", "occurrence_limit": 1},
+    },
+    "setRentalPublicSchedule": {"is_on_public_schedule": True},
+    "confirmPortalRental": {"provider_payment_token": "tok_card_ok"},
+    "updateRentalPlan": {"name": "Renamed"},
+    "cancelRentalPlanPurchase": {"cancel_mode": "keep_billing", "reason": "Mistake"},
 }
 # Generated from the OpenAPI document, so a new route with an id parameter is tested without being listed.
 _ID_ROUTES = [

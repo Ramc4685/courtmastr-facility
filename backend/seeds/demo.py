@@ -14,6 +14,7 @@ from app.core.settings import get_settings
 from app.modules.platform import service, staff
 from app.modules.platform.models import Identity, Location, StaffUser, UserLocationAccess
 from seeds import billing, clients
+from seeds import rentals as rentals_seed
 from seeds import resources as resources_seed
 from seeds import scheduling as scheduling_seed
 
@@ -97,6 +98,7 @@ def seed() -> None:
             context.seed(session)
         for context in (resources_seed, scheduling_seed):
             context.seed(session)
+        rentals_seed.seed(session)  # build module 3
     print(f"Seeded tenant {TENANT['name']} ({TENANT['slug']}), id {tenant_id}")
 
 

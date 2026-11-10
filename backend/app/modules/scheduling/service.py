@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session as Db
 
 from app.core import audit, clock, events
 from app.core.api import CONSTRAINT_CODES
-from app.core.auth import Principal, authorize, scope_query
+from app.core.auth import Principal, authorize, scope_query, system_principal
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.ids import new_id
 from app.core.pagination import ListQuery, paginate
@@ -858,6 +858,36 @@ def _view(session: Db, booking: Booking) -> dict:
 # --- staff commands: single bookings -----------------------------------------------------------------------
 
 
+def booking_views(session: Db, booking_ids) -> dict[UUID, dict]:
+    """Internal: booking views (with resources) by id, for an owning context's read model (rentals)."""
+    ids = list(booking_ids)
+    bookings = session.scalars(select(Booking).where(Booking.id.in_(ids))).all() if ids else []
+    return {view["id"]: view for view in _views(session, bookings)}
+
+
+def booking_ids(*, client_id=None, client_ids=None, status=None, series_id=None, resource_id=None):
+    """Internal: a SELECT of booking ids matching booking-side filters, for an owner's list query."""
+    stmt = select(Booking.id)
+    if client_id is not None:
+        stmt = stmt.where(Booking.client_id == client_id)
+    if client_ids is not None:
+        stmt = stmt.where(Booking.client_id.in_(list(client_ids)))
+    if status is not None:
+        stmt = stmt.where(Booking.status == status)
+    if series_id is not None:
+        stmt = stmt.where(Booking.booking_series_id == series_id)
+    if resource_id is not None:
+        stmt = stmt.where(
+            Booking.id.in_(select(BookingResource.booking_id).where(BookingResource.resource_id == resource_id))
+        )
+    return stmt
+
+
+def series_scope(session: Db, series_id: UUID, scope: dict) -> list[Booking]:
+    """Internal: the live, locked occurrences a series scope names (rentals' cancel over a scope)."""
+    return _scope(session, session.get(BookingSeries, series_id), scope)
+
+
 def _key(kind: str, key: str) -> str:
     return BLOCK if kind == "block" else key
 
@@ -908,6 +938,19 @@ def get_booking_view(session: Db, principal: Principal, booking_id: UUID) -> dic
 def _template(session: Db, principal: Principal, data: dict) -> dict:
     """Validate a staff create and resolve everything an occurrence copies, once."""
     location_id = _location(session, principal, data["location_id"])
+    template = template_for(session, location_id, data, principal.staff_user_id)
+    _authorize(
+        session, principal, _key(template["kind"], CREATE), location_id, [UUID(r) for r, _ in template["resources"]]
+    )
+    if data.get("override_policy"):
+        authorize(principal, OVERRIDE, location_id=location_id)
+    return template
+
+
+def template_for(session: Db, location_id: UUID, data: dict, staff_user_id: UUID | None) -> dict:
+    """Internal: validate a create (no permission check) and resolve what each occurrence copies. An owning
+    context adds `client_id` and `source` = {context, type, data}; each occurrence then gets a fresh source id
+    and the owner's HOOKS[context] runs in the occurrence's savepoint (rentals writes its rental_booking)."""
     kind = data["kind"]
     ordered = sorted(data["resources"], key=lambda r: r.get("role") != "primary")  # stable: primary first
     if sum(r.get("role") == "primary" for r in ordered) > 1:
@@ -915,9 +958,6 @@ def _template(session: Db, principal: Principal, data: dict) -> dict:
     rows = _resolve_resources(
         session, location_id, [r["resource_id"] for r in ordered], data.get("include_linked_resources", True)
     )
-    _authorize(session, principal, _key(kind, CREATE), location_id, [resource_id for resource_id, _ in rows])
-    if data.get("override_policy"):
-        authorize(principal, OVERRIDE, location_id=location_id)
     if (kind == "block") != (data.get("block_kind") is not None):
         raise ValidationFailed("block_kind is required for, and only for, a time block.", pointer="/block_kind")
     if kind == "block" and (data.get("reservation_type_id") or data.get("session")):
@@ -930,12 +970,16 @@ def _template(session: Db, principal: Principal, data: dict) -> dict:
         "public_title": data.get("public_title"), "notes": data.get("notes"), "buffer_before_min": before,
         "buffer_after_min": after, "resources": [[str(resource_id), role] for resource_id, role in rows],
         "session": data.get("session"), "override_policy": bool(data.get("override_policy")),
-        "created_by_staff_user_id": str(principal.staff_user_id) if principal.staff_user_id else None,
+        "created_by_staff_user_id": str(staff_user_id) if staff_user_id else None,
     }  # fmt: skip
 
 
+HOOKS: dict = {}  # source context -> fn(session, booking, source data); registered by the owner at import
+
+
 def _from_template(session: Db, template: dict, starts_at: datetime, ends_at: datetime, **extra) -> Booking:
-    return create_booking(
+    source = template.get("source")
+    booking = create_booking(
         session, location_id=UUID(template["location_id"]), kind=template["kind"], starts_at=starts_at, ends_at=ends_at,
         resource_ids=[UUID(resource_id) for resource_id, _ in template["resources"]], include_linked=False,
         reservation_type_id=UUID(template["reservation_type_id"]) if template["reservation_type_id"] else None,
@@ -943,13 +987,29 @@ def _from_template(session: Db, template: dict, starts_at: datetime, ends_at: da
         buffer_before_min=template["buffer_before_min"], buffer_after_min=template["buffer_after_min"],
         block_kind=template["block_kind"], session_input=template["session"], created_via="staff",
         created_by_staff_user_id=UUID(template["created_by_staff_user_id"]) if template["created_by_staff_user_id"] else None,
-        override_policy=template["override_policy"], **extra,
+        override_policy=template["override_policy"],
+        client_id=UUID(template["client_id"]) if template.get("client_id") else None,
+        source=(source["context"], source["type"], new_id()) if source else None, **extra,
     )  # fmt: skip
+    if source:
+        HOOKS[source["context"]](session, booking, source["data"])
+    return booking
 
 
 def create_booking_command(session: Db, principal: Principal, data: dict, *, preview: bool = False) -> dict:
     """Staff create of a session or time block, single or recurring (SCH-07, SCH-08, SCH-09)."""
     template = _template(session, principal, data)
+    return book(
+        session, template, data, principal.staff_user_id, preview=preview, audit_key=_key(template["kind"], CREATE)
+    )
+
+
+def book(
+    session: Db, template: dict, data: dict, staff_user_id: UUID | None, *, preview: bool = False,
+    audit_key: str | None = None,
+) -> dict:  # fmt: skip
+    """Internal: write a single booking or start a series from a validated template. Above SYNC_LIMIT
+    occurrences the pass is handed to the worker (`status_url` set, `booking` None)."""
     location_id, zone = UUID(template["location_id"]), _zone(session, UUID(template["location_id"]))
     _check_span(data["starts_at"], data["ends_at"])
     rule = data.get("recurrence") or {"pattern": "single", "range_type": "count", "occurrence_limit": 1}
@@ -958,13 +1018,8 @@ def create_booking_command(session: Db, principal: Principal, data: dict, *, pre
         if preview:
             return _preview(_probe(session, template, occurrences))
         booking = _from_template(session, template, data["starts_at"], data["ends_at"])
-        audit.record(
-            session,
-            _key(booking.kind, CREATE),
-            booking,
-            location_id=location_id,
-            changes={"kind": [None, booking.kind]},
-        )
+        if audit_key:
+            audit.record(session, audit_key, booking, location_id=location_id, changes={"kind": [None, booking.kind]})
         return {
             "booking": _view(session, booking),
             "booking_series_id": None,
@@ -988,24 +1043,20 @@ def create_booking_command(session: Db, principal: Principal, data: dict, *, pre
     if preview:
         return _preview(_probe(session, template, occurrences))
     series = BookingSeries(
-        location_id=location_id,
-        kind=template["kind"],
-        label=data.get("series_label"),
-        created_by_staff_user_id=principal.staff_user_id,
-    )
+        location_id=location_id, kind=template["kind"], label=data.get("series_label"),
+        created_by_staff_user_id=staff_user_id,
+    )  # fmt: skip
     session.add(series)
     session.flush()
     row.booking_series_id, row.requested_count = series.id, len(occurrences)
     session.add(row)
     session.flush()
-    audit.record(
-        session,
-        _key(series.kind, CREATE),
-        series,
-        location_id=location_id,
-        changes={"pattern": [None, row.pattern], "requested_count": [None, len(occurrences)]},
-    )
-    return _start_pass(session, principal, series, row, occurrences, data.get("on_conflict") or "abort")
+    if audit_key:
+        audit.record(
+            session, audit_key, series, location_id=location_id,
+            changes={"pattern": [None, row.pattern], "requested_count": [None, len(occurrences)]},
+        )  # fmt: skip
+    return _start_pass(session, staff_user_id, series, row, occurrences, data.get("on_conflict") or "abort")
 
 
 # --- series ------------------------------------------------------------------------------------------------
@@ -1118,7 +1169,12 @@ def _clashes(results: list[dict]) -> list[dict]:
 
 
 def _start_pass(
-    session: Db, principal: Principal, series: BookingSeries, rule: BookingSeriesRule, occurrences, on_conflict: str
+    session: Db,
+    staff_user_id: UUID | None,
+    series: BookingSeries,
+    rule: BookingSeriesRule,
+    occurrences,
+    on_conflict: str,
 ) -> dict:
     """Run a generation pass now (up to SYNC_LIMIT occurrences) or hand it to the worker."""
     base = {
@@ -1132,7 +1188,7 @@ def _start_pass(
     if len(occurrences) > SYNC_LIMIT:
         run = BookingSeriesRun(
             booking_series_id=series.id, booking_series_rule_id=rule.id, kind="generate", requested_count=len(occurrences),
-            command={"on_conflict": on_conflict, "next_index": 0}, requested_by_staff_user_id=principal.staff_user_id,
+            command={"on_conflict": on_conflict, "next_index": 0}, requested_by_staff_user_id=staff_user_id,
         )  # fmt: skip
         session.add(run)
         session.flush()
@@ -1278,6 +1334,16 @@ def get_series_run(session: Db, principal: Principal, series_id: UUID, run_id: U
 def add_series_rule(session: Db, principal: Principal, series_id: UUID, data: dict) -> dict:
     """Stack another pass onto a series ("add occurrences", SCH-09): same attributes, new pattern."""
     series = _series(session, principal, series_id, UPDATE_SERIES, lock=True)
+    return add_rule(session, series.id, data, principal.staff_user_id, principal=principal)
+
+
+def add_rule(
+    session: Db, series_id: UUID, data: dict, staff_user_id: UUID | None, *, principal: Principal | None = None,
+    audit_key: str = UPDATE_SERIES,
+) -> dict:  # fmt: skip
+    """Internal (no gate unless `principal` is given): add a pass to a series, copying its first template, so
+    an owner's source hook runs for the new occurrences too (rentals RNT-04 "add more")."""
+    series = session.execute(select(BookingSeries).where(BookingSeries.id == series_id).with_for_update()).scalar_one()
     rules = session.scalars(
         select(BookingSeriesRule)
         .where(BookingSeriesRule.booking_series_id == series.id)
@@ -1288,7 +1354,8 @@ def add_series_rule(session: Db, principal: Principal, series_id: UUID, data: di
         ordered = sorted(data["resources"], key=lambda r: r.get("role") != "primary")
         rows = _resolve_resources(session, series.location_id, [r["resource_id"] for r in ordered], False)
         template["resources"] = [[str(resource_id), role] for resource_id, role in rows]
-    _authorize(session, principal, UPDATE_SERIES, series.location_id, [UUID(r) for r, _ in template["resources"]])
+    if principal is not None:
+        _authorize(session, principal, UPDATE_SERIES, series.location_id, [UUID(r) for r, _ in template["resources"]])
     rule = data["rule"]
     row = BookingSeriesRule(
         booking_series_id=series.id, sequence=rules[-1].sequence + 1, pattern=rule["pattern"],
@@ -1306,9 +1373,9 @@ def add_series_rule(session: Db, principal: Principal, series_id: UUID, data: di
     session.add(row)
     session.flush()
     audit.record(
-        session, UPDATE_SERIES, series, location_id=series.location_id, changes={"rule_added": [None, row.sequence]}
+        session, audit_key, series, location_id=series.location_id, changes={"rule_added": [None, row.sequence]}
     )
-    return _start_pass(session, principal, series, row, occurrences, data.get("on_conflict") or "abort")
+    return _start_pass(session, staff_user_id, series, row, occurrences, data.get("on_conflict") or "abort")
 
 
 def _scope(session: Db, series: BookingSeries, scope: dict) -> list[Booking]:
@@ -1710,14 +1777,26 @@ def get_availability(
     _window(start, end)
     if resource_ids and len(resource_ids) > 50:
         raise ValidationFailed("At most 50 resources.", pointer="/resource_id[in]")
+    return free_ranges(session, location_id, start, end, resource_ids=resource_ids, min_free_min=min_free_min)
+
+
+def free_ranges(
+    session: Db, location_id: UUID, start: datetime, end: datetime, *, resource_ids: list[UUID] | None = None,
+    min_free_min: int = 15,
+) -> dict:  # fmt: skip
+    """Internal (no gate): the free time of get_availability, also used by rentals' online search. Every
+    closure counts; holds of checkouts whose clock ran out do not count as busy."""
     columns, zone = _columns(session, location_id, None, resource_ids), _zone(session, location_id)
+    principal = system_principal("scheduling.free_ranges")
     ids = [c.id for c in columns]
     windows = resources.service.windows_for(session, ids)
     hours = {d.weekday: d for d in platform.service.get_facility_hours(session, principal, location_id)["days"]}
     busy: dict[UUID, list] = {resource_id: [] for resource_id in ids}
     held = session.execute(
         select(ResourceHold.resource_id, ResourceHold.during).where(
-            ResourceHold.resource_id.in_(ids), ResourceHold.during.overlaps(Range(start, end, bounds="[)"))
+            ResourceHold.resource_id.in_(ids),
+            ResourceHold.during.overlaps(Range(start, end, bounds="[)")),
+            (ResourceHold.expires_at.is_(None)) | (ResourceHold.expires_at > clock.now()),
         )
     )
     for resource_id, during in held:

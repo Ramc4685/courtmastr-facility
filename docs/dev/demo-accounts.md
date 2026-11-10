@@ -42,3 +42,11 @@ Operator token for `POST /api/v1/operator/tenants` (tenant onboarding): the `FH_
   bookings on that column.
 - **West:** two courts, a turf field in halves, a studio, trainer Eli Stone, two weekly classes.
 - Both locations are closed on the next New Year's Day (a blackout).
+
+## Demo rentals (build module 3)
+
+At Downtown, **Court rental** (Courts 1 to 3) is bookable online: Standard rate $40/hour ($32 member price,
+unused until memberships exist), $50 evenings 17:00-22:00, $55 on weekends, plus sales tax; a "Tournament
+day" flat rate; 25% deposit online; 24-hour cut-off with a 50% late-cancel fee. Morgan Member has a weekly
+Tuesday 19:00 rental on Court 3 (four weeks, billed on one invoice), Riley Reyes has an unbilled Thursday
+rental in the queue, and Jordan Okafor bought the **10-hour court pack** and used two hours of it on Friday.

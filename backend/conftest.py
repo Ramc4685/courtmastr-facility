@@ -171,7 +171,7 @@ def populate(client, tenant) -> SimpleNamespace:
             session, code="ST", label="Sales tax", rate=Decimal("0.0825"), effective_from_on=date(2020, 1, 1)
         )
         category = billing.service.create_revenue_category(session, code="RENT", label="Rentals", tax_ids=[tax.id])
-        category_id = str(category.id)
+        category_id, tax_id = str(category.id), str(tax.id)
 
     def post(path: str, body: dict, key: str | None = None) -> dict:
         response = client.post(f"/api/v1{path}", json=body, headers=headers | ({"Idempotency-Key": key} if key else {}))
@@ -191,6 +191,9 @@ def populate(client, tenant) -> SimpleNamespace:
         f"/payments/{payment['id']}/refunds", {"amount_minor": 500, "reason": "Overpaid"}, key=f"populate-{uuid4().hex}"
     )
     space = _populate_space(client, tenant, headers, post, location["id"], person["id"])
+    space |= _populate_rentals(
+        client, headers, post, location["id"], person["id"], space["resource_id"], category_id, tax_id
+    )
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
         session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
@@ -257,6 +260,48 @@ def _populate_space(client, tenant, headers, post, location_id, client_id) -> di
         "run_id": long_pass["status_url"].rsplit("/", 1)[1], "schedule_session_id": seat,
         "enrollment_id": enrollment["id"], "waitlist_entry_id": waiting["id"],
     }  # fmt: skip
+
+
+def _populate_rentals(client, headers, post, location_id, client_id, court_id, category_id, tax_id) -> dict:
+    """Build module 3: a row in every rentals table (type, rate with tax and rule, a billed rental with a
+    party, a plan allowed on the type, its sale and a plan-covered rental)."""
+    rtype = post("/rental-types", {
+        "location_id": location_id, "name": "Court hire", "revenue_category_id": category_id, "resource_ids": [court_id],
+    })  # fmt: skip
+    rate = post(f"/rental-types/{rtype['id']}/rates", {
+        "name": "Standard", "amount_minor": 4000, "basis": "per_hour", "tax_ids": [tax_id],
+        "rules": [{"kind": "rate", "name": "Evening", "start_time": "17:00", "end_time": "24:00", "amount_minor": 5000}],
+    })  # fmt: skip
+    plan = post("/rental-plans", {
+        "location_id": location_id, "name": "Ten hours", "rental_type_id": rtype["id"], "model": "per_hour",
+        "quantity": "10", "price_minor": 30000, "revenue_category_id": category_id,
+    })  # fmt: skip
+    put = client.patch(f"/api/v1/rental-types/{rtype['id']}", headers=headers, json={"rental_plan_ids": [plan["id"]]})
+    assert put.status_code == 200, put.text
+    other = new_client(client, headers, location_id)
+    rental = post("/rentals", {
+        "location_id": location_id, "rental_type_id": rtype["id"], "client_id": client_id,
+        "parties": [{"client_id": other["id"]}], "resources": [{"resource_id": court_id}],
+        "starts_at": "2030-03-05T18:00:00Z", "ends_at": "2030-03-05T19:00:00Z",
+        "charge": {"decision": "bill", "rental_rate_id": rate["id"]},
+    }, key=f"populate-rental-{uuid4().hex}")  # fmt: skip
+    purchase = post(
+        "/rental-plan-purchases",
+        {"rental_plan_id": plan["id"], "client_id": client_id},
+        key=f"populate-plan-{uuid4().hex}",
+    )
+    post("/rentals", {
+        "location_id": location_id, "rental_type_id": rtype["id"], "client_id": client_id,
+        "resources": [{"resource_id": court_id}], "starts_at": "2030-03-06T18:00:00Z", "ends_at": "2030-03-06T19:00:00Z",
+        "charge": {"decision": "plan", "rental_plan_purchase_id": purchase["id"]},
+    }, key=f"populate-covered-{uuid4().hex}")  # fmt: skip
+    return {
+        "rental_type_id": rtype["id"],
+        "rental_rate_id": rate["id"],
+        "rental_id": rental["rental"]["id"],
+        "rental_plan_id": plan["id"],
+        "purchase_id": purchase["id"],
+    }
 
 
 @pytest.fixture(scope="session")

@@ -388,6 +388,65 @@
         "title": "Availability",
         "type": "object"
       },
+      "BillSelected": {
+        "additionalProperties": false,
+        "description": "Price any set of unbilled occurrences of one payer and route the lines (RNT-04).",
+        "properties": {
+          "charge": {
+            "$ref": "#/components/schemas/ChargeDecision"
+          },
+          "preview": {
+            "default": false,
+            "title": "Preview",
+            "type": "boolean"
+          },
+          "rental_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Rental Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rental_ids",
+          "charge"
+        ],
+        "title": "BillSelected",
+        "type": "object"
+      },
+      "Billed": {
+        "properties": {
+          "invoice_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Invoice Ids",
+            "type": "array"
+          },
+          "quote": {
+            "$ref": "#/components/schemas/Quote"
+          },
+          "rentals": {
+            "items": {
+              "$ref": "#/components/schemas/RentalOut"
+            },
+            "title": "Rentals",
+            "type": "array"
+          }
+        },
+        "required": [
+          "quote",
+          "rentals",
+          "invoice_ids"
+        ],
+        "title": "Billed",
+        "type": "object"
+      },
       "BlackoutCreate": {
         "additionalProperties": false,
         "properties": {
@@ -1978,6 +2037,150 @@
         "title": "ChargeCreate",
         "type": "object"
       },
+      "ChargeDecision": {
+        "additionalProperties": false,
+        "description": "bill needs rental_rate_id or custom_rate; plan needs rental_plan_purchase_id. Maps to charge_state.",
+        "properties": {
+          "custom_rate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CustomRate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decision": {
+            "enum": [
+              "bill",
+              "unbilled",
+              "no_charge",
+              "plan"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "discount_minor": {
+            "default": 0,
+            "maximum": 100000000.0,
+            "minimum": 0.0,
+            "title": "Discount Minor",
+            "type": "integer"
+          },
+          "existing_invoice_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Existing Invoice Id"
+          },
+          "invoice_routing": {
+            "default": "new_single",
+            "enum": [
+              "new_single",
+              "new_per_line",
+              "date_based",
+              "existing_open",
+              "cart"
+            ],
+            "title": "Invoice Routing",
+            "type": "string"
+          },
+          "line_grouping": {
+            "anyOf": [
+              {
+                "enum": [
+                  "combined",
+                  "per_occurrence"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Grouping"
+          },
+          "rental_plan_purchase_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rental Plan Purchase Id"
+          },
+          "rental_rate_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rental Rate Id"
+          },
+          "revenue_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue On"
+          },
+          "routing_period": {
+            "anyOf": [
+              {
+                "enum": [
+                  "week",
+                  "month"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Routing Period"
+          },
+          "tax_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Ids"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "title": "ChargeDecision",
+        "type": "object"
+      },
       "ChargeOut": {
         "properties": {
           "additional_description": {
@@ -2337,6 +2540,56 @@
         "title": "ClientOut",
         "type": "object"
       },
+      "CustomRate": {
+        "additionalProperties": false,
+        "description": "Needs rentals.booking.override_rate.",
+        "properties": {
+          "basis": {
+            "enum": [
+              "per_hour",
+              "per_occurrence",
+              "flat"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "tax_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Ids"
+          },
+          "unit_amount_minor": {
+            "maximum": 100000000.0,
+            "minimum": 0.0,
+            "title": "Unit Amount Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "description",
+          "unit_amount_minor",
+          "basis"
+        ],
+        "title": "CustomRate",
+        "type": "object"
+      },
       "EffectivePermission": {
         "properties": {
           "key": {
@@ -2586,6 +2839,130 @@
           "cancel_kind"
         ],
         "title": "EnrollmentOut",
+        "type": "object"
+      },
+      "Extended": {
+        "properties": {
+          "booking_series_id": {
+            "format": "uuid",
+            "title": "Booking Series Id",
+            "type": "string"
+          },
+          "conflict_count": {
+            "title": "Conflict Count",
+            "type": "integer"
+          },
+          "created_count": {
+            "title": "Created Count",
+            "type": "integer"
+          },
+          "preview": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview"
+          },
+          "results": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/OccurrenceResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "status_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Url"
+          }
+        },
+        "required": [
+          "booking_series_id",
+          "created_count",
+          "conflict_count"
+        ],
+        "title": "Extended",
+        "type": "object"
+      },
+      "Extension": {
+        "additionalProperties": false,
+        "description": "Add more occurrences to the rental's series (RNT-04): same type, client and resources unless given.",
+        "properties": {
+          "end_day_offset": {
+            "default": 0,
+            "maximum": 6.0,
+            "minimum": 0.0,
+            "title": "End Day Offset",
+            "type": "integer"
+          },
+          "end_time": {
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "End Time",
+            "type": "string"
+          },
+          "on_conflict": {
+            "default": "abort",
+            "enum": [
+              "skip",
+              "abort"
+            ],
+            "title": "On Conflict",
+            "type": "string"
+          },
+          "preview": {
+            "default": false,
+            "title": "Preview",
+            "type": "boolean"
+          },
+          "resources": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ResourceInput"
+                },
+                "maxItems": 20,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resources"
+          },
+          "rule": {
+            "$ref": "#/components/schemas/RecurrenceRule"
+          },
+          "start_on": {
+            "format": "date",
+            "title": "Start On",
+            "type": "string"
+          },
+          "start_time": {
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Start Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start_on",
+          "start_time",
+          "end_time",
+          "rule"
+        ],
+        "title": "Extension",
         "type": "object"
       },
       "FacilityHoursDay": {
@@ -3011,131 +3388,6 @@
           "created_at"
         ],
         "title": "InvoiceOut",
-        "type": "object"
-      },
-      "LedgerEntryOut": {
-        "properties": {
-          "account": {
-            "enum": [
-              "receivable",
-              "revenue",
-              "tax_payable",
-              "funds_received",
-              "client_credit",
-              "disputed_funds"
-            ],
-            "title": "Account",
-            "type": "string"
-          },
-          "charge_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Charge Id"
-          },
-          "client_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Client Id"
-          },
-          "credit_minor": {
-            "title": "Credit Minor",
-            "type": "integer"
-          },
-          "currency": {
-            "title": "Currency",
-            "type": "string"
-          },
-          "debit_minor": {
-            "title": "Debit Minor",
-            "type": "integer"
-          },
-          "effective_on": {
-            "format": "date",
-            "title": "Effective On",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "ledger_transaction_id": {
-            "format": "uuid",
-            "title": "Ledger Transaction Id",
-            "type": "string"
-          },
-          "location_id": {
-            "format": "uuid",
-            "title": "Location Id",
-            "type": "string"
-          },
-          "payment_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Payment Id"
-          },
-          "revenue_category_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Revenue Category Id"
-          },
-          "tax_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tax Id"
-          }
-        },
-        "required": [
-          "id",
-          "ledger_transaction_id",
-          "account",
-          "debit_minor",
-          "credit_minor",
-          "currency",
-          "effective_on",
-          "location_id",
-          "client_id",
-          "revenue_category_id",
-          "tax_id",
-          "charge_id",
-          "payment_id"
-        ],
-        "title": "LedgerEntryOut",
         "type": "object"
       },
       "Legend": {
@@ -4499,7 +4751,7 @@
         "properties": {
           "data": {
             "items": {
-              "$ref": "#/components/schemas/LedgerEntryOut"
+              "$ref": "#/components/schemas/app__modules__billing__schemas__LedgerEntryOut"
             },
             "title": "Data",
             "type": "array"
@@ -4593,6 +4845,126 @@
           "page"
         ],
         "title": "Page[PublicLocation]",
+        "type": "object"
+      },
+      "Page_PurchaseOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PurchaseOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[PurchaseOut]",
+        "type": "object"
+      },
+      "Page_RentalOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/RentalOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[RentalOut]",
+        "type": "object"
+      },
+      "Page_RentalPlanOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/RentalPlanOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[RentalPlanOut]",
+        "type": "object"
+      },
+      "Page_RentalRateOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/RentalRateOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[RentalRateOut]",
+        "type": "object"
+      },
+      "Page_RentalSlot_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/RentalSlot"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[RentalSlot]",
+        "type": "object"
+      },
+      "Page_RentalTypeOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/RentalTypeOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[RentalTypeOut]",
         "type": "object"
       },
       "Page_ResourceGroupOut_": {
@@ -4787,6 +5159,45 @@
           "attendance"
         ],
         "title": "Participant",
+        "type": "object"
+      },
+      "PartyInput": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "is_charged": {
+            "default": false,
+            "title": "Is Charged",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "client_id"
+        ],
+        "title": "PartyInput",
+        "type": "object"
+      },
+      "PartyOut": {
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "is_charged": {
+            "title": "Is Charged",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "client_id",
+          "is_charged"
+        ],
+        "title": "PartyOut",
         "type": "object"
       },
       "PasswordChange": {
@@ -5410,6 +5821,126 @@
         "title": "PermissionGrantsReplace",
         "type": "object"
       },
+      "PlanSale": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "invoice_routing": {
+            "anyOf": [
+              {
+                "enum": [
+                  "new_single",
+                  "cart"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Routing"
+          },
+          "quantity_total": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100000.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity Total"
+          },
+          "rental_plan_id": {
+            "format": "uuid",
+            "title": "Rental Plan Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rental_plan_id",
+          "client_id"
+        ],
+        "title": "PlanSale",
+        "type": "object"
+      },
+      "PortalRentalConfirm": {
+        "additionalProperties": false,
+        "description": "A PaymentProvider client token; never raw card data. Stored methods arrive with build module 8.",
+        "properties": {
+          "provider_payment_token": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Provider Payment Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider_payment_token"
+        ],
+        "title": "PortalRentalConfirm",
+        "type": "object"
+      },
+      "PortalRentalCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "rental_plan_purchase_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rental Plan Purchase Id"
+          },
+          "rental_type_id": {
+            "format": "uuid",
+            "title": "Rental Type Id",
+            "type": "string"
+          },
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rental_type_id",
+          "client_id",
+          "resource_id",
+          "starts_at",
+          "ends_at"
+        ],
+        "title": "PortalRentalCreate",
+        "type": "object"
+      },
       "PrincipalOut": {
         "properties": {
           "client_ids": {
@@ -5558,6 +6089,770 @@
           "facility_hours"
         ],
         "title": "PublicLocation",
+        "type": "object"
+      },
+      "PublicRentalType": {
+        "properties": {
+          "cancel_cutoff_hours": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel Cutoff Hours"
+          },
+          "default_length_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Length Min"
+          },
+          "deposit_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Pct"
+          },
+          "eligibility": {
+            "title": "Eligibility",
+            "type": "string"
+          },
+          "from_price_minor": {
+            "title": "From Price Minor",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "late_cancel_fee_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Late Cancel Fee Pct"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "max_length_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Length Min"
+          },
+          "min_lead_min": {
+            "title": "Min Lead Min",
+            "type": "integer"
+          },
+          "min_length_min": {
+            "title": "Min Length Min",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "online_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Online Description"
+          },
+          "online_payment_mode": {
+            "title": "Online Payment Mode",
+            "type": "string"
+          },
+          "resources": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Resources",
+            "type": "array"
+          },
+          "slot_granularity_min": {
+            "title": "Slot Granularity Min",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "name",
+          "online_description",
+          "eligibility",
+          "online_payment_mode",
+          "min_lead_min",
+          "default_length_min",
+          "min_length_min",
+          "max_length_min",
+          "slot_granularity_min",
+          "deposit_pct",
+          "cancel_cutoff_hours",
+          "late_cancel_fee_pct",
+          "resources",
+          "from_price_minor"
+        ],
+        "title": "PublicRentalType",
+        "type": "object"
+      },
+      "PublicSchedule": {
+        "additionalProperties": false,
+        "properties": {
+          "is_on_public_schedule": {
+            "title": "Is On Public Schedule",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_on_public_schedule"
+        ],
+        "title": "PublicSchedule",
+        "type": "object"
+      },
+      "PurchaseCancel": {
+        "additionalProperties": false,
+        "properties": {
+          "cancel_mode": {
+            "enum": [
+              "reverse_billing",
+              "keep_billing"
+            ],
+            "title": "Cancel Mode",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cancel_mode",
+          "reason"
+        ],
+        "title": "PurchaseCancel",
+        "type": "object"
+      },
+      "PurchaseOut": {
+        "properties": {
+          "balance": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance"
+          },
+          "cancel_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel Mode"
+          },
+          "cancelled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelled At"
+          },
+          "charge_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Id"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "expires_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires On"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invoice_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Id"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "price_minor": {
+            "title": "Price Minor",
+            "type": "integer"
+          },
+          "quantity_total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity Total"
+          },
+          "rental_plan_id": {
+            "format": "uuid",
+            "title": "Rental Plan Id",
+            "type": "string"
+          },
+          "sold_via": {
+            "title": "Sold Via",
+            "type": "string"
+          },
+          "starts_on": {
+            "format": "date",
+            "title": "Starts On",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "rental_plan_id",
+          "client_id",
+          "status",
+          "model",
+          "quantity_total",
+          "balance",
+          "price_minor",
+          "charge_id",
+          "sold_via",
+          "starts_on",
+          "expires_on",
+          "cancelled_at",
+          "cancel_mode"
+        ],
+        "title": "PurchaseOut",
+        "type": "object"
+      },
+      "Quote": {
+        "description": "Output of the deterministic pricing function; identical inputs give identical lines (RNT-02).",
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "deposit_minor": {
+            "title": "Deposit Minor",
+            "type": "integer"
+          },
+          "discount_minor": {
+            "title": "Discount Minor",
+            "type": "integer"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/QuoteLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "subtotal_minor": {
+            "title": "Subtotal Minor",
+            "type": "integer"
+          },
+          "tax_minor": {
+            "title": "Tax Minor",
+            "type": "integer"
+          },
+          "total_minor": {
+            "title": "Total Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lines",
+          "subtotal_minor",
+          "discount_minor",
+          "tax_minor",
+          "total_minor",
+          "deposit_minor",
+          "currency"
+        ],
+        "title": "Quote",
+        "type": "object"
+      },
+      "QuoteLine": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "applied_rule_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied Rule Id"
+          },
+          "basis": {
+            "title": "Basis",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "discount_minor": {
+            "title": "Discount Minor",
+            "type": "integer"
+          },
+          "is_member_price": {
+            "title": "Is Member Price",
+            "type": "boolean"
+          },
+          "occurrence_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurrence Index"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "string"
+          },
+          "rental_rate_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rental Rate Id"
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id"
+          },
+          "tax_minor": {
+            "title": "Tax Minor",
+            "type": "integer"
+          },
+          "unit_amount_minor": {
+            "title": "Unit Amount Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "description",
+          "rental_rate_id",
+          "basis",
+          "quantity",
+          "unit_amount_minor",
+          "discount_minor",
+          "amount_minor",
+          "tax_minor",
+          "resource_id",
+          "occurrence_index",
+          "applied_rule_id",
+          "is_member_price"
+        ],
+        "title": "QuoteLine",
+        "type": "object"
+      },
+      "RateRule": {
+        "additionalProperties": false,
+        "properties": {
+          "amount_minor": {
+            "anyOf": [
+              {
+                "maximum": 100000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Minor"
+          },
+          "discount_minor": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100000000.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Minor"
+          },
+          "discount_pct": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Pct"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "pattern": "^(([01]\\d|2[0-3]):[0-5]\\d|24:00)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
+          },
+          "ends_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends On"
+          },
+          "kind": {
+            "enum": [
+              "rate",
+              "discount"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "membership_type_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Membership Type Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "sort_order": {
+            "default": 0,
+            "title": "Sort Order",
+            "type": "integer"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "pattern": "^(([01]\\d|2[0-3]):[0-5]\\d|24:00)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "starts_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts On"
+          },
+          "weekdays": {
+            "anyOf": [
+              {
+                "items": {
+                  "maximum": 7.0,
+                  "minimum": 1.0,
+                  "type": "integer"
+                },
+                "maxItems": 7,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekdays"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "RateRule",
+        "type": "object"
+      },
+      "RateRuleOut": {
+        "properties": {
+          "amount_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Minor"
+          },
+          "discount_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Minor"
+          },
+          "discount_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Pct"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
+          },
+          "ends_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends On"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "membership_type_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Membership Type Id"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "starts_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts On"
+          },
+          "weekdays": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekdays"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "sort_order",
+          "start_time",
+          "end_time",
+          "starts_on",
+          "ends_on",
+          "weekdays",
+          "membership_type_id",
+          "amount_minor",
+          "discount_pct",
+          "discount_minor"
+        ],
+        "title": "RateRuleOut",
         "type": "object"
       },
       "RecurrenceRule": {
@@ -5806,6 +7101,2379 @@
           "created_at"
         ],
         "title": "RefundOut",
+        "type": "object"
+      },
+      "RentalCancel": {
+        "additionalProperties": false,
+        "description": "Unpaid charge shares are always reversed; paid money becomes account credit (`credit_account`) unless\n`keep_charge`. Plan-covered occurrences always get the balance back. Inside the type's cancellation window\na late-cancel fee is posted unless `waive_late_fee` (needs rentals.booking.override_rate).",
+        "properties": {
+          "charge_action": {
+            "default": "credit_account",
+            "enum": [
+              "credit_account",
+              "keep_charge"
+            ],
+            "title": "Charge Action",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason": {
+            "default": "staff",
+            "enum": [
+              "staff",
+              "client",
+              "other"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SeriesScope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "waive_late_fee": {
+            "default": false,
+            "title": "Waive Late Fee",
+            "type": "boolean"
+          }
+        },
+        "title": "RentalCancel",
+        "type": "object"
+      },
+      "RentalCancelResult": {
+        "properties": {
+          "cancelled_count": {
+            "title": "Cancelled Count",
+            "type": "integer"
+          },
+          "late_fee_minor": {
+            "title": "Late Fee Minor",
+            "type": "integer"
+          },
+          "plan_quantity_returned": {
+            "title": "Plan Quantity Returned",
+            "type": "string"
+          },
+          "rentals": {
+            "items": {
+              "$ref": "#/components/schemas/RentalOut"
+            },
+            "title": "Rentals",
+            "type": "array"
+          },
+          "reposted_minor": {
+            "title": "Reposted Minor",
+            "type": "integer"
+          },
+          "reversed_minor": {
+            "title": "Reversed Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cancelled_count",
+          "reversed_minor",
+          "reposted_minor",
+          "late_fee_minor",
+          "plan_quantity_returned",
+          "rentals"
+        ],
+        "title": "RentalCancelResult",
+        "type": "object"
+      },
+      "RentalCheckout": {
+        "properties": {
+          "amount_due_minor": {
+            "title": "Amount Due Minor",
+            "type": "integer"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "invoice_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Id"
+          },
+          "payment_required": {
+            "title": "Payment Required",
+            "type": "boolean"
+          },
+          "payment_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Status"
+          },
+          "quote": {
+            "$ref": "#/components/schemas/Quote"
+          },
+          "rental": {
+            "$ref": "#/components/schemas/RentalOut"
+          }
+        },
+        "required": [
+          "rental",
+          "quote",
+          "expires_at",
+          "invoice_id",
+          "payment_required",
+          "amount_due_minor"
+        ],
+        "title": "RentalCheckout",
+        "type": "object"
+      },
+      "RentalCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "buffer_after_min": {
+            "anyOf": [
+              {
+                "maximum": 240.0,
+                "minimum": 0.0,
+                "multipleOf": 5.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buffer After Min"
+          },
+          "buffer_before_min": {
+            "anyOf": [
+              {
+                "maximum": 240.0,
+                "minimum": 0.0,
+                "multipleOf": 5.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buffer Before Min"
+          },
+          "charge": {
+            "$ref": "#/components/schemas/ChargeDecision"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "on_conflict": {
+            "default": "abort",
+            "enum": [
+              "skip",
+              "abort"
+            ],
+            "title": "On Conflict",
+            "type": "string"
+          },
+          "override_policy": {
+            "default": false,
+            "title": "Override Policy",
+            "type": "boolean"
+          },
+          "parties": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PartyInput"
+            },
+            "maxItems": 10,
+            "title": "Parties",
+            "type": "array"
+          },
+          "recurrence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecurrenceRule"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rental_type_id": {
+            "format": "uuid",
+            "title": "Rental Type Id",
+            "type": "string"
+          },
+          "resources": {
+            "items": {
+              "$ref": "#/components/schemas/ResourceInput"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Resources",
+            "type": "array"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "location_id",
+          "rental_type_id",
+          "client_id",
+          "resources",
+          "starts_at",
+          "ends_at",
+          "charge"
+        ],
+        "title": "RentalCreate",
+        "type": "object"
+      },
+      "RentalCreated": {
+        "properties": {
+          "booking_series_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booking Series Id"
+          },
+          "conflict_count": {
+            "title": "Conflict Count",
+            "type": "integer"
+          },
+          "created_count": {
+            "title": "Created Count",
+            "type": "integer"
+          },
+          "invoice_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Invoice Ids",
+            "type": "array"
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quote"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rental": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RentalOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "results": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/OccurrenceResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "status_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Url"
+          }
+        },
+        "required": [
+          "rental",
+          "booking_series_id",
+          "created_count",
+          "conflict_count"
+        ],
+        "title": "RentalCreated",
+        "type": "object"
+      },
+      "RentalOut": {
+        "description": "One rental occurrence (rental_booking 1:1 booking). Status, times and version come from the booking.",
+        "properties": {
+          "amount_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Minor"
+          },
+          "booked_via": {
+            "title": "Booked Via",
+            "type": "string"
+          },
+          "booking_id": {
+            "format": "uuid",
+            "title": "Booking Id",
+            "type": "string"
+          },
+          "booking_number": {
+            "title": "Booking Number",
+            "type": "integer"
+          },
+          "booking_series_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booking Series Id"
+          },
+          "cancelled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelled At"
+          },
+          "charge_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Charge Ids",
+            "type": "array"
+          },
+          "charge_state": {
+            "title": "Charge State",
+            "type": "string"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invoice_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Invoice Ids",
+            "type": "array"
+          },
+          "is_on_public_schedule": {
+            "title": "Is On Public Schedule",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "parties": {
+            "items": {
+              "$ref": "#/components/schemas/PartyOut"
+            },
+            "title": "Parties",
+            "type": "array"
+          },
+          "rental_type_id": {
+            "format": "uuid",
+            "title": "Rental Type Id",
+            "type": "string"
+          },
+          "resources": {
+            "items": {
+              "$ref": "#/components/schemas/RentalResourceOut"
+            },
+            "title": "Resources",
+            "type": "array"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "booking_id",
+          "booking_number",
+          "booking_series_id",
+          "rental_type_id",
+          "client_id",
+          "parties",
+          "resources",
+          "starts_at",
+          "ends_at",
+          "status",
+          "expires_at",
+          "charge_state",
+          "booked_via",
+          "cancelled_at",
+          "amount_minor",
+          "charge_ids",
+          "invoice_ids",
+          "is_on_public_schedule",
+          "title",
+          "version"
+        ],
+        "title": "RentalOut",
+        "type": "object"
+      },
+      "RentalPlanCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_description": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Description"
+          },
+          "default_invoice_routing": {
+            "anyOf": [
+              {
+                "enum": [
+                  "new_single",
+                  "new_per_line",
+                  "cart"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Invoice Routing"
+          },
+          "fixed_expires_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixed Expires On"
+          },
+          "fixed_starts_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixed Starts On"
+          },
+          "internal_description": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Internal Description"
+          },
+          "is_flat_rate": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Flat Rate"
+          },
+          "is_members_only": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Members Only"
+          },
+          "is_shareable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Shareable"
+          },
+          "is_sold_online": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Sold Online"
+          },
+          "is_unlimited": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Unlimited"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "member_price_minor": {
+            "anyOf": [
+              {
+                "maximum": 100000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Price Minor"
+          },
+          "model": {
+            "enum": [
+              "per_hour",
+              "per_occurrence"
+            ],
+            "title": "Model",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "price_minor": {
+            "maximum": 100000000.0,
+            "minimum": 0.0,
+            "title": "Price Minor",
+            "type": "integer"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100000.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "rental_type_id": {
+            "format": "uuid",
+            "title": "Rental Type Id",
+            "type": "string"
+          },
+          "revenue_category_id": {
+            "format": "uuid",
+            "title": "Revenue Category Id",
+            "type": "string"
+          },
+          "start_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sale_date",
+                  "fixed_date"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Mode"
+          },
+          "validity_days": {
+            "anyOf": [
+              {
+                "maximum": 3660.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validity Days"
+          }
+        },
+        "required": [
+          "name",
+          "rental_type_id",
+          "model",
+          "price_minor",
+          "revenue_category_id",
+          "location_id"
+        ],
+        "title": "RentalPlanCreate",
+        "type": "object"
+      },
+      "RentalPlanOut": {
+        "properties": {
+          "client_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Description"
+          },
+          "default_invoice_routing": {
+            "title": "Default Invoice Routing",
+            "type": "string"
+          },
+          "fixed_expires_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixed Expires On"
+          },
+          "fixed_starts_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixed Starts On"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "internal_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Internal Description"
+          },
+          "is_flat_rate": {
+            "title": "Is Flat Rate",
+            "type": "boolean"
+          },
+          "is_members_only": {
+            "title": "Is Members Only",
+            "type": "boolean"
+          },
+          "is_shareable": {
+            "title": "Is Shareable",
+            "type": "boolean"
+          },
+          "is_sold_online": {
+            "title": "Is Sold Online",
+            "type": "boolean"
+          },
+          "is_unlimited": {
+            "title": "Is Unlimited",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "member_price_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Price Minor"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "price_minor": {
+            "title": "Price Minor",
+            "type": "integer"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "rental_type_id": {
+            "format": "uuid",
+            "title": "Rental Type Id",
+            "type": "string"
+          },
+          "revenue_category_id": {
+            "format": "uuid",
+            "title": "Revenue Category Id",
+            "type": "string"
+          },
+          "start_mode": {
+            "title": "Start Mode",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "validity_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validity Days"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "name",
+          "rental_type_id",
+          "model",
+          "quantity",
+          "is_unlimited",
+          "price_minor",
+          "member_price_minor",
+          "is_flat_rate",
+          "revenue_category_id",
+          "internal_description",
+          "client_description",
+          "is_members_only",
+          "is_sold_online",
+          "start_mode",
+          "fixed_starts_on",
+          "validity_days",
+          "fixed_expires_on",
+          "default_invoice_routing",
+          "is_shareable",
+          "status"
+        ],
+        "title": "RentalPlanOut",
+        "type": "object"
+      },
+      "RentalPlanUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_description": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Description"
+          },
+          "default_invoice_routing": {
+            "anyOf": [
+              {
+                "enum": [
+                  "new_single",
+                  "new_per_line",
+                  "cart"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Invoice Routing"
+          },
+          "fixed_expires_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixed Expires On"
+          },
+          "fixed_starts_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixed Starts On"
+          },
+          "internal_description": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Internal Description"
+          },
+          "is_flat_rate": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Flat Rate"
+          },
+          "is_members_only": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Members Only"
+          },
+          "is_shareable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Shareable"
+          },
+          "is_sold_online": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Sold Online"
+          },
+          "is_unlimited": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Unlimited"
+          },
+          "member_price_minor": {
+            "anyOf": [
+              {
+                "maximum": 100000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Price Minor"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "enum": [
+                  "per_hour",
+                  "per_occurrence"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "price_minor": {
+            "anyOf": [
+              {
+                "maximum": 100000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Minor"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100000.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "rental_type_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rental Type Id"
+          },
+          "revenue_category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Category Id"
+          },
+          "start_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sale_date",
+                  "fixed_date"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Mode"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "active",
+                  "archived"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "validity_days": {
+            "anyOf": [
+              {
+                "maximum": 3660.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Validity Days"
+          }
+        },
+        "title": "RentalPlanUpdate",
+        "type": "object"
+      },
+      "RentalPreview": {
+        "properties": {
+          "conflict_count": {
+            "title": "Conflict Count",
+            "type": "integer"
+          },
+          "occurrences": {
+            "items": {
+              "$ref": "#/components/schemas/OccurrenceResult"
+            },
+            "title": "Occurrences",
+            "type": "array"
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quote"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requested_count": {
+            "title": "Requested Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "occurrences",
+          "requested_count",
+          "conflict_count",
+          "quote"
+        ],
+        "title": "RentalPreview",
+        "type": "object"
+      },
+      "RentalRateOut": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "basis": {
+            "title": "Basis",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "internal_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Internal Note"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "line_grouping": {
+            "title": "Line Grouping",
+            "type": "string"
+          },
+          "member_amount_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Amount Minor"
+          },
+          "multi_resource_mode": {
+            "title": "Multi Resource Mode",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "rental_type_id": {
+            "format": "uuid",
+            "title": "Rental Type Id",
+            "type": "string"
+          },
+          "rules": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RateRuleOut"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          },
+          "tax_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Tax Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "rental_type_id",
+          "name",
+          "internal_note",
+          "amount_minor",
+          "member_amount_minor",
+          "basis",
+          "multi_resource_mode",
+          "line_grouping",
+          "sort_order",
+          "is_active"
+        ],
+        "title": "RentalRateOut",
+        "type": "object"
+      },
+      "RentalRateWrite": {
+        "additionalProperties": false,
+        "description": "Create requires name, amount_minor, basis. `rules` and `tax_ids` are replaced as whole sets.",
+        "properties": {
+          "amount_minor": {
+            "anyOf": [
+              {
+                "maximum": 100000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Minor"
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "enum": [
+                  "per_hour",
+                  "per_occurrence",
+                  "flat"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis"
+          },
+          "internal_note": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Internal Note"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "line_grouping": {
+            "anyOf": [
+              {
+                "enum": [
+                  "combined",
+                  "per_resource",
+                  "per_occurrence",
+                  "per_resource_occurrence"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Grouping"
+          },
+          "member_amount_minor": {
+            "anyOf": [
+              {
+                "maximum": 100000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Amount Minor"
+          },
+          "multi_resource_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "once",
+                  "per_resource"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Multi Resource Mode"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "rules": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RateRule"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rules"
+          },
+          "sort_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort Order"
+          },
+          "tax_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Ids"
+          }
+        },
+        "title": "RentalRateWrite",
+        "type": "object"
+      },
+      "RentalResourceOut": {
+        "properties": {
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_id",
+          "role"
+        ],
+        "title": "RentalResourceOut",
+        "type": "object"
+      },
+      "RentalSlot": {
+        "properties": {
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "is_member_price": {
+            "title": "Is Member Price",
+            "type": "boolean"
+          },
+          "price_minor": {
+            "title": "Price Minor",
+            "type": "integer"
+          },
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "resource_name": {
+            "title": "Resource Name",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "starts_at",
+          "ends_at",
+          "resource_id",
+          "resource_name",
+          "price_minor",
+          "is_member_price"
+        ],
+        "title": "RentalSlot",
+        "type": "object"
+      },
+      "RentalTypeCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "access": {
+            "anyOf": [
+              {
+                "enum": [
+                  "staff_only",
+                  "self_service"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access"
+          },
+          "buffer_after_min": {
+            "anyOf": [
+              {
+                "maximum": 240.0,
+                "minimum": 0.0,
+                "multipleOf": 5.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buffer After Min"
+          },
+          "buffer_before_min": {
+            "anyOf": [
+              {
+                "maximum": 240.0,
+                "minimum": 0.0,
+                "multipleOf": 5.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buffer Before Min"
+          },
+          "cancel_cutoff_hours": {
+            "anyOf": [
+              {
+                "maximum": 8760.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel Cutoff Hours"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "pattern": "^#[0-9a-f]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "default_length_min": {
+            "anyOf": [
+              {
+                "maximum": 1440.0,
+                "minimum": 15.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Length Min"
+          },
+          "deposit_pct": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Pct"
+          },
+          "eligibility": {
+            "anyOf": [
+              {
+                "enum": [
+                  "everyone",
+                  "active_members",
+                  "paid_up_members"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eligibility"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "late_cancel_fee_pct": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Late Cancel Fee Pct"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "max_length_min": {
+            "anyOf": [
+              {
+                "maximum": 1440.0,
+                "minimum": 15.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Length Min"
+          },
+          "min_lead_min": {
+            "anyOf": [
+              {
+                "maximum": 525600.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Lead Min"
+          },
+          "min_length_min": {
+            "anyOf": [
+              {
+                "maximum": 1440.0,
+                "minimum": 15.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Length Min"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "online_description": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Online Description"
+          },
+          "online_payment_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pay_in_full",
+                  "pay_later"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Online Payment Mode"
+          },
+          "online_rental_rate_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Online Rental Rate Id"
+          },
+          "rental_plan_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 200,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rental Plan Ids"
+          },
+          "resource_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 200,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Ids"
+          },
+          "revenue_category_id": {
+            "format": "uuid",
+            "title": "Revenue Category Id",
+            "type": "string"
+          },
+          "slot_granularity_min": {
+            "anyOf": [
+              {
+                "enum": [
+                  15,
+                  30,
+                  60
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Granularity Min"
+          },
+          "sort_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort Order"
+          }
+        },
+        "required": [
+          "name",
+          "revenue_category_id",
+          "location_id"
+        ],
+        "title": "RentalTypeCreate",
+        "type": "object"
+      },
+      "RentalTypeOut": {
+        "properties": {
+          "access": {
+            "title": "Access",
+            "type": "string"
+          },
+          "buffer_after_min": {
+            "title": "Buffer After Min",
+            "type": "integer"
+          },
+          "buffer_before_min": {
+            "title": "Buffer Before Min",
+            "type": "integer"
+          },
+          "cancel_cutoff_hours": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel Cutoff Hours"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "default_length_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Length Min"
+          },
+          "deposit_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Pct"
+          },
+          "eligibility": {
+            "title": "Eligibility",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "late_cancel_fee_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Late Cancel Fee Pct"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "max_length_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Length Min"
+          },
+          "min_lead_min": {
+            "title": "Min Lead Min",
+            "type": "integer"
+          },
+          "min_length_min": {
+            "title": "Min Length Min",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "online_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Online Description"
+          },
+          "online_payment_mode": {
+            "title": "Online Payment Mode",
+            "type": "string"
+          },
+          "online_rental_rate_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Online Rental Rate Id"
+          },
+          "rental_plan_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Rental Plan Ids",
+            "type": "array"
+          },
+          "resource_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Resource Ids",
+            "type": "array"
+          },
+          "revenue_category_id": {
+            "format": "uuid",
+            "title": "Revenue Category Id",
+            "type": "string"
+          },
+          "slot_granularity_min": {
+            "title": "Slot Granularity Min",
+            "type": "integer"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "name",
+          "revenue_category_id",
+          "color",
+          "sort_order",
+          "buffer_before_min",
+          "buffer_after_min",
+          "access",
+          "online_rental_rate_id",
+          "eligibility",
+          "online_payment_mode",
+          "min_lead_min",
+          "default_length_min",
+          "min_length_min",
+          "max_length_min",
+          "slot_granularity_min",
+          "online_description",
+          "deposit_pct",
+          "cancel_cutoff_hours",
+          "late_cancel_fee_pct",
+          "is_active"
+        ],
+        "title": "RentalTypeOut",
+        "type": "object"
+      },
+      "RentalTypeUpdate": {
+        "additionalProperties": false,
+        "description": "`access = self_service` requires online_rental_rate_id and at least one resource (422).",
+        "properties": {
+          "access": {
+            "anyOf": [
+              {
+                "enum": [
+                  "staff_only",
+                  "self_service"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access"
+          },
+          "buffer_after_min": {
+            "anyOf": [
+              {
+                "maximum": 240.0,
+                "minimum": 0.0,
+                "multipleOf": 5.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buffer After Min"
+          },
+          "buffer_before_min": {
+            "anyOf": [
+              {
+                "maximum": 240.0,
+                "minimum": 0.0,
+                "multipleOf": 5.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buffer Before Min"
+          },
+          "cancel_cutoff_hours": {
+            "anyOf": [
+              {
+                "maximum": 8760.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel Cutoff Hours"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "pattern": "^#[0-9a-f]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "default_length_min": {
+            "anyOf": [
+              {
+                "maximum": 1440.0,
+                "minimum": 15.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Length Min"
+          },
+          "deposit_pct": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Pct"
+          },
+          "eligibility": {
+            "anyOf": [
+              {
+                "enum": [
+                  "everyone",
+                  "active_members",
+                  "paid_up_members"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eligibility"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "late_cancel_fee_pct": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Late Cancel Fee Pct"
+          },
+          "max_length_min": {
+            "anyOf": [
+              {
+                "maximum": 1440.0,
+                "minimum": 15.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Length Min"
+          },
+          "min_lead_min": {
+            "anyOf": [
+              {
+                "maximum": 525600.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Lead Min"
+          },
+          "min_length_min": {
+            "anyOf": [
+              {
+                "maximum": 1440.0,
+                "minimum": 15.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Length Min"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "online_description": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Online Description"
+          },
+          "online_payment_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pay_in_full",
+                  "pay_later"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Online Payment Mode"
+          },
+          "online_rental_rate_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Online Rental Rate Id"
+          },
+          "rental_plan_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 200,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rental Plan Ids"
+          },
+          "resource_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 200,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Ids"
+          },
+          "revenue_category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Category Id"
+          },
+          "slot_granularity_min": {
+            "anyOf": [
+              {
+                "enum": [
+                  15,
+                  30,
+                  60
+                ],
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Granularity Min"
+          },
+          "sort_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort Order"
+          }
+        },
+        "title": "RentalTypeUpdate",
         "type": "object"
       },
       "ResourceCreate": {
@@ -9538,6 +13206,211 @@
           }
         },
         "title": "WindowUpdate",
+        "type": "object"
+      },
+      "app__modules__billing__schemas__LedgerEntryOut": {
+        "properties": {
+          "account": {
+            "enum": [
+              "receivable",
+              "revenue",
+              "tax_payable",
+              "funds_received",
+              "client_credit",
+              "disputed_funds"
+            ],
+            "title": "Account",
+            "type": "string"
+          },
+          "charge_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Id"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "credit_minor": {
+            "title": "Credit Minor",
+            "type": "integer"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "debit_minor": {
+            "title": "Debit Minor",
+            "type": "integer"
+          },
+          "effective_on": {
+            "format": "date",
+            "title": "Effective On",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ledger_transaction_id": {
+            "format": "uuid",
+            "title": "Ledger Transaction Id",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "payment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Id"
+          },
+          "revenue_category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Category Id"
+          },
+          "tax_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Id"
+          }
+        },
+        "required": [
+          "id",
+          "ledger_transaction_id",
+          "account",
+          "debit_minor",
+          "credit_minor",
+          "currency",
+          "effective_on",
+          "location_id",
+          "client_id",
+          "revenue_category_id",
+          "tax_id",
+          "charge_id",
+          "payment_id"
+        ],
+        "title": "LedgerEntryOut",
+        "type": "object"
+      },
+      "app__modules__rentals__schemas__LedgerEntryOut": {
+        "properties": {
+          "balance_after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance After"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "entry_type": {
+            "title": "Entry Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "string"
+          },
+          "rental_booking_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rental Booking Id"
+          },
+          "used_by_client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Used By Client Id"
+          }
+        },
+        "required": [
+          "id",
+          "entry_type",
+          "quantity",
+          "balance_after",
+          "rental_booking_id",
+          "used_by_client_id",
+          "note",
+          "created_at"
+        ],
+        "title": "LedgerEntryOut",
         "type": "object"
       }
     }
@@ -14207,6 +18080,389 @@
         ]
       }
     },
+    "/api/v1/portal/rentals": {
+      "get": {
+        "operationId": "listPortalRentals",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_RentalOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Portal Rentals",
+        "tags": [
+          "rentals"
+        ]
+      },
+      "post": {
+        "description": "Holds the time for the location's checkout window (scheduling settings) while the client pays.",
+        "operationId": "createPortalRental",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalRentalCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalCheckout"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Portal Rental",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/portal/rentals/{rental_id}/abandon": {
+      "post": {
+        "operationId": "abandonPortalRental",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rental_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rental Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Abandon Portal Rental",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/portal/rentals/{rental_id}/cancel": {
+      "post": {
+        "operationId": "cancelPortalRental",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rental_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rental Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalCancelResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Portal Rental",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/portal/rentals/{rental_id}/confirm": {
+      "post": {
+        "description": "Errors: hold-expired, payment-declined.",
+        "operationId": "confirmPortalRental",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rental_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rental Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "description": "Required; keys live 24 hours.",
+              "maxLength": 255,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalRentalConfirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalCheckout"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Portal Rental",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
     "/api/v1/public/locations": {
       "get": {
         "description": "Public location directory of the tenant resolved from the host.",
@@ -14324,6 +18580,2184 @@
         "summary": "List Public Locations",
         "tags": [
           "platform"
+        ]
+      }
+    },
+    "/api/v1/public/rental-availability": {
+      "get": {
+        "description": "Advisory: the hold insert at checkout decides. One page of at most `limit` slots for the day.",
+        "operationId": "searchRentalAvailability",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "rental_type_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rental Type Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "on",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "On",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "length_min",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Length Min"
+            }
+          },
+          {
+            "in": "query",
+            "name": "resource_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Resource Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_RentalSlot_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search Rental Availability",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/public/rental-types": {
+      "get": {
+        "operationId": "listPublicRentalTypes",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PublicRentalType"
+                  },
+                  "title": "Response Listpublicrentaltypes",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Public Rental Types",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rental-plan-purchases": {
+      "get": {
+        "description": "Filters: location_id, client_id, status, rental_plan_id.",
+        "operationId": "listRentalPlanPurchases",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PurchaseOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Rental Plan Purchases",
+        "tags": [
+          "rentals"
+        ]
+      },
+      "post": {
+        "operationId": "sellRentalPlan",
+        "parameters": [
+          {
+            "description": "Required; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "description": "Required; keys live 24 hours.",
+              "maxLength": 255,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanSale"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sell Rental Plan",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rental-plan-purchases/{purchase_id}": {
+      "get": {
+        "operationId": "getRentalPlanPurchase",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "purchase_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Purchase Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Rental Plan Purchase",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rental-plan-purchases/{purchase_id}/cancel": {
+      "post": {
+        "operationId": "cancelRentalPlanPurchase",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "purchase_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Purchase Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchaseCancel"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Rental Plan Purchase",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rental-plan-purchases/{purchase_id}/ledger": {
+      "get": {
+        "operationId": "listRentalPlanLedger",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "purchase_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Purchase Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/app__modules__rentals__schemas__LedgerEntryOut"
+                  },
+                  "title": "Response Listrentalplanledger",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Rental Plan Ledger",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rental-plans": {
+      "get": {
+        "description": "Filters: location_id, status, rental_type_id. q searches the name.",
+        "operationId": "listRentalPlans",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_RentalPlanOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Rental Plans",
+        "tags": [
+          "rentals"
+        ]
+      },
+      "post": {
+        "operationId": "createRentalPlan",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RentalPlanCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalPlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Rental Plan",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rental-plans/{rental_plan_id}": {
+      "delete": {
+        "description": "Archives the plan: sold purchases are unaffected.",
+        "operationId": "deleteRentalPlan",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rental_plan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rental Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Rental Plan",
+        "tags": [
+          "rentals"
+        ]
+      },
+      "get": {
+        "operationId": "getRentalPlan",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rental_plan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rental Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalPlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Rental Plan",
+        "tags": [
+          "rentals"
+        ]
+      },
+      "patch": {
+        "operationId": "updateRentalPlan",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rental_plan_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rental Plan Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RentalPlanUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalPlanOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Rental Plan",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rental-rates/{rental_rate_id}": {
+      "get": {
+        "operationId": "getRentalRate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rental_rate_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rental Rate Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalRateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Rental Rate",
+        "tags": [
+          "rentals"
+        ]
+      },
+      "patch": {
+        "operationId": "updateRentalRate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rental_rate_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rental Rate Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RentalRateWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalRateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Rental Rate",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rental-types": {
+      "get": {
+        "description": "Filters: location_id, is_active, access. Sort: sort_order, name. q searches the name.",
+        "operationId": "listRentalTypes",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_RentalTypeOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Rental Types",
+        "tags": [
+          "rentals"
+        ]
+      },
+      "post": {
+        "operationId": "createRentalType",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RentalTypeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalTypeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Rental Type",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rental-types/{rental_type_id}": {
+      "get": {
+        "operationId": "getRentalType",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rental_type_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rental Type Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalTypeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Rental Type",
+        "tags": [
+          "rentals"
+        ]
+      },
+      "patch": {
+        "description": "`resource_ids` and `rental_plan_ids` replace the whole set when given.",
+        "operationId": "updateRentalType",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rental_type_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rental Type Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RentalTypeUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalTypeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Rental Type",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rental-types/{rental_type_id}/rates": {
+      "get": {
+        "operationId": "listRentalRates",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rental_type_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rental Type Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_RentalRateOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Rental Rates",
+        "tags": [
+          "rentals"
+        ]
+      },
+      "post": {
+        "operationId": "createRentalRate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rental_type_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rental Type Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RentalRateWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalRateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Rental Rate",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rentals": {
+      "get": {
+        "description": "Filters: location_id, rental_type_id, charge_state, booked_via, starts_at[gte|lt], and booking-side\nclient_id, status, booking_series_id, resource_id. `charge_state=unbilled` is the unbilled queue.",
+        "operationId": "listRentals",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_RentalOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Rentals",
+        "tags": [
+          "rentals"
+        ]
+      },
+      "post": {
+        "description": "Book and decide billing in one transaction. Above 50 occurrences: 202 with `status_url`, unbilled.\nErrors: booking-conflict, resource-blacked-out, rate-not-applicable, insufficient-plan-balance.",
+        "operationId": "createRental",
+        "parameters": [
+          {
+            "description": "Required; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "description": "Required; keys live 24 hours.",
+              "maxLength": 255,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RentalCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Rental",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rentals/charges": {
+      "post": {
+        "description": "Bill unbilled occurrences of one client and type. `preview: true` returns the quote only.",
+        "operationId": "billSelectedRentals",
+        "parameters": [
+          {
+            "description": "Required; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "description": "Required; keys live 24 hours.",
+              "maxLength": 255,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BillSelected"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Billed"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bill Selected Rentals",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rentals/preview": {
+      "post": {
+        "description": "Dry run: what each occurrence would meet and the quote of the bookable ones. Nothing is written.",
+        "operationId": "previewRental",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RentalCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalPreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Rental",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rentals/{rental_id}": {
+      "get": {
+        "operationId": "getRental",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rental_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rental Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Rental",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rentals/{rental_id}/cancel": {
+      "post": {
+        "description": "Cancel this occurrence or a scope of its series and settle the money (reverse, re-post, credit).",
+        "operationId": "cancelRental",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rental_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rental Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RentalCancel"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalCancelResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Rental",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rentals/{rental_id}/extensions": {
+      "post": {
+        "description": "Add occurrences to a recurring rental; they arrive unbilled. 202 with `status_url` above 50.",
+        "operationId": "extendRental",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rental_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rental Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Extension"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Extended"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Extend Rental",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rentals/{rental_id}/public-schedule": {
+      "put": {
+        "operationId": "setRentalPublicSchedule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rental_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rental Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicSchedule"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Rental Public Schedule",
+        "tags": [
+          "rentals"
         ]
       }
     },

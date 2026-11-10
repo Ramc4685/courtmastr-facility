@@ -715,6 +715,63 @@ def refund(
     return row
 
 
+def category_taxes(session: Session, revenue_category_id: UUID, on: date) -> list[tuple[UUID, Decimal]]:
+    """(tax_id, rate) of the taxes post_charge would apply to a line of this category on that date; callers
+    quote with it and pass the unticked ones to post_charge as exclude_tax_ids (rentals)."""
+    return _taxes_in_force(session, revenue_category_id, on)
+
+
+def attach_charges(session: Session, invoice_id: UUID, charge_ids: Sequence[UUID]) -> Invoice:
+    """Add uninvoiced items to an open invoice of the same location and payer (BIL-04, rentals' "existing
+    open invoice" routing). Build module 8 ships the full version of this function under the same name."""
+    invoice = _lock(session, Invoice, invoice_id, pointer="/existing_invoice_id")
+    if invoice.status not in ("open", "partially_paid"):
+        raise Conflict("Items can only be added to an open invoice.", code="invoice-not-open")
+    for charge_id in sorted(set(charge_ids)):
+        charge = _lock(session, Charge, charge_id, pointer="/charge_ids")
+        if charge.status != "active" or charge.invoice_id is not None:
+            raise Conflict("An item is already invoiced, reversed or voided.", code="charge-not-invoiceable")
+        if charge.location_id != invoice.location_id or charge.client_id != invoice.bill_to_client_id:
+            raise ValidationFailed(
+                "The invoice belongs to another client or location.", pointer="/existing_invoice_id",
+                code="payer-mismatch",
+            )  # fmt: skip
+        charge.invoice_id = invoice.id
+    session.flush()
+    audit.record(
+        session, "billing.invoice.update", invoice, location_id=invoice.location_id,
+        changes={"charges_added": [None, len(set(charge_ids))]},
+    )  # fmt: skip
+    _refresh_invoice(session, invoice.id)
+    return invoice
+
+
+def charge_states(session: Session, charge_ids: Iterable[UUID]) -> dict[UUID, dict]:
+    """Internal read for owning contexts: status, invoice, invoice status and total of each charge."""
+    ids = list(charge_ids)
+    rows = session.execute(
+        select(Charge.id, Charge.status, Charge.invoice_id, Invoice.status, Charge.total_minor)
+        .outerjoin(Invoice, Invoice.id == Charge.invoice_id)
+        .where(Charge.id.in_(ids))
+    ).all() if ids else []  # fmt: skip
+    return {
+        row[0]: {"status": row[1], "invoice_id": row[2], "invoice_status": row[3], "total_minor": row[4]}
+        for row in rows
+    }
+
+
+def excluded_tax_ids(session: Session, charge_id: UUID) -> list[UUID]:
+    """Internal: the taxes a charge was posted without, so a re-post can keep the same choice."""
+    return list(
+        session.scalars(select(ChargeTax.tax_id).where(ChargeTax.charge_id == charge_id, ChargeTax.is_excluded))
+    )
+
+
+def invoice_charge_ids(session: Session, invoice_id: UUID) -> list[UUID]:
+    """Internal: the active charges grouped under an invoice."""
+    return list(session.scalars(select(Charge.id).where(Charge.invoice_id == invoice_id, Charge.status == "active")))
+
+
 # === private ===============================================================================================
 
 
