@@ -166,4 +166,17 @@ Events on the outbox: `clients.client.created`; `billing.charge.created`, `billi
 
 ## Lane environments
 
-Filled in after the worktrees were created; see the table at the end of this file.
+Worktrees under `/Users/ramc/Documents/Creative Projects/fh-lanes/`, each on its own branch cut from main.
+Each has its own `.env` (main's plus the four lane variables), `uv sync`, `pnpm install`, `make lane-db`,
+`make seed`, then `make lint test`.
+
+| Lane | Branch | Databases | API / web port | `make lint` | `make test` |
+|---|---|---|---|---|---|
+| space | `lane/space` | `facilityhub_space`, `facilityhub_test_space` | 8110 / 5193 | clean | 451 passed; domain gate 98% |
+| people | `lane/people` | `facilityhub_people`, `facilityhub_test_people` | 8120 / 5203 | clean | 451 passed; domain gate 98% |
+| money | `lane/money` | `facilityhub_money`, `facilityhub_test_money` | 8130 / 5213 | clean | 451 passed; domain gate 98% |
+
+The first run in each lane failed one test (450 passed): `test_settings_carry_the_display_name_in_one_place`
+asserted the default test database name. It now follows `FH_TEST_DB_NAME`; the lanes were fast-forwarded to
+that fix and re-run to the numbers above. Web checks and Playwright were run in the main checkout only; in a
+lane, settings and `web/lane.ts` were confirmed to resolve the lane's database and ports.
