@@ -172,6 +172,7 @@ def populate(client, tenant) -> SimpleNamespace:
         )
         category = billing.service.create_revenue_category(session, code="RENT", label="Rentals", tax_ids=[tax.id])
         category_id = str(category.id)
+        tax_id = str(tax.id)
 
     def post(path: str, body: dict, key: str | None = None) -> dict:
         response = client.post(f"/api/v1{path}", json=body, headers=headers | ({"Idempotency-Key": key} if key else {}))
@@ -190,11 +191,49 @@ def populate(client, tenant) -> SimpleNamespace:
     post(
         f"/payments/{payment['id']}/refunds", {"amount_minor": 500, "reason": "Overpaid"}, key=f"populate-{uuid4().hex}"
     )
+    billing_ids = _populate_billing(client, headers, post, person, location, category_id, tax_id, payment)
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
         session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
-        payment_id=payment["id"], revenue_category_id=category_id,
+        payment_id=payment["id"], revenue_category_id=category_id, tax_id=tax_id, **billing_ids,
     )  # fmt: skip
+
+
+def _populate_billing(client, headers, post, person, location, category_id, tax_id, payment) -> dict:
+    """Build module 8: one row in every billing table it added, and the ids its routes take."""
+
+    def get(path: str):
+        response = client.get(f"/api/v1{path}", headers=headers)
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    def key() -> str:
+        return f"populate-{uuid4().hex}"
+
+    item = {"client_id": person["id"], "location_id": location["id"], "description": "Clinic", "unit_price_minor": 5000}
+    assert client.put("/api/v1/billing-settings", headers=headers, json={}).status_code == 200
+    coupon = post("/coupons", {"name": "Welcome", "code": "WELCOME", "starts_at": "2020-01-01T00:00:00Z",
+                               "discount_pct": "10"})  # fmt: skip
+    method = post(f"/clients/{person['id']}/payment-methods", {"method_token": "tok_card_ok"})  # + provider_customer
+    due = post("/charges", item | {"coupon_code": "WELCOME"})  # + coupon_redemption
+    autopay_invoice = post("/invoices", {"charge_ids": [due["id"]], "is_autopay": True})  # + payment_schedule
+    run = post("/autopay-runs", {"location_id": location["id"]}, key=key())["run"]  # + autopay_attempt
+    attempt = get(f"/autopay-attempts?autopay_run_id={run['id']}")["data"][0]
+    assert attempt["status"] == "succeeded", attempt
+    unpaid = post("/invoices", {"charge_ids": [post("/charges", item)["id"]]})
+    post(f"/invoices/{unpaid['id']}/deliveries", {})  # billing_document_delivery + invoice_pay_link
+    declined = post("/payments", {  # a decline writes the billing_notice
+        "client_id": person["id"], "location_id": location["id"], "amount_minor": 100, "tender_kind": "card",
+        "method_token": "tok_card_declined",
+    }, key=key())  # fmt: skip
+    assert declined["status"] == "failed"
+    return {
+        "tax_rate_id": get(f"/taxes/{tax_id}")["rates"][0]["id"], "tender_type_id": get("/tender-types")[0]["id"],
+        "coupon_id": coupon["id"], "payment_method_id": method["id"], "autopay_run_id": run["id"],
+        "autopay_attempt_id": attempt["id"], "provider_account_id": get("/provider-accounts")[0]["id"],
+        "payment_allocation_id": payment["allocations"][0]["id"], "unpaid_invoice_id": unpaid["id"],
+        "autopay_invoice_id": autopay_invoice["id"],
+    }  # fmt: skip
 
 
 @pytest.fixture(scope="session")

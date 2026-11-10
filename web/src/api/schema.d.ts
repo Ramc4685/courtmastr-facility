@@ -266,6 +266,205 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/autopay-attempts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Autopay Attempts
+         * @description The autopay-error queue is status=failed&is_error_open=true. Filters: status, invoice_id,
+         *     autopay_run_id, is_error_open.
+         */
+        get: operations["listAutopayAttempts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/autopay-attempts/{autopay_attempt_id}/clear-error": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clear Autopay Error */
+        post: operations["clearAutopayError"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/autopay-attempts/{autopay_attempt_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Autopay Attempt
+         * @description Returns the new attempt. Errors: autopay-attempt-not-failed, invoice-not-payable.
+         */
+        post: operations["retryAutopayAttempt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/autopay-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Autopay Runs */
+        get: operations["listAutopayRuns"];
+        put?: never;
+        /**
+         * Start Autopay Run
+         * @description Collect what is due at a location now, or preview it with is_dry_run. Safe to repeat for a date.
+         */
+        post: operations["startAutopayRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/autopay-runs/{autopay_run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Autopay Run */
+        get: operations["getAutopayRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing-bulk-actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Billing Bulk Action
+         * @description Invoice many uninvoiced items: one invoice per client, never mixed. Runs in the request and reports
+         *     per client; `is_dry_run` previews.
+         */
+        post: operations["createBillingBulkAction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Billing History
+         * @description Filters: entity_type (invoice, charge, payment...), entity_id, action, location_id.
+         */
+        get: operations["listBillingHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing-notices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Billing Notices
+         * @description Reminders, decline notices and alerts that were sent. Filters: kind, client_id, subject_id.
+         */
+        get: operations["listBillingNotices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Billing Settings
+         * @description The settings in force: a location's override if it has one, else the tenant's.
+         */
+        get: operations["getBillingSettings"];
+        /** Put Billing Settings */
+        put: operations["putBillingSettings"];
+        post?: never;
+        /** Delete Billing Settings Override */
+        delete: operations["deleteBillingSettingsOverride"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/billing-settings/period-lock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Billing Period Lock
+         * @description Close the books through a date: later postings dated on or before it are refused with period-locked.
+         */
+        put: operations["setBillingPeriodLock"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/charges": {
         parameters: {
             query?: never;
@@ -275,7 +474,9 @@ export interface paths {
         };
         /**
          * List Charges
-         * @description Filters: client_id, invoice_id, location_id, status, kind, source_id. Sort: bill_on, created_at.
+         * @description The items workbench. Filters: client_id, invoice_id, location_id, status, kind, source_id,
+         *     revenue_category_id, bill_on, created_by_staff_user_id, is_uninvoiced (the "cart"), is_open; q searches the
+         *     description. Voided items are hidden unless status=voided. Sort: bill_on, created_at, revenue_on.
          */
         get: operations["listCharges"];
         put?: never;
@@ -288,6 +489,45 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/charges/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Charge */
+        post: operations["previewCharge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/charges/{charge_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Charge */
+        get: operations["getCharge"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Charge
+         * @description Text fields change in place. A money field returns the adjustment item that replaces this one (its
+         *     `adjusts_charge_id` points back). Errors: charge-not-reversible, period-locked.
+         */
+        patch: operations["updateCharge"];
         trace?: never;
     };
     "/api/v1/charges/{charge_id}/reverse": {
@@ -305,6 +545,26 @@ export interface paths {
          *     is a separate refund. Errors: charge-not-reversible, period-locked.
          */
         post: operations["reverseCharge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/charges/{charge_id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Void Charge
+         * @description Only an uninvoiced item with no payments. Errors: charge-not-voidable, period-locked.
+         */
+        post: operations["voidCharge"];
         delete?: never;
         options?: never;
         head?: never;
@@ -345,6 +605,232 @@ export interface paths {
         };
         /** Get Client */
         get: operations["getClient"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/account-credit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Account Credit */
+        get: operations["getAccountCredit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/account-credit/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Account Credit
+         * @description Pay with money on account, oldest payment first.
+         */
+        post: operations["applyAccountCredit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/account-credit/refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refund Account Credit
+         * @description One refund per payment, newest first, each to its original method. Errors: refund-exceeds-unapplied.
+         */
+        post: operations["refundAccountCredit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/billing-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Client Billing Summary */
+        get: operations["getClientBillingSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/payment-methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Client Payment Methods */
+        get: operations["listClientPaymentMethods"];
+        put?: never;
+        /**
+         * Attach Payment Method
+         * @description Store a method tokenised by the processor's hosted fields. Errors: payment-method-rejected.
+         */
+        post: operations["attachPaymentMethod"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/payment-methods/setup-intents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Setup Intent */
+        post: operations["createSetupIntent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/statement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Client Statement
+         * @description Default period: the 30 days up to today.
+         */
+        get: operations["getClientStatement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/statement/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send Client Statement */
+        post: operations["sendClientStatement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/coupons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Coupons */
+        get: operations["listCoupons"];
+        put?: never;
+        /** Create Coupon */
+        post: operations["createCoupon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/coupons/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate Coupon
+         * @description Validation only; a coupon is redeemed inside the command that sells something.
+         */
+        post: operations["validateCoupon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/coupons/{coupon_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Coupon */
+        get: operations["getCoupon"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Coupon
+         * @description Errors: coupon-in-use (deactivate it instead).
+         */
+        delete: operations["deleteCoupon"];
+        options?: never;
+        head?: never;
+        /** Update Coupon */
+        patch: operations["updateCoupon"];
+        trace?: never;
+    };
+    "/api/v1/coupons/{coupon_id}/redemptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Coupon Redemptions */
+        get: operations["listCouponRedemptions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -429,6 +915,209 @@ export interface paths {
         get: operations["getInvoice"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Invoice
+         * @description Errors: stale-version, invoice-voided, invoice-has-schedule.
+         */
+        patch: operations["updateInvoice"];
+        trace?: never;
+    };
+    "/api/v1/invoices/{invoice_id}/charges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Invoice Charges
+         * @description Errors: charge-not-invoiceable, payer-mismatch.
+         */
+        post: operations["addInvoiceCharges"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/{invoice_id}/charges/{charge_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Invoice Charge
+         * @description The item becomes uninvoiced. Errors: charge-has-payments.
+         */
+        delete: operations["removeInvoiceCharge"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/{invoice_id}/charges/{charge_id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move Invoice Charge
+         * @description To another invoice of the same payer and location. Errors: payer-mismatch.
+         */
+        post: operations["moveInvoiceCharge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/{invoice_id}/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Invoice Deliveries */
+        get: operations["listInvoiceDeliveries"];
+        put?: never;
+        /**
+         * Send Invoice
+         * @description Email the invoice with a single-use pay link. Errors: no-email-address, invoice-voided.
+         */
+        post: operations["sendInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/{invoice_id}/document": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Invoice Document
+         * @description The printable content of the invoice as data (PDF rendering is not built).
+         */
+        get: operations["getInvoiceDocument"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/{invoice_id}/mark-paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark Invoice Paid
+         * @description Records an external payment for the balance. Errors: invoice-not-payable.
+         */
+        post: operations["markInvoicePaid"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/{invoice_id}/payment-schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Payment Schedule */
+        get: operations["getPaymentSchedule"];
+        /**
+         * Put Payment Schedule
+         * @description The instalments must add up to the invoice total. Errors: schedule-not-balanced.
+         */
+        put: operations["putPaymentSchedule"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/{invoice_id}/payment-schedule/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Payment Schedule */
+        post: operations["generatePaymentSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/{invoice_id}/reassign-payer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reassign Invoice Payer
+         * @description Errors: invoice-has-payments.
+         */
+        post: operations["reassignInvoicePayer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/{invoice_id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Void Invoice
+         * @description Its items go back to uninvoiced. Errors: invoice-has-payments (pass release_allocations).
+         */
+        post: operations["voidInvoice"];
         delete?: never;
         options?: never;
         head?: never;
@@ -578,6 +1267,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/payment-methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Payment Methods
+         * @description Expiring cards: filter exp_year and exp_month. Other filters: client_id, kind, status, is_autopay.
+         */
+        get: operations["listPaymentMethods"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payment-methods/{payment_method_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Payment Method */
+        delete: operations["removePaymentMethod"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Payment Method
+         * @description Making a method the autopay method clears the flag on the client's other one and retries what waited.
+         */
+        patch: operations["updatePaymentMethod"];
+        trace?: never;
+    };
+    "/api/v1/payment-methods/{payment_method_id}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Bank Account
+         * @description Errors: verification-failed, payment-method-not-pending.
+         */
+        post: operations["verifyBankAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payments": {
         parameters: {
             query?: never;
@@ -642,6 +1392,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/payments/{payment_id}/allocations/{payment_allocation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Release Allocation
+         * @description Take the money back off one item; it becomes account credit. Errors: allocation-released.
+         */
+        delete: operations["releaseAllocation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/{payment_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Payment
+         * @description Errors: payment-not-cancellable.
+         */
+        post: operations["cancelPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payments/{payment_id}/confirm": {
         parameters: {
             query?: never;
@@ -656,6 +1446,40 @@ export interface paths {
          * @description Re-read the processor and apply its answer (settles a pending bank debit). Safe to repeat.
          */
         post: operations["confirmPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/{payment_id}/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Receipt */
+        get: operations["getReceipt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/{payment_id}/receipt-deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send Receipt */
+        post: operations["sendReceipt"];
         delete?: never;
         options?: never;
         head?: never;
@@ -682,6 +1506,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/payments/{payment_id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Void Payment
+         * @description Record-only payments only. Errors: use-refund, payment-not-voidable.
+         */
+        post: operations["voidPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/permissions": {
         parameters: {
             query?: never;
@@ -696,6 +1540,234 @@ export interface paths {
         get: operations["listPermissionCatalogue"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/billing-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Billing Summary */
+        get: operations["getPortalBillingSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Invoices
+         * @description The caller's invoices. Filter is_payable=true for what can be paid now.
+         */
+        get: operations["listPortalInvoices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/invoices/{invoice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Invoice */
+        get: operations["getPortalInvoice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/payment-methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Portal Payment Methods */
+        get: operations["listPortalPaymentMethods"];
+        put?: never;
+        /** Attach Portal Payment Method */
+        post: operations["attachPortalPaymentMethod"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/payment-methods/setup-intents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Portal Setup Intent */
+        post: operations["createPortalSetupIntent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/payment-methods/{payment_method_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Portal Payment Method
+         * @description Errors: payment-method-required (the last method while an autopay invoice is open).
+         */
+        delete: operations["removePortalPaymentMethod"];
+        options?: never;
+        head?: never;
+        /** Update Portal Payment Method */
+        patch: operations["updatePortalPaymentMethod"];
+        trace?: never;
+    };
+    "/api/v1/portal/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Portal Payments */
+        get: operations["listPortalPayments"];
+        put?: never;
+        /**
+         * Pay Portal Invoices
+         * @description Pay the full balance of the caller's own invoices. The payer is the caller's client and a stored
+         *     method must be theirs. Read `payment.status`. Errors: invoice-not-payable, payment-method-not-usable.
+         */
+        post: operations["payPortalInvoices"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/provider-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Provider Accounts */
+        get: operations["listProviderAccounts"];
+        put?: never;
+        /**
+         * Connect Provider Account
+         * @description Errors: provider-unavailable, processor-already-connected.
+         */
+        post: operations["connectProviderAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/provider-accounts/{provider_account_id}/disconnect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disconnect Provider Account */
+        post: operations["disconnectProviderAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/provider-accounts/{provider_account_id}/onboarding-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Onboarding Link */
+        post: operations["createOnboardingLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/invoice-links/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get Invoice By Link
+         * @description What the emailed link pays. The token travels in the body, never the URL. Errors: link-invalid.
+         */
+        post: operations["getInvoiceByLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/invoice-links/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pay Invoice By Link
+         * @description Pay the invoice's balance by card. A payment that goes through uses the link up. Errors: link-invalid,
+         *     invoice-not-payable.
+         */
+        post: operations["payInvoiceByLink"];
         delete?: never;
         options?: never;
         head?: never;
@@ -722,6 +1794,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/receivables-ageing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Receivables Ageing
+         * @description Accounts receivable by client and age, as at a date (default today).
+         */
+        get: operations["getReceivablesAgeing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/refunds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Refunds
+         * @description Filters: client_id, payment_id, status, location_id, refund_batch_id.
+         */
+        get: operations["listRefunds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/revenue-categories": {
         parameters: {
             query?: never;
@@ -735,11 +1847,33 @@ export interface paths {
          */
         get: operations["listRevenueCategories"];
         put?: never;
-        post?: never;
+        /** Create Revenue Category */
+        post: operations["createRevenueCategory"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/revenue-categories/{revenue_category_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Revenue Category */
+        get: operations["getRevenueCategory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Revenue Category
+         * @description `tax_ids` replaces the category's default taxes. Posted items keep the taxes they were created with.
+         */
+        patch: operations["updateRevenueCategory"];
         trace?: never;
     };
     "/api/v1/roles": {
@@ -1022,6 +2156,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/taxes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Taxes */
+        get: operations["listTaxes"];
+        put?: never;
+        /** Create Tax */
+        post: operations["createTax"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxes/{tax_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Tax */
+        get: operations["getTax"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Tax */
+        patch: operations["updateTax"];
+        trace?: never;
+    };
+    "/api/v1/taxes/{tax_id}/rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Tax Rate
+         * @description A new rate from a date. Items are taxed at the rate in force on their revenue date.
+         */
+        post: operations["addTaxRate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/taxes/{tax_id}/rates/{tax_rate_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Tax Rate */
+        delete: operations["deleteTaxRate"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Tax Rate
+         * @description Only a rate no item has used yet. Errors: tax-rate-in-use.
+         */
+        patch: operations["updateTaxRate"];
+        trace?: never;
+    };
     "/api/v1/tenant": {
         parameters: {
             query?: never;
@@ -1040,10 +2251,126 @@ export interface paths {
         patch: operations["updateTenant"];
         trace?: never;
     };
+    "/api/v1/tender-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Tender Types */
+        get: operations["listTenderTypes"];
+        put?: never;
+        /** Create Tender Type */
+        post: operations["createTenderType"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tender-types/{tender_type_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Tender Type */
+        patch: operations["updateTenderType"];
+        trace?: never;
+    };
+    "/api/v1/webhooks/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Receive Provider Webhook
+         * @description Signed events from the payment processor (`stripe`, or `fake` in development). Verified, stored once
+         *     by event id, then processed in the tenant. A duplicate is acknowledged and ignored. Errors:
+         *     invalid-signature.
+         */
+        post: operations["receiveProviderWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AccountCredit */
+        AccountCredit: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Credit Minor */
+            credit_minor: number;
+            /** Currency */
+            currency: string;
+            /** Payments */
+            payments: components["schemas"]["PaymentOut"][];
+        };
+        /** AgeingReport */
+        AgeingReport: {
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /** Currency */
+            currency: string;
+            /** Rows */
+            rows: components["schemas"]["AgeingRow"][];
+            totals: components["schemas"]["AgeingTotals"];
+        };
+        /** AgeingRow */
+        AgeingRow: {
+            /** Client Id */
+            client_id: string | null;
+            /** Current */
+            current: number;
+            /** Days 1 30 */
+            days_1_30: number;
+            /** Days 31 60 */
+            days_31_60: number;
+            /** Days 61 90 */
+            days_61_90: number;
+            /** Days Over 90 */
+            days_over_90: number;
+            /** Total Minor */
+            total_minor: number;
+        };
+        /** AgeingTotals */
+        AgeingTotals: {
+            /** Current */
+            current: number;
+            /** Days 1 30 */
+            days_1_30: number;
+            /** Days 31 60 */
+            days_31_60: number;
+            /** Days 61 90 */
+            days_61_90: number;
+            /** Days Over 90 */
+            days_over_90: number;
+            /** Total Minor */
+            total_minor: number;
+        };
         /** AllocationIn */
         AllocationIn: {
             /** Amount Minor */
@@ -1173,6 +2500,438 @@ export interface components {
             /** Refresh Token */
             refresh_token?: string | null;
         };
+        /** AutopayAttemptOut */
+        AutopayAttemptOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Attempt No */
+            attempt_no: number;
+            /**
+             * Autopay Run Id
+             * Format: uuid
+             */
+            autopay_run_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Credit Applied Minor */
+            credit_applied_minor: number;
+            /** Error Cleared At */
+            error_cleared_at: string | null;
+            /** Failure Category */
+            failure_category: string | null;
+            /** Failure Message */
+            failure_message: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Invoice Id
+             * Format: uuid
+             */
+            invoice_id: string;
+            /** Payment Id */
+            payment_id: string | null;
+            /** Payment Method Id */
+            payment_method_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "succeeded" | "processing" | "failed" | "skipped";
+        };
+        /** AutopayPreviewRow */
+        AutopayPreviewRow: {
+            /** Bill To Client Id */
+            bill_to_client_id: string | null;
+            /** Credit Minor */
+            credit_minor: number;
+            /** Due Minor */
+            due_minor: number;
+            /** Has Payment Method */
+            has_payment_method: boolean;
+            /**
+             * Invoice Id
+             * Format: uuid
+             */
+            invoice_id: string;
+            /** Number */
+            number: number;
+        };
+        /** AutopayRunOut */
+        AutopayRunOut: {
+            /**
+             * Business On
+             * Format: date
+             */
+            business_on: string;
+            /** Collected Minor */
+            collected_minor: number;
+            /** Failed Count */
+            failed_count: number;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Selected Count */
+            selected_count: number;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "running" | "completed" | "completed_with_errors";
+            /** Succeeded Count */
+            succeeded_count: number;
+        };
+        /**
+         * AutopayRunResult
+         * @description `run` for a real run, `preview` for a dry run.
+         */
+        AutopayRunResult: {
+            /** Preview */
+            preview?: components["schemas"]["AutopayPreviewRow"][] | null;
+            run?: components["schemas"]["AutopayRunOut"] | null;
+        };
+        /** AutopayRunStart */
+        AutopayRunStart: {
+            /** Business On */
+            business_on?: string | null;
+            /**
+             * Is Dry Run
+             * @default false
+             */
+            is_dry_run: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+        };
+        /** BankVerifyRequest */
+        BankVerifyRequest: {
+            /** Amounts */
+            amounts: number[];
+        };
+        /** BillingSettingsIn */
+        BillingSettingsIn: {
+            /**
+             * Autopay Retry Offset Days
+             * @default [
+             *       3,
+             *       5,
+             *       7
+             *     ]
+             */
+            autopay_retry_offset_days: number[];
+            /**
+             * Bill To Fields
+             * @default [
+             *       "name",
+             *       "address"
+             *     ]
+             */
+            bill_to_fields: ("name" | "organization" | "address" | "email" | "phone")[];
+            /**
+             * Card Expiry Notice Days
+             * @default [
+             *       60,
+             *       30
+             *     ]
+             */
+            card_expiry_notice_days: number[];
+            /**
+             * Card Expiry Notice Scope
+             * @default autopay_methods
+             * @enum {string}
+             */
+            card_expiry_notice_scope: "all_methods" | "autopay_methods";
+            /** Decline Alert Email */
+            decline_alert_email?: string | null;
+            /**
+             * Decline Alert Mode
+             * @default per_event
+             * @enum {string}
+             */
+            decline_alert_mode: "per_event" | "daily_digest";
+            /**
+             * Decline Notice Scope
+             * @default all_payments
+             * @enum {string}
+             */
+            decline_notice_scope: "off" | "all_payments" | "autopay_payments";
+            /**
+             * Due Reminder Offset Days
+             * @default [
+             *       -3
+             *     ]
+             */
+            due_reminder_offset_days: number[];
+            /**
+             * Invoice Email Subject
+             * @default Invoice {invoice_number}
+             */
+            invoice_email_subject: string;
+            /** Invoice Footer */
+            invoice_footer?: string | null;
+            /**
+             * Is Membership Autopay Default Portal
+             * @default true
+             */
+            is_membership_autopay_default_portal: boolean;
+            /**
+             * Is Membership Autopay Default Staff
+             * @default false
+             */
+            is_membership_autopay_default_staff: boolean;
+            /**
+             * Is Portal Blocked When Past Due
+             * @default false
+             */
+            is_portal_blocked_when_past_due: boolean;
+            /**
+             * Is Program Description On Invoice
+             * @default false
+             */
+            is_program_description_on_invoice: boolean;
+            /**
+             * Package Invoice Sessions
+             * @default all
+             * @enum {string}
+             */
+            package_invoice_sessions: "all" | "attended" | "none";
+            /**
+             * Program Description Source
+             * @default group
+             * @enum {string}
+             */
+            program_description_source: "group" | "subgroup";
+            /** Receipt Footer */
+            receipt_footer?: string | null;
+            /**
+             * Save Card Default
+             * @default ask
+             * @enum {string}
+             */
+            save_card_default: "never" | "ask" | "always";
+            /** Statement Email Body */
+            statement_email_body?: string | null;
+            /** Statement Email Subject */
+            statement_email_subject?: string | null;
+            /** Statement Footer */
+            statement_footer?: string | null;
+        };
+        /** BillingSettingsOut */
+        BillingSettingsOut: {
+            /**
+             * Autopay Retry Offset Days
+             * @default [
+             *       3,
+             *       5,
+             *       7
+             *     ]
+             */
+            autopay_retry_offset_days: number[];
+            /**
+             * Bill To Fields
+             * @default [
+             *       "name",
+             *       "address"
+             *     ]
+             */
+            bill_to_fields: ("name" | "organization" | "address" | "email" | "phone")[];
+            /**
+             * Card Expiry Notice Days
+             * @default [
+             *       60,
+             *       30
+             *     ]
+             */
+            card_expiry_notice_days: number[];
+            /**
+             * Card Expiry Notice Scope
+             * @default autopay_methods
+             * @enum {string}
+             */
+            card_expiry_notice_scope: "all_methods" | "autopay_methods";
+            /** Decline Alert Email */
+            decline_alert_email?: string | null;
+            /**
+             * Decline Alert Mode
+             * @default per_event
+             * @enum {string}
+             */
+            decline_alert_mode: "per_event" | "daily_digest";
+            /**
+             * Decline Notice Scope
+             * @default all_payments
+             * @enum {string}
+             */
+            decline_notice_scope: "off" | "all_payments" | "autopay_payments";
+            /**
+             * Due Reminder Offset Days
+             * @default [
+             *       -3
+             *     ]
+             */
+            due_reminder_offset_days: number[];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Invoice Email Subject
+             * @default Invoice {invoice_number}
+             */
+            invoice_email_subject: string;
+            /** Invoice Footer */
+            invoice_footer?: string | null;
+            /**
+             * Is Membership Autopay Default Portal
+             * @default true
+             */
+            is_membership_autopay_default_portal: boolean;
+            /**
+             * Is Membership Autopay Default Staff
+             * @default false
+             */
+            is_membership_autopay_default_staff: boolean;
+            /**
+             * Is Portal Blocked When Past Due
+             * @default false
+             */
+            is_portal_blocked_when_past_due: boolean;
+            /**
+             * Is Program Description On Invoice
+             * @default false
+             */
+            is_program_description_on_invoice: boolean;
+            /** Location Id */
+            location_id: string | null;
+            /**
+             * Package Invoice Sessions
+             * @default all
+             * @enum {string}
+             */
+            package_invoice_sessions: "all" | "attended" | "none";
+            /**
+             * Program Description Source
+             * @default group
+             * @enum {string}
+             */
+            program_description_source: "group" | "subgroup";
+            /** Receipt Footer */
+            receipt_footer?: string | null;
+            /**
+             * Save Card Default
+             * @default ask
+             * @enum {string}
+             */
+            save_card_default: "never" | "ask" | "always";
+            /** Statement Email Body */
+            statement_email_body?: string | null;
+            /** Statement Email Subject */
+            statement_email_subject?: string | null;
+            /** Statement Footer */
+            statement_footer?: string | null;
+        };
+        /** BillingSummary */
+        BillingSummary: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Credit Minor */
+            credit_minor: number;
+            /** Currency */
+            currency: string;
+            /** Oldest Past Due On */
+            oldest_past_due_on: string | null;
+            /** Open Balance Minor */
+            open_balance_minor: number;
+            /** Past Due Minor */
+            past_due_minor: number;
+            /** Uninvoiced Minor */
+            uninvoiced_minor: number;
+        };
+        /** BulkInvoiceItem */
+        BulkInvoiceItem: {
+            /** Charge Ids */
+            charge_ids: string[];
+            /** Client Id */
+            client_id: string | null;
+            /** Error Code */
+            error_code: string | null;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /** Location Id */
+            location_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "done" | "failed" | "skipped";
+            /** Total Minor */
+            total_minor: number;
+        };
+        /**
+         * BulkInvoiceRequest
+         * @description `action` is fixed to creating invoices: one per client. Give charge_ids, or a location.
+         */
+        BulkInvoiceRequest: {
+            /**
+             * Action
+             * @default create_invoices
+             * @constant
+             */
+            action: "create_invoices";
+            /** Charge Ids */
+            charge_ids?: string[] | null;
+            /** Due On */
+            due_on?: string | null;
+            /**
+             * Is Autopay
+             * @default false
+             */
+            is_autopay: boolean;
+            /**
+             * Is Dry Run
+             * @default false
+             */
+            is_dry_run: boolean;
+            /** Location Id */
+            location_id?: string | null;
+            /**
+             * Only Mine
+             * @default false
+             */
+            only_mine: boolean;
+        };
+        /** BulkInvoiceResult */
+        BulkInvoiceResult: {
+            /** Is Dry Run */
+            is_dry_run: boolean;
+            /** Items */
+            items: components["schemas"]["BulkInvoiceItem"][];
+        };
         /** ChargeCreate */
         ChargeCreate: {
             /** Additional Description */
@@ -1182,6 +2941,8 @@ export interface components {
              * Format: uuid
              */
             client_id: string;
+            /** Coupon Code */
+            coupon_code?: string | null;
             /** Description */
             description: string;
             /**
@@ -1189,6 +2950,11 @@ export interface components {
              * @default 0
              */
             discount_minor: number;
+            /**
+             * Exclude Tax Ids
+             * @default []
+             */
+            exclude_tax_ids: string[];
             /** Internal Remarks */
             internal_remarks?: string | null;
             /**
@@ -1205,13 +2971,19 @@ export interface components {
             revenue_category_id?: string | null;
             /** Revenue On */
             revenue_on?: string | null;
+            /** Service Ends On */
+            service_ends_on?: string | null;
+            /** Service Starts On */
+            service_starts_on?: string | null;
             /** Unit Price Minor */
             unit_price_minor: number;
         };
-        /** ChargeOut */
-        ChargeOut: {
+        /** ChargeDetail */
+        ChargeDetail: {
             /** Additional Description */
             additional_description: string | null;
+            /** Adjusts Charge Id */
+            adjusts_charge_id: string | null;
             /** Applied Minor */
             applied_minor: number;
             /**
@@ -1221,11 +2993,15 @@ export interface components {
             bill_on: string;
             /** Client Id */
             client_id: string | null;
+            /** Coupon Id */
+            coupon_id: string | null;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+            /** Created By Staff User Id */
+            created_by_staff_user_id: string | null;
             /** Description */
             description: string;
             /** Discount Minor */
@@ -1235,6 +3011,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Internal Remarks */
+            internal_remarks: string | null;
             /** Invoice Id */
             invoice_id: string | null;
             /**
@@ -1265,6 +3043,102 @@ export interface components {
             revenue_on: string;
             /** Reverses Charge Id */
             reverses_charge_id: string | null;
+            /** Service Ends On */
+            service_ends_on: string | null;
+            /** Service Starts On */
+            service_starts_on: string | null;
+            /** Source Context */
+            source_context: string;
+            /**
+             * Source Id
+             * Format: uuid
+             */
+            source_id: string;
+            /** Source Type */
+            source_type: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "reversed" | "voided";
+            /** Tax Minor */
+            tax_minor: number;
+            /** Taxes */
+            taxes: components["schemas"]["ChargeTaxLine"][];
+            /** Total Minor */
+            total_minor: number;
+            /** Unit Price Minor */
+            unit_price_minor: number;
+        };
+        /** ChargeOut */
+        ChargeOut: {
+            /** Additional Description */
+            additional_description: string | null;
+            /** Adjusts Charge Id */
+            adjusts_charge_id: string | null;
+            /** Applied Minor */
+            applied_minor: number;
+            /**
+             * Bill On
+             * Format: date
+             */
+            bill_on: string;
+            /** Client Id */
+            client_id: string | null;
+            /** Coupon Id */
+            coupon_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Staff User Id */
+            created_by_staff_user_id: string | null;
+            /** Description */
+            description: string;
+            /** Discount Minor */
+            discount_minor: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Internal Remarks */
+            internal_remarks: string | null;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "standard" | "adjustment" | "reversal" | "surcharge";
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Net Minor */
+            net_minor: number;
+            /** Quantity */
+            quantity: string;
+            /** Reason */
+            reason: string | null;
+            /**
+             * Revenue Category Id
+             * Format: uuid
+             */
+            revenue_category_id: string;
+            /**
+             * Revenue On
+             * Format: date
+             */
+            revenue_on: string;
+            /** Reverses Charge Id */
+            reverses_charge_id: string | null;
+            /** Service Ends On */
+            service_ends_on: string | null;
+            /** Service Starts On */
+            service_starts_on: string | null;
             /** Source Context */
             source_context: string;
             /**
@@ -1286,12 +3160,93 @@ export interface components {
             /** Unit Price Minor */
             unit_price_minor: number;
         };
+        /** ChargePreview */
+        ChargePreview: {
+            /** Net Minor */
+            net_minor: number;
+            /** Tax Minor */
+            tax_minor: number;
+            /** Taxes */
+            taxes: components["schemas"]["ChargeTaxLine"][];
+            /** Total Minor */
+            total_minor: number;
+        };
+        /** ChargePreviewRequest */
+        ChargePreviewRequest: {
+            /**
+             * Discount Minor
+             * @default 0
+             */
+            discount_minor: number;
+            /**
+             * Exclude Tax Ids
+             * @default []
+             */
+            exclude_tax_ids: string[];
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Quantity
+             * @default 1
+             */
+            quantity: number | string;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Revenue On */
+            revenue_on?: string | null;
+            /** Unit Price Minor */
+            unit_price_minor: number;
+        };
         /** ChargeReverseRequest */
         ChargeReverseRequest: {
             /** Reason */
             reason: string;
             /** Revenue On */
             revenue_on?: string | null;
+        };
+        /** ChargeTaxLine */
+        ChargeTaxLine: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Is Excluded */
+            is_excluded: boolean;
+            /** Rate */
+            rate: string;
+            /**
+             * Tax Id
+             * Format: uuid
+             */
+            tax_id: string;
+        };
+        /**
+         * ChargeUpdate
+         * @description Text and service-period fields update in place. A money field replaces the item with an adjustment
+         *     and needs `reason`.
+         */
+        ChargeUpdate: {
+            /** Additional Description */
+            additional_description?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Discount Minor */
+            discount_minor?: number | null;
+            /** Exclude Tax Ids */
+            exclude_tax_ids?: string[] | null;
+            /** Internal Remarks */
+            internal_remarks?: string | null;
+            /** Quantity */
+            quantity?: number | string | null;
+            /** Reason */
+            reason?: string | null;
+            /** Service Ends On */
+            service_ends_on?: string | null;
+            /** Service Starts On */
+            service_starts_on?: string | null;
+            /** Unit Price Minor */
+            unit_price_minor?: number | null;
         };
         /** ClientCreate */
         ClientCreate: {
@@ -1343,6 +3298,245 @@ export interface components {
              * @enum {string}
              */
             status: "active" | "disabled";
+        };
+        /** CouponCreate */
+        CouponCreate: {
+            /** Code */
+            code: string;
+            /** Discount Minor */
+            discount_minor?: number | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
+            /** Ends At */
+            ends_at?: string | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Portal Enabled
+             * @default false
+             */
+            is_portal_enabled: boolean;
+            /** Limit Per Client */
+            limit_per_client?: number | null;
+            /** Name */
+            name: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
+        /** CouponOut */
+        CouponOut: {
+            /** Code */
+            code: string;
+            /** Discount Minor */
+            discount_minor: number | null;
+            /** Discount Pct */
+            discount_pct: string | null;
+            /** Ends At */
+            ends_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Portal Enabled */
+            is_portal_enabled: boolean;
+            /** Limit Per Client */
+            limit_per_client: number | null;
+            /** Name */
+            name: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
+        /** CouponQuote */
+        CouponQuote: {
+            /**
+             * Coupon Id
+             * Format: uuid
+             */
+            coupon_id: string;
+            /** Discount Minor */
+            discount_minor: number;
+            /** Invalid Reason */
+            invalid_reason: string | null;
+            /** Is Valid */
+            is_valid: boolean;
+        };
+        /** CouponRedemptionOut */
+        CouponRedemptionOut: {
+            /**
+             * Coupon Id
+             * Format: uuid
+             */
+            coupon_id: string;
+            /** Discount Minor */
+            discount_minor: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /**
+             * Redeemed At
+             * Format: date-time
+             */
+            redeemed_at: string;
+            /** Redeemer Client Id */
+            redeemer_client_id: string | null;
+            /** Redemption Key */
+            redemption_key: string;
+            /** Released At */
+            released_at: string | null;
+        };
+        /** CouponUpdate */
+        CouponUpdate: {
+            /** Discount Minor */
+            discount_minor?: number | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
+            /** Ends At */
+            ends_at?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Is Portal Enabled */
+            is_portal_enabled?: boolean | null;
+            /** Limit Per Client */
+            limit_per_client?: number | null;
+            /** Name */
+            name?: string | null;
+            /** Starts At */
+            starts_at?: string | null;
+        };
+        /** CouponValidateRequest */
+        CouponValidateRequest: {
+            /**
+             * Channel
+             * @default staff
+             * @enum {string}
+             */
+            channel: "staff" | "pos" | "portal";
+            /** Code */
+            code: string;
+            /** Redeemer Client Id */
+            redeemer_client_id?: string | null;
+            /** Subtotal Minor */
+            subtotal_minor: number;
+        };
+        /** CreditApplied */
+        CreditApplied: {
+            /** Applied Minor */
+            applied_minor: number;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Credit Minor */
+            credit_minor: number;
+        };
+        /** CreditApplyRequest */
+        CreditApplyRequest: {
+            /** Allocations */
+            allocations?: components["schemas"]["AllocationIn"][] | null;
+            /** Invoice Id */
+            invoice_id?: string | null;
+        };
+        /** CreditRefundRequest */
+        CreditRefundRequest: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Reason */
+            reason: string;
+        };
+        /** DeliveryOut */
+        DeliveryOut: {
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "email" | "print" | "download";
+            /** Client Id */
+            client_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Document Kind
+             * @enum {string}
+             */
+            document_kind: "invoice" | "receipt" | "statement";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /** Payment Id */
+            payment_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "sent" | "failed";
+            /** To Email */
+            to_email: string | null;
+        };
+        /** DocumentInstalment */
+        DocumentInstalment: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Covered Minor */
+            covered_minor: number;
+            /**
+             * Due On
+             * Format: date
+             */
+            due_on: string;
+        };
+        /** DocumentLine */
+        DocumentLine: {
+            /** Additional Description */
+            additional_description?: string | null;
+            /** Description */
+            description: string;
+            /** Discount Minor */
+            discount_minor: number;
+            /** Net Minor */
+            net_minor: number;
+            /** Quantity */
+            quantity: string;
+            /** Tax Minor */
+            tax_minor: number;
+            /** Total Minor */
+            total_minor: number;
+            /** Unit Price Minor */
+            unit_price_minor: number;
+        };
+        /** DocumentSendRequest */
+        DocumentSendRequest: {
+            /**
+             * Channel
+             * @default email
+             * @enum {string}
+             */
+            channel: "email" | "print" | "download";
+            /** To Email */
+            to_email?: string | null;
         };
         /** EffectivePermission */
         EffectivePermission: {
@@ -1426,23 +3620,110 @@ export interface components {
              */
             status: "ok" | "degraded" | "unavailable";
         };
+        /** HistoryOut */
+        HistoryOut: {
+            /** Action */
+            action: string;
+            /** Actor Label */
+            actor_label: string;
+            /** Actor Type */
+            actor_type: string;
+            /** Changes */
+            changes: {
+                [key: string]: unknown;
+            };
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Entity Type */
+            entity_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Location Id */
+            location_id: string | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Reason */
+            reason: string | null;
+        };
+        /** InstalmentIn */
+        InstalmentIn: {
+            /** Amount Minor */
+            amount_minor: number;
+            /**
+             * Due On
+             * Format: date
+             */
+            due_on: string;
+        };
+        /** InstalmentOut */
+        InstalmentOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Covered Minor */
+            covered_minor: number;
+            /**
+             * Due On
+             * Format: date
+             */
+            due_on: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Seq */
+            seq: number;
+        };
+        /** InvoiceChargeMove */
+        InvoiceChargeMove: {
+            /**
+             * Target Invoice Id
+             * Format: uuid
+             */
+            target_invoice_id: string;
+        };
+        /** InvoiceChargesAdd */
+        InvoiceChargesAdd: {
+            /** Charge Ids */
+            charge_ids: string[];
+        };
         /** InvoiceCreate */
         InvoiceCreate: {
             /** Bill To Client Id */
             bill_to_client_id?: string | null;
             /** Charge Ids */
             charge_ids: string[];
+            /** Comments */
+            comments?: string | null;
             /** Due On */
             due_on?: string | null;
+            /**
+             * Is Autopay
+             * @default false
+             */
+            is_autopay: boolean;
         };
         /** InvoiceDetail */
         InvoiceDetail: {
+            /** Attempt Count */
+            attempt_count: number;
             /** Balance Minor */
             balance_minor: number;
             /** Bill To Client Id */
             bill_to_client_id: string | null;
             /** Charges */
             charges: components["schemas"]["ChargeOut"][];
+            /** Comments */
+            comments: string | null;
             /**
              * Created At
              * Format: date-time
@@ -1454,6 +3735,11 @@ export interface components {
              */
             due_on: string;
             /**
+             * Dunning State
+             * @enum {string}
+             */
+            dunning_state: "none" | "retrying" | "awaiting_method" | "exhausted";
+            /**
              * Id
              * Format: uuid
              */
@@ -1463,18 +3749,26 @@ export interface components {
              * Format: date
              */
             invoice_on: string;
+            /** Is Autopay */
+            is_autopay: boolean;
             /**
              * Location Id
              * Format: uuid
              */
             location_id: string;
+            /** Next Attempt On */
+            next_attempt_on: string | null;
             /** Number */
             number: number;
+            /** Organization Name */
+            organization_name: string | null;
             /**
              * Origin
              * @enum {string}
              */
             origin: "staff" | "portal" | "pos" | "kiosk" | "api" | "system";
+            /** Past Due Since On */
+            past_due_since_on: string | null;
             /**
              * Status
              * @enum {string}
@@ -1482,13 +3776,77 @@ export interface components {
             status: "open" | "payment_pending" | "partially_paid" | "paid" | "voided";
             /** Total Minor */
             total_minor: number;
+            /** Version */
+            version: number;
+            /** Void Reason */
+            void_reason: string | null;
         };
-        /** InvoiceOut */
-        InvoiceOut: {
+        /** InvoiceDocument */
+        InvoiceDocument: {
             /** Balance Minor */
             balance_minor: number;
             /** Bill To Client Id */
             bill_to_client_id: string | null;
+            /** Bill To Name */
+            bill_to_name: string | null;
+            /** Comments */
+            comments: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Due On
+             * Format: date
+             */
+            due_on: string;
+            /** Footer */
+            footer: string | null;
+            /** Instalments */
+            instalments: components["schemas"]["DocumentInstalment"][];
+            /**
+             * Invoice Id
+             * Format: uuid
+             */
+            invoice_id: string;
+            /**
+             * Invoice On
+             * Format: date
+             */
+            invoice_on: string;
+            /** Lines */
+            lines: components["schemas"]["DocumentLine"][];
+            /** Number */
+            number: number;
+            /** Organization Name */
+            organization_name: string | null;
+            /** Paid Minor */
+            paid_minor: number;
+            /** Status */
+            status: string;
+            /** Total Minor */
+            total_minor: number;
+        };
+        /** InvoiceLinkLookup */
+        InvoiceLinkLookup: {
+            /** Token */
+            token: string;
+        };
+        /** InvoiceLinkPayment */
+        InvoiceLinkPayment: {
+            /** Method Token */
+            method_token: string;
+            /** Token */
+            token: string;
+        };
+        /** InvoiceOut */
+        InvoiceOut: {
+            /** Attempt Count */
+            attempt_count: number;
+            /** Balance Minor */
+            balance_minor: number;
+            /** Bill To Client Id */
+            bill_to_client_id: string | null;
+            /** Comments */
+            comments: string | null;
             /**
              * Created At
              * Format: date-time
@@ -1500,6 +3858,11 @@ export interface components {
              */
             due_on: string;
             /**
+             * Dunning State
+             * @enum {string}
+             */
+            dunning_state: "none" | "retrying" | "awaiting_method" | "exhausted";
+            /**
              * Id
              * Format: uuid
              */
@@ -1509,18 +3872,26 @@ export interface components {
              * Format: date
              */
             invoice_on: string;
+            /** Is Autopay */
+            is_autopay: boolean;
             /**
              * Location Id
              * Format: uuid
              */
             location_id: string;
+            /** Next Attempt On */
+            next_attempt_on: string | null;
             /** Number */
             number: number;
+            /** Organization Name */
+            organization_name: string | null;
             /**
              * Origin
              * @enum {string}
              */
             origin: "staff" | "portal" | "pos" | "kiosk" | "api" | "system";
+            /** Past Due Since On */
+            past_due_since_on: string | null;
             /**
              * Status
              * @enum {string}
@@ -1528,6 +3899,43 @@ export interface components {
             status: "open" | "payment_pending" | "partially_paid" | "paid" | "voided";
             /** Total Minor */
             total_minor: number;
+            /** Version */
+            version: number;
+            /** Void Reason */
+            void_reason: string | null;
+        };
+        /** InvoiceReassign */
+        InvoiceReassign: {
+            /**
+             * Bill To Client Id
+             * Format: uuid
+             */
+            bill_to_client_id: string;
+        };
+        /** InvoiceUpdate */
+        InvoiceUpdate: {
+            /** Comments */
+            comments?: string | null;
+            /** Due On */
+            due_on?: string | null;
+            /** Invoice On */
+            invoice_on?: string | null;
+            /** Is Autopay */
+            is_autopay?: boolean | null;
+            /** Organization Name */
+            organization_name?: string | null;
+            /** Version */
+            version?: number | null;
+        };
+        /** InvoiceVoidRequest */
+        InvoiceVoidRequest: {
+            /** Reason */
+            reason: string;
+            /**
+             * Release Allocations
+             * @default false
+             */
+            release_allocations: boolean;
         };
         /** LedgerEntryOut */
         LedgerEntryOut: {
@@ -1572,6 +3980,46 @@ export interface components {
             revenue_category_id: string | null;
             /** Tax Id */
             tax_id: string | null;
+        };
+        /** LinkInvoice */
+        LinkInvoice: {
+            /** Balance Minor */
+            balance_minor: number;
+            /** Bill To Name */
+            bill_to_name: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Due On
+             * Format: date
+             */
+            due_on: string;
+            /**
+             * Invoice On
+             * Format: date
+             */
+            invoice_on: string;
+            /** Lines */
+            lines: components["schemas"]["DocumentLine"][];
+            /** Number */
+            number: number;
+            /** Status */
+            status: string;
+            /** Total Minor */
+            total_minor: number;
+        };
+        /** LinkPayment */
+        LinkPayment: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Client Secret */
+            client_secret?: string | null;
+            /** Currency */
+            currency: string;
+            /** Receipt Number */
+            receipt_number: number;
+            /** Status */
+            status: string;
         };
         /** LocationCreate */
         LocationCreate: {
@@ -1754,6 +4202,13 @@ export interface components {
             /** Website Url */
             website_url?: string | null;
         };
+        /** MarkPaidRequest */
+        MarkPaidRequest: {
+            /** External Reference */
+            external_reference?: string | null;
+            /** Memo */
+            memo?: string | null;
+        };
         /** Me */
         Me: {
             /**
@@ -1774,6 +4229,39 @@ export interface components {
             principal: components["schemas"]["PrincipalOut"];
             role: components["schemas"]["RoleRef"] | null;
             tenant: components["schemas"]["TenantOut"];
+        };
+        /** NoticeOut */
+        NoticeOut: {
+            /** Client Id */
+            client_id: string | null;
+            /** Dedupe Key */
+            dedupe_key: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Location Id */
+            location_id: string | null;
+            /**
+             * Sent At
+             * Format: date-time
+             */
+            sent_at: string;
+            /**
+             * Subject Id
+             * Format: uuid
+             */
+            subject_id: string;
+            /** Subject Type */
+            subject_type: string;
+        };
+        /** OnboardingLink */
+        OnboardingLink: {
+            /** Url */
+            url: string;
         };
         /** OwnSession */
         OwnSession: {
@@ -1826,6 +4314,18 @@ export interface components {
             data: components["schemas"]["AuditEventOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[AutopayAttemptOut] */
+        Page_AutopayAttemptOut_: {
+            /** Data */
+            data: components["schemas"]["AutopayAttemptOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[AutopayRunOut] */
+        Page_AutopayRunOut_: {
+            /** Data */
+            data: components["schemas"]["AutopayRunOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[ChargeOut] */
         Page_ChargeOut_: {
             /** Data */
@@ -1836,6 +4336,18 @@ export interface components {
         Page_ClientOut_: {
             /** Data */
             data: components["schemas"]["ClientOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[CouponOut] */
+        Page_CouponOut_: {
+            /** Data */
+            data: components["schemas"]["CouponOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[HistoryOut] */
+        Page_HistoryOut_: {
+            /** Data */
+            data: components["schemas"]["HistoryOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[InvoiceOut] */
@@ -1856,6 +4368,18 @@ export interface components {
             data: components["schemas"]["LocationOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[NoticeOut] */
+        Page_NoticeOut_: {
+            /** Data */
+            data: components["schemas"]["NoticeOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PaymentMethodOut] */
+        Page_PaymentMethodOut_: {
+            /** Data */
+            data: components["schemas"]["PaymentMethodOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[PaymentOut] */
         Page_PaymentOut_: {
             /** Data */
@@ -1872,6 +4396,12 @@ export interface components {
         Page_PublicLocation_: {
             /** Data */
             data: components["schemas"]["PublicLocation"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[RefundOut] */
+        Page_RefundOut_: {
+            /** Data */
+            data: components["schemas"]["RefundOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[RevenueCategoryOut] */
@@ -1892,6 +4422,12 @@ export interface components {
             data: components["schemas"]["StaffUserOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[TaxOut] */
+        Page_TaxOut_: {
+            /** Data */
+            data: components["schemas"]["TaxOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** PasswordChange */
         PasswordChange: {
             /** Current Password */
@@ -1907,6 +4443,8 @@ export interface components {
             amount_minor: number;
             /** Client Id */
             client_id: string | null;
+            /** Client Secret */
+            client_secret?: string | null;
             /** Currency */
             currency: string;
             /** External Reference */
@@ -1957,6 +4495,63 @@ export interface components {
             tender_kind: "card" | "bank_debit" | "cash" | "cheque" | "bank_transfer" | "gift_card" | "external" | "other";
             /** Unapplied Minor */
             unapplied_minor: number;
+        };
+        /** PaymentMethodAttach */
+        PaymentMethodAttach: {
+            /** Is Autopay */
+            is_autopay?: boolean | null;
+            /** Method Token */
+            method_token: string;
+        };
+        /**
+         * PaymentMethodOut
+         * @description Display data only. The provider reference is never serialised.
+         */
+        PaymentMethodOut: {
+            /** Brand */
+            brand: string | null;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Exp Month */
+            exp_month: number | null;
+            /** Exp Year */
+            exp_year: number | null;
+            /** Funding */
+            funding: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Autopay */
+            is_autopay: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "card" | "bank_account";
+            /** Last4 */
+            last4: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending_verification" | "active" | "suspended" | "removed";
+            /** Wallet */
+            wallet: string | null;
+        };
+        /** PaymentMethodUpdate */
+        PaymentMethodUpdate: {
+            /** Is Autopay */
+            is_autopay: boolean;
         };
         /** PaymentOut */
         PaymentOut: {
@@ -2037,11 +4632,25 @@ export interface components {
             memo?: string | null;
             /** Method Token */
             method_token?: string | null;
+            /** Payment Method Id */
+            payment_method_id?: string | null;
             /**
              * Tender Kind
              * @enum {string}
              */
             tender_kind: "card" | "bank_debit" | "cash" | "cheque" | "bank_transfer" | "gift_card" | "external" | "other";
+            /** Tender Type Id */
+            tender_type_id?: string | null;
+        };
+        /** PeriodLock */
+        PeriodLock: {
+            /** Locked Through On */
+            locked_through_on: string | null;
+        };
+        /** PeriodLockOut */
+        PeriodLockOut: {
+            /** Locked Through On */
+            locked_through_on: string | null;
         };
         /** PermissionDefinition */
         PermissionDefinition: {
@@ -2084,6 +4693,33 @@ export interface components {
             /** Grants */
             grants: components["schemas"]["PermissionGrant"][];
         };
+        /** PortalPayment */
+        PortalPayment: {
+            /** Client Secret */
+            client_secret: string | null;
+            /** Credit Applied Minor */
+            credit_applied_minor: number;
+            payment: components["schemas"]["PaymentDetail"] | null;
+        };
+        /** PortalPaymentCreate */
+        PortalPaymentCreate: {
+            /** Invoice Ids */
+            invoice_ids: string[];
+            /** Method Token */
+            method_token?: string | null;
+            /** Payment Method Id */
+            payment_method_id?: string | null;
+            /**
+             * Set Autopay
+             * @default false
+             */
+            set_autopay: boolean;
+            /**
+             * Use Account Credit
+             * @default false
+             */
+            use_account_credit: boolean;
+        };
         /** PrincipalOut */
         PrincipalOut: {
             /**
@@ -2107,6 +4743,44 @@ export interface components {
             kind: "staff" | "client";
             /** Staff User Id */
             staff_user_id?: string | null;
+        };
+        /** ProviderAccountOut */
+        ProviderAccountOut: {
+            /** Connected At */
+            connected_at: string | null;
+            /** Disabled At */
+            disabled_at: string | null;
+            /** Has Bank Debit */
+            has_bank_debit: boolean;
+            /** Has Card */
+            has_card: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Payouts Enabled */
+            is_payouts_enabled: boolean;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "stripe" | "fake";
+            /** Requirements Due */
+            requirements_due: string[] | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "restricted" | "active" | "disabled";
+        };
+        /** ProviderConnect */
+        ProviderConnect: {
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "stripe" | "fake";
         };
         /** PublicLocation */
         PublicLocation: {
@@ -2133,6 +4807,59 @@ export interface components {
             slug: string;
             /** Time Zone */
             time_zone: string;
+        };
+        /** ReasonRequest */
+        ReasonRequest: {
+            /** Reason */
+            reason: string;
+        };
+        /** ReceiptLine */
+        ReceiptLine: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Description */
+            description: string;
+            /** Invoice Id */
+            invoice_id: string | null;
+        };
+        /** ReceiptOut */
+        ReceiptOut: {
+            /** Applied Minor */
+            applied_minor: number;
+            /** Card Brand */
+            card_brand: string | null;
+            /** Card Last4 */
+            card_last4: string | null;
+            /** Client Id */
+            client_id: string | null;
+            /** Currency */
+            currency: string;
+            /** Footer */
+            footer: string | null;
+            /** Lines */
+            lines: components["schemas"]["ReceiptLine"][];
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            /** Receipt Number */
+            receipt_number: number;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Received Minor */
+            received_minor: number;
+            /** Refunded Minor */
+            refunded_minor: number;
+            /** Status */
+            status: string;
+            /** Tender Kind */
+            tender_kind: string;
+            /** Unapplied Minor */
+            unapplied_minor: number;
         };
         /** RefreshRequest */
         RefreshRequest: {
@@ -2180,6 +4907,8 @@ export interface components {
             payment_id: string;
             /** Reason */
             reason: string;
+            /** Refund Batch Id */
+            refund_batch_id: string | null;
             /**
              * Refund On
              * Format: date
@@ -2190,6 +4919,44 @@ export interface components {
              * @enum {string}
              */
             status: "pending" | "succeeded" | "failed" | "cancelled";
+        };
+        /** RevenueCategoryCreate */
+        RevenueCategoryCreate: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Remarks */
+            remarks?: string | null;
+            /**
+             * Tax Ids
+             * @default []
+             */
+            tax_ids: string[];
+        };
+        /** RevenueCategoryDetail */
+        RevenueCategoryDetail: {
+            /** Code */
+            code: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Label */
+            label: string;
+            /** Parent Id */
+            parent_id: string | null;
+            /** Remarks */
+            remarks: string | null;
+            /** System Key */
+            system_key: string | null;
+            /** Tax Ids */
+            tax_ids: string[];
         };
         /** RevenueCategoryOut */
         RevenueCategoryOut: {
@@ -2208,6 +4975,19 @@ export interface components {
             parent_id: string | null;
             /** System Key */
             system_key: string | null;
+        };
+        /** RevenueCategoryUpdate */
+        RevenueCategoryUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Label */
+            label?: string | null;
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Remarks */
+            remarks?: string | null;
+            /** Tax Ids */
+            tax_ids?: string[] | null;
         };
         /** RoleCreate */
         RoleCreate: {
@@ -2271,6 +5051,61 @@ export interface components {
             description?: string | null;
             /** Name */
             name?: string | null;
+        };
+        /** ScheduleGenerate */
+        ScheduleGenerate: {
+            /** Count */
+            count: number;
+            /**
+             * Every
+             * @default 1
+             */
+            every: number;
+            /**
+             * Start On
+             * Format: date
+             */
+            start_on: string;
+            /**
+             * Unit
+             * @default month
+             * @enum {string}
+             */
+            unit: "day" | "week" | "half_month" | "month" | "year";
+        };
+        /** ScheduleOut */
+        ScheduleOut: {
+            /** Instalments */
+            instalments: components["schemas"]["InstalmentOut"][];
+            /**
+             * Invoice Id
+             * Format: uuid
+             */
+            invoice_id: string;
+            /** Total Minor */
+            total_minor: number;
+        };
+        /** ScheduleReplace */
+        ScheduleReplace: {
+            /** Instalments */
+            instalments: components["schemas"]["InstalmentIn"][];
+        };
+        /** SetupIntentOut */
+        SetupIntentOut: {
+            /** Client Secret */
+            client_secret: string;
+            /** Provider */
+            provider: string;
+        };
+        /** SetupIntentRequest */
+        SetupIntentRequest: {
+            /**
+             * Kinds
+             * @default [
+             *       "card"
+             *     ]
+             */
+            kinds: ("card" | "bank_account")[];
         };
         /** SignInRequest */
         SignInRequest: {
@@ -2438,6 +5273,165 @@ export interface components {
             /** Mobile Phone */
             mobile_phone?: string | null;
         };
+        /** StatementOut */
+        StatementOut: {
+            /** Balance Due Minor */
+            balance_due_minor: number;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Credit Minor */
+            credit_minor: number;
+            /** Currency */
+            currency: string;
+            /**
+             * Date Basis
+             * @enum {string}
+             */
+            date_basis: "invoice_date" | "due_date";
+            /**
+             * From On
+             * Format: date
+             */
+            from_on: string;
+            /** Invoiced Minor */
+            invoiced_minor: number;
+            /** Invoices */
+            invoices: components["schemas"]["InvoiceOut"][];
+            /** Paid Minor */
+            paid_minor: number;
+            /** Payments */
+            payments: components["schemas"]["PaymentOut"][];
+            /** Refunded Minor */
+            refunded_minor: number;
+            /** Refunds */
+            refunds: components["schemas"]["RefundOut"][];
+            /**
+             * To On
+             * Format: date
+             */
+            to_on: string;
+        };
+        /** StatementSend */
+        StatementSend: {
+            /**
+             * Date Basis
+             * @default invoice_date
+             * @enum {string}
+             */
+            date_basis: "invoice_date" | "due_date";
+            /**
+             * From On
+             * Format: date
+             */
+            from_on: string;
+            /** To Email */
+            to_email?: string | null;
+            /**
+             * To On
+             * Format: date
+             */
+            to_on: string;
+        };
+        /** TaxCreate */
+        TaxCreate: {
+            /** Code */
+            code: string;
+            /**
+             * Effective From On
+             * Format: date
+             */
+            effective_from_on: string;
+            /** Label */
+            label: string;
+            /** Rate */
+            rate: number | string;
+            /** Remarks */
+            remarks?: string | null;
+        };
+        /** TaxDetail */
+        TaxDetail: {
+            /** Code */
+            code: string;
+            /** Deactivated On */
+            deactivated_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Label */
+            label: string;
+            /** Rates */
+            rates: components["schemas"]["TaxRateOut"][];
+            /** Remarks */
+            remarks: string | null;
+        };
+        /** TaxOut */
+        TaxOut: {
+            /** Code */
+            code: string;
+            /** Deactivated On */
+            deactivated_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Label */
+            label: string;
+            /** Remarks */
+            remarks: string | null;
+        };
+        /** TaxRateIn */
+        TaxRateIn: {
+            /**
+             * Effective From On
+             * Format: date
+             */
+            effective_from_on: string;
+            /** Rate */
+            rate: number | string;
+        };
+        /** TaxRateOut */
+        TaxRateOut: {
+            /**
+             * Effective From On
+             * Format: date
+             */
+            effective_from_on: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Rate */
+            rate: string;
+        };
+        /** TaxRateUpdate */
+        TaxRateUpdate: {
+            /** Effective From On */
+            effective_from_on?: string | null;
+            /** Rate */
+            rate?: number | string | null;
+        };
+        /** TaxUpdate */
+        TaxUpdate: {
+            /** Deactivated On */
+            deactivated_on?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Label */
+            label?: string | null;
+            /** Remarks */
+            remarks?: string | null;
+        };
         /** TenantOnboard */
         TenantOnboard: {
             /**
@@ -2531,6 +5525,53 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** TenderTypeCreate */
+        TenderTypeCreate: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "external" | "other";
+            /** Label */
+            label: string;
+            /**
+             * Sort Order
+             * @default 100
+             */
+            sort_order: number;
+        };
+        /** TenderTypeOut */
+        TenderTypeOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Enabled */
+            is_enabled: boolean;
+            /** Is Optional */
+            is_optional: boolean;
+            /** Is Processed */
+            is_processed: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "card" | "bank_debit" | "cash" | "cheque" | "bank_transfer" | "gift_card" | "external" | "other";
+            /** Label */
+            label: string;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /** TenderTypeUpdate */
+        TenderTypeUpdate: {
+            /** Is Enabled */
+            is_enabled?: boolean | null;
+            /** Label */
+            label?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+        };
         /** TokenConsumeRequest */
         TokenConsumeRequest: {
             /**
@@ -2556,6 +5597,14 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** WebhookAck */
+        WebhookAck: {
+            /**
+             * Result
+             * @enum {string}
+             */
+            result: "accepted" | "duplicate" | "ignored";
         };
     };
     responses: never;
@@ -2958,6 +6007,492 @@ export interface operations {
             };
         };
     };
+    listAutopayAttempts: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AutopayAttemptOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clearAutopayError: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                autopay_attempt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutopayAttemptOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retryAutopayAttempt: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path: {
+                autopay_attempt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutopayAttemptOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listAutopayRuns: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AutopayRunOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    startAutopayRun: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutopayRunStart"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutopayRunResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getAutopayRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                autopay_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutopayRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createBillingBulkAction: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkInvoiceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkInvoiceResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listBillingHistory: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_HistoryOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listBillingNotices: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_NoticeOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getBillingSettings: {
+        parameters: {
+            query?: {
+                location_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putBillingSettings: {
+        parameters: {
+            query?: {
+                location_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillingSettingsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteBillingSettingsOverride: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    setBillingPeriodLock: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PeriodLock"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeriodLockOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listCharges: {
         parameters: {
             query?: {
@@ -3037,6 +6572,114 @@ export interface operations {
             };
         };
     };
+    previewCharge: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChargePreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChargePreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getCharge: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                charge_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChargeDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateCharge: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                charge_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChargeUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChargeDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     reverseCharge: {
         parameters: {
             query?: never;
@@ -3057,6 +6700,44 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChargeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    voidCharge: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path: {
+                charge_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3175,6 +6856,589 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClientOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getAccountCredit: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountCredit"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    applyAccountCredit: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreditApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreditApplied"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refundAccountCredit: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreditRefundRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefundOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getClientBillingSummary: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listClientPaymentMethods: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentMethodOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    attachPaymentMethod: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentMethodAttach"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentMethodOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createSetupIntent: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetupIntentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupIntentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getClientStatement: {
+        parameters: {
+            query?: {
+                from_on?: string | null;
+                to_on?: string | null;
+                date_basis?: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sendClientStatement: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatementSend"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCoupons: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CouponOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createCoupon: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CouponCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validateCoupon: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CouponValidateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponQuote"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getCoupon: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                coupon_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteCoupon: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                coupon_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateCoupon: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                coupon_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CouponUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCouponRedemptions: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                coupon_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CouponRedemptionOut"][];
                 };
             };
             /** @description Validation Error */
@@ -3329,6 +7593,486 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateInvoice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    addInvoiceCharges: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceChargesAdd"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    removeInvoiceCharge: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                invoice_id: string;
+                charge_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    moveInvoiceCharge: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                invoice_id: string;
+                charge_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceChargeMove"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listInvoiceDeliveries: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sendInvoice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentSendRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getInvoiceDocument: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceDocument"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    markInvoicePaid: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkPaidRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPaymentSchedule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putPaymentSchedule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleReplace"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generatePaymentSchedule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleGenerate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reassignInvoicePayer: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceReassign"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    voidInvoice: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceVoidRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -3705,6 +8449,157 @@ export interface operations {
             };
         };
     };
+    listPaymentMethods: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PaymentMethodOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    removePaymentMethod: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payment_method_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updatePaymentMethod: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payment_method_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentMethodUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentMethodOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verifyBankAccount: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payment_method_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BankVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentMethodOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPayments: {
         parameters: {
             query?: {
@@ -3856,6 +8751,75 @@ export interface operations {
             };
         };
     };
+    releaseAllocation: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payment_id: string;
+                payment_allocation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancelPayment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     confirmPayment: {
         parameters: {
             query?: never;
@@ -3877,6 +8841,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaymentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getReceipt: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReceiptOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sendReceipt: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentSendRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryOut"];
                 };
             };
             /** @description Validation Error */
@@ -3928,6 +8964,44 @@ export interface operations {
             };
         };
     };
+    voidPayment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPermissionCatalogue: {
         parameters: {
             query?: {
@@ -3949,6 +9023,575 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_PermissionDefinition_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalBillingSummary: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BillingSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalInvoices: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_InvoiceOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalInvoice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceDocument"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalPaymentMethods: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentMethodOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    attachPortalPaymentMethod: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentMethodAttach"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentMethodOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createPortalSetupIntent: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetupIntentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupIntentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    removePortalPaymentMethod: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payment_method_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updatePortalPaymentMethod: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payment_method_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentMethodUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentMethodOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalPayments: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PaymentOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    payPortalInvoices: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalPaymentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalPayment"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listProviderAccounts: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderAccountOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    connectProviderAccount: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderConnect"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderAccountOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disconnectProviderAccount: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                provider_account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderAccountOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createOnboardingLink: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                provider_account_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnboardingLink"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getInvoiceByLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceLinkLookup"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkInvoice"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    payInvoiceByLink: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceLinkPayment"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkPayment"];
                 };
             };
             /** @description Validation Error */
@@ -4002,6 +9645,84 @@ export interface operations {
             };
         };
     };
+    getReceivablesAgeing: {
+        parameters: {
+            query?: {
+                as_of?: string | null;
+                location_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgeingReport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listRefunds: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RefundOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listRevenueCategories: {
         parameters: {
             query?: {
@@ -4032,6 +9753,114 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_RevenueCategoryOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createRevenueCategory: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevenueCategoryCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevenueCategoryDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getRevenueCategory: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                revenue_category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevenueCategoryDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateRevenueCategory: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                revenue_category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevenueCategoryUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevenueCategoryDetail"];
                 };
             };
             /** @description Validation Error */
@@ -4735,6 +10564,267 @@ export interface operations {
             };
         };
     };
+    listTaxes: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_TaxOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createTax: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaxCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getTax: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                tax_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateTax: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                tax_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaxUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    addTaxRate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                tax_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaxRateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteTaxRate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                tax_id: string;
+                tax_rate_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateTaxRate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                tax_id: string;
+                tax_rate_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaxRateUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getTenant: {
         parameters: {
             query?: never;
@@ -4790,6 +10880,143 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TenantOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listTenderTypes: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenderTypeOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createTenderType: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TenderTypeCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenderTypeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateTenderType: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                tender_type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TenderTypeUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenderTypeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    receiveProviderWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookAck"];
                 };
             };
             /** @description Validation Error */

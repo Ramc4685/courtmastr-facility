@@ -86,6 +86,34 @@ _BODIES = {
     "reverseCharge": {"reason": "Mistake"},
     "allocatePayment": {},
     "createRefund": {"amount_minor": 1, "reason": "Mistake"},
+    # billing (build module 8). A callable gets tenant A's ids, so only the path id is foreign.
+    "updateRevenueCategory": {"label": "Renamed"},
+    "updateTax": {"label": "Renamed"},
+    "addTaxRate": {"rate": "0.05", "effective_from_on": "2031-01-01"},
+    "updateTaxRate": {"rate": "0.05"},
+    "updateTenderType": {"label": "Renamed"},
+    "updateCoupon": {"name": "Renamed"},
+    "updateCharge": {"description": "Renamed"},
+    "voidCharge": {"reason": "Mistake"},
+    "updateInvoice": {"comments": "Note"},
+    "addInvoiceCharges": lambda a: {"charge_ids": [a.charge_id]},
+    "moveInvoiceCharge": lambda a: {"target_invoice_id": a.invoice_id},
+    "voidInvoice": {"reason": "Mistake"},
+    "reassignInvoicePayer": lambda a: {"bill_to_client_id": a.client_id},
+    "markInvoicePaid": {},
+    "putPaymentSchedule": {"instalments": [{"due_on": "2031-01-01", "amount_minor": 1}]},
+    "generatePaymentSchedule": {"start_on": "2031-01-01", "count": 2},
+    "sendInvoice": {},
+    "voidPayment": {"reason": "Mistake"},
+    "sendReceipt": {},
+    "applyAccountCredit": {},
+    "refundAccountCredit": {"amount_minor": 1, "reason": "Mistake"},
+    "sendClientStatement": {"from_on": "2026-01-01", "to_on": "2026-02-01"},
+    "attachPaymentMethod": {"method_token": "tok_card_ok"},
+    "createSetupIntent": {},
+    "updatePaymentMethod": {"is_autopay": True},
+    "verifyBankAccount": {"amounts": [32, 45]},
+    "updatePortalPaymentMethod": {"is_autopay": True},
 }
 # Generated from the OpenAPI document, so a new route with an id parameter is tested without being listed.
 _ID_ROUTES = [
@@ -104,6 +132,8 @@ def test_api_foreign_tenant_id_is_404(client, two_tenants, method, path, name):
     body = _BODIES.get(name)
     if body == "role":
         body = {"role_id": a.role_id}  # A's own role, so only the path id is foreign
+    if callable(body):
+        body = body(a)
     response = client.request(method, url, headers=a.headers | {"Idempotency-Key": f"iso-{name}-key"}, json=body)
     assert response.status_code == 404, response.text
     assert response.json()["code"] == "not-found"
@@ -120,6 +150,8 @@ def test_every_id_route_is_covered():
     [
         "/locations", "/staff-users", "/roles", "/audit-events?limit=200", "/auth/sessions", "/clients", "/charges",
         "/invoices", "/payments", "/revenue-categories", "/ledger-entries",
+        "/taxes", "/coupons", "/payment-methods", "/autopay-runs", "/autopay-attempts", "/refunds",
+        "/billing-notices", "/billing-history",
     ],
 )  # fmt: skip
 def test_api_lists_never_include_the_other_tenant(client, two_tenants, path):

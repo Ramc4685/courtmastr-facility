@@ -24,6 +24,17 @@ class ChargeReversed(_ChargeEvent):
     reversal_charge_id: UUID
 
 
+class ChargeVoided(_ChargeEvent):
+    type: Literal["billing.charge.voided"] = "billing.charge.voided"
+
+
+class ChargeAdjusted(_ChargeEvent):
+    """A money edit: the charge was replaced by `replacement_charge_id`. Not a cancellation of what was sold."""
+
+    type: Literal["billing.charge.adjusted"] = "billing.charge.adjusted"
+    replacement_charge_id: UUID
+
+
 class _InvoiceEvent(Event):
     aggregate_type: ClassVar[str] = "invoice"
     invoice_id: UUID
@@ -36,6 +47,14 @@ class InvoiceIssued(_InvoiceEvent):
 
 class InvoicePaid(_InvoiceEvent):
     type: Literal["billing.invoice.paid"] = "billing.invoice.paid"
+
+
+class InvoiceVoided(_InvoiceEvent):
+    type: Literal["billing.invoice.voided"] = "billing.invoice.voided"
+
+
+class InvoicePastDue(_InvoiceEvent):
+    type: Literal["billing.invoice.past_due"] = "billing.invoice.past_due"
 
 
 class _PaymentEvent(Event):
@@ -61,3 +80,14 @@ class PaymentRefunded(_PaymentEvent):
     type: Literal["billing.payment.refunded"] = "billing.payment.refunded"
     refund_id: UUID
     amount_minor: int
+
+
+class PaymentVoided(_PaymentEvent):
+    type: Literal["billing.payment.voided"] = "billing.payment.voided"
+
+
+class PaymentMethodExpiring(Event):
+    aggregate_type: ClassVar[str] = "payment_method"
+    type: Literal["billing.payment_method.expiring"] = "billing.payment_method.expiring"
+    payment_method_id: UUID
+    client_id: UUID
