@@ -6,6 +6,7 @@ const DESK = { email: 'front-desk@courtside-demo.example.com', password: 'courts
 
 // Kernel slices have one web surface: the shared client picker, previewed on a development-only page.
 test('client picker finds a client by keyboard and passes the axe WCAG 2.1 AA scan', async ({ page }) => {
+  test.setTimeout(120_000) // eight axe scans; over 30s on a loaded machine
   const scan = async (label: string) => {
     const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
     expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])

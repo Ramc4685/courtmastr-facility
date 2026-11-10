@@ -15,6 +15,9 @@ import { RolesPage } from '../features/platform/RolesPage'
 import { StaffUserPage } from '../features/platform/StaffUserPage'
 import { StaffUsersPage } from '../features/platform/StaffUsersPage'
 import { TenantSettingsPage } from '../features/platform/TenantSettingsPage'
+import { ResourcesPage } from '../features/resources/ResourcesPage'
+import { CalendarPage } from '../features/scheduling/CalendarPage'
+import { SetupPage } from '../features/scheduling/SetupPage'
 import { AuthProvider } from '../lib/auth'
 import { AppFrame } from './AppFrame'
 import { RequireClient, RequirePermission, RequireStaff } from './guards'
@@ -48,6 +51,9 @@ export function AppRoutes() {
         <Route path="roles/:id" element={<RequirePermission permission="platform.role.read"><RoleDetailPage /></RequirePermission>} />
         <Route path="audit" element={<RequirePermission permission="platform.audit.read"><AuditLogPage /></RequirePermission>} />
         <Route path="settings" element={<RequirePermission permission="platform.tenant.update"><TenantSettingsPage /></RequirePermission>} />
+        <Route path="schedule" element={<RequirePermission permission="scheduling.booking.read"><CalendarPage /></RequirePermission>} />
+        <Route path="resources" element={<ResourcesPage />} />
+        <Route path="scheduling/setup" element={<SetupPage />} />
         {import.meta.env.DEV && (
           <Route path="dev/client-picker" element={<RequirePermission permission="clients.client.read"><ClientPickerDemo /></RequirePermission>} />
         )}
