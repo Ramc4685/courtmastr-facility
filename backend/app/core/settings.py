@@ -1,0 +1,132 @@
+"""Typed settings: config/app.yaml (+ optional app.<env>.yaml overlay); secrets from the environment only."""
+
+import os
+from functools import cache
+from pathlib import Path
+
+import yaml
+from pydantic import BaseModel
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+class AppInfo(BaseModel):
+    display_name: str
+    code_name: str
+    web_base_url: str
+    base_domain: str
+
+
+class Api(BaseModel):
+    host: str
+    port: int
+
+
+class Db(BaseModel):
+    host: str
+    port: int
+    name: str
+    pool_size: int = 10
+
+
+class Redis(BaseModel):
+    url: str
+
+
+class Email(BaseModel):
+    adapter: str
+    smtp_host: str
+    smtp_port: int
+    from_address: str
+    log_links: bool = False
+
+
+class Jobs(BaseModel):
+    broker: str
+
+
+class Argon2(BaseModel):
+    memory_kib: int
+    time_cost: int
+    parallelism: int
+
+
+class SessionLifetime(BaseModel):
+    idle_hours: int
+    absolute_days: int
+
+
+class Auth(BaseModel):
+    access_ttl_min: int
+    refresh_grace_sec: int
+    magic_link_ttl_min: int
+    password_reset_ttl_min: int
+    invite_ttl_days: int
+    lockout_threshold: int
+    lockout_min: int
+    password_min_length: int
+    cookie_secure: bool
+    argon2: Argon2
+    sessions: dict[str, SessionLifetime]
+
+
+class RateLimit(BaseModel):
+    enabled: bool
+    auth_per_minute: int
+
+
+class Audit(BaseModel):
+    retention_days: int
+    retention_days_long: int
+
+
+class Settings(BaseModel):
+    env: str
+    app: AppInfo
+    api: Api
+    db: Db
+    redis: Redis
+    email: Email
+    jobs: Jobs
+    auth: Auth
+    rate_limit: RateLimit
+    audit: Audit
+
+    def db_url(self, role: str) -> str:
+        """role is owner, app or platform; the password comes from FH_DB_<ROLE>_PASSWORD."""
+        password = os.environ[f"FH_DB_{role.upper()}_PASSWORD"]
+        return f"postgresql+psycopg://fh_{role}:{password}@{self.db.host}:{self.db.port}/{self.db.name}"
+
+    @property
+    def operator_token(self) -> str:
+        return os.environ.get("FH_OPERATOR_TOKEN", "")
+
+
+def _merge(base: dict, over: dict) -> dict:
+    for key, value in over.items():
+        base[key] = _merge(base[key], value) if isinstance(value, dict) and key in base else value
+    return base
+
+
+def _load_dotenv(path: Path) -> None:
+    if path.exists():
+        for line in path.read_text().splitlines():
+            if "=" in line and not line.lstrip().startswith("#"):
+                key, _, value = line.partition("=")
+                os.environ.setdefault(key.strip(), value.strip())
+
+
+@cache
+def get_settings() -> Settings:
+    _load_dotenv(REPO_ROOT / ".env")
+    env = os.environ.get("FH_ENV", "dev")
+    config_dir = Path(os.environ.get("FH_CONFIG_DIR", REPO_ROOT / "config"))
+    data = yaml.safe_load((config_dir / "app.yaml").read_text())
+    overlay = config_dir / f"app.{env}.yaml"
+    if overlay.exists():
+        _merge(data, yaml.safe_load(overlay.read_text()) or {})
+    settings = Settings(env=env, **data)
+    if env not in ("dev", "test") and (not settings.auth.cookie_secure or settings.email.log_links):
+        # Dev conveniences that are unsafe anywhere else: cookies over plain HTTP, sign-in links in the log.
+        raise RuntimeError("outside dev and test, auth.cookie_secure must be true and email.log_links false")
+    return settings

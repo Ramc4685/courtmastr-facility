@@ -1,0 +1,46 @@
+"""The one way to reach tenant data: a transaction whose first statement sets app.tenant_id (overview 3.4)."""
+
+from collections.abc import Iterator
+from contextlib import contextmanager
+from functools import cache
+from typing import Any
+from uuid import UUID
+
+from sqlalchemy import Engine, create_engine, text
+from sqlalchemy.orm import Session
+
+from app.core.settings import get_settings
+
+
+@cache
+def app_engine() -> Engine:
+    settings = get_settings()
+    return create_engine(settings.db_url("app"), pool_size=settings.db.pool_size, pool_pre_ping=True)
+
+
+def open_tenant_session(tenant_id: UUID, actor: Any = None) -> Session:
+    """Caller owns commit/rollback/close. Prefer tenant_session(); the request pipeline uses this directly."""
+    session = Session(app_engine(), expire_on_commit=False)
+    # set_config(..., true) is SET LOCAL with a bind parameter; it dies with the transaction, so pooling is safe.
+    session.execute(text("SELECT set_config('app.tenant_id', :t, true)"), {"t": str(tenant_id)})
+    session.info["tenant_id"], session.info["actor"] = tenant_id, actor
+    return session
+
+
+def run_after_commit(session: Session) -> None:
+    for hook in session.info.pop("after_commit", []):
+        hook()
+
+
+@contextmanager
+def tenant_session(tenant_id: UUID, actor: Any = None) -> Iterator[Session]:
+    session = open_tenant_session(tenant_id, actor)
+    try:
+        yield session
+        session.commit()
+    except BaseException:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+    run_after_commit(session)

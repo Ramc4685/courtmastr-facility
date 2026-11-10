@@ -1,0 +1,477 @@
+"""platform HTTP surface. Routers validate, call one service function and shape the response; they never
+build error bodies or open transactions (TxRoute and the auth dependencies do)."""
+
+import secrets
+from functools import cache
+from pathlib import Path
+from typing import Annotated
+from uuid import UUID
+
+from alembic.script import ScriptDirectory
+from fastapi import APIRouter, Depends, Header, Request, Response
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from app.core import clock
+from app.core.api import TxRoute
+from app.core.auth import CATALOGUE, tokens
+from app.core.auth.deps import (
+    ACCESS_COOKIE,
+    REFRESH_COOKIE,
+    Ctx,
+    current_ctx,
+    public_session,
+    request_session,
+    require,
+)
+from app.core.db.platform import platform_engine
+from app.core.db.session import app_engine
+from app.core.errors import NotFound, Unauthenticated, ValidationFailed
+from app.core.idempotency import idempotency
+from app.core.pagination import ListQuery, list_query
+from app.core.ratelimit import _redis, rate_limit
+from app.core.settings import get_settings
+from app.modules.platform import auth, service, staff
+from app.modules.platform import schemas as s
+
+API_PREFIX = "/api/v1"
+_OUTBOX_LAG_SLO_SEC = 300
+
+
+def _camel(route) -> str:
+    head, *rest = route.name.split("_")
+    return head + "".join(part.title() for part in rest)
+
+
+def _router(**kwargs) -> APIRouter:
+    return APIRouter(route_class=TxRoute, tags=["platform"], generate_unique_id_function=_camel, **kwargs)
+
+
+public = _router()  # anonymous: tenant from host or token prefix
+me = _router()  # any signed-in principal acting on itself
+admin = _router(dependencies=[Depends(idempotency)])  # staff sessions; POSTs honour Idempotency-Key
+operator = APIRouter(tags=["operator"], generate_unique_id_function=_camel)
+
+Lists = Annotated[ListQuery, Depends(list_query)]
+Authenticated = Annotated[Ctx, Depends(require())]
+PublicSession = Annotated[Session, Depends(public_session)]
+
+
+# --- health (no tenant, no transaction) --------------------------------------------------------------------
+
+
+@cache
+def _migration_head() -> str:
+    return ScriptDirectory(str(Path(__file__).resolve().parents[3] / "migrations")).get_current_head()
+
+
+@public.get("/health/live", response_model=s.HealthStatus, response_model_exclude_none=True)
+def get_liveness():
+    """Process liveness; no dependencies checked."""
+    return {"status": "ok"}
+
+
+@public.get("/health/ready", response_model=s.HealthStatus, responses={503: {"model": s.HealthStatus}})
+def get_readiness(response: Response):
+    """PostgreSQL, Redis and migration head must be right (503 otherwise). A lagging outbox relay reports
+    `degraded` with 200 so a development stack without the relay still serves."""
+    checks: dict[str, str] = {}
+
+    def check(name: str, probe) -> None:
+        try:
+            checks[name] = "ok" if probe() else "failed"
+        except Exception:
+            checks[name] = "failed"
+
+    def migrations() -> bool:
+        with app_engine().connect() as conn:
+            return conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == _migration_head()
+
+    def relay() -> bool:
+        with platform_engine().connect() as conn:
+            lag = conn.execute(
+                text("SELECT extract(epoch FROM now() - min(occurred_at)) FROM outbox_event WHERE published_at IS NULL")
+            ).scalar()
+        return lag is None or lag < _OUTBOX_LAG_SLO_SEC
+
+    check("postgres", lambda: app_engine().connect().close() is None)
+    check("migrations", migrations)
+    check("redis", lambda: _redis().ping())
+    check("outbox_relay", relay)
+    if any(checks[name] != "ok" for name in ("postgres", "migrations", "redis")):
+        response.status_code = 503
+        return {"status": "unavailable", "checks": checks}
+    return {"status": "ok" if checks["outbox_relay"] == "ok" else "degraded", "checks": checks}
+
+
+# --- auth: anonymous ---------------------------------------------------------------------------------------
+
+
+def _session_out(grant: auth.Grant, response: Response) -> dict:
+    """Bearer clients get the tokens in the body; web gets HttpOnly cookies and a CSRF token."""
+    cfg = get_settings().auth
+    row = grant.auth_session
+    out = {
+        "id": row.id, "kind": row.kind, "principal": grant.principal, "access_expires_at": row.access_expires_at,
+        "idle_expires_at": row.idle_expires_at, "absolute_expires_at": row.absolute_expires_at,
+        "mfa_verified_at": row.mfa_verified_at,
+    }  # fmt: skip
+    if row.kind == "mobile":
+        return out | {"access_token": grant.access_token, "refresh_token": grant.refresh_token}
+    now = clock.now()
+    cookie = {"httponly": True, "secure": cfg.cookie_secure, "samesite": "lax"}
+    response.set_cookie(ACCESS_COOKIE, grant.access_token, max_age=cfg.access_ttl_min * 60, path="/", **cookie)
+    response.set_cookie(
+        REFRESH_COOKIE, grant.refresh_token, max_age=int((row.idle_expires_at - now).total_seconds()),
+        path=f"{API_PREFIX}/auth", **cookie,
+    )  # fmt: skip
+    return out | {"csrf_token": tokens.csrf_for(grant.access_token)}
+
+
+def _token_session(request: Request, token: str | None, prefix: str, code: str) -> Session:
+    """Consume endpoints find their tenant in the token prefix (an address, not a credential)."""
+    tenant_id = tokens.tenant_of(token, prefix)
+    if tenant_id is None:
+        raise Unauthenticated("This link or token is not valid.", code=code)
+    return request_session(request, tenant_id)
+
+
+_session_route = {"response_model": s.AuthSessionOut, "response_model_exclude_none": True}
+
+
+@public.post("/auth/sign-in", dependencies=[Depends(rate_limit("sign-in"))], **_session_route)
+def sign_in(body: s.SignInRequest, response: Response, session: PublicSession):
+    """Sign in with email and password. Errors: invalid-credentials, identity-locked, rate-limited."""
+    return _session_out(auth.sign_in(session, **body.model_dump()), response)
+
+
+@public.post("/auth/magic-links", status_code=202, dependencies=[Depends(rate_limit("magic-link"))])
+def request_magic_link(body: s.EmailLinkRequest, session: PublicSession) -> None:
+    """Email a single-use 15-minute sign-in link. Always 202, whether or not the address exists."""
+    auth.request_magic_link(session, **body.model_dump())
+
+
+@public.post("/auth/magic-links/consume", dependencies=[Depends(rate_limit("consume"))], **_session_route)
+def consume_magic_link(body: s.TokenConsumeRequest, request: Request, response: Response):
+    """Exchange a magic-link token for a session. Errors: token-invalid, token-expired."""
+    session = _token_session(request, body.token, "fhl", "token-invalid")
+    return _session_out(auth.consume_magic_link(session, token=body.token, client_kind=body.client_kind), response)
+
+
+@public.post("/auth/password-resets", status_code=202, dependencies=[Depends(rate_limit("password-reset"))])
+def request_password_reset(body: s.EmailLinkRequest, session: PublicSession) -> None:
+    """Email a single-use 60-minute reset link. Always 202."""
+    auth.request_password_reset(session, email=body.email, audience=body.audience)
+
+
+@public.post("/auth/password-resets/consume", dependencies=[Depends(rate_limit("consume"))], **_session_route)
+def consume_password_reset(body: s.TokenConsumeRequest, request: Request, response: Response):
+    """Set a new password; revokes every other session. Errors: token-invalid, token-expired, password-too-weak."""
+    if not body.new_password:
+        raise ValidationFailed("new_password is required.", pointer="/new_password")
+    session = _token_session(request, body.token, "fhl", "token-invalid")
+    grant = auth.consume_password_reset(
+        session, token=body.token, new_password=body.new_password, client_kind=body.client_kind
+    )
+    return _session_out(grant, response)
+
+
+@public.post("/auth/invitations/accept", dependencies=[Depends(rate_limit("consume"))], **_session_route)
+def accept_invitation(body: s.TokenConsumeRequest, request: Request, response: Response):
+    """Accept an invite and activate the identity; the password is optional (magic link remains available)."""
+    session = _token_session(request, body.token, "fhl", "token-invalid")
+    return _session_out(auth.accept_invitation(session, **body.model_dump()), response)
+
+
+@public.post("/auth/refresh", dependencies=[Depends(rate_limit("refresh"))], **_session_route)
+def refresh_session(request: Request, response: Response, body: s.RefreshRequest | None = None):
+    """Rotate the token pair. Web sends the refresh cookie; bearer clients send the body.
+    Errors: session-revoked, refresh-reuse-detected."""
+    token = (body.refresh_token if body else None) or request.cookies.get(REFRESH_COOKIE)
+    session = _token_session(request, token, "fhr", "session-revoked")
+    return _session_out(auth.refresh(session, refresh_token=token), response)
+
+
+# --- auth: self --------------------------------------------------------------------------------------------
+
+
+@me.post("/auth/sign-out", status_code=204)
+def sign_out(response: Response, ctx: Ctx = Depends(current_ctx)) -> None:
+    """Revoke the current session."""
+    auth.sign_out(ctx.session, ctx.principal)
+    response.delete_cookie(ACCESS_COOKIE, path="/")
+    response.delete_cookie(REFRESH_COOKIE, path=f"{API_PREFIX}/auth")
+
+
+@me.get("/auth/session", **_session_route)
+def get_current_session(request: Request, ctx: Ctx = Depends(current_ctx)):
+    """The current session. For cookie sessions this is where the web app reads its CSRF token."""
+    row = auth.get_session(ctx.session, ctx.principal)
+    cookie = request.cookies.get(ACCESS_COOKIE)
+    out = {
+        "id": row.id, "kind": row.kind, "principal": ctx.principal, "access_expires_at": row.access_expires_at,
+        "idle_expires_at": row.idle_expires_at, "absolute_expires_at": row.absolute_expires_at,
+        "mfa_verified_at": row.mfa_verified_at,
+    }  # fmt: skip
+    if cookie and "authorization" not in request.headers:
+        out["csrf_token"] = tokens.csrf_for(cookie)
+    return out
+
+
+@me.get("/auth/sessions", response_model=list[s.OwnSession])
+def list_own_sessions(ctx: Ctx = Depends(current_ctx)):
+    """The caller's live sessions."""
+    rows = auth.list_sessions(ctx.session, ctx.principal)
+    return [
+        s.OwnSession.model_validate(row).model_copy(update={"is_current": row.id == ctx.principal.session_id})
+        for row in rows
+    ]
+
+
+@me.delete("/auth/sessions/{session_id}", status_code=204)
+def revoke_own_session(session_id: UUID, ctx: Ctx = Depends(current_ctx)) -> None:
+    """Sign one of the caller's sessions out."""
+    auth.revoke_session(ctx.session, ctx.principal, session_id)
+
+
+@me.post("/auth/password", status_code=204)
+def change_own_password(body: s.PasswordChange, ctx: Ctx = Depends(current_ctx)) -> None:
+    """Change the caller's password; other sessions are revoked. Errors: invalid-credentials, password-too-weak."""
+    auth.change_password(ctx.session, ctx.principal, **body.model_dump())
+
+
+@me.get("/me", response_model=s.Me)
+def get_me(ctx: Ctx = Depends(current_ctx)):
+    """Principal, tenant, role, effective permissions and locations: what the web app routes by."""
+    return service.get_me(ctx.session, ctx.principal)
+
+
+# --- tenant ------------------------------------------------------------------------------------------------
+
+
+@admin.get("/tenant", response_model=s.TenantOut)
+def get_tenant(ctx: Authenticated):
+    return service.get_tenant(ctx.session)
+
+
+@admin.patch("/tenant", response_model=s.TenantOut)
+def update_tenant(body: s.TenantUpdate, ctx: Ctx = Depends(require("platform.tenant.update"))):
+    return service.update_tenant(ctx.session, ctx.principal, body.model_dump(exclude_unset=True))
+
+
+# --- locations ---------------------------------------------------------------------------------------------
+
+
+@admin.get("/locations", response_model=s.Page[s.LocationOut])
+def list_locations(ctx: Authenticated, query: Lists):
+    """Locations the caller may act in. Filters: status. Sort: name, sort_order, created_at."""
+    return service.list_locations(ctx.session, ctx.principal, query)
+
+
+@admin.post("/locations", response_model=s.LocationOut, status_code=201)
+def create_location(body: s.LocationCreate, ctx: Ctx = Depends(require("platform.location.create"))):
+    """Create a location with its seven facility-hours rows. Errors: already-exists."""
+    return service.create_location(ctx.session, ctx.principal, body.model_dump(exclude_unset=True))
+
+
+@admin.get("/locations/{location_id}", response_model=s.LocationOut)
+def get_location(location_id: UUID, ctx: Authenticated):
+    return service.get_location(ctx.session, ctx.principal, location_id)
+
+
+@admin.patch("/locations/{location_id}", response_model=s.LocationOut)
+def update_location(location_id: UUID, body: s.LocationUpdate, ctx: Ctx = Depends(require("platform.location.update"))):
+    return service.update_location(ctx.session, ctx.principal, location_id, body.model_dump(exclude_unset=True))
+
+
+@admin.post("/locations/{location_id}/archive", response_model=s.LocationOut)
+def archive_location(location_id: UUID, ctx: Ctx = Depends(require("platform.location.archive"))):
+    """Set a location inactive. Errors: invalid-state-transition."""
+    return service.archive_location(ctx.session, ctx.principal, location_id)
+
+
+@admin.get("/locations/{location_id}/facility-hours", response_model=s.FacilityHoursOut)
+def get_facility_hours(location_id: UUID, ctx: Authenticated):
+    return service.get_facility_hours(ctx.session, ctx.principal, location_id)
+
+
+@admin.put("/locations/{location_id}/facility-hours", response_model=s.FacilityHoursOut)
+def replace_facility_hours(
+    location_id: UUID, body: s.FacilityHoursReplace, ctx: Ctx = Depends(require("platform.location.update"))
+):
+    """Replace the whole week (one entry per ISO weekday). closes_time 24:00 is a midnight close."""
+    return service.replace_facility_hours(ctx.session, ctx.principal, location_id, body.model_dump()["days"])
+
+
+@public.get("/public/locations", response_model=s.Page[s.PublicLocation])
+def list_public_locations(session: PublicSession, query: Lists):
+    """Public location directory of the tenant resolved from the host."""
+    return service.list_public_locations(session, query)
+
+
+# --- staff users -------------------------------------------------------------------------------------------
+
+
+@admin.get("/staff-users", response_model=s.Page[s.StaffUserOut])
+def list_staff_users(query: Lists, ctx: Ctx = Depends(require("platform.staff_user.read"))):
+    """Filters: role_id, is_active, identity_status, location_id; q searches name and email.
+    Sort: last_name, first_name, email, created_at."""
+    return staff.list_staff_users(ctx.session, ctx.principal, query)
+
+
+@admin.post("/staff-users", response_model=s.StaffUserOut, status_code=201)
+def invite_staff_user(body: s.StaffUserInvite, ctx: Ctx = Depends(require("platform.staff_user.invite"))):
+    """Create a staff user and email the invite link. Errors: already-exists, self-escalation."""
+    return staff.invite_staff_user(ctx.session, ctx.principal, body.model_dump())
+
+
+@admin.get("/staff-users/{staff_user_id}", response_model=s.StaffUserOut)
+def get_staff_user(staff_user_id: UUID, ctx: Ctx = Depends(require("platform.staff_user.read"))):
+    return staff.get_staff_user(ctx.session, ctx.principal, staff_user_id)
+
+
+@admin.patch("/staff-users/{staff_user_id}", response_model=s.StaffUserOut)
+def update_staff_user(
+    staff_user_id: UUID, body: s.StaffUserUpdate, ctx: Ctx = Depends(require("platform.staff_user.update"))
+):
+    return staff.update_staff_user(ctx.session, ctx.principal, staff_user_id, body.model_dump(exclude_unset=True))
+
+
+@admin.post("/staff-users/{staff_user_id}/deactivate", response_model=s.StaffUserOut)
+def deactivate_staff_user(staff_user_id: UUID, ctx: Ctx = Depends(require("platform.staff_user.deactivate"))):
+    """Deactivate and sign out everywhere, immediately. Errors: last-owner."""
+    return staff.deactivate_staff_user(ctx.session, ctx.principal, staff_user_id)
+
+
+@admin.post("/staff-users/{staff_user_id}/reactivate", response_model=s.StaffUserOut)
+def reactivate_staff_user(staff_user_id: UUID, ctx: Ctx = Depends(require("platform.staff_user.deactivate"))):
+    return staff.reactivate_staff_user(ctx.session, ctx.principal, staff_user_id)
+
+
+@admin.post("/staff-users/{staff_user_id}/invitation/resend", status_code=202)
+def resend_staff_invitation(staff_user_id: UUID, ctx: Ctx = Depends(require("platform.staff_user.invite"))) -> None:
+    """Errors: invalid-state-transition when the invitation was already accepted."""
+    staff.resend_invitation(ctx.session, ctx.principal, staff_user_id)
+
+
+@admin.post("/staff-users/{staff_user_id}/credential-reset", status_code=202)
+def reset_staff_credentials(
+    staff_user_id: UUID, ctx: Ctx = Depends(require("platform.staff_user.reset_credentials"))
+) -> None:
+    """Send a reset link (never a temporary password) and revoke the user's sessions."""
+    staff.reset_credentials(ctx.session, ctx.principal, staff_user_id)
+
+
+@admin.put("/staff-users/{staff_user_id}/role", response_model=s.StaffUserOut)
+def assign_staff_role(
+    staff_user_id: UUID, body: s.StaffUserRoleAssign, ctx: Ctx = Depends(require("platform.staff_user.assign_role"))
+):
+    """Assign the user's single role. Errors: last-owner, self-escalation."""
+    return staff.assign_role(
+        ctx.session, ctx.principal, staff_user_id, body.role_id, reset_overrides=body.reset_overrides
+    )
+
+
+@admin.put("/staff-users/{staff_user_id}/locations", response_model=s.StaffUserOut)
+def assign_staff_locations(
+    staff_user_id: UUID,
+    body: s.StaffUserLocationsAssign,
+    ctx: Ctx = Depends(require("platform.staff_user.assign_locations")),
+):
+    return staff.assign_locations(ctx.session, ctx.principal, staff_user_id, body.model_dump())
+
+
+@admin.get("/staff-users/{staff_user_id}/permissions", response_model=s.StaffUserPermissions)
+def get_staff_user_permissions(staff_user_id: UUID, ctx: Ctx = Depends(require("platform.staff_user.read"))):
+    return staff.get_permissions(ctx.session, ctx.principal, staff_user_id)
+
+
+@admin.put("/staff-users/{staff_user_id}/permission-overrides", response_model=s.StaffUserPermissions)
+def replace_staff_permission_overrides(
+    staff_user_id: UUID,
+    body: s.PermissionGrantsReplace,
+    ctx: Ctx = Depends(require("platform.staff_user.override_permissions")),
+):
+    """Replace the user's whole override set. Errors: self-escalation, unknown-permission."""
+    return staff.replace_permission_overrides(ctx.session, ctx.principal, staff_user_id, body.model_dump()["grants"])
+
+
+@admin.post("/staff-users/{staff_user_id}/permissions/reset", response_model=s.StaffUserPermissions)
+def reset_staff_permissions(
+    staff_user_id: UUID, ctx: Ctx = Depends(require("platform.staff_user.override_permissions"))
+):
+    """Reset to role: delete every override."""
+    return staff.reset_permissions(ctx.session, ctx.principal, staff_user_id)
+
+
+# --- roles and the permission catalogue ---------------------------------------------------------------------
+
+
+@admin.get("/permissions", response_model=s.Page[s.PermissionDefinition])
+def list_permission_catalogue(context: str | None = None, ctx: Ctx = Depends(require("platform.role.read"))):
+    """The static catalogue declared in code. It is small, so it comes back as a single page."""
+    rows = [p for p in CATALOGUE.values() if context in (None, p.context)]
+    return {"data": rows, "page": {"next_cursor": None, "has_more": False, "total": len(rows)}}
+
+
+@admin.get("/roles", response_model=s.Page[s.RoleOut])
+def list_roles(query: Lists, ctx: Ctx = Depends(require("platform.role.read"))):
+    return staff.list_roles(ctx.session, ctx.principal, query)
+
+
+@admin.post("/roles", response_model=s.RoleOut, status_code=201)
+def create_role(body: s.RoleCreate, ctx: Ctx = Depends(require("platform.role.manage"))):
+    """Create a custom role, optionally cloning another. Errors: already-exists, self-escalation."""
+    return staff.create_role(ctx.session, ctx.principal, body.model_dump())
+
+
+@admin.get("/roles/{role_id}", response_model=s.RoleOut)
+def get_role(role_id: UUID, ctx: Ctx = Depends(require("platform.role.read"))):
+    return staff.get_role(ctx.session, ctx.principal, role_id)
+
+
+@admin.patch("/roles/{role_id}", response_model=s.RoleOut)
+def update_role(role_id: UUID, body: s.RoleUpdate, ctx: Ctx = Depends(require("platform.role.manage"))):
+    """Errors: system-role-immutable, already-exists."""
+    return staff.update_role(ctx.session, ctx.principal, role_id, body.model_dump(exclude_unset=True))
+
+
+@admin.delete("/roles/{role_id}", status_code=204)
+def delete_role(role_id: UUID, ctx: Ctx = Depends(require("platform.role.manage"))) -> None:
+    """Errors: system-role-immutable, role-in-use."""
+    staff.delete_role(ctx.session, ctx.principal, role_id)
+
+
+@admin.put("/roles/{role_id}/permissions", response_model=s.RoleOut)
+def replace_role_permissions(
+    role_id: UUID, body: s.PermissionGrantsReplace, ctx: Ctx = Depends(require("platform.role.manage"))
+):
+    """Replace the role's whole grant set. Errors: system-role-immutable, unknown-permission, self-escalation."""
+    return staff.replace_role_permissions(ctx.session, ctx.principal, role_id, body.model_dump()["grants"])
+
+
+# --- audit -------------------------------------------------------------------------------------------------
+
+
+@admin.get("/audit-events", response_model=s.Page[s.AuditEventOut])
+def list_audit_events(query: Lists, ctx: Ctx = Depends(require("platform.audit.read"))):
+    """Staff activity trail, newest first. Filters: actor_id, actor_type, action, entity_type, entity_id,
+    location_id, occurred_at[gte|lt|...]."""
+    return service.list_audit_events(ctx.session, ctx.principal, query)
+
+
+# --- operator: tenant onboarding ----------------------------------------------------------------------------
+
+
+@operator.post("/operator/tenants", response_model=s.TenantOnboarded, status_code=201)
+def onboard_tenant(body: s.TenantOnboard, x_operator_token: str = Header("")):
+    """Create a tenant and its first Owner. Guarded by the FH_OPERATOR_TOKEN secret; absent when unset."""
+    expected = get_settings().operator_token
+    if not expected or not secrets.compare_digest(x_operator_token.encode(), expected.encode()):
+        raise NotFound()
+    return service.onboard_tenant(**body.model_dump())
+
+
+router = APIRouter()
+for part in (public, me, admin, operator):
+    router.include_router(part)
