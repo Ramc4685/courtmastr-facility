@@ -160,10 +160,10 @@ def merge(session: Session, principal: Principal, survivor_id: UUID, loser_ids: 
         for field in _backfill_fields(survivor, [loser]):
             filled[field] = str(getattr(loser, field))
             value = getattr(loser, field)
-            if field == "member_number":
-                loser.member_number = None  # unique per tenant: free it before the survivor takes it
+            if field == "member_number":  # unique per tenant: free it before the survivor takes it
+                source, loser.member_number, loser.member_number_source = loser.member_number_source, None, None
                 session.flush()
-                survivor.member_number_source = loser.member_number_source
+                survivor.member_number_source = source
             setattr(survivor, field, value)
         survivor.custom_values = loser.custom_values | survivor.custom_values
         session.flush()

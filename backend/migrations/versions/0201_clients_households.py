@@ -57,7 +57,7 @@ BEGIN
     DELETE FROM consent_event WHERE client_id = p_client AND kind = 'opt_in' AND tenant_id = app.current_tenant_id();
     UPDATE consent_event
        SET address = CASE WHEN address IS NULL THEN NULL ELSE encode(sha256(lower(address::text)::bytea), 'hex') END,
-           note = NULL, ip = NULL
+           note = CASE WHEN note IS NULL THEN NULL ELSE '[erased]' END, ip = NULL
      WHERE client_id = p_client AND tenant_id = app.current_tenant_id();
     GET DIAGNOSTICS kept = ROW_COUNT;
     RETURN kept;
