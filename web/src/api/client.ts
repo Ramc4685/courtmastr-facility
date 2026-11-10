@@ -69,7 +69,7 @@ const TENANT_SLUG: string | undefined =
 // Anonymous auth endpoints: a 401 there is an answer, not an expired session.
 const NO_REFRESH = ['/api/v1/auth/sign-in', '/api/v1/auth/refresh', '/api/v1/auth/magic-links/consume']
 
-type Options = { path?: Record<string, string>; query?: Record<string, string | number | boolean | null | undefined>; body?: unknown }
+type Options = { path?: Record<string, string>; query?: Record<string, string | number | boolean | null | undefined>; body?: unknown; idempotencyKey?: string }
 
 function buildUrl(template: string, opts: Options): string {
   const path = template.replace(/\{(\w+)\}/g, (_, k: string) => encodeURIComponent(opts.path?.[k] ?? ''))
@@ -99,7 +99,8 @@ export async function request<T>(method: Method, template: string, opts: Options
   const headers: Record<string, string> = { accept: 'application/json' }
   if (opts.body !== undefined) headers['content-type'] = 'application/json'
   if (TENANT_SLUG) headers['x-tenant-slug'] = TENANT_SLUG
-  if (method !== 'get') headers['idempotency-key'] = crypto.randomUUID()
+  // A caller that may retry one user action across requests (taking a payment) passes its own stable key.
+  if (method !== 'get') headers['idempotency-key'] = opts.idempotencyKey ?? crypto.randomUUID()
 
   const send = () => {
     if (method !== 'get' && csrfToken) headers['x-csrf-token'] = csrfToken
@@ -130,12 +131,12 @@ export async function request<T>(method: Method, template: string, opts: Options
 export const api = {
   get: <P extends keyof paths>(path: P, opts?: { path?: PathParams<Op<P, 'get'>>; query?: Options['query'] }) =>
     request<Ok<Op<P, 'get'>>>('get', path as string, opts as Options),
-  post: <P extends keyof paths>(path: P, opts?: { path?: PathParams<Op<P, 'post'>>; body?: Body<Op<P, 'post'>> }) =>
+  post: <P extends keyof paths>(path: P, opts?: { path?: PathParams<Op<P, 'post'>>; body?: Body<Op<P, 'post'>>; idempotencyKey?: string }) =>
     request<Ok<Op<P, 'post'>>>('post', path as string, opts as Options),
-  put: <P extends keyof paths>(path: P, opts: { path?: PathParams<Op<P, 'put'>>; body: Body<Op<P, 'put'>> }) =>
+  put: <P extends keyof paths>(path: P, opts: { path?: PathParams<Op<P, 'put'>>; query?: Options['query']; body: Body<Op<P, 'put'>> }) =>
     request<Ok<Op<P, 'put'>>>('put', path as string, opts as Options),
   patch: <P extends keyof paths>(path: P, opts: { path?: PathParams<Op<P, 'patch'>>; body: Body<Op<P, 'patch'>> }) =>
     request<Ok<Op<P, 'patch'>>>('patch', path as string, opts as Options),
-  delete: <P extends keyof paths>(path: P, opts?: { path?: PathParams<Op<P, 'delete'>> }) =>
+  delete: <P extends keyof paths>(path: P, opts?: { path?: PathParams<Op<P, 'delete'>>; query?: Options['query'] }) =>
     request<Ok<Op<P, 'delete'>>>('delete', path as string, opts as Options),
 }

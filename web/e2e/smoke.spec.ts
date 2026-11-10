@@ -30,6 +30,7 @@ test('staff signs in and opens the staff users page', async ({ page }) => {
 
 // Definition of done: WCAG 2.1 AA on every web screen. A new module adds its routes to its own spec.
 test('every module 1 screen passes the axe WCAG 2.1 AA scan', async ({ page }) => {
+  test.setTimeout(90_000) // fifteen-odd scans; over 30s when other specs run alongside
   const scan = async (label: string) => {
     const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
     expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
