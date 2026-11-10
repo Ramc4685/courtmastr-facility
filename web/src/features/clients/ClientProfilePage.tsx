@@ -10,6 +10,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { Tabs } from '../../components/Tabs'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
+import { ClientDocumentsTab, WaiverBadge } from '../documents/ClientDocumentsTab'
 import { formatDateTime, fullName } from '../../lib/format'
 import { ClientPicker, type ClientSummary } from './ClientPicker'
 import { useCategories } from './ClientsPage'
@@ -389,6 +390,7 @@ export function ClientProfilePage() {
               </span>
             )}
             {client.member_number && <span className="tabular">#{client.member_number}</span>}
+            <WaiverBadge clientId={client.id} />
           </span>
         }
         actions={
@@ -407,7 +409,7 @@ export function ClientProfilePage() {
           { id: 'overview', label: 'Overview', content: <Overview key={client.version} client={client} /> },
           { id: 'family', label: 'Family', content: <Family client={client} /> },
           { id: 'notes', label: 'Notes', content: <Notes client={client} /> },
-          { id: 'documents', label: 'Documents', content: <EmptyState title="Documents arrive with the waivers module">Signed waivers and uploaded files will show here.</EmptyState> },
+          ...(can('documents.document.read') ? [{ id: 'documents', label: 'Documents', content: <ClientDocumentsTab client={client} /> }] : []),
           { id: 'billing', label: 'Billing', content: <EmptyState title="Billing arrives with the billing screens">Invoices, payments and balance will show here.</EmptyState> },
         ]}
       />

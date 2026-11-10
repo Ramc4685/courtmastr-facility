@@ -81,7 +81,7 @@ describe('auth flow', () => {
     expect(nav).not.toHaveTextContent('Staff users')
     expect(nav).not.toHaveTextContent('Activity log')
     expect(nav).toHaveTextContent('Scheduling')
-    expect(screen.getAllByText('(coming soon)')).toHaveLength(15) // Members & households is built (Clients)
+    expect(screen.getAllByText('(coming soon)')).toHaveLength(14) // Members & households (Clients) and Waivers (Documents) are built
   })
 
   it('explains a 403 when the page is opened directly without the permission', async () => {

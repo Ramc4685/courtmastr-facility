@@ -367,6 +367,215 @@ export interface paths {
         patch: operations["updateClientCategory"];
         trace?: never;
     };
+    "/api/v1/client-document-statuses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Client Document Statuses
+         * @description Waiver and consent indicator for up to 200 clients.
+         */
+        get: operations["listClientDocumentStatuses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-document-statuses/{client_id}/waiver-override": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Waiver Override */
+        put: operations["setWaiverOverride"];
+        post?: never;
+        /** Clear Waiver Override */
+        delete: operations["clearWaiverOverride"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Client Documents
+         * @description Filters: client_id, location_id, template_id, status[in], issued_at[gte|lte], is_deleted (soft-deleted
+         *     documents still recoverable), source_type, source_id. q searches the title. Sort: issued_at.
+         */
+        get: operations["listClientDocuments"];
+        put?: never;
+        /**
+         * Create Client Document
+         * @description Errors: email-not-verified, client-inactive, validation-failed.
+         */
+        post: operations["createClientDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-documents/{document_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Client Document */
+        get: operations["getClientDocument"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Client Document
+         * @description Soft delete; restore within document_settings.deleted_recovery_days.
+         */
+        delete: operations["deleteClientDocument"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-documents/{document_id}/acceptances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Client Document Acceptance
+         * @description In-person signing witnessed by the signed-in staff user. Errors: content-mismatch, already-exists,
+         *     guardian-required, invalid-state-transition, validation-failed.
+         */
+        post: operations["submitClientDocumentAcceptance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-documents/{document_id}/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Client Document Deliveries */
+        get: operations["listClientDocumentDeliveries"];
+        put?: never;
+        /**
+         * Send Client Document
+         * @description Emails a single-use signing link to confirmed addresses of the client or a guardian; supersedes earlier
+         *     links. Errors: email-not-verified, invalid-state-transition.
+         */
+        post: operations["sendClientDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-documents/{document_id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Client Document File
+         * @description The PDF of the signed record (rendered) or the uploaded paper copy, as an attachment.
+         */
+        get: operations["getClientDocumentFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-documents/{document_id}/paper-scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upload Client Document Paper Scan
+         * @description Raw file bytes (PDF, JPEG or PNG, up to storage.max_upload_bytes) with their Content-Type; marks the
+         *     document paper-signed. Optional X-File-Name. Errors: file-type-mismatch, file-too-large, file-empty.
+         */
+        put: operations["uploadClientDocumentPaperScan"];
+        post?: never;
+        /**
+         * Clear Client Document Paper Signed
+         * @description Clears the paper-signed flag: accepted -> pending (paper method only).
+         */
+        delete: operations["clearClientDocumentPaperSigned"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-documents/{document_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Client Document
+         * @description Errors: recovery-window-lapsed.
+         */
+        post: operations["restoreClientDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-documents/{document_id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Void Client Document */
+        post: operations["voidClientDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/client-duplicates": {
         parameters: {
             query?: never;
@@ -1002,6 +1211,242 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/document-bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Document Bindings
+         * @description Filters: scope_type, scope_id, template_id, is_active.
+         */
+        get: operations["listDocumentBindings"];
+        /**
+         * Upsert Document Binding
+         * @description Replaces the active binding of the scope. Errors: validation-failed.
+         */
+        put: operations["upsertDocumentBinding"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/document-bindings/{binding_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deactivate Document Binding */
+        delete: operations["deactivateDocumentBinding"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/document-location-settings/{location_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Document Location Settings */
+        get: operations["getDocumentLocationSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Document Location Settings
+         * @description Errors: consent-template-missing.
+         */
+        patch: operations["updateDocumentLocationSettings"];
+        trace?: never;
+    };
+    "/api/v1/document-requirements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Document Requirements
+         * @description What the client must accept before a sale in this scope (the selling context calls the same rule).
+         */
+        get: operations["getDocumentRequirements"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/document-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Document Settings */
+        get: operations["getDocumentSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Document Settings */
+        patch: operations["updateDocumentSettings"];
+        trace?: never;
+    };
+    "/api/v1/document-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Document Templates
+         * @description Filters: status, kind, is_waiver. q searches the name. Sort: name, created_at.
+         */
+        get: operations["listDocumentTemplates"];
+        put?: never;
+        /**
+         * Create Document Template
+         * @description Errors: already-exists (name), consent-template-active (on publish of a second consent template).
+         */
+        post: operations["createDocumentTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/document-templates/{template_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Document Template */
+        get: operations["getDocumentTemplate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Document Template */
+        patch: operations["updateDocumentTemplate"];
+        trace?: never;
+    };
+    "/api/v1/document-templates/{template_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Archive Document Template
+         * @description Errors: in-use (an active binding).
+         */
+        post: operations["archiveDocumentTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/document-templates/{template_id}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save Document Template Draft
+         * @description The body is sanitised to the rich-text allow-list on save. Errors: unknown-merge-field, validation-failed.
+         */
+        put: operations["saveDocumentTemplateDraft"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/document-templates/{template_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish Document Template
+         * @description Errors: no-draft, consent-template-active.
+         */
+        post: operations["publishDocumentTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/document-templates/{template_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Document Template */
+        post: operations["restoreDocumentTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/document-templates/{template_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Document Template Versions */
+        get: operations["listDocumentTemplateVersions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health/live": {
         parameters: {
             query?: never;
@@ -1390,6 +1835,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/client-documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Client Documents
+         * @description Your documents, or a household member's you may act for (client_id). Filter: status.
+         */
+        get: operations["listPortalClientDocuments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/client-documents/{document_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Client Document */
+        get: operations["getPortalClientDocument"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/client-documents/{document_id}/acceptances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Portal Submit Acceptance
+         * @description Accept or decline as yourself, or as guardian of a dependent. Errors: content-mismatch, already-exists,
+         *     guardian-required.
+         */
+        post: operations["portalSubmitAcceptance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/client-documents/{document_id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Client Document File */
+        get: operations["getPortalClientDocumentFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/clients": {
         parameters: {
             query?: never;
@@ -1467,6 +1987,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Consent State */
+        get: operations["getPortalConsentState"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/dependents": {
         parameters: {
             query?: never;
@@ -1481,6 +2018,26 @@ export interface paths {
          * @description Add a family member who has no login of their own; you manage their profile.
          */
         post: operations["portalCreateDependent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/document-requirements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Portal Document Requirements
+         * @description Requirements before an online checkout; the pending document of each unmet blocking requirement is issued.
+         */
+        get: operations["getPortalDocumentRequirements"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1542,6 +2099,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/document-deliveries/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Public Decide Document
+         * @description Accept or decline; any decision consumes the token. Errors: as open, plus content-mismatch.
+         */
+        post: operations["publicDecideDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/document-deliveries/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Public Get Document Delivery
+         * @description The token travels in the body, never the URL (security-baseline 17.2). Viewing does not consume it.
+         *     Errors: token-invalid (404), token-expired, token-superseded (410).
+         */
+        post: operations["publicGetDocumentDelivery"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/email-verifications/confirm": {
         parameters: {
             query?: never;
@@ -1574,6 +2172,26 @@ export interface paths {
          * @description Public location directory of the tenant resolved from the host.
          */
         get: operations["listPublicLocations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/portal-terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Portal Terms
+         * @description The terms a new portal account accepts (DOC-14). Tenant from the host or X-Tenant-Slug.
+         */
+        get: operations["getPublicPortalTerms"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2033,6 +2651,13 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AcceptanceSubmit */
+        AcceptanceSubmit: {
+            /** Content Sha256 */
+            content_sha256: string;
+            /** Signers */
+            signers: components["schemas"]["StaffSigner"][];
+        };
         /** AlertIn */
         AlertIn: {
             /** Ends On */
@@ -2442,6 +3067,129 @@ export interface components {
             /** Tag Ids */
             tag_ids?: string[] | null;
         };
+        /**
+         * ClientDocumentCreate
+         * @description Issue a template, or (no template_id, a title, acceptance_method paper) open a record for an uploaded
+         *     document and then PUT its file to /paper-scan.
+         */
+        ClientDocumentCreate: {
+            /**
+             * Acceptance Method
+             * @enum {string}
+             */
+            acceptance_method: "paper" | "checkbox" | "drawn_signature" | "email_link";
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Recipient Emails */
+            recipient_emails?: string[] | null;
+            /** Template Id */
+            template_id?: string | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** ClientDocumentOut */
+        ClientDocumentOut: {
+            /** Acceptance Method */
+            acceptance_method: string;
+            /** Acceptance Text */
+            acceptance_text: string;
+            /** Acceptances */
+            acceptances: components["schemas"]["DocumentAcceptanceOut"][];
+            /** Binding Id */
+            binding_id: string | null;
+            /** Body Html */
+            body_html: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Name */
+            client_name: string;
+            /** Content Sha256 */
+            content_sha256: string;
+            /** Decided At */
+            decided_at: string | null;
+            /** Deleted At */
+            deleted_at: string | null;
+            /** Description */
+            description: string | null;
+            /** Expires On */
+            expires_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Paper Signed */
+            is_paper_signed: boolean;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Origin */
+            origin: string;
+            /** Paper Scan File Id */
+            paper_scan_file_id: string | null;
+            /** Rendered File Id */
+            rendered_file_id: string | null;
+            /** Required Roles */
+            required_roles: string[];
+            /** Requires Guardian */
+            requires_guardian: boolean;
+            /** Signature Blocks */
+            signature_blocks: {
+                [key: string]: unknown;
+            }[];
+            /** Source Id */
+            source_id: string | null;
+            /** Source Type */
+            source_type: string | null;
+            /** Status */
+            status: string;
+            /** Template Id */
+            template_id: string | null;
+            /** Template Version Id */
+            template_version_id: string | null;
+            /** Title */
+            title: string;
+            /** Version */
+            version: number;
+        };
+        /** ClientDocumentStatusOut */
+        ClientDocumentStatusOut: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Consent Accepted At */
+            consent_accepted_at: string | null;
+            /** Is Consent Missing */
+            is_consent_missing: boolean;
+            /** Is Waiver On File */
+            is_waiver_on_file: boolean;
+            /** Waiver Override */
+            waiver_override: string | null;
+            /** Waiver Override Note */
+            waiver_override_note: string | null;
+            /** Waiver Valid Until On */
+            waiver_valid_until_on: string | null;
+        };
         /** ClientListItem */
         ClientListItem: {
             /** Client Category Id */
@@ -2739,6 +3487,308 @@ export interface components {
             label?: string | null;
             /** Sort Order */
             sort_order?: number | null;
+        };
+        /** DocumentAcceptanceOut */
+        DocumentAcceptanceOut: {
+            /**
+             * Decided At
+             * Format: date-time
+             */
+            decided_at: string;
+            /** Decision */
+            decision: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Method */
+            method: string;
+            /** Signature File Id */
+            signature_file_id: string | null;
+            /** Signer Client Id */
+            signer_client_id: string | null;
+            /** Signer Name */
+            signer_name: string;
+            /** Signer Role */
+            signer_role: string;
+            /** Typed Signature */
+            typed_signature: string | null;
+            /** Witnessed By Staff User Id */
+            witnessed_by_staff_user_id: string | null;
+        };
+        /** DocumentBindingOut */
+        DocumentBindingOut: {
+            /** Custom Text */
+            custom_text: string | null;
+            /** Frequency */
+            frequency: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Enforced At Desk */
+            is_enforced_at_desk: boolean;
+            /** Is Enforced Online */
+            is_enforced_online: boolean;
+            /** Scope Id */
+            scope_id: string | null;
+            /** Scope Type */
+            scope_type: string;
+            /** Template Id */
+            template_id: string | null;
+        };
+        /**
+         * DocumentBindingUpsert
+         * @description One active binding per scope. Exactly one of template_id and custom_text (plain text, DOC-14).
+         */
+        DocumentBindingUpsert: {
+            /** Custom Text */
+            custom_text?: string | null;
+            /**
+             * Frequency
+             * @default first_purchase
+             * @enum {string}
+             */
+            frequency: "first_purchase" | "every_purchase";
+            /**
+             * Is Enforced At Desk
+             * @default true
+             */
+            is_enforced_at_desk: boolean;
+            /**
+             * Is Enforced Online
+             * @default true
+             */
+            is_enforced_online: boolean;
+            /** Scope Id */
+            scope_id?: string | null;
+            /**
+             * Scope Type
+             * @enum {string}
+             */
+            scope_type: "membership_plan" | "package_plan" | "program_group" | "program_default" | "rental_plan" | "portal_terms";
+            /** Template Id */
+            template_id?: string | null;
+        };
+        /** DocumentDeliveryCreate */
+        DocumentDeliveryCreate: {
+            /** Recipient Emails */
+            recipient_emails: string[];
+        };
+        /** DocumentDeliveryOut */
+        DocumentDeliveryOut: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Opened At */
+            opened_at: string | null;
+            /** Outcome */
+            outcome: string;
+            /** Recipient Emails */
+            recipient_emails: string[];
+            /**
+             * Sent At
+             * Format: date-time
+             */
+            sent_at: string;
+        };
+        /** DocumentLocationSettingsOut */
+        DocumentLocationSettingsOut: {
+            /** Is Consent Required */
+            is_consent_required: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+        };
+        /** DocumentLocationSettingsUpdate */
+        DocumentLocationSettingsUpdate: {
+            /** Is Consent Required */
+            is_consent_required: boolean;
+        };
+        /** DocumentRequirementList */
+        DocumentRequirementList: {
+            /** Requirements */
+            requirements: components["schemas"]["DocumentRequirementOut"][];
+        };
+        /** DocumentRequirementOut */
+        DocumentRequirementOut: {
+            /**
+             * Binding Id
+             * Format: uuid
+             */
+            binding_id: string;
+            /** Is Blocking */
+            is_blocking: boolean;
+            /** Is Satisfied */
+            is_satisfied: boolean;
+            /** Pending Document Id */
+            pending_document_id: string | null;
+            /** Requires Guardian */
+            requires_guardian: boolean;
+            /** Satisfied By Document Id */
+            satisfied_by_document_id: string | null;
+            /** Template Id */
+            template_id: string | null;
+            /** Title */
+            title: string;
+        };
+        /** DocumentSettingsOut */
+        DocumentSettingsOut: {
+            /** Deleted Recovery Days */
+            deleted_recovery_days: number;
+            /** Email Link Ttl Hours */
+            email_link_ttl_hours: number;
+            /** Is Staff Notified On Decision */
+            is_staff_notified_on_decision: boolean;
+            /** Is Waiver Required For Booking */
+            is_waiver_required_for_booking: boolean;
+            /** Is Waiver Required For Check In */
+            is_waiver_required_for_check_in: boolean;
+        };
+        /** DocumentSettingsUpdate */
+        DocumentSettingsUpdate: {
+            /** Deleted Recovery Days */
+            deleted_recovery_days?: number | null;
+            /** Email Link Ttl Hours */
+            email_link_ttl_hours?: number | null;
+            /** Is Staff Notified On Decision */
+            is_staff_notified_on_decision?: boolean | null;
+            /** Is Waiver Required For Booking */
+            is_waiver_required_for_booking?: boolean | null;
+            /** Is Waiver Required For Check In */
+            is_waiver_required_for_check_in?: boolean | null;
+        };
+        /** DocumentTemplateCreate */
+        DocumentTemplateCreate: {
+            /** Description */
+            description?: string | null;
+            /**
+             * Is Waiver
+             * @default false
+             */
+            is_waiver: boolean;
+            /**
+             * Kind
+             * @default agreement
+             * @enum {string}
+             */
+            kind: "agreement" | "consent";
+            /**
+             * Minor Age Years
+             * @default 18
+             */
+            minor_age_years: number;
+            /** Name */
+            name: string;
+            /**
+             * Requires Guardian For Minors
+             * @default true
+             */
+            requires_guardian_for_minors: boolean;
+            /** Signature Validity Days */
+            signature_validity_days?: number | null;
+        };
+        /** DocumentTemplateDraft */
+        DocumentTemplateDraft: {
+            /** Acceptance Text */
+            acceptance_text: string;
+            /** Body Html */
+            body_html: string;
+            /** Change Note */
+            change_note?: string | null;
+            /** Signature Blocks */
+            signature_blocks?: components["schemas"]["SignatureBlock"][] | null;
+        };
+        /** DocumentTemplateOut */
+        DocumentTemplateOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            current_version: components["schemas"]["DocumentTemplateVersionOut"] | null;
+            /** Description */
+            description: string | null;
+            /** Has Draft */
+            has_draft: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Waiver */
+            is_waiver: boolean;
+            /** Kind */
+            kind: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Minor Age Years */
+            minor_age_years: number;
+            /** Name */
+            name: string;
+            /** Requires Guardian For Minors */
+            requires_guardian_for_minors: boolean;
+            /** Signature Validity Days */
+            signature_validity_days: number | null;
+            /** Status */
+            status: string;
+        };
+        /** DocumentTemplateUpdate */
+        DocumentTemplateUpdate: {
+            /** Description */
+            description?: string | null;
+            /** Is Waiver */
+            is_waiver?: boolean | null;
+            /** Minor Age Years */
+            minor_age_years?: number | null;
+            /** Name */
+            name?: string | null;
+            /** Requires Guardian For Minors */
+            requires_guardian_for_minors?: boolean | null;
+            /** Signature Validity Days */
+            signature_validity_days?: number | null;
+        };
+        /** DocumentTemplateVersionOut */
+        DocumentTemplateVersionOut: {
+            /** Acceptance Text */
+            acceptance_text: string;
+            /** Body Html */
+            body_html: string;
+            /** Body Sha256 */
+            body_sha256: string;
+            /** Change Note */
+            change_note: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Published At */
+            published_at: string | null;
+            /** Signature Blocks */
+            signature_blocks: {
+                [key: string]: unknown;
+            }[];
+            /** Version Number */
+            version_number: number;
+        };
+        /** DocumentTokenIn */
+        DocumentTokenIn: {
+            /** Token */
+            token: string;
         };
         /** DsrConfirm */
         DsrConfirm: {
@@ -3659,10 +4709,46 @@ export interface components {
             data: components["schemas"]["ChargeOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[ClientDocumentOut] */
+        Page_ClientDocumentOut_: {
+            /** Data */
+            data: components["schemas"]["ClientDocumentOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[ClientDocumentStatusOut] */
+        Page_ClientDocumentStatusOut_: {
+            /** Data */
+            data: components["schemas"]["ClientDocumentStatusOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[ClientListItem] */
         Page_ClientListItem_: {
             /** Data */
             data: components["schemas"]["ClientListItem"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[DocumentBindingOut] */
+        Page_DocumentBindingOut_: {
+            /** Data */
+            data: components["schemas"]["DocumentBindingOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[DocumentDeliveryOut] */
+        Page_DocumentDeliveryOut_: {
+            /** Data */
+            data: components["schemas"]["DocumentDeliveryOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[DocumentTemplateOut] */
+        Page_DocumentTemplateOut_: {
+            /** Data */
+            data: components["schemas"]["DocumentTemplateOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[DocumentTemplateVersionOut] */
+        Page_DocumentTemplateVersionOut_: {
+            /** Data */
+            data: components["schemas"]["DocumentTemplateVersionOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[DsrOut] */
@@ -3929,6 +5015,13 @@ export interface components {
             /** Grants */
             grants: components["schemas"]["PermissionGrant"][];
         };
+        /** PortalAcceptanceSubmit */
+        PortalAcceptanceSubmit: {
+            /** Content Sha256 */
+            content_sha256: string;
+            /** Signers */
+            signers: components["schemas"]["PortalSigner"][];
+        };
         /** PortalAccessList */
         PortalAccessList: {
             /** Data */
@@ -4051,6 +5144,15 @@ export interface components {
             /** Region */
             region?: string | null;
         };
+        /** PortalConsentStateOut */
+        PortalConsentStateOut: {
+            /** Is Consent Missing */
+            is_consent_missing: boolean;
+            /** Is Consent Required */
+            is_consent_required: boolean;
+            /** Pending Document Id */
+            pending_document_id: string | null;
+        };
         /** PortalDependentCreate */
         PortalDependentCreate: {
             /** Birth On */
@@ -4108,6 +5210,39 @@ export interface components {
              * Format: uuid
              */
             relationship_type_id: string;
+        };
+        /** PortalSigner */
+        PortalSigner: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "accepted" | "declined";
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "checkbox" | "drawn_signature" | "typed_name";
+            /** Signature Png */
+            signature_png?: string | null;
+            /** Signer Client Id */
+            signer_client_id?: string | null;
+            /** Signer Name */
+            signer_name: string;
+            /**
+             * Signer Role
+             * @enum {string}
+             */
+            signer_role: "client" | "guardian";
+            /** Typed Signature */
+            typed_signature?: string | null;
+        };
+        /** PortalTermsOut */
+        PortalTermsOut: {
+            /** Body Html */
+            body_html: string;
+            /** Title */
+            title: string;
         };
         /** PreferenceChange */
         PreferenceChange: {
@@ -4187,6 +5322,54 @@ export interface components {
             kind: "staff" | "client";
             /** Staff User Id */
             staff_user_id?: string | null;
+        };
+        /** PublicDocumentDecision */
+        PublicDocumentDecision: {
+            /** Content Sha256 */
+            content_sha256: string;
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "accepted" | "declined";
+            /** Signature Png */
+            signature_png?: string | null;
+            /** Signer Name */
+            signer_name: string;
+            /** Signer Role */
+            signer_role?: ("client" | "guardian") | null;
+            /** Token */
+            token: string;
+            /** Typed Signature */
+            typed_signature: string;
+        };
+        /** PublicDocumentView */
+        PublicDocumentView: {
+            /** Acceptance Text */
+            acceptance_text: string;
+            /** Body Html */
+            body_html: string;
+            /** Client Display Name */
+            client_display_name: string;
+            /** Content Sha256 */
+            content_sha256: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Requires Guardian */
+            requires_guardian: boolean;
+            /** Signature Blocks */
+            signature_blocks: {
+                [key: string]: unknown;
+            }[];
+            /** Status */
+            status: string;
+            /** Tenant Name */
+            tenant_name: string;
+            /** Title */
+            title: string;
         };
         /** PublicLocation */
         PublicLocation: {
@@ -4520,6 +5703,42 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+        };
+        /** SignatureBlock */
+        SignatureBlock: {
+            /** Label */
+            label?: string | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "client" | "guardian" | "co_signer";
+        };
+        /** StaffSigner */
+        StaffSigner: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "accepted" | "declined";
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "paper" | "checkbox" | "drawn_signature" | "typed_name";
+            /** Signature Png */
+            signature_png?: string | null;
+            /** Signer Client Id */
+            signer_client_id?: string | null;
+            /** Signer Name */
+            signer_name: string;
+            /**
+             * Signer Role
+             * @enum {string}
+             */
+            signer_role: "client" | "guardian" | "co_signer";
+            /** Typed Signature */
+            typed_signature?: string | null;
         };
         /** StaffUserInvite */
         StaffUserInvite: {
@@ -4937,6 +6156,16 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** WaiverOverrideIn */
+        WaiverOverrideIn: {
+            /** Note */
+            note?: string | null;
+            /**
+             * Waiver Override
+             * @enum {string}
+             */
+            waiver_override: "on_file" | "not_on_file";
         };
     };
     responses: never;
@@ -5619,6 +6848,546 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LookupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listClientDocumentStatuses: {
+        parameters: {
+            query: {
+                "client_id[in]": string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ClientDocumentStatusOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    setWaiverOverride: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WaiverOverrideIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientDocumentStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clearWaiverOverride: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listClientDocuments: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ClientDocumentOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createClientDocument: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientDocumentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientDocumentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getClientDocument: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientDocumentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteClientDocument: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submitClientDocumentAcceptance: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptanceSubmit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientDocumentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listClientDocumentDeliveries: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_DocumentDeliveryOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sendClientDocument: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentDeliveryCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentDeliveryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getClientDocumentFile: {
+        parameters: {
+            query?: {
+                variant?: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    uploadClientDocumentPaperScan: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientDocumentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clearClientDocumentPaperSigned: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientDocumentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restoreClientDocument: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientDocumentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    voidClientDocument: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientDocumentOut"];
                 };
             };
             /** @description Validation Error */
@@ -7338,6 +9107,629 @@ export interface operations {
             };
         };
     };
+    listDocumentBindings: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_DocumentBindingOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upsertDocumentBinding: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentBindingUpsert"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentBindingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivateDocumentBinding: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                binding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getDocumentLocationSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                location_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentLocationSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateDocumentLocationSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                location_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentLocationSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentLocationSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getDocumentRequirements: {
+        parameters: {
+            query: {
+                client_id: string;
+                scope_type: "membership_plan" | "package_plan" | "program_group" | "program_default" | "rental_plan" | "portal_terms";
+                scope_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentRequirementList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getDocumentSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateDocumentSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listDocumentTemplates: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_DocumentTemplateOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createDocumentTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentTemplateCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getDocumentTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateDocumentTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentTemplateUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    archiveDocumentTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    saveDocumentTemplateDraft: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentTemplateDraft"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentTemplateVersionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publishDocumentTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restoreDocumentTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listDocumentTemplateVersions: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_DocumentTemplateVersionOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getLiveness: {
         parameters: {
             query?: never;
@@ -8250,6 +10642,160 @@ export interface operations {
             };
         };
     };
+    listPortalClientDocuments: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ClientDocumentOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalClientDocument: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientDocumentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    portalSubmitAcceptance: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalAcceptanceSubmit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientDocumentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalClientDocumentFile: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPortalActableClients: {
         parameters: {
             query?: never;
@@ -8498,6 +11044,38 @@ export interface operations {
             };
         };
     };
+    getPortalConsentState: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalConsentStateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     portalCreateDependent: {
         parameters: {
             query?: never;
@@ -8521,6 +11099,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortalClientOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalDocumentRequirements: {
+        parameters: {
+            query: {
+                scope_type: "membership_plan" | "package_plan" | "program_group" | "program_default" | "rental_plan" | "portal_terms";
+                scope_id?: string | null;
+                client_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentRequirementList"];
                 };
             };
             /** @description Validation Error */
@@ -8668,6 +11282,72 @@ export interface operations {
             };
         };
     };
+    publicDecideDocument: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicDocumentDecision"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicDocumentView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publicGetDocumentDelivery: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentTokenIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicDocumentView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     confirmEmailVerification: {
         parameters: {
             query?: never;
@@ -8737,6 +11417,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPublicPortalTerms: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalTermsOut"];
                 };
             };
         };

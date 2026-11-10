@@ -11,6 +11,7 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Activity log', to: '/audit', permission: 'platform.audit.read', icon: 'list' },
   { label: 'Settings', to: '/settings', permission: 'platform.tenant.update', icon: 'gear' },
   { label: 'Clients', to: '/clients', permission: 'clients.client.read', icon: 'person' },
+  { label: 'Documents', to: '/documents', permission: 'documents.template.manage', icon: 'pen' },
 ]
 
 // Build modules 2-17 (docs/architecture/overview.md section 6).
@@ -19,7 +20,6 @@ export const UPCOMING_NAV: NavItem[] = [
   { label: 'Rentals & events', icon: 'ticket' },
   { label: 'Memberships & packages', icon: 'card' },
   { label: 'Programs & registration', icon: 'clipboard' },
-  { label: 'Waivers', icon: 'pen' },
   { label: 'Billing & payments', icon: 'cash' },
   { label: 'Point of sale', icon: 'cart' },
   { label: 'Check-in & access', icon: 'door' },

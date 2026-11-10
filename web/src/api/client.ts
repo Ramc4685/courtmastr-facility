@@ -139,3 +139,34 @@ export const api = {
   delete: <P extends keyof paths>(path: P, opts?: { path?: PathParams<Op<P, 'delete'>> }) =>
     request<Ok<Op<P, 'delete'>>>('delete', path as string, opts as Options),
 }
+
+/** PUT raw file bytes (the one upload route, /client-documents/{id}/paper-scan). Same CSRF, idempotency and
+ * problem handling as `request`; no refresh retry, since the body stream is consumed. */
+export async function uploadFile<T>(template: keyof paths, path: Record<string, string>, file: File): Promise<T> {
+  const headers: Record<string, string> = {
+    accept: 'application/json',
+    'content-type': file.type || 'application/octet-stream',
+    'x-file-name': encodeURIComponent(file.name).slice(0, 200),
+    'idempotency-key': crypto.randomUUID(),
+  }
+  if (TENANT_SLUG) headers['x-tenant-slug'] = TENANT_SLUG
+  if (csrfToken) headers['x-csrf-token'] = csrfToken
+  const res = await fetch(buildUrl(template as string, { path }), { method: 'PUT', headers, credentials: 'same-origin', body: file })
+  const data: unknown = await res.json().catch(() => undefined)
+  if (!res.ok) throw new ApiError({ ...((data ?? {}) as Problem), status: res.status })
+  return data as T
+}
+
+/** GET a file route and hand the browser the attachment (signed PDFs, paper copies). */
+export async function downloadFile(template: keyof paths, opts: Options, fallbackName: string): Promise<void> {
+  const headers: Record<string, string> = {}
+  if (TENANT_SLUG) headers['x-tenant-slug'] = TENANT_SLUG
+  let res = await fetch(buildUrl(template as string, opts), { headers, credentials: 'same-origin' })
+  if (res.status === 401 && (await refresh())) res = await fetch(buildUrl(template as string, opts), { headers, credentials: 'same-origin' })
+  if (!res.ok) throw new ApiError({ ...(((await res.json().catch(() => ({}))) ?? {}) as Problem), status: res.status })
+  const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? fallbackName
+  const url = URL.createObjectURL(await res.blob())
+  const link = Object.assign(document.createElement('a'), { href: url, download: name })
+  link.click()
+  URL.revokeObjectURL(url)
+}
