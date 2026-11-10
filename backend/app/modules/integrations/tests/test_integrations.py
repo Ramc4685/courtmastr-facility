@@ -318,6 +318,7 @@ def test_repointing_an_endpoint_needs_its_events_read_permissions(client, tenant
             f"{API}/webhook-endpoints/{endpoint['id']}", headers=owner, json={"url": "https://new.invalid/"}
         )
     assert moved.status_code == 200 and moved.json()["url"] == "https://new.invalid/"
+    assert moved.json()["created_by_staff_user_id"] == str(tenant.owner_id)  # rebound to whoever repointed it
 
 
 def test_location_limited_subscriber_only_receives_its_locations(client, tenant, owner):

@@ -295,7 +295,8 @@ def update_webhook_endpoint(session: Session, principal: Principal, endpoint_id:
         if not all(may_subscribe(principal, CATALOGUE[t]) for t in row.event_types if t in CATALOGUE):
             raise PermissionDenied("You may not receive this endpoint's events", code="event-permission-denied")
         transport.check(data["url"])
-        row.url = data["url"]
+        # Deliveries now follow the caller's own grants and locations, as with a rotated API key.
+        row.url, row.created_by_staff_user_id = data["url"], principal.staff_user_id
     if "description" in data:
         row.description = data["description"]
     if data.get("event_types") is not None:
