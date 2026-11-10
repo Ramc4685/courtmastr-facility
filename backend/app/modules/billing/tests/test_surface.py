@@ -142,9 +142,11 @@ def test_billing_settings_have_location_overrides_and_tenders_can_be_relabelled(
 
 
 def test_closing_the_books_refuses_back_dated_postings(api, shop):
+    assert api("GET", "/billing-settings/period-lock") == {"locked_through_on": None}
     assert api("PUT", "/billing-settings/period-lock", {"locked_through_on": "2026-09-30"}) == {
         "locked_through_on": "2026-09-30"
     }
+    assert api("GET", "/billing-settings/period-lock") == {"locked_through_on": "2026-09-30"}  # the screen shows it
     api("POST", "/charges", item(shop, revenue_on="2026-09-30"), 409, "period-locked")
     assert api("POST", "/charges", item(shop, revenue_on="2026-10-01"), 201)["revenue_on"] == "2026-10-01"
     api("PUT", "/billing-settings/period-lock", {"locked_through_on": None})
@@ -345,6 +347,7 @@ def test_invoice_email_carries_a_single_use_pay_link(client, api, shop, emailed,
         shown["bill_to_name"],
     )
     assert "client_id" not in str(shown) and len(shown["lines"]) == 1
+    assert shown["provider"] == "fake"  # the pay page renders that processor's card entry
     public("lookup", {"token": "x" * 43}, 404, "link-invalid")
     declined = public("payments", {"token": token, "method_token": "tok_card_declined"}, 201)
     assert declined["status"] == "failed"

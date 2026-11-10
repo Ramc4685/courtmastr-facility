@@ -203,11 +203,16 @@ def invoice_by_link(session: Session, token: str) -> dict:
     """What the pay page shows. Reading does not use the link up."""
     _, invoice = _link(session, token)
     document = invoice_document(session, invoice)
-    return {
+    shown = {
         key: document[key]
         for key in ("number", "status", "invoice_on", "due_on", "bill_to_name", "currency", "total_minor",
                     "balance_minor", "lines")
     }  # fmt: skip
+    try:
+        shown["provider"] = service._provider_account(session).provider
+    except Conflict:
+        shown["provider"] = None
+    return shown
 
 
 def pay_by_link(session: Session, token: str, *, method_token: str, idempotency_key: str) -> Payment:

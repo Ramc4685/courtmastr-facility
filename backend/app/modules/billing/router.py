@@ -240,6 +240,11 @@ def delete_billing_settings_override(location_id: UUID, ctx: Ctx = Depends(requi
     catalogue.delete_settings_override(ctx.session, ctx.principal, location_id)
 
 
+@router.get("/billing-settings/period-lock", response_model=s.PeriodLockOut)
+def get_billing_period_lock(ctx: Ctx = Depends(require("billing.settings.manage"))):
+    return {"locked_through_on": catalogue.get_period_lock(ctx.session, ctx.principal)}
+
+
 @router.put("/billing-settings/period-lock", response_model=s.PeriodLockOut)
 def set_billing_period_lock(body: s.PeriodLock, ctx: Ctx = Depends(require("billing.settings.manage"))):
     """Close the books through a date: later postings dated on or before it are refused with period-locked."""

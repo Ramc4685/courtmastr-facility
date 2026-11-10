@@ -302,6 +302,11 @@ def delete_settings_override(session: Session, principal: Principal, location_id
     session.flush()
 
 
+def get_period_lock(session: Session, principal: Principal) -> date | None:
+    authorize(principal, "billing.settings.manage")
+    return platform.service.get_tenant(session).billing_locked_through_on
+
+
 def set_period_lock(session: Session, principal: Principal, locked_through_on: date | None) -> date | None:
     """Close the books through a date (ADR 0003 section 3): no posting may then be dated on or before it.
     Moving the lock back re-opens a period, so it is an audited settings change like any other."""

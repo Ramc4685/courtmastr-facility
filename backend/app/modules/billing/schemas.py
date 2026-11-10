@@ -880,6 +880,7 @@ class LinkInvoice(Out):
     total_minor: int
     balance_minor: int
     lines: list[DocumentLine]
+    provider: Literal["stripe", "fake"] | None  # which card entry the pay page shows; None: cannot take cards
 
 
 class LinkPayment(Out):

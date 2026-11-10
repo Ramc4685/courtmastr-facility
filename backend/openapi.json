@@ -4655,6 +4655,21 @@
             "title": "Number",
             "type": "integer"
           },
+          "provider": {
+            "anyOf": [
+              {
+                "enum": [
+                  "stripe",
+                  "fake"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
           "status": {
             "title": "Status",
             "type": "string"
@@ -4673,7 +4688,8 @@
           "currency",
           "total_minor",
           "balance_minor",
-          "lines"
+          "lines",
+          "provider"
         ],
         "title": "LinkInvoice",
         "type": "object"
@@ -11422,6 +11438,56 @@
       }
     },
     "/api/v1/billing-settings/period-lock": {
+      "get": {
+        "operationId": "getBillingPeriodLock",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeriodLockOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Billing Period Lock",
+        "tags": [
+          "billing"
+        ]
+      },
       "put": {
         "description": "Close the books through a date: later postings dated on or before it are refused with period-locked.",
         "operationId": "setBillingPeriodLock",

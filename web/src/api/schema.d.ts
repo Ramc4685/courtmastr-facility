@@ -452,7 +452,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Get Billing Period Lock */
+        get: operations["getBillingPeriodLock"];
         /**
          * Set Billing Period Lock
          * @description Close the books through a date: later postings dated on or before it are refused with period-locked.
@@ -4003,6 +4004,8 @@ export interface components {
             lines: components["schemas"]["DocumentLine"][];
             /** Number */
             number: number;
+            /** Provider */
+            provider: ("stripe" | "fake") | null;
             /** Status */
             status: string;
             /** Total Minor */
@@ -6445,6 +6448,38 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getBillingPeriodLock: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeriodLockOut"];
+                };
             };
             /** @description Validation Error */
             422: {
