@@ -266,6 +266,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/billing-schedule-periods/{period_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Billing Schedule Period
+         * @description Errors: period-not-editable (already billed, withheld or cancelled).
+         */
+        patch: operations["updateBillingSchedulePeriod"];
+        trace?: never;
+    };
     "/api/v1/charges": {
         parameters: {
             query?: never;
@@ -649,6 +669,225 @@ export interface paths {
         head?: never;
         /** Update Client Note */
         patch: operations["updateClientNote"];
+        trace?: never;
+    };
+    "/api/v1/client-packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Client Packages
+         * @description Filters: client_id (owner), usable_by_client_id (owned or shared), location_id, status,
+         *     reservation_type_id, package_plan_id, package_series_id, source_contract_id, is_auto_renew,
+         *     is_complimentary. q searches the name. Sort: created_at, name.
+         */
+        get: operations["listClientPackages"];
+        put?: never;
+        /**
+         * Sell Client Package
+         * @description Errors: document-required (carries document_id), members-only, validation-failed.
+         */
+        post: operations["sellClientPackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-packages/complimentary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grant Complimentary Package
+         * @description Give a plan's package away: no charge, marked complimentary.
+         */
+        post: operations["grantComplimentaryPackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-packages/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Quote Client Package
+         * @description Dry run of a sale: credits, pre-tax price, validity and the documents still to accept.
+         */
+        post: operations["quoteClientPackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-packages/{package_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Client Package */
+        get: operations["getClientPackage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Client Package
+         * @description Expiry (null = never expires), booking after expiry, renewal settings and the renewal threshold.
+         */
+        patch: operations["updateClientPackage"];
+        trace?: never;
+    };
+    "/api/v1/client-packages/{package_id}/credit-adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Adjust Client Package Credits
+         * @description Errors: package-exhausted (the adjustment would take away credits already scheduled or used).
+         */
+        post: operations["adjustClientPackageCredits"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-packages/{package_id}/ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Client Package Ledger
+         * @description Every credit movement. Filters: entry_type, client_id, source_id, reason. Sort: occurred_at.
+         */
+        get: operations["listClientPackageLedger"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-packages/{package_id}/removal-quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Quote Client Package Removal */
+        post: operations["quoteClientPackageRemoval"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-packages/{package_id}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove Client Package
+         * @description Errors: package-in-use (billing_reversed once sessions were used).
+         */
+        post: operations["removeClientPackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-packages/{package_id}/renew": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Renew Client Package
+         * @description Returns the successor package. Errors: already-renewed.
+         */
+        post: operations["renewClientPackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-packages/{package_id}/shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Package Shares */
+        get: operations["listPackageShares"];
+        put?: never;
+        /** Add Package Share */
+        post: operations["addPackageShare"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-packages/{package_id}/shares/{package_share_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke Package Share */
+        delete: operations["revokePackageShare"];
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/client-relationships/{relationship_id}/approve": {
@@ -1652,6 +1891,608 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/membership-contracts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Membership Contracts
+         * @description Filters: client_id, location_id, status, membership_type_id, membership_plan_id, is_auto_renew, renew_on,
+         *     start_on, end_on, previous_contract_id, sales_channel. q searches the name. Sort: start_on, end_on,
+         *     created_at.
+         */
+        get: operations["listMembershipContracts"];
+        put?: never;
+        /**
+         * Sell Membership Contract
+         * @description Errors: membership-overlap (the client already holds a membership in these dates), validation-failed.
+         */
+        post: operations["sellMembershipContract"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-contracts/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Quote Membership Contract
+         * @description Dry run of a sale: dates, proration and every billing period, pre-tax. Writes nothing.
+         */
+        post: operations["quoteMembershipContract"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-contracts/upcoming-renewals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Upcoming Membership Renewals
+         * @description Contracts that renew within `days`, with the name, start and price of the next term.
+         */
+        get: operations["listUpcomingMembershipRenewals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-contracts/{contract_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Membership Contract */
+        get: operations["getMembershipContract"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Membership Contract
+         * @description Renewal settings (including the plan to renew into: the upgrade or downgrade path), autopay flag, visit
+         *     cap, notes. Sold terms never change here.
+         */
+        patch: operations["updateMembershipContract"];
+        trace?: never;
+    };
+    "/api/v1/membership-contracts/{contract_id}/billing-schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Membership Billing Schedule */
+        get: operations["listMembershipBillingSchedule"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-contracts/{contract_id}/billing-schedule/invoice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invoice Deferred Schedule Periods
+         * @description Invoice scheduled periods now: all of them, or the listed ones.
+         */
+        post: operations["invoiceDeferredSchedulePeriods"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-contracts/{contract_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Membership Contract
+         * @description `is_refunded` also needs billing.refund.create. Errors: remark-required, invalid-state-transition.
+         */
+        post: operations["cancelMembershipContract"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-contracts/{contract_id}/cancellation-quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Quote Membership Cancellation
+         * @description Dry run of a cancel on a date, with the pro-rata credit proposed for the current period.
+         */
+        post: operations["quoteMembershipCancellation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-contracts/{contract_id}/freezes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Membership Freezes */
+        get: operations["listMembershipFreezes"];
+        put?: never;
+        /**
+         * Freeze Membership Contract
+         * @description Errors: freeze-overlap, freeze-suspension-overlap, remark-required, invalid-state-transition.
+         */
+        post: operations["freezeMembershipContract"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-contracts/{contract_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Membership Contract History */
+        get: operations["listMembershipContractHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-contracts/{contract_id}/renew": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Renew Membership Contract
+         * @description Returns the successor (status upcoming). Errors: already-renewed, invalid-state-transition.
+         */
+        post: operations["renewMembershipContract"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-contracts/{contract_id}/reprice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reprice Membership Contract
+         * @description New dues for the not-yet-billed periods from `effective_on` (default today).
+         */
+        post: operations["repriceMembershipContract"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-contracts/{contract_id}/shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Membership Shares */
+        get: operations["listMembershipShares"];
+        put?: never;
+        /** Add Membership Share */
+        post: operations["addMembershipShare"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-contracts/{contract_id}/shares/{membership_share_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke Membership Share */
+        delete: operations["revokeMembershipShare"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-contracts/{contract_id}/sold-by": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Membership Contract Sold By */
+        put: operations["setMembershipContractSoldBy"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-contracts/{contract_id}/suspensions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Membership Suspensions */
+        get: operations["listMembershipSuspensions"];
+        put?: never;
+        /**
+         * Suspend Membership Contract
+         * @description Errors: suspension-overlap, freeze-suspension-overlap, remark-required, invalid-state-transition.
+         */
+        post: operations["suspendMembershipContract"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-contracts/{contract_id}/undo-cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo Membership Cancel
+         * @description Errors: membership-overlap (the client holds another membership in those dates).
+         */
+        post: operations["undoMembershipCancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-contracts/{contract_id}/visit-adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adjust Membership Visits */
+        post: operations["adjustMembershipVisits"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-contracts/{contract_id}/visits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Membership Visits
+         * @description Filters: client_id, local_on. Sort: visited_at.
+         */
+        get: operations["listMembershipVisits"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-freezes/{freeze_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Membership Freeze
+         * @description Save or change the end date (null = open-ended again). Errors: freeze-ended, freeze-overlap.
+         */
+        patch: operations["updateMembershipFreeze"];
+        trace?: never;
+    };
+    "/api/v1/membership-freezes/{freeze_id}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove Membership Freeze
+         * @description Unfreeze today (or withdraw a freeze that has not begun). Errors: freeze-ended.
+         */
+        post: operations["removeMembershipFreeze"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Membership Plans
+         * @description Filters: membership_type_id, is_active, is_sold_online. q searches the name. Sort: sort_order, name.
+         */
+        get: operations["listMembershipPlans"];
+        put?: never;
+        /** Create Membership Plan */
+        post: operations["createMembershipPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-plans/{membership_plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Membership Plan */
+        get: operations["getMembershipPlan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Membership Plan
+         * @description Edits affect later sales and renewals only; sold contracts keep their snapshot.
+         */
+        patch: operations["updateMembershipPlan"];
+        trace?: never;
+    };
+    "/api/v1/membership-plans/{membership_plan_id}/addons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace Membership Plan Addons
+         * @description The package plans bundled with this plan; granted to the member when a contract starts (MEM-04).
+         */
+        put: operations["replaceMembershipPlanAddons"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-plans/{membership_plan_id}/duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Duplicate Membership Plan */
+        post: operations["duplicateMembershipPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Membership Settings */
+        get: operations["getMembershipSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Membership Settings */
+        patch: operations["updateMembershipSettings"];
+        trace?: never;
+    };
+    "/api/v1/membership-standings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Membership Standings
+         * @description Membership state per client (owner or sharer), from the dates, for check-in and the profile header.
+         */
+        get: operations["listMembershipStandings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-suspensions/{suspension_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Membership Suspension */
+        patch: operations["updateMembershipSuspension"];
+        trace?: never;
+    };
+    "/api/v1/membership-suspensions/{suspension_id}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Remove Membership Suspension */
+        post: operations["removeMembershipSuspension"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Membership Types
+         * @description Filters: is_active. q searches the name. Sort: sort_order, name.
+         */
+        get: operations["listMembershipTypes"];
+        put?: never;
+        /** Create Membership Type */
+        post: operations["createMembershipType"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/membership-types/{membership_type_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Membership Type */
+        patch: operations["updateMembershipType"];
+        trace?: never;
+    };
     "/api/v1/note-subjects": {
         parameters: {
             query?: never;
@@ -1709,6 +2550,121 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/package-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Package Plans
+         * @description Filters: reservation_type_id, is_active, kind, session_mode, pricing_category, online_sale_mode. q searches
+         *     the name. Sort: sort_order, name.
+         */
+        get: operations["listPackagePlans"];
+        put?: never;
+        /** Create Package Plan */
+        post: operations["createPackagePlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/package-plans/{package_plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Package Plan */
+        get: operations["getPackagePlan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Package Plan
+         * @description Edits affect later sales and renewals only; sold packages keep their snapshot.
+         */
+        patch: operations["updatePackagePlan"];
+        trace?: never;
+    };
+    "/api/v1/package-series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Package Series
+         * @description Filters: client_id, status, package_plan_id, location_id. Sort: created_at.
+         */
+        get: operations["listPackageSeries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/package-series/{series_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Package Series */
+        get: operations["getPackageSeries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/package-series/{series_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Package Series */
+        post: operations["cancelPackageSeries"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/package-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Package Settings */
+        get: operations["getPackageSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Package Settings */
+        patch: operations["updatePackageSettings"];
         trace?: never;
     };
     "/api/v1/payments": {
@@ -1910,6 +2866,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/client-packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Client Packages
+         * @description Packages the signed-in client (or the client they act for) owns or may draw on. Filters: status,
+         *     reservation_type_id.
+         */
+        get: operations["listPortalClientPackages"];
+        put?: never;
+        /**
+         * Portal Buy Client Package
+         * @description Errors: payment-failed (a pay-in-full plan and the payment did not go through; nothing is sold),
+         *     document-required, members-only.
+         */
+        post: operations["portalBuyClientPackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/client-packages/{package_id}/auto-renew-opt-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Portal Opt Out Package Auto Renew */
+        post: operations["portalOptOutPackageAutoRenew"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/client-packages/{package_id}/ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Portal Client Package Ledger */
+        get: operations["listPortalClientPackageLedger"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/clients": {
         parameters: {
             query?: never;
@@ -2044,6 +3060,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/membership-contracts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Membership Contracts
+         * @description Memberships the signed-in client (or the client they act for) owns or is covered by.
+         */
+        get: operations["listPortalMembershipContracts"];
+        put?: never;
+        /**
+         * Portal Buy Membership Contract
+         * @description What is due now must be paid and go through. Errors: payment-failed (nothing is sold),
+         *     membership-overlap, validation-failed (plan not sold online, no payment method).
+         */
+        post: operations["portalBuyMembershipContract"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/membership-contracts/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Portal Quote Membership Contract
+         * @description Dry run of an online purchase of a plan that is sold online.
+         */
+        post: operations["portalQuoteMembershipContract"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/membership-contracts/{contract_id}/auto-renew-opt-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Portal Opt Out Membership Auto Renew
+         * @description Click-to-cancel: switches automatic renewal off. The membership runs to its end date; nothing is
+         *     refunded for the current term.
+         */
+        post: operations["portalOptOutMembershipAutoRenew"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/membership-standing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Membership Standing */
+        get: operations["getPortalMembershipStanding"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/package-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Package Plans
+         * @description Plans sold online. Filters: reservation_type_id. q searches the name.
+         */
+        get: operations["listPortalPackagePlans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/package-series/{series_id}/auto-renew-opt-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Portal Opt Out Series Auto Renew */
+        post: operations["portalOptOutSeriesAutoRenew"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/relationship-types": {
         parameters: {
             query?: never;
@@ -2172,6 +3308,48 @@ export interface paths {
          * @description Public location directory of the tenant resolved from the host.
          */
         get: operations["listPublicLocations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/membership-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Public Membership Plans
+         * @description Plans sold online, for the tenant resolved from the host. Filters: membership_type_id. q searches the
+         *     name.
+         */
+        get: operations["listPublicMembershipPlans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/package-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Public Package Plans
+         * @description Plans sold online, for the tenant resolved from the host. Filters: reservation_type_id. q searches the
+         *     name. `is_purchasable` is false for member-only plans until a signed-in member asks.
+         */
+        get: operations["listPublicPackagePlans"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2885,6 +4063,232 @@ export interface components {
             /** Refresh Token */
             refresh_token?: string | null;
         };
+        /** CancelIn */
+        CancelIn: {
+            /** Cancel Bundled Packages */
+            cancel_bundled_packages?: boolean | null;
+            /**
+             * Credit Minor
+             * @default 0
+             */
+            credit_minor: number;
+            /** Effective On */
+            effective_on?: string | null;
+            /**
+             * Is Refunded
+             * @default false
+             */
+            is_refunded: boolean;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "voluntary" | "upgrade" | "downgrade" | "administrative_error" | "other";
+            /** Remarks */
+            remarks?: string | null;
+        };
+        /** CancelOut */
+        CancelOut: {
+            /** Activated At */
+            activated_at: string | null;
+            /** Auto Renew Disabled At */
+            auto_renew_disabled_at: string | null;
+            /** Auto Renew Disabled By */
+            auto_renew_disabled_by: string | null;
+            /** Auto Renew Lead Count */
+            auto_renew_lead_count: number | null;
+            /** Auto Renew Lead Unit */
+            auto_renew_lead_unit: string | null;
+            /** Billing Interval Count */
+            billing_interval_count: number;
+            /** Billing Interval Unit */
+            billing_interval_unit: string;
+            /** Billing Occurrences Count */
+            billing_occurrences_count: number;
+            /** Cancel Reason */
+            cancel_reason: string | null;
+            /** Cancel Remarks */
+            cancel_remarks: string | null;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Cancelled On */
+            cancelled_on: string | null;
+            /** Client Document Id */
+            client_document_id: string | null;
+            /** Covered Client Count */
+            covered_client_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Credit Minor */
+            credit_minor: number;
+            /** Discount Minor */
+            discount_minor: number | null;
+            /** Discount Pct */
+            discount_pct: string | null;
+            /**
+             * Effective Status
+             * @enum {string}
+             */
+            effective_status: "upcoming" | "active" | "frozen" | "suspended" | "expired" | "cancelled";
+            /**
+             * End On
+             * Format: date
+             */
+            end_on: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Initiation Fee Minor */
+            initiation_fee_minor: number;
+            /** Internal Notes */
+            internal_notes: string | null;
+            /** Invoice Description */
+            invoice_description: string | null;
+            /** Invoice Mode */
+            invoice_mode: string;
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /** Is Autopay */
+            is_autopay: boolean;
+            /** Is Cancel Scheduled */
+            is_cancel_scheduled: boolean;
+            /** Is Prorated */
+            is_prorated: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Max Visits Count */
+            max_visits_count: number | null;
+            /** Membership Plan Id */
+            membership_plan_id: string | null;
+            /**
+             * Membership Type Id
+             * Format: uuid
+             */
+            membership_type_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Original End On
+             * Format: date
+             */
+            original_end_on: string;
+            /**
+             * Owner Client Id
+             * Format: uuid
+             */
+            owner_client_id: string;
+            /** Payment Due Day */
+            payment_due_day: number | null;
+            /** Previous Contract Id */
+            previous_contract_id: string | null;
+            /** Proration Tail */
+            proration_tail: string | null;
+            /** Referred By Client Id */
+            referred_by_client_id: string | null;
+            /** Refunds */
+            refunds: components["schemas"]["CancelRefundOut"][];
+            /** Released Minor */
+            released_minor: number;
+            /** Renew On */
+            renew_on: string | null;
+            /** Renewal Description */
+            renewal_description: string | null;
+            /** Renewal Discount Minor */
+            renewal_discount_minor: number | null;
+            /** Renewal Discount Pct */
+            renewal_discount_pct: string | null;
+            /** Renewal Remark */
+            renewal_remark: string | null;
+            /** Renewal Target */
+            renewal_target: string;
+            /** Renews As Plan Id */
+            renews_as_plan_id: string | null;
+            /**
+             * Revenue Category Id
+             * Format: uuid
+             */
+            revenue_category_id: string;
+            /** Revenue On */
+            revenue_on: string | null;
+            /** Sales Channel */
+            sales_channel: string;
+            /** Sold By Staff User Id */
+            sold_by_staff_user_id: string | null;
+            /**
+             * Start On
+             * Format: date
+             */
+            start_on: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "upcoming" | "active" | "frozen" | "suspended" | "expired" | "cancelled";
+            /** Successor Contract Id */
+            successor_contract_id: string | null;
+            /** Term Fee Minor */
+            term_fee_minor: number;
+            /** Version */
+            version: number;
+            /** Visits Remaining Count */
+            visits_remaining_count: number | null;
+            /** Visits Used Count */
+            visits_used_count: number;
+        };
+        /** CancelQuoteIn */
+        CancelQuoteIn: {
+            /** Effective On */
+            effective_on?: string | null;
+        };
+        /** CancelQuoteOut */
+        CancelQuoteOut: {
+            /** Current Period Id */
+            current_period_id: string | null;
+            /**
+             * Effective On
+             * Format: date
+             */
+            effective_on: string;
+            /** Is Full Reversal */
+            is_full_reversal: boolean;
+            /** Max Credit Minor */
+            max_credit_minor: number;
+            /** Paid On Reversed Minor */
+            paid_on_reversed_minor: number;
+            /** Periods Reversed */
+            periods_reversed: string[];
+            /** Periods Voided */
+            periods_voided: string[];
+            /** Proposed Credit Minor */
+            proposed_credit_minor: number;
+            /** Reversed Minor */
+            reversed_minor: number;
+        };
+        /** CancelRefundOut */
+        CancelRefundOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            /**
+             * Refund Id
+             * Format: uuid
+             */
+            refund_id: string;
+            /** Status */
+            status: string;
+        };
         /** ChargeCreate */
         ChargeCreate: {
             /** Additional Description */
@@ -3432,6 +4836,452 @@ export interface components {
             /** Version */
             version?: number | null;
         };
+        /** ContractOut */
+        ContractOut: {
+            /** Activated At */
+            activated_at: string | null;
+            /** Auto Renew Disabled At */
+            auto_renew_disabled_at: string | null;
+            /** Auto Renew Disabled By */
+            auto_renew_disabled_by: string | null;
+            /** Auto Renew Lead Count */
+            auto_renew_lead_count: number | null;
+            /** Auto Renew Lead Unit */
+            auto_renew_lead_unit: string | null;
+            /** Billing Interval Count */
+            billing_interval_count: number;
+            /** Billing Interval Unit */
+            billing_interval_unit: string;
+            /** Billing Occurrences Count */
+            billing_occurrences_count: number;
+            /** Cancel Reason */
+            cancel_reason: string | null;
+            /** Cancel Remarks */
+            cancel_remarks: string | null;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Cancelled On */
+            cancelled_on: string | null;
+            /** Client Document Id */
+            client_document_id: string | null;
+            /** Covered Client Count */
+            covered_client_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Discount Minor */
+            discount_minor: number | null;
+            /** Discount Pct */
+            discount_pct: string | null;
+            /**
+             * Effective Status
+             * @enum {string}
+             */
+            effective_status: "upcoming" | "active" | "frozen" | "suspended" | "expired" | "cancelled";
+            /**
+             * End On
+             * Format: date
+             */
+            end_on: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Initiation Fee Minor */
+            initiation_fee_minor: number;
+            /** Internal Notes */
+            internal_notes: string | null;
+            /** Invoice Description */
+            invoice_description: string | null;
+            /** Invoice Mode */
+            invoice_mode: string;
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /** Is Autopay */
+            is_autopay: boolean;
+            /** Is Cancel Scheduled */
+            is_cancel_scheduled: boolean;
+            /** Is Prorated */
+            is_prorated: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Max Visits Count */
+            max_visits_count: number | null;
+            /** Membership Plan Id */
+            membership_plan_id: string | null;
+            /**
+             * Membership Type Id
+             * Format: uuid
+             */
+            membership_type_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Original End On
+             * Format: date
+             */
+            original_end_on: string;
+            /**
+             * Owner Client Id
+             * Format: uuid
+             */
+            owner_client_id: string;
+            /** Payment Due Day */
+            payment_due_day: number | null;
+            /** Previous Contract Id */
+            previous_contract_id: string | null;
+            /** Proration Tail */
+            proration_tail: string | null;
+            /** Referred By Client Id */
+            referred_by_client_id: string | null;
+            /** Renew On */
+            renew_on: string | null;
+            /** Renewal Description */
+            renewal_description: string | null;
+            /** Renewal Discount Minor */
+            renewal_discount_minor: number | null;
+            /** Renewal Discount Pct */
+            renewal_discount_pct: string | null;
+            /** Renewal Remark */
+            renewal_remark: string | null;
+            /** Renewal Target */
+            renewal_target: string;
+            /** Renews As Plan Id */
+            renews_as_plan_id: string | null;
+            /**
+             * Revenue Category Id
+             * Format: uuid
+             */
+            revenue_category_id: string;
+            /** Revenue On */
+            revenue_on: string | null;
+            /** Sales Channel */
+            sales_channel: string;
+            /** Sold By Staff User Id */
+            sold_by_staff_user_id: string | null;
+            /**
+             * Start On
+             * Format: date
+             */
+            start_on: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "upcoming" | "active" | "frozen" | "suspended" | "expired" | "cancelled";
+            /** Successor Contract Id */
+            successor_contract_id: string | null;
+            /** Term Fee Minor */
+            term_fee_minor: number;
+            /** Version */
+            version: number;
+            /** Visits Remaining Count */
+            visits_remaining_count: number | null;
+            /** Visits Used Count */
+            visits_used_count: number;
+        };
+        /** ContractQuote */
+        ContractQuote: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            customize?: components["schemas"]["CustomizeTerms"] | null;
+            /** Invoice Mode */
+            invoice_mode?: ("per_period" | "single" | "deferred") | null;
+            /** Is Auto Renew */
+            is_auto_renew?: boolean | null;
+            /** Is Autopay */
+            is_autopay?: boolean | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Membership Plan Id
+             * Format: uuid
+             */
+            membership_plan_id: string;
+            /** Proration Tail */
+            proration_tail?: ("extend_last" | "drop_last" | "prorate_last") | null;
+            /** Start On */
+            start_on?: string | null;
+        };
+        /** ContractQuoteOut */
+        ContractQuoteOut: {
+            /** Due Now Minor */
+            due_now_minor: number;
+            /**
+             * End On
+             * Format: date
+             */
+            end_on: string;
+            /** Invoice Mode */
+            invoice_mode: string;
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /** Is Prorated */
+            is_prorated: boolean;
+            /** Periods */
+            periods: components["schemas"]["QuotePeriodOut"][];
+            /** Proration Tail */
+            proration_tail: string | null;
+            /** Renew On */
+            renew_on: string | null;
+            /** Requirements */
+            requirements: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Start On
+             * Format: date
+             */
+            start_on: string;
+            /** Total Minor */
+            total_minor: number;
+        };
+        /** ContractSaleOut */
+        ContractSaleOut: {
+            /** Activated At */
+            activated_at: string | null;
+            /** Auto Renew Disabled At */
+            auto_renew_disabled_at: string | null;
+            /** Auto Renew Disabled By */
+            auto_renew_disabled_by: string | null;
+            /** Auto Renew Lead Count */
+            auto_renew_lead_count: number | null;
+            /** Auto Renew Lead Unit */
+            auto_renew_lead_unit: string | null;
+            /** Billing Interval Count */
+            billing_interval_count: number;
+            /** Billing Interval Unit */
+            billing_interval_unit: string;
+            /** Billing Occurrences Count */
+            billing_occurrences_count: number;
+            /** Cancel Reason */
+            cancel_reason: string | null;
+            /** Cancel Remarks */
+            cancel_remarks: string | null;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Cancelled On */
+            cancelled_on: string | null;
+            /** Client Document Id */
+            client_document_id: string | null;
+            /** Covered Client Count */
+            covered_client_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Discount Minor */
+            discount_minor: number | null;
+            /** Discount Pct */
+            discount_pct: string | null;
+            /**
+             * Effective Status
+             * @enum {string}
+             */
+            effective_status: "upcoming" | "active" | "frozen" | "suspended" | "expired" | "cancelled";
+            /**
+             * End On
+             * Format: date
+             */
+            end_on: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Initiation Fee Minor */
+            initiation_fee_minor: number;
+            /** Internal Notes */
+            internal_notes: string | null;
+            /** Invoice Description */
+            invoice_description: string | null;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /** Invoice Mode */
+            invoice_mode: string;
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /** Is Autopay */
+            is_autopay: boolean;
+            /** Is Cancel Scheduled */
+            is_cancel_scheduled: boolean;
+            /** Is Prorated */
+            is_prorated: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Max Visits Count */
+            max_visits_count: number | null;
+            /** Membership Plan Id */
+            membership_plan_id: string | null;
+            /**
+             * Membership Type Id
+             * Format: uuid
+             */
+            membership_type_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Original End On
+             * Format: date
+             */
+            original_end_on: string;
+            /**
+             * Owner Client Id
+             * Format: uuid
+             */
+            owner_client_id: string;
+            /** Payment Due Day */
+            payment_due_day: number | null;
+            /** Payment Id */
+            payment_id: string | null;
+            /** Payment Status */
+            payment_status: string | null;
+            /** Previous Contract Id */
+            previous_contract_id: string | null;
+            /** Proration Tail */
+            proration_tail: string | null;
+            /** Referred By Client Id */
+            referred_by_client_id: string | null;
+            /** Renew On */
+            renew_on: string | null;
+            /** Renewal Description */
+            renewal_description: string | null;
+            /** Renewal Discount Minor */
+            renewal_discount_minor: number | null;
+            /** Renewal Discount Pct */
+            renewal_discount_pct: string | null;
+            /** Renewal Remark */
+            renewal_remark: string | null;
+            /** Renewal Target */
+            renewal_target: string;
+            /** Renews As Plan Id */
+            renews_as_plan_id: string | null;
+            /**
+             * Revenue Category Id
+             * Format: uuid
+             */
+            revenue_category_id: string;
+            /** Revenue On */
+            revenue_on: string | null;
+            /** Sales Channel */
+            sales_channel: string;
+            /** Sold By Staff User Id */
+            sold_by_staff_user_id: string | null;
+            /**
+             * Start On
+             * Format: date
+             */
+            start_on: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "upcoming" | "active" | "frozen" | "suspended" | "expired" | "cancelled";
+            /** Successor Contract Id */
+            successor_contract_id: string | null;
+            /** Term Fee Minor */
+            term_fee_minor: number;
+            /** Version */
+            version: number;
+            /** Visits Remaining Count */
+            visits_remaining_count: number | null;
+            /** Visits Used Count */
+            visits_used_count: number;
+        };
+        /** ContractSell */
+        ContractSell: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            customize?: components["schemas"]["CustomizeTerms"] | null;
+            /** Internal Notes */
+            internal_notes?: string | null;
+            /** Invoice Mode */
+            invoice_mode?: ("per_period" | "single" | "deferred") | null;
+            /** Is Auto Renew */
+            is_auto_renew?: boolean | null;
+            /** Is Autopay */
+            is_autopay?: boolean | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Membership Plan Id
+             * Format: uuid
+             */
+            membership_plan_id: string;
+            payment?: components["schemas"]["SalePayment"] | null;
+            /** Proration Tail */
+            proration_tail?: ("extend_last" | "drop_last" | "prorate_last") | null;
+            /** Referred By Client Id */
+            referred_by_client_id?: string | null;
+            /** Share Client Ids */
+            share_client_ids?: string[];
+            /** Sold By Staff User Id */
+            sold_by_staff_user_id?: string | null;
+            /** Start On */
+            start_on?: string | null;
+        };
+        /** ContractUpdate */
+        ContractUpdate: {
+            /** Auto Renew Lead Count */
+            auto_renew_lead_count?: number | null;
+            /** Auto Renew Lead Unit */
+            auto_renew_lead_unit?: ("day" | "week" | "month" | "year") | null;
+            /** Internal Notes */
+            internal_notes?: string | null;
+            /** Invoice Description */
+            invoice_description?: string | null;
+            /** Is Auto Renew */
+            is_auto_renew?: boolean | null;
+            /** Is Autopay */
+            is_autopay?: boolean | null;
+            /** Max Visits Count */
+            max_visits_count?: number | null;
+            /** Referred By Client Id */
+            referred_by_client_id?: string | null;
+            /** Renewal Description */
+            renewal_description?: string | null;
+            /** Renewal Discount Minor */
+            renewal_discount_minor?: number | null;
+            /** Renewal Discount Pct */
+            renewal_discount_pct?: number | string | null;
+            /** Renewal Remark */
+            renewal_remark?: string | null;
+            /** Renewal Target */
+            renewal_target?: ("same_terms" | "plan") | null;
+            /** Renews As Plan Id */
+            renews_as_plan_id?: string | null;
+            /** Revenue On */
+            revenue_on?: string | null;
+        };
+        /** CreditAdjust */
+        CreditAdjust: {
+            /** Delta */
+            delta: number;
+            /** Note */
+            note: string;
+        };
         /** CustomFieldIn */
         CustomFieldIn: {
             /** Choices */
@@ -3487,6 +5337,26 @@ export interface components {
             label?: string | null;
             /** Sort Order */
             sort_order?: number | null;
+        };
+        /**
+         * CustomizeTerms
+         * @description Per-sale changes to the plan's terms; needs memberships.contract.customize_terms.
+         */
+        CustomizeTerms: {
+            /** Billing Occurrences Count */
+            billing_occurrences_count?: number | null;
+            /** Discount Minor */
+            discount_minor?: number | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
+            /** End On */
+            end_on?: string | null;
+            /** Initiation Fee Minor */
+            initiation_fee_minor?: number | null;
+            /** Max Visits Count */
+            max_visits_count?: number | null;
+            /** Term Fee Minor */
+            term_fee_minor?: number | null;
         };
         /** DocumentAcceptanceOut */
         DocumentAcceptanceOut: {
@@ -4068,6 +5938,54 @@ export interface components {
              */
             requirement: "hidden" | "optional" | "required";
         };
+        /** FreezeIn */
+        FreezeIn: {
+            /** End On */
+            end_on?: string | null;
+            /** Remarks */
+            remarks?: string | null;
+            /** Resume Invoice Mode */
+            resume_invoice_mode?: ("per_period" | "single" | "deferred") | null;
+            /** Start On */
+            start_on?: string | null;
+        };
+        /** FreezeOut */
+        FreezeOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Staff User Id */
+            created_by_staff_user_id: string | null;
+            /** End On */
+            end_on: string | null;
+            /** Extended Days Count */
+            extended_days_count: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Membership Contract Id
+             * Format: uuid
+             */
+            membership_contract_id: string;
+            /** Remarks */
+            remarks: string | null;
+            /** Removal Remarks */
+            removal_remarks: string | null;
+            /** Removed At */
+            removed_at: string | null;
+            /** Resume Invoice Mode */
+            resume_invoice_mode: string | null;
+            /**
+             * Start On
+             * Format: date
+             */
+            start_on: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -4084,6 +6002,31 @@ export interface components {
              * @enum {string}
              */
             status: "ok" | "degraded" | "unavailable";
+        };
+        /** HistoryOut */
+        HistoryOut: {
+            /** Action */
+            action: string;
+            /** Actor Label */
+            actor_label: string;
+            /** Actor Type */
+            actor_type: string;
+            /** Changes */
+            changes: {
+                [key: string]: unknown;
+            };
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Reason */
+            reason: string | null;
         };
         /** InvoiceCreate */
         InvoiceCreate: {
@@ -4188,49 +6131,17 @@ export interface components {
             /** Total Minor */
             total_minor: number;
         };
-        /** LedgerEntryOut */
-        LedgerEntryOut: {
-            /**
-             * Account
-             * @enum {string}
-             */
-            account: "receivable" | "revenue" | "tax_payable" | "funds_received" | "client_credit" | "disputed_funds";
-            /** Charge Id */
-            charge_id: string | null;
-            /** Client Id */
-            client_id: string | null;
-            /** Credit Minor */
-            credit_minor: number;
-            /** Currency */
-            currency: string;
-            /** Debit Minor */
-            debit_minor: number;
-            /**
-             * Effective On
-             * Format: date
-             */
-            effective_on: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Ledger Transaction Id
-             * Format: uuid
-             */
-            ledger_transaction_id: string;
-            /**
-             * Location Id
-             * Format: uuid
-             */
-            location_id: string;
-            /** Payment Id */
-            payment_id: string | null;
-            /** Revenue Category Id */
-            revenue_category_id: string | null;
-            /** Tax Id */
-            tax_id: string | null;
+        /** InvoicePeriodsIn */
+        InvoicePeriodsIn: {
+            /** Period Ids */
+            period_ids?: string[] | null;
+        };
+        /** InvoicePeriodsOut */
+        InvoicePeriodsOut: {
+            /** Invoice Id */
+            invoice_id: string | null;
+            /** Period Ids */
+            period_ids: string[];
         };
         /** LocationCreate */
         LocationCreate: {
@@ -4503,6 +6414,306 @@ export interface components {
              */
             source: "manual" | "scanned";
         };
+        /** MembershipPlanCreate */
+        MembershipPlanCreate: {
+            /** Auto Renew Lead Count */
+            auto_renew_lead_count?: number | null;
+            /** Auto Renew Lead Unit */
+            auto_renew_lead_unit?: ("day" | "week" | "month" | "year") | null;
+            /**
+             * Billing Interval Count
+             * @default 1
+             */
+            billing_interval_count: number;
+            /**
+             * Billing Interval Unit
+             * @default month
+             * @enum {string}
+             */
+            billing_interval_unit: "day" | "week" | "month" | "year";
+            /** Billing Occurrences Count */
+            billing_occurrences_count: number;
+            /**
+             * Default Invoice Mode
+             * @default ask
+             * @enum {string}
+             */
+            default_invoice_mode: "ask" | "per_period" | "single";
+            /** Discount Minor */
+            discount_minor?: number | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
+            /** Fixed Start On */
+            fixed_start_on?: string | null;
+            /**
+             * Initiation Fee Minor
+             * @default 0
+             */
+            initiation_fee_minor: number;
+            /** Invoice Description */
+            invoice_description?: string | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Autopay Default
+             * @default false
+             */
+            is_autopay_default: boolean;
+            /**
+             * Is Sold Online
+             * @default false
+             */
+            is_sold_online: boolean;
+            /** Max Visits Count */
+            max_visits_count?: number | null;
+            /**
+             * Membership Type Id
+             * Format: uuid
+             */
+            membership_type_id: string;
+            /** Name */
+            name: string;
+            /** Payment Due Day */
+            payment_due_day?: number | null;
+            /**
+             * Proration Mode
+             * @default none
+             * @enum {string}
+             */
+            proration_mode: "none" | "to_month_start" | "seller_choice";
+            /** Proration Tail */
+            proration_tail?: ("extend_last" | "drop_last" | "prorate_last") | null;
+            /**
+             * Renewal Target
+             * @default same_terms
+             * @enum {string}
+             */
+            renewal_target: "same_terms" | "plan";
+            /** Renews As Plan Id */
+            renews_as_plan_id?: string | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+            /** Term Fee Minor */
+            term_fee_minor: number;
+        };
+        /** MembershipPlanOut */
+        MembershipPlanOut: {
+            /** Addons */
+            addons: components["schemas"]["PlanAddonOut"][];
+            /** Auto Renew Lead Count */
+            auto_renew_lead_count: number | null;
+            /** Auto Renew Lead Unit */
+            auto_renew_lead_unit: string | null;
+            /** Billing Interval Count */
+            billing_interval_count: number;
+            /** Billing Interval Unit */
+            billing_interval_unit: string;
+            /** Billing Occurrences Count */
+            billing_occurrences_count: number;
+            /** Default Invoice Mode */
+            default_invoice_mode: string;
+            /** Discount Minor */
+            discount_minor: number | null;
+            /** Discount Pct */
+            discount_pct: string | null;
+            /** Fixed Start On */
+            fixed_start_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Initiation Fee Minor */
+            initiation_fee_minor: number;
+            /** Invoice Description */
+            invoice_description: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Autopay Default */
+            is_autopay_default: boolean;
+            /** Is Sold Online */
+            is_sold_online: boolean;
+            /** Max Visits Count */
+            max_visits_count: number | null;
+            /**
+             * Membership Type Id
+             * Format: uuid
+             */
+            membership_type_id: string;
+            /** Name */
+            name: string;
+            /** Payment Due Day */
+            payment_due_day: number | null;
+            /** Proration Mode */
+            proration_mode: string;
+            /** Proration Tail */
+            proration_tail: string | null;
+            /** Renewal Target */
+            renewal_target: string;
+            /** Renews As Plan Id */
+            renews_as_plan_id: string | null;
+            /** Revenue Category Id */
+            revenue_category_id: string | null;
+            /** Sort Order */
+            sort_order: number;
+            /** Term Fee Minor */
+            term_fee_minor: number;
+            /** Version */
+            version: number;
+        };
+        /** MembershipPlanUpdate */
+        MembershipPlanUpdate: {
+            /** Auto Renew Lead Count */
+            auto_renew_lead_count?: number | null;
+            /** Auto Renew Lead Unit */
+            auto_renew_lead_unit?: ("day" | "week" | "month" | "year") | null;
+            /** Billing Interval Count */
+            billing_interval_count?: number | null;
+            /** Billing Interval Unit */
+            billing_interval_unit?: ("day" | "week" | "month" | "year") | null;
+            /** Billing Occurrences Count */
+            billing_occurrences_count?: number | null;
+            /** Default Invoice Mode */
+            default_invoice_mode?: ("ask" | "per_period" | "single") | null;
+            /** Discount Minor */
+            discount_minor?: number | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
+            /** Fixed Start On */
+            fixed_start_on?: string | null;
+            /** Initiation Fee Minor */
+            initiation_fee_minor?: number | null;
+            /** Invoice Description */
+            invoice_description?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Is Autopay Default */
+            is_autopay_default?: boolean | null;
+            /** Is Sold Online */
+            is_sold_online?: boolean | null;
+            /** Max Visits Count */
+            max_visits_count?: number | null;
+            /** Membership Type Id */
+            membership_type_id?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Payment Due Day */
+            payment_due_day?: number | null;
+            /** Proration Mode */
+            proration_mode?: ("none" | "to_month_start" | "seller_choice") | null;
+            /** Proration Tail */
+            proration_tail?: ("extend_last" | "drop_last" | "prorate_last") | null;
+            /** Renewal Target */
+            renewal_target?: ("same_terms" | "plan") | null;
+            /** Renews As Plan Id */
+            renews_as_plan_id?: string | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Term Fee Minor */
+            term_fee_minor?: number | null;
+        };
+        /** MembershipSettingsOut */
+        MembershipSettingsOut: {
+            /** Billing Lead Days */
+            billing_lead_days: number;
+            /** Freeze Resume Invoice Mode */
+            freeze_resume_invoice_mode: string;
+            /** Is Addon Package Cancelled With Contract */
+            is_addon_package_cancelled_with_contract: boolean;
+            /** Is Daily Visit Limit Enabled */
+            is_daily_visit_limit_enabled: boolean;
+            /** Is Remark Required On Cancel */
+            is_remark_required_on_cancel: boolean;
+            /** Is Remark Required On Freeze */
+            is_remark_required_on_freeze: boolean;
+            /** Is Remark Required On Suspend */
+            is_remark_required_on_suspend: boolean;
+            /** Online Card Save Mode */
+            online_card_save_mode: string;
+            /** Payment Method Capture */
+            payment_method_capture: string;
+        };
+        /** MembershipSettingsUpdate */
+        MembershipSettingsUpdate: {
+            /** Billing Lead Days */
+            billing_lead_days?: number | null;
+            /** Freeze Resume Invoice Mode */
+            freeze_resume_invoice_mode?: ("per_period" | "single" | "deferred") | null;
+            /** Is Addon Package Cancelled With Contract */
+            is_addon_package_cancelled_with_contract?: boolean | null;
+            /** Is Daily Visit Limit Enabled */
+            is_daily_visit_limit_enabled?: boolean | null;
+            /** Is Remark Required On Cancel */
+            is_remark_required_on_cancel?: boolean | null;
+            /** Is Remark Required On Freeze */
+            is_remark_required_on_freeze?: boolean | null;
+            /** Is Remark Required On Suspend */
+            is_remark_required_on_suspend?: boolean | null;
+            /** Online Card Save Mode */
+            online_card_save_mode?: ("always" | "when_nothing_due" | "ask") | null;
+            /** Payment Method Capture */
+            payment_method_capture?: ("hidden" | "optional" | "required") | null;
+        };
+        /** MembershipTypeCreate */
+        MembershipTypeCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Revenue Category Id
+             * Format: uuid
+             */
+            revenue_category_id: string;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /** MembershipTypeOut */
+        MembershipTypeOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Revenue Category Id
+             * Format: uuid
+             */
+            revenue_category_id: string;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /** MembershipTypeUpdate */
+        MembershipTypeUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+        };
         /** MergeBlocker */
         MergeBlocker: {
             /**
@@ -4688,6 +6899,726 @@ export interface components {
             /** Default Trainer Staff User Id */
             default_trainer_staff_user_id?: string | null;
         };
+        /** PackageGrant */
+        PackageGrant: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Internal Remarks */
+            internal_remarks?: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Package Plan Id
+             * Format: uuid
+             */
+            package_plan_id: string;
+            /** Quantity */
+            quantity?: number | null;
+            /** Start On */
+            start_on?: string | null;
+        };
+        /** PackageOut */
+        PackageOut: {
+            /** Allows Booking After Expiry */
+            allows_booking_after_expiry: boolean;
+            /** Auto Renew Disabled By */
+            auto_renew_disabled_by: string | null;
+            /** Auto Renew Lead Count */
+            auto_renew_lead_count: number | null;
+            /** Auto Renew Lead Unit */
+            auto_renew_lead_unit: string | null;
+            /** Charge Id */
+            charge_id: string | null;
+            /** Client Document Id */
+            client_document_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Fee Basis */
+            fee_basis: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Internal Remarks */
+            internal_remarks: string | null;
+            /** Invoice Description */
+            invoice_description: string | null;
+            /** Invoice Mode */
+            invoice_mode: string;
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /** Is Auto Renew On Threshold */
+            is_auto_renew_on_threshold: boolean;
+            /** Is Autopay */
+            is_autopay: boolean;
+            /** Is Complimentary */
+            is_complimentary: boolean;
+            /** Is Renewal Due */
+            is_renewal_due: boolean;
+            /** Is Unlimited */
+            is_unlimited: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Owner Client Id
+             * Format: uuid
+             */
+            owner_client_id: string;
+            /** Package Plan Id */
+            package_plan_id: string | null;
+            /** Package Series Id */
+            package_series_id: string | null;
+            /** Previous Package Id */
+            previous_package_id: string | null;
+            /** Price Minor */
+            price_minor: number;
+            /** Removal Mode */
+            removal_mode: string | null;
+            /** Removed At */
+            removed_at: string | null;
+            /** Renew On */
+            renew_on: string | null;
+            /** Renewal Flagged At */
+            renewal_flagged_at: string | null;
+            /** Renewal Target */
+            renewal_target: string;
+            /** Renewal Threshold Count */
+            renewal_threshold_count: number | null;
+            /** Renews As Plan Id */
+            renews_as_plan_id: string | null;
+            /**
+             * Reservation Type Id
+             * Format: uuid
+             */
+            reservation_type_id: string;
+            /** Revenue Category Id */
+            revenue_category_id: string | null;
+            /** Sales Channel */
+            sales_channel: string;
+            /** Series Sequence Number */
+            series_sequence_number: number | null;
+            /** Sessions Available Count */
+            sessions_available_count: number | null;
+            /** Sessions Consumed Count */
+            sessions_consumed_count: number;
+            /** Sessions Forfeited Count */
+            sessions_forfeited_count: number;
+            /** Sessions Granted Count */
+            sessions_granted_count: number;
+            /** Sessions Reserved Count */
+            sessions_reserved_count: number;
+            /** Share Count */
+            share_count: number;
+            /** Share Mode */
+            share_mode: string;
+            /** Sold By Staff User Id */
+            sold_by_staff_user_id: string | null;
+            /** Source Contract Id */
+            source_contract_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "exhausted" | "expired" | "removed";
+            /** Unit Price Minor */
+            unit_price_minor: number | null;
+            /**
+             * Valid From On
+             * Format: date
+             */
+            valid_from_on: string;
+            /** Valid Until On */
+            valid_until_on: string | null;
+            /** Version */
+            version: number;
+        };
+        /** PackagePlanCreate */
+        PackagePlanCreate: {
+            /**
+             * Allows Booking After Expiry
+             * @default false
+             */
+            allows_booking_after_expiry: boolean;
+            /** Auto Renew Lead Count */
+            auto_renew_lead_count?: number | null;
+            /** Auto Renew Lead Unit */
+            auto_renew_lead_unit?: ("day" | "week" | "month" | "year") | null;
+            /**
+             * Default Invoice Mode
+             * @default ask
+             * @enum {string}
+             */
+            default_invoice_mode: "ask" | "single" | "per_period" | "deferred";
+            /** Discount Minor */
+            discount_minor?: number | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
+            /** Fee Basis */
+            fee_basis?: ("per_session" | "per_package") | null;
+            /** Fee Minor */
+            fee_minor?: number | null;
+            /** Fixed Start On */
+            fixed_start_on?: string | null;
+            /** Internal Remarks */
+            internal_remarks?: string | null;
+            /** Invoice Description */
+            invoice_description?: string | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Auto Renew On Threshold
+             * @default false
+             */
+            is_auto_renew_on_threshold: boolean;
+            /**
+             * Is Autopay Default
+             * @default false
+             */
+            is_autopay_default: boolean;
+            /**
+             * Is Complimentary
+             * @default false
+             */
+            is_complimentary: boolean;
+            /**
+             * Is Members Only At Desk
+             * @default false
+             */
+            is_members_only_at_desk: boolean;
+            /**
+             * Is Members Only Online
+             * @default false
+             */
+            is_members_only_online: boolean;
+            /**
+             * Is Series Auto Renew
+             * @default false
+             */
+            is_series_auto_renew: boolean;
+            /**
+             * Kind
+             * @default standard
+             * @enum {string}
+             */
+            kind: "standard" | "recurring";
+            /** Max Session Count */
+            max_session_count?: number | null;
+            /** Min Session Count */
+            min_session_count?: number | null;
+            /** Name */
+            name: string;
+            /**
+             * Online Sale Mode
+             * @default off
+             * @enum {string}
+             */
+            online_sale_mode: "off" | "balance_allowed" | "paid_in_full";
+            /**
+             * Pricing Category
+             * @default paid
+             * @enum {string}
+             */
+            pricing_category: "paid" | "free";
+            /** Recurrence Interval Count */
+            recurrence_interval_count?: number | null;
+            /** Recurrence Occurrences Count */
+            recurrence_occurrences_count?: number | null;
+            /** Recurrence Unit */
+            recurrence_unit?: ("day" | "week" | "month" | "year") | null;
+            /**
+             * Renewal Target
+             * @default same_terms
+             * @enum {string}
+             */
+            renewal_target: "same_terms" | "plan";
+            /** Renewal Threshold Count */
+            renewal_threshold_count?: number | null;
+            /** Renews As Plan Id */
+            renews_as_plan_id?: string | null;
+            /**
+             * Reservation Type Id
+             * Format: uuid
+             */
+            reservation_type_id: string;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Session Count */
+            session_count?: number | null;
+            /**
+             * Session Mode
+             * @enum {string}
+             */
+            session_mode: "single" | "fixed" | "range" | "unlimited";
+            /**
+             * Share Mode
+             * @default none
+             * @enum {string}
+             */
+            share_mode: "none" | "all_related";
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+            /**
+             * Start Rule
+             * @default sale_date
+             * @enum {string}
+             */
+            start_rule: "sale_date" | "fixed_date";
+            /** Validity Count */
+            validity_count?: number | null;
+            /** Validity Unit */
+            validity_unit?: ("day" | "week" | "month" | "year") | null;
+        };
+        /** PackagePlanOut */
+        PackagePlanOut: {
+            /** Allows Booking After Expiry */
+            allows_booking_after_expiry: boolean;
+            /** Auto Renew Lead Count */
+            auto_renew_lead_count: number | null;
+            /** Auto Renew Lead Unit */
+            auto_renew_lead_unit: string | null;
+            /** Default Invoice Mode */
+            default_invoice_mode: string;
+            /** Discount Minor */
+            discount_minor: number | null;
+            /** Discount Pct */
+            discount_pct: string | null;
+            /** Fee Basis */
+            fee_basis: string | null;
+            /** Fee Minor */
+            fee_minor: number | null;
+            /** Fixed Start On */
+            fixed_start_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Internal Remarks */
+            internal_remarks: string | null;
+            /** Invoice Description */
+            invoice_description: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Auto Renew On Threshold */
+            is_auto_renew_on_threshold: boolean;
+            /** Is Autopay Default */
+            is_autopay_default: boolean;
+            /** Is Complimentary */
+            is_complimentary: boolean;
+            /** Is Members Only At Desk */
+            is_members_only_at_desk: boolean;
+            /** Is Members Only Online */
+            is_members_only_online: boolean;
+            /** Is Series Auto Renew */
+            is_series_auto_renew: boolean;
+            /** Kind */
+            kind: string;
+            /** Max Session Count */
+            max_session_count: number | null;
+            /** Min Session Count */
+            min_session_count: number | null;
+            /** Name */
+            name: string;
+            /** Online Sale Mode */
+            online_sale_mode: string;
+            /** Pricing Category */
+            pricing_category: string;
+            /** Recurrence Interval Count */
+            recurrence_interval_count: number | null;
+            /** Recurrence Occurrences Count */
+            recurrence_occurrences_count: number | null;
+            /** Recurrence Unit */
+            recurrence_unit: string | null;
+            /** Renewal Target */
+            renewal_target: string;
+            /** Renewal Threshold Count */
+            renewal_threshold_count: number | null;
+            /** Renews As Plan Id */
+            renews_as_plan_id: string | null;
+            /**
+             * Reservation Type Id
+             * Format: uuid
+             */
+            reservation_type_id: string;
+            /** Revenue Category Id */
+            revenue_category_id: string | null;
+            /** Session Count */
+            session_count: number | null;
+            /** Session Mode */
+            session_mode: string;
+            /** Share Mode */
+            share_mode: string;
+            /** Sort Order */
+            sort_order: number;
+            /** Start Rule */
+            start_rule: string;
+            /** Validity Count */
+            validity_count: number | null;
+            /** Validity Unit */
+            validity_unit: string | null;
+            /** Version */
+            version: number;
+        };
+        /** PackagePlanUpdate */
+        PackagePlanUpdate: {
+            /** Allows Booking After Expiry */
+            allows_booking_after_expiry?: boolean | null;
+            /** Auto Renew Lead Count */
+            auto_renew_lead_count?: number | null;
+            /** Auto Renew Lead Unit */
+            auto_renew_lead_unit?: ("day" | "week" | "month" | "year") | null;
+            /** Default Invoice Mode */
+            default_invoice_mode?: ("ask" | "single" | "per_period" | "deferred") | null;
+            /** Discount Minor */
+            discount_minor?: number | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
+            /** Fee Basis */
+            fee_basis?: ("per_session" | "per_package") | null;
+            /** Fee Minor */
+            fee_minor?: number | null;
+            /** Fixed Start On */
+            fixed_start_on?: string | null;
+            /** Internal Remarks */
+            internal_remarks?: string | null;
+            /** Invoice Description */
+            invoice_description?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Is Auto Renew On Threshold */
+            is_auto_renew_on_threshold?: boolean | null;
+            /** Is Autopay Default */
+            is_autopay_default?: boolean | null;
+            /** Is Complimentary */
+            is_complimentary?: boolean | null;
+            /** Is Members Only At Desk */
+            is_members_only_at_desk?: boolean | null;
+            /** Is Members Only Online */
+            is_members_only_online?: boolean | null;
+            /** Is Series Auto Renew */
+            is_series_auto_renew?: boolean | null;
+            /** Max Session Count */
+            max_session_count?: number | null;
+            /** Min Session Count */
+            min_session_count?: number | null;
+            /** Name */
+            name?: string | null;
+            /** Online Sale Mode */
+            online_sale_mode?: ("off" | "balance_allowed" | "paid_in_full") | null;
+            /** Pricing Category */
+            pricing_category?: ("paid" | "free") | null;
+            /** Recurrence Interval Count */
+            recurrence_interval_count?: number | null;
+            /** Recurrence Occurrences Count */
+            recurrence_occurrences_count?: number | null;
+            /** Recurrence Unit */
+            recurrence_unit?: ("day" | "week" | "month" | "year") | null;
+            /** Renewal Target */
+            renewal_target?: ("same_terms" | "plan") | null;
+            /** Renewal Threshold Count */
+            renewal_threshold_count?: number | null;
+            /** Renews As Plan Id */
+            renews_as_plan_id?: string | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Session Count */
+            session_count?: number | null;
+            /** Session Mode */
+            session_mode?: ("single" | "fixed" | "range" | "unlimited") | null;
+            /** Share Mode */
+            share_mode?: ("none" | "all_related") | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Start Rule */
+            start_rule?: ("sale_date" | "fixed_date") | null;
+            /** Validity Count */
+            validity_count?: number | null;
+            /** Validity Unit */
+            validity_unit?: ("day" | "week" | "month" | "year") | null;
+        };
+        /** PackageQuote */
+        PackageQuote: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Package Plan Id
+             * Format: uuid
+             */
+            package_plan_id: string;
+            /** Quantity */
+            quantity?: number | null;
+            /** Start On */
+            start_on?: string | null;
+        };
+        /** PackageQuoteOut */
+        PackageQuoteOut: {
+            /** Is Member */
+            is_member: boolean;
+            /** Is Member Required */
+            is_member_required: boolean;
+            /** Is Unlimited */
+            is_unlimited: boolean;
+            /** Name */
+            name: string;
+            /** Occurrences Count */
+            occurrences_count: number | null;
+            /** Price Minor */
+            price_minor: number;
+            /** Requirements */
+            requirements: {
+                [key: string]: unknown;
+            }[];
+            /** Sessions Granted Count */
+            sessions_granted_count: number;
+            /** Unit Price Minor */
+            unit_price_minor: number | null;
+            /**
+             * Valid From On
+             * Format: date
+             */
+            valid_from_on: string;
+            /** Valid Until On */
+            valid_until_on: string | null;
+        };
+        /** PackageRemove */
+        PackageRemove: {
+            /**
+             * Removal Mode
+             * @enum {string}
+             */
+            removal_mode: "billing_reversed" | "billing_kept";
+        };
+        /** PackageSaleOut */
+        PackageSaleOut: {
+            /** Allows Booking After Expiry */
+            allows_booking_after_expiry: boolean;
+            /** Auto Renew Disabled By */
+            auto_renew_disabled_by: string | null;
+            /** Auto Renew Lead Count */
+            auto_renew_lead_count: number | null;
+            /** Auto Renew Lead Unit */
+            auto_renew_lead_unit: string | null;
+            /** Charge Id */
+            charge_id: string | null;
+            /** Client Document Id */
+            client_document_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Fee Basis */
+            fee_basis: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Internal Remarks */
+            internal_remarks: string | null;
+            /** Invoice Description */
+            invoice_description: string | null;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /** Invoice Mode */
+            invoice_mode: string;
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /** Is Auto Renew On Threshold */
+            is_auto_renew_on_threshold: boolean;
+            /** Is Autopay */
+            is_autopay: boolean;
+            /** Is Complimentary */
+            is_complimentary: boolean;
+            /** Is Renewal Due */
+            is_renewal_due: boolean;
+            /** Is Unlimited */
+            is_unlimited: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Owner Client Id
+             * Format: uuid
+             */
+            owner_client_id: string;
+            /** Package Plan Id */
+            package_plan_id: string | null;
+            /** Package Series Id */
+            package_series_id: string | null;
+            /** Payment Id */
+            payment_id: string | null;
+            /** Payment Status */
+            payment_status: string | null;
+            /** Previous Package Id */
+            previous_package_id: string | null;
+            /** Price Minor */
+            price_minor: number;
+            /** Removal Mode */
+            removal_mode: string | null;
+            /** Removed At */
+            removed_at: string | null;
+            /** Renew On */
+            renew_on: string | null;
+            /** Renewal Flagged At */
+            renewal_flagged_at: string | null;
+            /** Renewal Target */
+            renewal_target: string;
+            /** Renewal Threshold Count */
+            renewal_threshold_count: number | null;
+            /** Renews As Plan Id */
+            renews_as_plan_id: string | null;
+            /**
+             * Reservation Type Id
+             * Format: uuid
+             */
+            reservation_type_id: string;
+            /** Revenue Category Id */
+            revenue_category_id: string | null;
+            /** Sales Channel */
+            sales_channel: string;
+            /** Series Sequence Number */
+            series_sequence_number: number | null;
+            /** Sessions Available Count */
+            sessions_available_count: number | null;
+            /** Sessions Consumed Count */
+            sessions_consumed_count: number;
+            /** Sessions Forfeited Count */
+            sessions_forfeited_count: number;
+            /** Sessions Granted Count */
+            sessions_granted_count: number;
+            /** Sessions Reserved Count */
+            sessions_reserved_count: number;
+            /** Share Count */
+            share_count: number;
+            /** Share Mode */
+            share_mode: string;
+            /** Sold By Staff User Id */
+            sold_by_staff_user_id: string | null;
+            /** Source Contract Id */
+            source_contract_id: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "exhausted" | "expired" | "removed";
+            /** Unit Price Minor */
+            unit_price_minor: number | null;
+            /**
+             * Valid From On
+             * Format: date
+             */
+            valid_from_on: string;
+            /** Valid Until On */
+            valid_until_on: string | null;
+            /** Version */
+            version: number;
+        };
+        /** PackageSell */
+        PackageSell: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Internal Remarks */
+            internal_remarks?: string | null;
+            /** Invoice Mode */
+            invoice_mode?: ("per_period" | "single" | "deferred") | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Package Plan Id
+             * Format: uuid
+             */
+            package_plan_id: string;
+            payment?: components["schemas"]["SalePayment"] | null;
+            /** Quantity */
+            quantity?: number | null;
+            /** Sold By Staff User Id */
+            sold_by_staff_user_id?: string | null;
+            /** Start On */
+            start_on?: string | null;
+        };
+        /** PackageSettingsOut */
+        PackageSettingsOut: {
+            /** Expiry Notice Days */
+            expiry_notice_days: number;
+            /** Is Account Credit Applied By Default */
+            is_account_credit_applied_by_default: boolean;
+            /** Is Late Cancel Charged */
+            is_late_cancel_charged: boolean;
+            /** Is No Show Charged */
+            is_no_show_charged: boolean;
+        };
+        /** PackageSettingsUpdate */
+        PackageSettingsUpdate: {
+            /** Expiry Notice Days */
+            expiry_notice_days?: number | null;
+            /** Is Account Credit Applied By Default */
+            is_account_credit_applied_by_default?: boolean | null;
+            /** Is Late Cancel Charged */
+            is_late_cancel_charged?: boolean | null;
+            /** Is No Show Charged */
+            is_no_show_charged?: boolean | null;
+        };
+        /** PackageUpdate */
+        PackageUpdate: {
+            /** Allows Booking After Expiry */
+            allows_booking_after_expiry?: boolean | null;
+            /** Auto Renew Lead Count */
+            auto_renew_lead_count?: number | null;
+            /** Auto Renew Lead Unit */
+            auto_renew_lead_unit?: ("day" | "week" | "month" | "year") | null;
+            /** Internal Remarks */
+            internal_remarks?: string | null;
+            /** Is Auto Renew */
+            is_auto_renew?: boolean | null;
+            /** Is Auto Renew On Threshold */
+            is_auto_renew_on_threshold?: boolean | null;
+            /** Renewal Threshold Count */
+            renewal_threshold_count?: number | null;
+            /** Renews As Plan Id */
+            renews_as_plan_id?: string | null;
+            /** Valid Until On */
+            valid_until_on?: string | null;
+        };
         /** PageInfo */
         PageInfo: {
             /** Has More */
@@ -4727,6 +7658,12 @@ export interface components {
             data: components["schemas"]["ClientListItem"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[ContractOut] */
+        Page_ContractOut_: {
+            /** Data */
+            data: components["schemas"]["ContractOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[DocumentBindingOut] */
         Page_DocumentBindingOut_: {
             /** Data */
@@ -4763,22 +7700,40 @@ export interface components {
             data: components["schemas"]["InvoiceOut"][];
             page: components["schemas"]["PageInfo"];
         };
-        /** Page[LedgerEntryOut] */
-        Page_LedgerEntryOut_: {
-            /** Data */
-            data: components["schemas"]["LedgerEntryOut"][];
-            page: components["schemas"]["PageInfo"];
-        };
         /** Page[LocationOut] */
         Page_LocationOut_: {
             /** Data */
             data: components["schemas"]["LocationOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[MembershipPlanOut] */
+        Page_MembershipPlanOut_: {
+            /** Data */
+            data: components["schemas"]["MembershipPlanOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[MembershipTypeOut] */
+        Page_MembershipTypeOut_: {
+            /** Data */
+            data: components["schemas"]["MembershipTypeOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[NoteOut] */
         Page_NoteOut_: {
             /** Data */
             data: components["schemas"]["NoteOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PackageOut] */
+        Page_PackageOut_: {
+            /** Data */
+            data: components["schemas"]["PackageOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PackagePlanOut] */
+        Page_PackagePlanOut_: {
+            /** Data */
+            data: components["schemas"]["PackagePlanOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[PaymentOut] */
@@ -4793,10 +7748,28 @@ export interface components {
             data: components["schemas"]["PermissionDefinition"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[PortalPackageOut] */
+        Page_PortalPackageOut_: {
+            /** Data */
+            data: components["schemas"]["PortalPackageOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PortalPackagePlanOut] */
+        Page_PortalPackagePlanOut_: {
+            /** Data */
+            data: components["schemas"]["PortalPackagePlanOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[PublicLocation] */
         Page_PublicLocation_: {
             /** Data */
             data: components["schemas"]["PublicLocation"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PublicPlanOut] */
+        Page_PublicPlanOut_: {
+            /** Data */
+            data: components["schemas"]["PublicPlanOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[RevenueCategoryOut] */
@@ -4811,6 +7784,12 @@ export interface components {
             data: components["schemas"]["RoleOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[SeriesOut] */
+        Page_SeriesOut_: {
+            /** Data */
+            data: components["schemas"]["SeriesOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[StaffUserOut] */
         Page_StaffUserOut_: {
             /** Data */
@@ -4821,6 +7800,12 @@ export interface components {
         Page_TaskOut_: {
             /** Data */
             data: components["schemas"]["TaskOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[VisitOut] */
+        Page_VisitOut_: {
+            /** Data */
+            data: components["schemas"]["VisitOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** PasswordChange */
@@ -4974,6 +7959,74 @@ export interface components {
              */
             tender_kind: "card" | "bank_debit" | "cash" | "cheque" | "bank_transfer" | "gift_card" | "external" | "other";
         };
+        /** PeriodOut */
+        PeriodOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /**
+             * Bill On
+             * Format: date
+             */
+            bill_on: string;
+            /** Billed At */
+            billed_at: string | null;
+            /** Cancelled Reason */
+            cancelled_reason: string | null;
+            /** Charge Id */
+            charge_id: string | null;
+            /** Description */
+            description: string;
+            /**
+             * Due On
+             * Format: date
+             */
+            due_on: string;
+            /** End On */
+            end_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Prorated */
+            is_prorated: boolean;
+            /** Kind */
+            kind: string;
+            /** List Amount Minor */
+            list_amount_minor: number;
+            /**
+             * Membership Contract Id
+             * Format: uuid
+             */
+            membership_contract_id: string;
+            /**
+             * Revenue On
+             * Format: date
+             */
+            revenue_on: string;
+            /** Sequence Number */
+            sequence_number: number;
+            /** Start On */
+            start_on: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "scheduled" | "billed" | "withheld" | "cancelled";
+            /** Suspension Id */
+            suspension_id: string | null;
+            /** Withheld By Freeze Id */
+            withheld_by_freeze_id: string | null;
+        };
+        /** PeriodUpdate */
+        PeriodUpdate: {
+            /** Amount Minor */
+            amount_minor?: number | null;
+            /** Description */
+            description?: string | null;
+            /** Due On */
+            due_on?: string | null;
+        };
         /** PermissionDefinition */
         PermissionDefinition: {
             /** Accepts Own Reach */
@@ -5014,6 +8067,40 @@ export interface components {
         PermissionGrantsReplace: {
             /** Grants */
             grants: components["schemas"]["PermissionGrant"][];
+        };
+        /** PlanAddonIn */
+        PlanAddonIn: {
+            /**
+             * Package Plan Id
+             * Format: uuid
+             */
+            package_plan_id: string;
+            /**
+             * Quantity
+             * @default 1
+             */
+            quantity: number;
+        };
+        /** PlanAddonOut */
+        PlanAddonOut: {
+            /** Addon Kind */
+            addon_kind: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Package Plan Id */
+            package_plan_id: string | null;
+            /** Quantity */
+            quantity: number;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /** PlanAddonsReplace */
+        PlanAddonsReplace: {
+            /** Addons */
+            addons: components["schemas"]["PlanAddonIn"][];
         };
         /** PortalAcceptanceSubmit */
         PortalAcceptanceSubmit: {
@@ -5153,6 +8240,168 @@ export interface components {
             /** Pending Document Id */
             pending_document_id: string | null;
         };
+        /** PortalContractBuy */
+        PortalContractBuy: {
+            /** Client Id */
+            client_id?: string | null;
+            /** Is Auto Renew */
+            is_auto_renew?: boolean | null;
+            /** Is Autopay */
+            is_autopay?: boolean | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Membership Plan Id
+             * Format: uuid
+             */
+            membership_plan_id: string;
+            /** Method Token */
+            method_token?: string | null;
+            /** Proration Tail */
+            proration_tail?: ("extend_last" | "drop_last" | "prorate_last") | null;
+            /** Start On */
+            start_on?: string | null;
+            /**
+             * Tender Kind
+             * @default card
+             * @enum {string}
+             */
+            tender_kind: "card" | "bank_debit";
+        };
+        /**
+         * PortalContractOut
+         * @description What a member sees: no internal notes, remarks or staff attribution.
+         */
+        PortalContractOut: {
+            /** Billing Interval Count */
+            billing_interval_count: number;
+            /** Billing Interval Unit */
+            billing_interval_unit: string;
+            /**
+             * Effective Status
+             * @enum {string}
+             */
+            effective_status: "upcoming" | "active" | "frozen" | "suspended" | "expired" | "cancelled";
+            /**
+             * End On
+             * Format: date
+             */
+            end_on: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /** Is Autopay */
+            is_autopay: boolean;
+            /** Is Cancel Scheduled */
+            is_cancel_scheduled: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Max Visits Count */
+            max_visits_count: number | null;
+            /** Name */
+            name: string;
+            /**
+             * Owner Client Id
+             * Format: uuid
+             */
+            owner_client_id: string;
+            /** Renew On */
+            renew_on: string | null;
+            /**
+             * Start On
+             * Format: date
+             */
+            start_on: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "upcoming" | "active" | "frozen" | "suspended" | "expired" | "cancelled";
+            /** Term Fee Minor */
+            term_fee_minor: number;
+            /** Visits Remaining Count */
+            visits_remaining_count: number | null;
+            /** Visits Used Count */
+            visits_used_count: number;
+        };
+        /** PortalContractSaleOut */
+        PortalContractSaleOut: {
+            /** Billing Interval Count */
+            billing_interval_count: number;
+            /** Billing Interval Unit */
+            billing_interval_unit: string;
+            /** Client Document Id */
+            client_document_id: string | null;
+            /**
+             * Effective Status
+             * @enum {string}
+             */
+            effective_status: "upcoming" | "active" | "frozen" | "suspended" | "expired" | "cancelled";
+            /**
+             * End On
+             * Format: date
+             */
+            end_on: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /** Is Autopay */
+            is_autopay: boolean;
+            /** Is Cancel Scheduled */
+            is_cancel_scheduled: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Max Visits Count */
+            max_visits_count: number | null;
+            /** Name */
+            name: string;
+            /**
+             * Owner Client Id
+             * Format: uuid
+             */
+            owner_client_id: string;
+            /** Payment Id */
+            payment_id: string | null;
+            /** Payment Status */
+            payment_status: string | null;
+            /** Renew On */
+            renew_on: string | null;
+            /**
+             * Start On
+             * Format: date
+             */
+            start_on: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "upcoming" | "active" | "frozen" | "suspended" | "expired" | "cancelled";
+            /** Term Fee Minor */
+            term_fee_minor: number;
+            /** Visits Remaining Count */
+            visits_remaining_count: number | null;
+            /** Visits Used Count */
+            visits_used_count: number;
+        };
         /** PortalDependentCreate */
         PortalDependentCreate: {
             /** Birth On */
@@ -5180,6 +8429,223 @@ export interface components {
             attach_as_manager: boolean;
             /** Email */
             email?: string | null;
+        };
+        /** PortalPackageBuy */
+        PortalPackageBuy: {
+            /** Client Id */
+            client_id?: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Method Token */
+            method_token?: string | null;
+            /**
+             * Package Plan Id
+             * Format: uuid
+             */
+            package_plan_id: string;
+            /** Quantity */
+            quantity?: number | null;
+            /**
+             * Tender Kind
+             * @default card
+             * @enum {string}
+             */
+            tender_kind: "card" | "bank_debit";
+        };
+        /**
+         * PortalPackageOut
+         * @description What a member sees: balances and dates, no internal remarks or staff attribution.
+         */
+        PortalPackageOut: {
+            /** Allows Booking After Expiry */
+            allows_booking_after_expiry: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /** Is Renewal Due */
+            is_renewal_due: boolean;
+            /** Is Unlimited */
+            is_unlimited: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Owner Client Id
+             * Format: uuid
+             */
+            owner_client_id: string;
+            /** Package Plan Id */
+            package_plan_id: string | null;
+            /** Package Series Id */
+            package_series_id: string | null;
+            /** Price Minor */
+            price_minor: number;
+            /** Renew On */
+            renew_on: string | null;
+            /**
+             * Reservation Type Id
+             * Format: uuid
+             */
+            reservation_type_id: string;
+            /** Sessions Available Count */
+            sessions_available_count: number | null;
+            /** Sessions Consumed Count */
+            sessions_consumed_count: number;
+            /** Sessions Forfeited Count */
+            sessions_forfeited_count: number;
+            /** Sessions Granted Count */
+            sessions_granted_count: number;
+            /** Sessions Reserved Count */
+            sessions_reserved_count: number;
+            /** Share Count */
+            share_count: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "exhausted" | "expired" | "removed";
+            /**
+             * Valid From On
+             * Format: date
+             */
+            valid_from_on: string;
+            /** Valid Until On */
+            valid_until_on: string | null;
+        };
+        /** PortalPackagePlanOut */
+        PortalPackagePlanOut: {
+            /** Discount Minor */
+            discount_minor: number | null;
+            /** Discount Pct */
+            discount_pct: string | null;
+            /** Fee Basis */
+            fee_basis: string | null;
+            /** Fee Minor */
+            fee_minor: number | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Description */
+            invoice_description: string | null;
+            /** Is Members Only Online */
+            is_members_only_online: boolean;
+            /** Is Purchasable */
+            is_purchasable: boolean;
+            /** Kind */
+            kind: string;
+            /** Max Session Count */
+            max_session_count: number | null;
+            /** Min Session Count */
+            min_session_count: number | null;
+            /** Name */
+            name: string;
+            /** Online Sale Mode */
+            online_sale_mode: string;
+            /** Pricing Category */
+            pricing_category: string;
+            /** Recurrence Interval Count */
+            recurrence_interval_count: number | null;
+            /** Recurrence Occurrences Count */
+            recurrence_occurrences_count: number | null;
+            /** Recurrence Unit */
+            recurrence_unit: string | null;
+            /**
+             * Reservation Type Id
+             * Format: uuid
+             */
+            reservation_type_id: string;
+            /** Session Count */
+            session_count: number | null;
+            /** Session Mode */
+            session_mode: string;
+            /** Validity Count */
+            validity_count: number | null;
+            /** Validity Unit */
+            validity_unit: string | null;
+        };
+        /** PortalPackageSaleOut */
+        PortalPackageSaleOut: {
+            /** Allows Booking After Expiry */
+            allows_booking_after_expiry: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /** Is Renewal Due */
+            is_renewal_due: boolean;
+            /** Is Unlimited */
+            is_unlimited: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Owner Client Id
+             * Format: uuid
+             */
+            owner_client_id: string;
+            /** Package Plan Id */
+            package_plan_id: string | null;
+            /** Package Series Id */
+            package_series_id: string | null;
+            /** Payment Id */
+            payment_id: string | null;
+            /** Payment Status */
+            payment_status: string | null;
+            /** Price Minor */
+            price_minor: number;
+            /** Renew On */
+            renew_on: string | null;
+            /**
+             * Reservation Type Id
+             * Format: uuid
+             */
+            reservation_type_id: string;
+            /** Sessions Available Count */
+            sessions_available_count: number | null;
+            /** Sessions Consumed Count */
+            sessions_consumed_count: number;
+            /** Sessions Forfeited Count */
+            sessions_forfeited_count: number;
+            /** Sessions Granted Count */
+            sessions_granted_count: number;
+            /** Sessions Reserved Count */
+            sessions_reserved_count: number;
+            /** Share Count */
+            share_count: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "exhausted" | "expired" | "removed";
+            /**
+             * Valid From On
+             * Format: date
+             */
+            valid_from_on: string;
+            /** Valid Until On */
+            valid_until_on: string | null;
         };
         /** PortalPreferencesReplace */
         PortalPreferencesReplace: {
@@ -5397,6 +8863,65 @@ export interface components {
             /** Time Zone */
             time_zone: string;
         };
+        /** PublicPlanOut */
+        PublicPlanOut: {
+            /** Billing Interval Count */
+            billing_interval_count: number;
+            /** Billing Interval Unit */
+            billing_interval_unit: string;
+            /** Billing Occurrences Count */
+            billing_occurrences_count: number;
+            /** Discount Minor */
+            discount_minor: number | null;
+            /** Discount Pct */
+            discount_pct: string | null;
+            /** Fixed Start On */
+            fixed_start_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Initiation Fee Minor */
+            initiation_fee_minor: number;
+            /** Invoice Description */
+            invoice_description: string | null;
+            /** Max Visits Count */
+            max_visits_count: number | null;
+            /**
+             * Membership Type Id
+             * Format: uuid
+             */
+            membership_type_id: string;
+            /** Name */
+            name: string;
+            /** Proration Mode */
+            proration_mode: string;
+            /** Term Fee Minor */
+            term_fee_minor: number;
+        };
+        /** QuotePeriodOut */
+        QuotePeriodOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /**
+             * Due On
+             * Format: date
+             */
+            due_on: string;
+            /** Ends On */
+            ends_on: string | null;
+            /** Is Prorated */
+            is_prorated: boolean;
+            /** Kind */
+            kind: string;
+            /** List Amount Minor */
+            list_amount_minor: number;
+            /** Sequence Number */
+            sequence_number: number;
+            /** Starts On */
+            starts_on: string | null;
+        };
         /** RefreshRequest */
         RefreshRequest: {
             /** Refresh Token */
@@ -5601,6 +9126,42 @@ export interface components {
             /** Label */
             label?: string | null;
         };
+        /** RemovalQuoteOut */
+        RemovalQuoteOut: {
+            /** Can Reverse Billing */
+            can_reverse_billing: boolean;
+            /** Charge Id */
+            charge_id: string | null;
+            /** Charge Total Minor */
+            charge_total_minor: number;
+            /** Open Reservations Count */
+            open_reservations_count: number;
+            /** Paid Minor */
+            paid_minor: number;
+            /** Sessions Consumed Count */
+            sessions_consumed_count: number;
+            /** Sessions Forfeited On Removal Count */
+            sessions_forfeited_on_removal_count: number;
+        };
+        /** RemoveIn */
+        RemoveIn: {
+            /** Removal Remarks */
+            removal_remarks?: string | null;
+        };
+        /** RenewIn */
+        RenewIn: {
+            /** Renews As Plan Id */
+            renews_as_plan_id?: string | null;
+        };
+        /** RepriceIn */
+        RepriceIn: {
+            /** Effective On */
+            effective_on?: string | null;
+            /** Remarks */
+            remarks?: string | null;
+            /** Term Fee Minor */
+            term_fee_minor: number;
+        };
         /** RevenueCategoryOut */
         RevenueCategoryOut: {
             /** Code */
@@ -5682,6 +9243,73 @@ export interface components {
             /** Name */
             name?: string | null;
         };
+        /** SalePayment */
+        SalePayment: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** External Reference */
+            external_reference?: string | null;
+            /** Memo */
+            memo?: string | null;
+            /** Method Token */
+            method_token?: string | null;
+            /**
+             * Tender Kind
+             * @enum {string}
+             */
+            tender_kind: "card" | "bank_debit" | "cash" | "cheque" | "bank_transfer" | "gift_card" | "external" | "other";
+        };
+        /** SeriesOut */
+        SeriesOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Mode */
+            invoice_mode: string;
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Next Period Start On */
+            next_period_start_on: string | null;
+            /** Occurrences Generated Count */
+            occurrences_generated_count: number;
+            /** Occurrences Total Count */
+            occurrences_total_count: number;
+            /**
+             * Owner Client Id
+             * Format: uuid
+             */
+            owner_client_id: string;
+            /**
+             * Package Plan Id
+             * Format: uuid
+             */
+            package_plan_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "completed" | "cancelled";
+        };
+        /** ShareIn */
+        ShareIn: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+        };
         /** SignInRequest */
         SignInRequest: {
             /**
@@ -5713,6 +9341,18 @@ export interface components {
              * @enum {string}
              */
             role: "client" | "guardian" | "co_signer";
+        };
+        /** SoldByIn */
+        SoldByIn: {
+            /** Sold By Staff User Id */
+            sold_by_staff_user_id: string | null;
+        };
+        /** SpanUpdate */
+        SpanUpdate: {
+            /** End On */
+            end_on?: string | null;
+            /** Remarks */
+            remarks?: string | null;
         };
         /** StaffSigner */
         StaffSigner: {
@@ -5883,6 +9523,85 @@ export interface components {
             linked_resource_id?: string | null;
             /** Mobile Phone */
             mobile_phone?: string | null;
+        };
+        /** StandingOut */
+        StandingOut: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Contract Id */
+            contract_id: string | null;
+            /** End On */
+            end_on?: string | null;
+            /** Is Member */
+            is_member: boolean;
+            /** Max Visits Count */
+            max_visits_count?: number | null;
+            /** Membership Name */
+            membership_name?: string | null;
+            /** Membership Type Id */
+            membership_type_id?: string | null;
+            /** Reason */
+            reason: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "frozen" | "suspended" | "upcoming" | "none";
+            /** Via */
+            via?: ("owner" | "share") | null;
+            /** Visits Remaining Count */
+            visits_remaining_count?: number | null;
+            /** Visits Used Count */
+            visits_used_count?: number | null;
+        };
+        /** SuspensionIn */
+        SuspensionIn: {
+            /** End On */
+            end_on?: string | null;
+            /** Fee Minor */
+            fee_minor?: number | null;
+            /** Remarks */
+            remarks?: string | null;
+            /** Start On */
+            start_on?: string | null;
+        };
+        /** SuspensionOut */
+        SuspensionOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By Staff User Id */
+            created_by_staff_user_id: string | null;
+            /** End On */
+            end_on: string | null;
+            /** Fee Minor */
+            fee_minor: number | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Membership Contract Id
+             * Format: uuid
+             */
+            membership_contract_id: string;
+            /** Remarks */
+            remarks: string | null;
+            /** Removal Remarks */
+            removal_remarks: string | null;
+            /** Removed At */
+            removed_at: string | null;
+            /**
+             * Start On
+             * Format: date
+             */
+            start_on: string;
         };
         /** TagIn */
         TagIn: {
@@ -6144,6 +9863,51 @@ export interface components {
             /** Token */
             token: string;
         };
+        /** UpcomingRenewalOut */
+        UpcomingRenewalOut: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Contract Id
+             * Format: uuid
+             */
+            contract_id: string;
+            /**
+             * End On
+             * Format: date
+             */
+            end_on: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Next Discount Minor */
+            next_discount_minor: number | null;
+            /** Next Discount Pct */
+            next_discount_pct: string | null;
+            /** Next Name */
+            next_name: string;
+            /**
+             * Next Start On
+             * Format: date
+             */
+            next_start_on: string;
+            /** Next Term Fee Minor */
+            next_term_fee_minor: number;
+            /**
+             * Renew On
+             * Format: date
+             */
+            renew_on: string;
+            /** Successor Contract Id */
+            successor_contract_id: string | null;
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -6157,6 +9921,53 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** VisitAdjust */
+        VisitAdjust: {
+            /** Delta */
+            delta: number;
+            /** Reason */
+            reason: string;
+        };
+        /** VisitOut */
+        VisitOut: {
+            /**
+             * Check In Id
+             * Format: uuid
+             */
+            check_in_id: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Counted */
+            is_counted: boolean;
+            /**
+             * Local On
+             * Format: date
+             */
+            local_on: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Membership Contract Id
+             * Format: uuid
+             */
+            membership_contract_id: string;
+            /**
+             * Visited At
+             * Format: date-time
+             */
+            visited_at: string;
+        };
         /** WaiverOverrideIn */
         WaiverOverrideIn: {
             /** Note */
@@ -6166,6 +9977,168 @@ export interface components {
              * @enum {string}
              */
             waiver_override: "on_file" | "not_on_file";
+        };
+        /** Page[LedgerEntryOut] */
+        app__core__schemas__Page_LedgerEntryOut___1: {
+            /** Data */
+            data: components["schemas"]["app__modules__billing__schemas__LedgerEntryOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[LedgerEntryOut] */
+        app__core__schemas__Page_LedgerEntryOut___2: {
+            /** Data */
+            data: components["schemas"]["app__modules__packages__schemas__LedgerEntryOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** LedgerEntryOut */
+        app__modules__billing__schemas__LedgerEntryOut: {
+            /**
+             * Account
+             * @enum {string}
+             */
+            account: "receivable" | "revenue" | "tax_payable" | "funds_received" | "client_credit" | "disputed_funds";
+            /** Charge Id */
+            charge_id: string | null;
+            /** Client Id */
+            client_id: string | null;
+            /** Credit Minor */
+            credit_minor: number;
+            /** Currency */
+            currency: string;
+            /** Debit Minor */
+            debit_minor: number;
+            /**
+             * Effective On
+             * Format: date
+             */
+            effective_on: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Ledger Transaction Id
+             * Format: uuid
+             */
+            ledger_transaction_id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Payment Id */
+            payment_id: string | null;
+            /** Revenue Category Id */
+            revenue_category_id: string | null;
+            /** Tax Id */
+            tax_id: string | null;
+        };
+        /** ShareOut */
+        app__modules__memberships__schemas__ShareOut: {
+            /** Added By Staff User Id */
+            added_by_staff_user_id: string | null;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Membership Contract Id
+             * Format: uuid
+             */
+            membership_contract_id: string;
+            /** Origin */
+            origin: string;
+            /** Revoked At */
+            revoked_at: string | null;
+        };
+        /** LedgerEntryOut */
+        app__modules__packages__schemas__LedgerEntryOut: {
+            /** Actor Id */
+            actor_id: string | null;
+            /** Actor Type */
+            actor_type: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Client Package Id
+             * Format: uuid
+             */
+            client_package_id: string;
+            /** Consumed Delta */
+            consumed_delta: number;
+            /**
+             * Entry Type
+             * @enum {string}
+             */
+            entry_type: "grant" | "reserve" | "release" | "consume" | "restore" | "forfeit" | "adjust";
+            /** Forfeited Delta */
+            forfeited_delta: number;
+            /** Granted Delta */
+            granted_delta: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Note */
+            note: string | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Reason */
+            reason: string;
+            /** Reserved Delta */
+            reserved_delta: number;
+            /** Source Id */
+            source_id: string | null;
+            /** Source Type */
+            source_type: string | null;
+        };
+        /** ShareOut */
+        app__modules__packages__schemas__ShareOut: {
+            /** Added By Staff User Id */
+            added_by_staff_user_id: string | null;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Client Package Id
+             * Format: uuid
+             */
+            client_package_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Origin */
+            origin: string;
+            /** Revoked At */
+            revoked_at: string | null;
         };
     };
     responses: never;
@@ -6565,6 +10538,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    updateBillingSchedulePeriod: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                period_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PeriodUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeriodOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
@@ -7633,6 +11644,523 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["NoteOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listClientPackages: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PackageOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sellClientPackage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageSell"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageSaleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    grantComplimentaryPackage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageGrant"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageSaleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    quoteClientPackage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageQuote"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageQuoteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getClientPackage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateClientPackage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    adjustClientPackageCredits: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreditAdjust"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listClientPackageLedger: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__core__schemas__Page_LedgerEntryOut___2"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    quoteClientPackageRemoval: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemovalQuoteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    removeClientPackage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageRemove"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    renewClientPackage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPackageShares: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__modules__packages__schemas__ShareOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    addPackageShare: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShareIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__modules__packages__schemas__ShareOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revokePackageShare: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                package_id: string;
+                package_share_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -9921,7 +14449,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Page_LedgerEntryOut_"];
+                    "application/json": components["schemas"]["app__core__schemas__Page_LedgerEntryOut___1"];
                 };
             };
             /** @description Validation Error */
@@ -10212,6 +14740,1484 @@ export interface operations {
             };
         };
     };
+    listMembershipContracts: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ContractOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sellMembershipContract: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContractSell"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContractSaleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    quoteMembershipContract: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContractQuote"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContractQuoteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listUpcomingMembershipRenewals: {
+        parameters: {
+            query?: {
+                days?: number;
+                location_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpcomingRenewalOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getMembershipContract: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContractOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateMembershipContract: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContractUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContractOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listMembershipBillingSchedule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeriodOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    invoiceDeferredSchedulePeriods: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["InvoicePeriodsIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoicePeriodsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancelMembershipContract: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CancelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    quoteMembershipCancellation: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CancelQuoteIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CancelQuoteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listMembershipFreezes: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FreezeOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    freezeMembershipContract: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["FreezeIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FreezeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listMembershipContractHistory: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    renewMembershipContract: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RenewIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContractOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    repriceMembershipContract: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RepriceIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContractOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listMembershipShares: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__modules__memberships__schemas__ShareOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    addMembershipShare: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShareIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__modules__memberships__schemas__ShareOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revokeMembershipShare: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+                membership_share_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    setMembershipContractSoldBy: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SoldByIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContractOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listMembershipSuspensions: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuspensionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    suspendMembershipContract: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SuspensionIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuspensionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undoMembershipCancel: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContractOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    adjustMembershipVisits: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VisitAdjust"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContractOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listMembershipVisits: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_VisitOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateMembershipFreeze: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                freeze_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpanUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FreezeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    removeMembershipFreeze: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                freeze_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RemoveIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FreezeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listMembershipPlans: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_MembershipPlanOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createMembershipPlan: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MembershipPlanCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipPlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getMembershipPlan: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                membership_plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipPlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateMembershipPlan: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                membership_plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MembershipPlanUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipPlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replaceMembershipPlanAddons: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                membership_plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanAddonsReplace"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipPlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    duplicateMembershipPlan: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                membership_plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipPlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getMembershipSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateMembershipSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MembershipSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listMembershipStandings: {
+        parameters: {
+            query: {
+                client_ids: string[];
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StandingOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateMembershipSuspension: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                suspension_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpanUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuspensionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    removeMembershipSuspension: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                suspension_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RemoveIn"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuspensionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listMembershipTypes: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_MembershipTypeOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createMembershipType: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MembershipTypeCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipTypeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateMembershipType: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                membership_type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MembershipTypeUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipTypeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listNoteSubjects: {
         parameters: {
             query?: never;
@@ -10372,6 +16378,336 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TenantOnboarded"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPackagePlans: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PackagePlanOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createPackagePlan: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackagePlanCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackagePlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPackagePlan: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                package_plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackagePlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updatePackagePlan: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                package_plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackagePlanUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackagePlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPackageSeries: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_SeriesOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPackageSeries: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancelPackageSeries: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPackageSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updatePackageSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageSettingsOut"];
                 };
             };
             /** @description Validation Error */
@@ -10796,6 +17132,165 @@ export interface operations {
             };
         };
     };
+    listPortalClientPackages: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PortalPackageOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    portalBuyClientPackage: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalPackageBuy"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalPackageSaleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    portalOptOutPackageAutoRenew: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalPackageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalClientPackageLedger: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__core__schemas__Page_LedgerEntryOut___2"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPortalActableClients: {
         parameters: {
             query?: never;
@@ -11148,6 +17643,258 @@ export interface operations {
             };
         };
     };
+    listPortalMembershipContracts: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalContractOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    portalBuyMembershipContract: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalContractBuy"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalContractSaleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    portalQuoteMembershipContract: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalContractBuy"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContractQuoteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    portalOptOutMembershipAutoRenew: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                contract_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalContractOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalMembershipStanding: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StandingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalPackagePlans: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PortalPackagePlanOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    portalOptOutSeriesAutoRenew: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPortalRelationshipTypes: {
         parameters: {
             query?: never;
@@ -11408,6 +18155,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_PublicLocation_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPublicMembershipPlans: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PublicPlanOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPublicPackagePlans: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PortalPackagePlanOut_"];
                 };
             };
             /** @description Validation Error */

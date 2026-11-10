@@ -30,6 +30,8 @@ def bootstrap() -> None:
         clients,
         documents,
         engagement,  # noqa: F401
+        memberships,
+        packages,
         platform,
     )
 

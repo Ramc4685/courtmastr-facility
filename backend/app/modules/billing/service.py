@@ -1049,3 +1049,18 @@ def _payment_detail(session: Session, payment: Payment) -> dict:
         **{c.key: getattr(payment, c.key) for c in Payment.__table__.columns},
         "allocations": allocations, "refunds": refunds,
     }  # fmt: skip
+
+
+# === internal reads for the selling contexts (memberships, packages) =========================================
+
+
+def get_charge(session: Session, charge_id: UUID) -> Charge:
+    """The charge, for a caller that needs its state (status, applied_minor, total_minor). Internal."""
+    return _get(session, Charge, charge_id)
+
+
+def charge_payments(session: Session, charge_id: UUID) -> list[tuple[UUID, int]]:
+    """(payment_id, amount_minor) for each live allocation on the charge: what a cancel reads before it
+    reverses, so the released money can be re-applied or refunded payment by payment. Internal."""
+    rows = session.scalars(_live_allocations(PaymentAllocation.charge_id == charge_id))
+    return [(row.payment_id, row.amount_minor) for row in rows]
