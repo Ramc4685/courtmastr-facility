@@ -54,7 +54,7 @@ Tests: `IT` = `backend/app/modules/integrations/tests/test_integrations.py`, `IS
    delivery job → receiver) is proven by `test_webhook_reaches_a_local_receiver_signed`, which runs the real
    relay and a Dramatiq worker on the stub broker. It was not run against the live lane API, because lanes
    must not start `make worker` or `make relay` (shared Redis).
-3. **Checks.** `make lint` passes. `make test` passes: 572 tests, with domain coverage at 95% against the 80%
+3. **Checks.** `make lint` passes. `make test` passes: 575 tests, with domain coverage at 95% against the 80%
    gate. `make web-check` passes. `make web-test` passes: 40 tests. `make web-e2e` passes: 5 specs, including
    the two new ones. `make openapi web-api` is current (the snapshot test passes).
 

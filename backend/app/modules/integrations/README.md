@@ -28,14 +28,16 @@ through `service.adapter_for`.
   rotate or revoke one, never another key. Scopes must be grantable (rbac-matrix section 11), held by the
   creator, and confirmed when they move money (`$`) or set prices (`P`). A location-limited creator must name
   locations inside their own and sees only keys within them. The key's principal is recomputed from the
-  creator on every request, so it shrinks with them.
+  creator on every request, so it shrinks with them. Rotating re-binds the key to the person who rotated it,
+  so a new secret never carries someone else's wider reach.
 - **Keys reach only `require()`-gated routes.** `Authenticated`-only routes such as `/me` answer
   `403 api-key-not-allowed`.
 - **Webhook subscriptions are bounded by the creator.** A type needs its read permission at `all` reach, or a
   location-limited creator needs a location locator for that type. `*` expands at save time. A creator who is
   deactivated or loses the permission disables the endpoint on the next fan-out or on the deactivation event.
   Changing an endpoint's URL needs the caller to be allowed every event it carries, so nobody can redirect
-  someone else's broader feed to a URL of their own.
+  someone else's broader feed to a URL of their own. The creator's grants and locations are re-checked before
+  every attempt, so queued retries stop once access is lost.
 - **Delivery.** At least once, deduplicated per (endpoint, event) by a unique constraint, signed with every
   live secret. 8 attempts on `RETRY_DELAYS` ±10%. The endpoint is disabled on `410`, after 20 failed
   deliveries, or after 5 days without success: pending deliveries are abandoned, the creator is emailed and

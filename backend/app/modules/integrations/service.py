@@ -175,7 +175,8 @@ def rotate_api_key(session: Session, principal: Principal, api_key_id: UUID, dat
     else:
         row.previous_key_prefix = row.previous_secret_hash = row.previous_valid_until = None
     raw, row.key_prefix, row.secret_hash = _mint(session.info["tenant_id"])
-    row.rotated_at = now
+    # The new secret goes to the rotator, so the key now acts as them: never with someone else's wider reach.
+    row.rotated_at, row.created_by_staff_user_id = now, principal.staff_user_id
     audit.record(session, "integrations.api_key.rotate", row, changes=audit.diff(row))
     session.flush()
     return row, raw
@@ -422,16 +423,9 @@ def fan_out(session: Session, event_id: UUID, payload: dict) -> list[UUID]:
         )
     ).all()
     created: list[UUID] = []
-    location, located = None, False
     for endpoint in endpoints:
-        creator = reevaluate(session, endpoint)
-        if creator is None or not may_subscribe(creator, event):
-            continue  # disabled, or this type is suspended until the creator regains the permission
-        if creator.location_ids is not None:
-            if not located:
-                location, located = event.locate(session, payload), True
-            if location not in creator.location_ids:
-                continue
+        if not _may_deliver(session, endpoint, event, payload):
+            continue
         delivery_id = session.scalar(
             pg_insert(WebhookDelivery)
             .values(
@@ -451,6 +445,15 @@ def fan_out(session: Session, event_id: UUID, payload: dict) -> list[UUID]:
             created.append(delivery_id)
             _enqueue(session, delivery_id)
     return created
+
+
+def _may_deliver(session: Session, endpoint: WebhookEndpoint, event: EventType, payload: dict) -> bool:
+    """The creator's grants as of now: checked at fan-out and again before every attempt, so a lost
+    permission or location also stops retries already queued."""
+    creator = reevaluate(session, endpoint)
+    if creator is None or not may_subscribe(creator, event):
+        return False  # disabled, or this type is suspended until the creator regains the permission
+    return creator.location_ids is None or event.locate(session, payload) in creator.location_ids
 
 
 def reevaluate(session: Session, endpoint: WebhookEndpoint) -> Principal | None:
@@ -482,7 +485,12 @@ def attempt_delivery(session: Session, delivery_id: UUID) -> timedelta | None:
     if delivery is None or delivery.status != DeliveryStatus.PENDING:
         return None  # already handled: at-least-once delivery of the job message is harmless
     endpoint = session.get(WebhookEndpoint, delivery.webhook_endpoint_id)
-    if endpoint.status != EndpointStatus.ACTIVE:
+    event = CATALOGUE.get(delivery.event_type)
+    if (
+        endpoint.status != EndpointStatus.ACTIVE
+        or event is None
+        or not _may_deliver(session, endpoint, event, delivery.payload)
+    ):
         delivery.status, delivery.next_attempt_at = DeliveryStatus.ABANDONED, None
         return None
     return _attempt(session, delivery, endpoint, retry=True)

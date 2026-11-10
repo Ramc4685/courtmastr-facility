@@ -350,6 +350,23 @@ def test_deactivated_creator_disables_the_endpoint(client, tenant, owner, mailbo
         assert service.fan_out(session, uuid4(), {"type": "clients.client.created", "client_id": str(uuid4())}) == []
 
 
+def test_queued_retries_stop_when_the_creator_loses_access(client, tenant, owner):
+    email, staff_user_id = add_staff(tenant, "admin", all_locations=True)
+    _endpoint(client, login(client, tenant, email))
+    delivery_id = _pending(tenant)
+    assert client.post(f"{API}/staff-users/{staff_user_id}/deactivate", headers=owner).status_code == 200
+    delay, send = _deliver(tenant, delivery_id, transport.Response(200, 5, "ok"))
+    assert delay is None and send.call_count == 0
+    assert _row(tenant, WebhookDelivery, delivery_id).status == "abandoned"
+
+
+def test_rotation_rebinds_the_key_to_the_rotator(client, tenant, owner):
+    key = _key(client, owner, scopes=["clients.client.read"])
+    email, staff_user_id = add_staff(tenant, "admin", all_locations=True)
+    rotated = client.post(f"{API}/api-keys/{key['id']}/rotate", headers=login(client, tenant, email), json={})
+    assert rotated.status_code == 200 and rotated.json()["created_by_staff_user_id"] == str(staff_user_id)
+
+
 # --- delivery ----------------------------------------------------------------------------------------------
 
 
