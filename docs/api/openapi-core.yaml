@@ -3315,6 +3315,8 @@ paths:
       operationId: resolveDirectLink
       tags: [scheduling]
       summary: Resolve a direct link to its session or slot offer (listing mode waived)
+      description: 'Accepted exception to "no secrets in URLs": a shareable, multi-use link that only reveals an unlisted
+        session or offer; booking still requires a portal session and can_act_for. Revocable by staff, redacted from logs.'
       x-priority: P1
       x-permission: public
       x-features: [SCH-16]
@@ -3918,6 +3920,8 @@ paths:
       operationId: createPortalRental
       tags: [rentals]
       summary: 'Start an online rental: hold the slot and open checkout'
+      description: '`client_id` must satisfy can_act_for(identity, client_id, book); `rental_plan_purchase_id` must satisfy
+        can_use_entitlement. Portal-only PortalRentalCreate carries no price.'
       x-priority: P0
       x-permission: client:can_act_for
       x-features: [RNT-06, RNT-05]
@@ -3946,6 +3950,9 @@ paths:
       operationId: confirmPortalRental
       tags: [rentals]
       summary: Pay and confirm a held rental
+      description: The rental's client must satisfy can_act_for(identity, client_id, book); the payer is the identity's own
+        client and `payment_method_id` must be one of its stored methods, else 403.
+      x-authorization: can_act_for(identity, rental.client_id, book); payment_method.client_id is the identity's own client.
       x-priority: P0
       x-permission: client:can_act_for
       x-features: [RNT-06]
@@ -4217,6 +4224,8 @@ paths:
       operationId: buyPortalRentalPlan
       tags: [rentals]
       summary: Buy a plan online for self or a related client
+      description: P1 stub. Beneficiary checked by can_act_for(identity, client_id, buy); payer is the identity's own client
+        and any stored payment method must be its own. Body will be portal-only with additionalProperties false.
       x-priority: P1
       x-permission: client:can_act_for
       x-features: [RNT-09]
@@ -5872,6 +5881,7 @@ components:
         from_price_minor: {type: integer, description: Minor units of tenant.currency}
     PortalRentalCreate:
       type: object
+      additionalProperties: false
       description: '`client_id` is self or a client the identity can act for. Rate is the type online rate; the client never
         picks a price.'
       required: [rental_type_id, client_id, resource_id, starts_at, ends_at]
@@ -5881,7 +5891,10 @@ components:
         resource_id: {type: string, format: uuid}
         starts_at: {type: string, format: date-time}
         ends_at: {type: string, format: date-time}
-        rental_plan_purchase_id: {type: string, format: uuid}
+        rental_plan_purchase_id:
+          type: string
+          format: uuid
+          description: must satisfy can_use_entitlement(client_id, plan purchase) (ADR 0009 section 8.3), else 403
     RentalCheckout:
       type: object
       description: 'pay_in_full: tentative booking with real holds and `expires_at` (checkout clock, default 10 minutes).
@@ -5895,9 +5908,14 @@ components:
         payment_required: {type: boolean}
     PortalRentalConfirm:
       type: object
+      additionalProperties: false
       description: One of payment_method_id (stored) or provider_payment_token (PaymentProvider client token; never raw card
         data).
       properties:
-        payment_method_id: {type: string, format: uuid}
+        payment_method_id:
+          type: string
+          format: uuid
+          description: must be a stored method of the identity's own client (never the renter's if that is a dependent or
+            related client); else 403
         provider_payment_token: {type: string}
-        save_payment_method: {type: boolean}
+        save_payment_method: {type: boolean, description: saves to the identity's own client}

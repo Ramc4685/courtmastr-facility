@@ -740,7 +740,38 @@ rather than here; section 14 is the control set for the former.
 
 ---
 
-## 17. Open questions for the lead
+## 17. API surface rules
+
+Standing rules for anyone adding or changing an operation in `docs/api/openapi-*.yaml` or a router. A review
+that finds a violation treats it as a defect, not a style note.
+
+1. **Surface-specific request schemas.** Every request body on `/portal/*`, `/public/*` and `/kiosk/*` uses a
+   schema written for that surface, containing only fields the caller may set, with `additionalProperties:
+   false`. Never reuse a staff schema (prices, discounts, payer, seller, capacity or policy overrides, backdated
+   timestamps, staff-only methods). Sharing is allowed only when the shared schema has no privileged field and
+   the operation description says so.
+2. **Secrets never in URLs.** Bearer tokens (invites, confirmations, document links, invoice links, preference
+   links) travel in the request body or a header, never the path or query. Emailed links put the token in the
+   landing page's URL fragment; the page posts it to the API. Landing pages send `Referrer-Policy: no-referrer`.
+   Tokens are high-entropy, hashed at rest, short-lived, single-use wherever the operation consumes them, and
+   redacted from logs and traces. Documented exceptions, each read-only or single-purpose by protocol: RFC 8058
+   one-click unsubscribe, iCalendar feeds, and shareable display/direct links that expose no client data.
+3. **Payer and payment-method ownership.** On the portal the payer defaults to the caller's own client; a
+   different payer must satisfy `can_act_for(identity, payer, buy)`. A stored `payment_method_id` must belong to
+   the payer, and the payer must be a client the identity holds direct portal access to: an actor never uses
+   another person's stored methods (ADR 0009 section 8.2). Invoices paid must be visible to the caller through
+   `can_act_for`; entitlements used must pass `can_use_entitlement`. State the check in the operation
+   description (`x-authorization`).
+4. **Webhook subscriptions bounded by the creator.** Each event type maps to a read permission; creating or
+   adding a subscription requires the creator (and, on update, the caller) to hold it, else `403
+   event-permission-denied`. `*` is rejected unless the creator holds every mapped permission and expands to a
+   concrete list at save time. Deliveries apply the creator's location scope. A change to the creator's roles,
+   scope, key or status re-evaluates the subscription; lost types are suspended and an endpoint with none left
+   is disabled.
+
+---
+
+## 18. Open questions for the lead
 
 1. **Staff MFA (D1).** Add TOTP for staff in module 1, mandatory for Owner and Admin? It is outside the
    decided auth scope but it is the single largest residual risk in the threat model (row 2). Recommendation:

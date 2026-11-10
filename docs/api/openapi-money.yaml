@@ -2219,7 +2219,11 @@ paths:
       operationId: payPortalInvoices
       tags: [billing]
       summary: Pay open invoices
-      description: Allocation is oldest item first within the chosen invoices. Card declines are `402`.
+      description: Allocation is oldest item first within the chosen invoices. Card declines are `402`. Each invoice's Bill
+        To client must satisfy can_act_for(identity, bill_to, view_invoices); `payment_method_id` must be a stored method of
+        the identity's own client and account credit is the identity's own; otherwise 403.
+      x-authorization: can_act_for(identity, invoice.bill_to_client_id, view_invoices) for every invoice_ids entry;
+        payment_method.client_id is the identity's own client.
       x-priority: P0
       x-permission: client:can_act_for
       x-features: [PAY-18, PAY-01, BIL-17]
@@ -2371,6 +2375,8 @@ paths:
       operationId: attachPortalPaymentMethod
       tags: [billing]
       summary: Store the confirmed method
+      description: Always stored on the identity's own client (never a dependent's or related client's); the setup ref must
+        come from a setup intent that identity created. Shared PaymentMethodAttach has no privileged field.
       x-priority: P0
       x-permission: client:can_act_for
       x-features: [PAY-06, PAY-10]
@@ -2400,7 +2406,8 @@ paths:
       operationId: createPortalSetupIntent
       tags: [billing]
       summary: Start hosted capture of a card or bank account
-      description: Requires step-up re-authentication (security-baseline D2).
+      description: Requires step-up re-authentication (security-baseline D2). The intent is created for the identity's own
+        client only.
       x-priority: P0
       x-permission: client:can_act_for
       x-features: [PAY-06, PAY-10]
@@ -2425,6 +2432,8 @@ paths:
       operationId: updatePortalPaymentMethod
       tags: [billing]
       summary: Set the autopay method
+      description: '`payment_method_id` must belong to the identity''s own client, else 404 (no existence leak).'
+      x-authorization: payment_method.client_id is a client the identity holds direct portal access to.
       x-priority: P0
       x-permission: client:can_act_for
       x-features: [PAY-06, BIL-17]
@@ -2450,7 +2459,9 @@ paths:
       operationId: removePortalPaymentMethod
       tags: [billing]
       summary: Remove a stored method
-      description: Refused for the last method while an open autopay invoice depends on it.
+      description: Refused for the last method while an open autopay invoice depends on it. `payment_method_id` must belong
+        to the identity's own client, else 404.
+      x-authorization: payment_method.client_id is a client the identity holds direct portal access to.
       x-priority: P0
       x-permission: client:can_act_for
       x-features: [PAY-06]
@@ -2472,6 +2483,9 @@ paths:
       operationId: verifyPortalBankAccount
       tags: [billing]
       summary: Verify a bank account
+      description: '`payment_method_id` must belong to the identity''s own client, else 404. Attempts are rate-limited per
+        method.'
+      x-authorization: payment_method.client_id is a client the identity holds direct portal access to.
       x-priority: P0
       x-permission: client:can_act_for
       x-features: [PAY-10]
@@ -2671,30 +2685,35 @@ paths:
       - {name: dispute_id, in: path, required: true, schema: {type: string, format: uuid}}
       responses:
         default: {$ref: '#/components/responses/NotSpecified'}
-  /public/invoice-links/{link_token}:
-    get:
+  /public/invoice-links/lookup:
+    post:
       operationId: getInvoiceByLink
       tags: [billing]
       summary: Minimal invoice view from the signed email link
       description: 'Our addition: stateless HMAC over invoice id and expiry (data model 1.2). Deferred to P1; P0 emails
-        link to the portal login.'
+        link to the portal login. The link token travels in the body (from the landing page''s URL fragment; page sent
+        with Referrer-Policy no-referrer), never the URL; short-lived and redacted from logs.'
       x-priority: P1
       x-permission: public
       x-features: [PAY-18, BIL-10]
-      parameters:
-      - {name: link_token, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/InvoiceLinkTokenRequest'}}}
       responses:
         default: {$ref: '#/components/responses/NotSpecified'}
-  /public/invoice-links/{link_token}/payments:
+  /public/invoice-links/payments:
     post:
       operationId: payInvoiceByLink
       tags: [billing]
       summary: Pay from the signed link without an account
+      description: P1 stub. Link token in the body; the request schema will be public-only with additionalProperties false,
+        pay only the invoice bound to the token, and accept no stored payment_method_id (provider token only).
       x-priority: P1
       x-permission: public
       x-features: [PAY-18]
-      parameters:
-      - {name: link_token, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/InvoiceLinkTokenRequest'}}}
       responses:
         default: {$ref: '#/components/responses/NotSpecified'}
   /registers:
@@ -4712,7 +4731,9 @@ paths:
       operationId: createKioskPackagePurchase
       tags: [access]
       summary: Buy a package at the kiosk (possession-identified sessions only)
-      description: The setting is P0 and stored; the purchase flow belongs to packages and is scheduled with it.
+      description: The setting is P0 and stored; the purchase flow belongs to packages and is scheduled with it. When
+        specified it takes a kiosk-only body (additionalProperties false; plan id and provider token only, never the staff
+        ClientPackageSell), and the buyer and payer are the client identified in the kiosk session, never a body field.
       x-priority: P1
       x-permission: kiosk-device
       x-features: [CHK-06]
@@ -6529,27 +6550,38 @@ components:
         provider_client_secret: {type: string}
         provider_account_ref: {type: string}
         provider_publishable_key: {type: string}
+    InvoiceLinkTokenRequest:
+      type: object
+      additionalProperties: false
+      description: Signed invoice-link token in the body, never the URL.
+      required: [link_token]
+      properties:
+        link_token: {type: string}
     SetupIntentCreate:
       type: object
+      description: Shared by staff and portal; holds no privileged field. The owning client comes from the path (staff) or
+        the identity's own client (portal), never the body.
       required: [kind]
       properties:
         kind: {type: string, enum: [card, bank_account]}
     PaymentMethodAttach:
       type: object
-      description: Reference returned by the hosted element after confirmation.
+      description: Reference returned by the hosted element after confirmation. Shared by staff and portal; holds no
+        privileged field. The provider ref must come from a setup intent created for the same client.
       required: [provider_setup_ref]
       properties:
         provider_setup_ref: {type: string}
         is_autopay: {type: boolean}
     PaymentMethodUpdate:
       type: object
-      description: Setting true clears the flag on the client's other methods in the same transaction.
+      description: Setting true clears the flag on the client's other methods in the same transaction. Shared by staff and
+        portal; holds no privileged field.
       required: [is_autopay]
       properties:
         is_autopay: {type: boolean}
     BankVerifyRequest:
       type: object
-      description: Micro-deposit verification (PAY-10).
+      description: Micro-deposit verification (PAY-10). Shared by staff and portal; holds no privileged field.
       properties:
         amounts_minor: {type: array, items: {type: integer}}
         descriptor_code: {type: string}
@@ -6714,6 +6746,7 @@ components:
         next_action: {oneOf: [{$ref: '#/components/schemas/PaymentNextAction'}, {type: 'null'}]}
     PortalPaymentCreate:
       type: object
+      additionalProperties: false
       description: Payer is the acting identity; only its own stored methods are usable (rbac 9.3). `amount_minor` omitted
         = full balance.
       required: [invoice_ids]

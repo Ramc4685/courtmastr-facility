@@ -1348,6 +1348,8 @@ paths:
       operationId: portalSetClientPhoto
       tags: [clients]
       summary: Set profile photo (when the location allows)
+      description: Shares FileRef with staff because it holds only a file id; the file must be an upload owned by the acting
+        identity. `client_id` checked by can_act_for(identity, client_id, edit_profile).
       x-priority: P0
       x-surface: portal
       x-permission: portal:can_act_for
@@ -1405,6 +1407,8 @@ paths:
       operationId: portalReplaceEmergencyContacts
       tags: [clients]
       summary: Replace emergency contacts
+      description: Shares EmergencyContactList with staff because every field is client-owned contact data with no
+        privileged attribute. `client_id` checked by can_act_for(identity, client_id, edit_profile).
       x-priority: P0
       x-surface: portal
       x-permission: portal:can_act_for
@@ -1598,21 +1602,23 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         default: {$ref: '#/components/responses/Problem'}
       x-problem-codes: [invalid-state-transition]
-  /public/relationship-confirmations/{token}:
+  /public/relationship-confirmations:
     post:
       operationId: publicDecideRelationship
       tags: [clients]
       summary: Accept or decline a relationship request by emailed token
+      description: The token travels in the body (the emailed link puts it in the landing page's URL fragment; that page
+        sends Referrer-Policy no-referrer). It is single-use, short-lived, hashed at rest and redacted from logs. Acceptance
+        binds to the invited party - when the request carries a client session, accept succeeds only if that session's
+        identity has portal access to the invited client (else 403); without a session the token alone may decline, and
+        accept is allowed only for an invitee with no login. Decline never requires a session.
       x-priority: P0
       x-surface: public
       x-permission: public:token
+      x-authorization: token valid and unconsumed; on accept, a present client session must belong to the invited client
+        (client_portal_access(identity, invited_client_id)); an invitee with a login must sign in to accept.
       x-features: [FAM-02]
-      security: []
-      parameters:
-      - name: token
-        in: path
-        required: true
-        schema: {type: string}
+      security: [{}, {clientSession: []}]
       requestBody:
         required: true
         content:
@@ -1624,13 +1630,14 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Relationship'}
+        '403': {$ref: '#/components/responses/PermissionDenied'}
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/ValidationFailed'}
         '429': {$ref: '#/components/responses/RateLimited'}
         '410': {$ref: '#/components/responses/Gone'}
         default: {$ref: '#/components/responses/Problem'}
-      x-problem-codes: [invalid-state-transition, token-expired]
+      x-problem-codes: [invalid-state-transition, token-expired, sign-in-required, session-identity-mismatch]
   /custom-fields:
     get:
       operationId: listCustomFields
@@ -2847,22 +2854,24 @@ paths:
         '403': {$ref: '#/components/responses/PermissionDenied'}
         '422': {$ref: '#/components/responses/ValidationFailed'}
         default: {$ref: '#/components/responses/Problem'}
-  /public/document-deliveries/{token}:
-    get:
+  /public/document-deliveries/open:
+    post:
       operationId: publicGetDocumentDelivery
       tags: [documents]
       summary: View a document through an emailed link
-      description: Sets opened_at. Tenant resolved from host; token is single-purpose and hashed at rest.
+      description: Sets opened_at; does not consume the token. Tenant resolved from host; token is single-purpose, short-lived,
+        hashed at rest and redacted from logs. The emailed link puts it in the landing page's URL fragment (page served with
+        Referrer-Policy no-referrer) and the page posts it here in the body.
       x-priority: P0
       x-surface: public
       x-permission: public:token
       x-features: [DOC-04]
       security: []
-      parameters:
-      - name: token
-        in: path
+      requestBody:
         required: true
-        schema: {type: string}
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PublicTokenRequest'}
       responses:
         '200':
           description: OK
@@ -2874,21 +2883,18 @@ paths:
         '410': {$ref: '#/components/responses/Gone'}
         default: {$ref: '#/components/responses/Problem'}
       x-problem-codes: [token-expired, token-superseded]
-  /public/document-deliveries/{token}/decision:
+  /public/document-deliveries/decision:
     post:
       operationId: publicDecideDocument
       tags: [documents]
       summary: Accept or decline through an emailed link
+      description: Token in the body, never the URL; consumed by the decision (single-use) and short-lived.
       x-priority: P0
       x-surface: public
       x-permission: public:token
       x-features: [DOC-04, DOC-03]
       security: []
       parameters:
-      - name: token
-        in: path
-        required: true
-        schema: {type: string}
       - {$ref: '#/components/parameters/IdempotencyKey'}
       requestBody:
         required: true
@@ -3035,9 +3041,13 @@ paths:
       tags: [documents]
       summary: Accept or decline as the client or as guardian
       description: Guardian role requires a relationship whose type has is_guardianship from the identity's client to the subject.
+        Uses PortalAcceptanceSubmit (no paper method, no client-supplied decided_at). The document's subject must satisfy
+        can_act_for(identity, subject, sign_documents); each signer_client_id must be the identity's own client.
       x-priority: P0
       x-surface: portal
       x-permission: portal:can_act_for
+      x-authorization: can_act_for(identity, document.client_id, sign_documents); signers[].signer_client_id is the
+        identity's own client. Unknown body fields are rejected.
       x-features: [DOC-03, DOC-08, DOC-14]
       security: [{clientSession: []}]
       parameters:
@@ -3051,7 +3061,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/AcceptanceSubmit'}
+            schema: {$ref: '#/components/schemas/PortalAcceptanceSubmit'}
       responses:
         '200':
           description: OK
@@ -5085,10 +5095,14 @@ paths:
       tags: [packages]
       summary: Buy a package online
       description: The combined 'book a session and buy the package' checkout is orchestrated by programs/scheduling, which calls packages.service.sell_package
-        in its own transaction; this endpoint is the standalone purchase.
+        in its own transaction; this endpoint is the standalone purchase. Uses PortalClientPackagePurchase (no price, discount,
+        seller, sharing or invoice-mode fields). The owner is `client_id` (query), checked by can_act_for(identity, client_id,
+        buy); the payer is the identity's own client and `payment.payment_method_id` must be one of its stored methods.
       x-priority: P0
       x-surface: portal
       x-permission: portal:can_act_for
+      x-authorization: can_act_for(identity, query.client_id, buy); payer = identity's own client;
+        payment.payment_method_id owned by the payer. Unknown body fields are rejected.
       x-features: [SSP-08, PKG-09, DOC-08]
       security: [{clientSession: []}]
       parameters: [{$ref: '#/components/parameters/ActForClientId'}, {$ref: '#/components/parameters/IdempotencyKeyRequired'}]
@@ -5096,7 +5110,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/ClientPackageSell'}
+            schema: {$ref: '#/components/schemas/PortalClientPackagePurchase'}
       responses:
         '201':
           description: Created
@@ -5192,7 +5206,8 @@ paths:
       operationId: portalQuoteClientPackage
       tags: [packages]
       summary: Preview an online package purchase
-      description: Only package_plan_id, session_count (range plans), coupon_code and payment are honoured from the body.
+      description: Same body as portalBuyClientPackage (PortalClientPackagePurchase); `client_id` (query) checked by
+        can_act_for(identity, client_id, buy).
       x-priority: P0
       x-surface: portal
       x-permission: portal:can_act_for
@@ -5203,7 +5218,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/ClientPackageSell'}
+            schema: {$ref: '#/components/schemas/PortalClientPackagePurchase'}
       responses:
         '200':
           description: OK
@@ -5987,6 +6002,14 @@ components:
           type: integer
           description: Only with include=total
       required: [next_cursor, has_more]
+    PublicTokenRequest:
+      type: object
+      additionalProperties: false
+      description: Bearer secret from an emailed link, sent in the body (never the URL path or query). Hashed at rest,
+        short-lived, redacted from logs; single-use where the operation consumes it.
+      required: [token]
+      properties:
+        token: {type: string}
     FileRef:
       type: object
       description: Reference to a platform stored_file uploaded through the platform upload endpoint.
@@ -6376,6 +6399,7 @@ components:
       required: [client, basis]
     PortalClientUpdate:
       type: object
+      additionalProperties: false
       description: Validated against client_field_policy for capture_context=portal (SSP-10).
       properties:
         version: {type: integer}
@@ -6408,16 +6432,21 @@ components:
       properties:
         email: {type: string, format: email}
         relationship_type_id: {type: string, format: uuid}
-        from_client_id: {type: string, format: uuid}
+        from_client_id:
+          type: string
+          format: uuid
+          description: must be a client the identity holds direct portal access to; default its primary client
       required: [email, relationship_type_id]
     RelationshipDecision:
       type: object
-      description: Token holder's decision.
+      description: Token holder's decision. The token is in the body, never the URL.
+      additionalProperties: false
       properties:
+        token: {type: string, description: 'emailed confirmation secret; single-use, short-lived, never logged'}
         decision:
           type: string
           enum: [accept, decline]
-      required: [decision]
+      required: [token, decision]
     MemberCard:
       type: object
       description: MEM-19. Code payload is rendered client-side as QR or barcode.
@@ -6616,6 +6645,40 @@ components:
           format: uuid
         decided_at: {type: string, format: date-time}
       required: [decision, signer_role, signer_name, method]
+    PortalAcceptanceSubmit:
+      type: object
+      additionalProperties: false
+      description: Portal signer decisions. decided_at is server time; paper and co_signer are staff-witnessed only.
+      properties:
+        content_sha256: {type: string}
+        signers:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              decision:
+                type: string
+                enum: [accepted, declined]
+              signer_role:
+                type: string
+                enum: [client, guardian]
+              signer_client_id:
+                type: [string, 'null']
+                format: uuid
+                description: must be the identity's own client; null = the identity's client
+              signer_name: {type: string}
+              method:
+                type: string
+                enum: [checkbox, drawn_signature, typed_name]
+              typed_signature:
+                type: [string, 'null']
+              signature_file_id:
+                type: [string, 'null']
+                format: uuid
+                description: an upload owned by the identity
+            required: [decision, signer_role, signer_name, method]
+      required: [content_sha256, signers]
     AcceptanceSubmit:
       type: object
       description: One or more signer decisions in one call. content_sha256 must match the presented document.
@@ -6665,8 +6728,10 @@ components:
       required: [title, body_html, acceptance_text, content_sha256, client_display_name, expires_at]
     PublicDocumentDecision:
       type: object
-      description: Emailed-path decision (method typed_name).
+      description: Emailed-path decision (method typed_name). Signer identity comes from the delivery bound to the token.
+      additionalProperties: false
       properties:
+        token: {type: string, description: 'delivery secret from the link fragment; single-use, short-lived, never logged'}
         decision:
           type: string
           enum: [accepted, declined]
@@ -6676,7 +6741,7 @@ components:
           type: string
           enum: [client, guardian]
         typed_signature: {type: string}
-      required: [decision, content_sha256, signer_name, typed_signature]
+      required: [token, decision, content_sha256, signer_name, typed_signature]
     ClientDocumentStatus:
       type: object
       description: client_document_status projection (DOC-15, DOC-09). is_waiver_on_file already applies the override and the date test.
@@ -7413,6 +7478,41 @@ components:
         created_at: {type: string, format: date-time}
       required: [id, version, owner_client_id, location_id, reservation_type_id, name, status, is_unlimited, sessions_granted_count, sessions_reserved_count,
         sessions_consumed_count, sessions_forfeited_count, valid_during]
+    PortalClientPackagePurchase:
+      type: object
+      additionalProperties: false
+      description: Online package purchase. Price and validity come from the plan; owner comes from the `client_id` query
+        (can_act_for); location from the plan.
+      required: [package_plan_id]
+      properties:
+        package_plan_id: {type: string, format: uuid, description: must be sold online}
+        session_count:
+          type: [integer, 'null']
+          description: range plans only; must fall within the plan's range
+        coupon_code:
+          type: [string, 'null']
+        payment: {$ref: '#/components/schemas/PortalPaymentInstruction'}
+    PortalPaymentInstruction:
+      type: object
+      additionalProperties: false
+      description: Portal settlement. The payer is the identity's own client; external and staff-recorded modes are not
+        available.
+      properties:
+        mode:
+          type: string
+          enum: [none, stored_method, new_method, account_credit]
+        payment_method_id:
+          type: [string, 'null']
+          format: uuid
+          description: must be a stored method of the identity's own client (never a dependent's or related client's), else 403
+        amount_minor:
+          type: [integer, 'null']
+          format: int64
+          description: Minor units, tenant currency; validated against the plan's due-now minimum and the balance
+        provider_payment_token:
+          type: [string, 'null']
+        apply_account_credit: {type: boolean, description: the payer's own credit only}
+      required: [mode]
     ClientPackageSell:
       type: object
       description: Staff sale (PKG-07). Without package_plan_id an ad-hoc package is built from the fields given. Overrides of plan price or validity
