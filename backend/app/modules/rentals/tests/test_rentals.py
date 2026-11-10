@@ -139,6 +139,17 @@ def test_routing_modes(client, owner, f):
     assert missing.status_code == 422
 
 
+def test_buffers_pad_the_held_range(client, owner, f):
+    """RNT-07: the type's buffer (or the request's override) is held around the rental."""
+    ok(client.patch(f"{API}/rental-types/{f.rtype}", headers=owner, json={"buffer_after_min": 30}), 200)
+    ok(rent(client, owner, f, 14, 15, {"decision": "no_charge"}))
+    inside = rent(client, owner, f, 15.25, 16, {"decision": "no_charge"})  # starts inside the 30-minute buffer
+    assert inside.status_code == 409 and inside.json()["code"] == "booking-conflict"
+    ok(rent(client, owner, f, 15.5, 16, {"decision": "no_charge"}, buffer_after_min=0))
+    tight = rent(client, owner, f, 16, 17, {"decision": "no_charge"}, buffer_before_min=0)
+    assert tight.status_code == 201  # the previous rental was booked with no buffer after
+
+
 def test_unbilled_queue_and_bill_selected(client, owner, f):
     created = ok(rent(client, owner, f, 15, 16, {"decision": "unbilled"}, recurrence=weekly(3)))
     assert created["quote"] is None and created["rental"]["charge_state"] == "unbilled"

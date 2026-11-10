@@ -11,6 +11,7 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
 | `service.py` | staff commands, internal settlement, online checkout, plans |
 | `handlers.py` | `scheduling.booking.cancelled` (settle), `scheduling.booking.rescheduled` (copy times), `billing.invoice.paid` (confirm a held checkout) |
 | `router.py` | 32 operations of `openapi-core.yaml` tag rentals; `/public/*` on an anonymous router |
+| `web/src/features/rentals/` | staff screens: `/rentals` (upcoming, unbilled queue, new rental, cancel), `/rentals/setup` (types, rates, plans, plans sold) |
 
 ## Rules
 
@@ -78,4 +79,5 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
 portal plan endpoints, auto-renew and autopay of plans, day-roll expiry job (expiry is checked at use),
 a `refund` charge action on cancel (billing's refund of a specific payment is module 8), rental reports beyond
 the `rpt_rental_booking` and `rpt_rental_plan_sale` views (RNT-12), lockers (RNT-17, RNT-18: no locker
-tables), POS rental items (RNT-14 to RNT-16, module 9).
+tables), POS rental items (RNT-14 to RNT-16, module 9). Web: no portal booking screen, no extend, move or
+public-schedule control, no tax picker on rates (no tax list endpoint), one resource per rental in the form.

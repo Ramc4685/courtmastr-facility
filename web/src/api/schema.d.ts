@@ -1081,6 +1081,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/rentals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Portal Rentals */
+        get: operations["listPortalRentals"];
+        put?: never;
+        /**
+         * Create Portal Rental
+         * @description Holds the time for the location's checkout window (scheduling settings) while the client pays.
+         */
+        post: operations["createPortalRental"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/rentals/{rental_id}/abandon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Abandon Portal Rental */
+        post: operations["abandonPortalRental"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/rentals/{rental_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Portal Rental */
+        post: operations["cancelPortalRental"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/rentals/{rental_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Portal Rental
+         * @description Errors: hold-expired, payment-declined.
+         */
+        post: operations["confirmPortalRental"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/locations": {
         parameters: {
             query?: never;
@@ -1094,6 +1169,376 @@ export interface paths {
          */
         get: operations["listPublicLocations"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/rental-availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Rental Availability
+         * @description Advisory: the hold insert at checkout decides. One page of at most `limit` slots for the day.
+         */
+        get: operations["searchRentalAvailability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/rental-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Public Rental Types */
+        get: operations["listPublicRentalTypes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rental-plan-purchases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Rental Plan Purchases
+         * @description Filters: location_id, client_id, status, rental_plan_id.
+         */
+        get: operations["listRentalPlanPurchases"];
+        put?: never;
+        /** Sell Rental Plan */
+        post: operations["sellRentalPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rental-plan-purchases/{purchase_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Rental Plan Purchase */
+        get: operations["getRentalPlanPurchase"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rental-plan-purchases/{purchase_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Rental Plan Purchase */
+        post: operations["cancelRentalPlanPurchase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rental-plan-purchases/{purchase_id}/ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Rental Plan Ledger */
+        get: operations["listRentalPlanLedger"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rental-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Rental Plans
+         * @description Filters: location_id, status, rental_type_id. q searches the name.
+         */
+        get: operations["listRentalPlans"];
+        put?: never;
+        /** Create Rental Plan */
+        post: operations["createRentalPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rental-plans/{rental_plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Rental Plan */
+        get: operations["getRentalPlan"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Rental Plan
+         * @description Archives the plan: sold purchases are unaffected.
+         */
+        delete: operations["deleteRentalPlan"];
+        options?: never;
+        head?: never;
+        /** Update Rental Plan */
+        patch: operations["updateRentalPlan"];
+        trace?: never;
+    };
+    "/api/v1/rental-rates/{rental_rate_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Rental Rate */
+        get: operations["getRentalRate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Rental Rate */
+        patch: operations["updateRentalRate"];
+        trace?: never;
+    };
+    "/api/v1/rental-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Rental Types
+         * @description Filters: location_id, is_active, access. Sort: sort_order, name. q searches the name.
+         */
+        get: operations["listRentalTypes"];
+        put?: never;
+        /** Create Rental Type */
+        post: operations["createRentalType"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rental-types/{rental_type_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Rental Type */
+        get: operations["getRentalType"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Rental Type
+         * @description `resource_ids` and `rental_plan_ids` replace the whole set when given.
+         */
+        patch: operations["updateRentalType"];
+        trace?: never;
+    };
+    "/api/v1/rental-types/{rental_type_id}/rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Rental Rates */
+        get: operations["listRentalRates"];
+        put?: never;
+        /** Create Rental Rate */
+        post: operations["createRentalRate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rentals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Rentals
+         * @description Filters: location_id, rental_type_id, charge_state, booked_via, starts_at[gte|lt], and booking-side
+         *     client_id, status, booking_series_id, resource_id. `charge_state=unbilled` is the unbilled queue.
+         */
+        get: operations["listRentals"];
+        put?: never;
+        /**
+         * Create Rental
+         * @description Book and decide billing in one transaction. Above 50 occurrences: 202 with `status_url`, unbilled.
+         *     Errors: booking-conflict, resource-blacked-out, rate-not-applicable, insufficient-plan-balance.
+         */
+        post: operations["createRental"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rentals/charges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bill Selected Rentals
+         * @description Bill unbilled occurrences of one client and type. `preview: true` returns the quote only.
+         */
+        post: operations["billSelectedRentals"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rentals/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Rental
+         * @description Dry run: what each occurrence would meet and the quote of the bookable ones. Nothing is written.
+         */
+        post: operations["previewRental"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rentals/{rental_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Rental */
+        get: operations["getRental"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rentals/{rental_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Rental
+         * @description Cancel this occurrence or a scope of its series and settle the money (reverse, re-post, credit).
+         */
+        post: operations["cancelRental"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rentals/{rental_id}/extensions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Extend Rental
+         * @description Add occurrences to a recurring rental; they arrive unbilled. 202 with `status_url` above 50.
+         */
+        post: operations["extendRental"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rentals/{rental_id}/public-schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Rental Public Schedule */
+        put: operations["setRentalPublicSchedule"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1989,6 +2434,28 @@ export interface components {
              */
             to: string;
         };
+        /**
+         * BillSelected
+         * @description Price any set of unbilled occurrences of one payer and route the lines (RNT-04).
+         */
+        BillSelected: {
+            charge: components["schemas"]["ChargeDecision"];
+            /**
+             * Preview
+             * @default false
+             */
+            preview: boolean;
+            /** Rental Ids */
+            rental_ids: string[];
+        };
+        /** Billed */
+        Billed: {
+            /** Invoice Ids */
+            invoice_ids: string[];
+            quote: components["schemas"]["Quote"];
+            /** Rentals */
+            rentals: components["schemas"]["RentalOut"][];
+        };
         /** BlackoutCreate */
         BlackoutCreate: {
             /**
@@ -2536,6 +3003,43 @@ export interface components {
             /** Unit Price Minor */
             unit_price_minor: number;
         };
+        /**
+         * ChargeDecision
+         * @description bill needs rental_rate_id or custom_rate; plan needs rental_plan_purchase_id. Maps to charge_state.
+         */
+        ChargeDecision: {
+            custom_rate?: components["schemas"]["CustomRate"] | null;
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "bill" | "unbilled" | "no_charge" | "plan";
+            /**
+             * Discount Minor
+             * @default 0
+             */
+            discount_minor: number;
+            /** Existing Invoice Id */
+            existing_invoice_id?: string | null;
+            /**
+             * Invoice Routing
+             * @default new_single
+             * @enum {string}
+             */
+            invoice_routing: "new_single" | "new_per_line" | "date_based" | "existing_open" | "cart";
+            /** Line Grouping */
+            line_grouping?: ("combined" | "per_occurrence") | null;
+            /** Rental Plan Purchase Id */
+            rental_plan_purchase_id?: string | null;
+            /** Rental Rate Id */
+            rental_rate_id?: string | null;
+            /** Revenue On */
+            revenue_on?: string | null;
+            /** Routing Period */
+            routing_period?: ("week" | "month") | null;
+            /** Tax Ids */
+            tax_ids?: string[] | null;
+        };
         /** ChargeOut */
         ChargeOut: {
             /** Additional Description */
@@ -2672,6 +3176,23 @@ export interface components {
              */
             status: "active" | "disabled";
         };
+        /**
+         * CustomRate
+         * @description Needs rentals.booking.override_rate.
+         */
+        CustomRate: {
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "per_hour" | "per_occurrence" | "flat";
+            /** Description */
+            description: string;
+            /** Tax Ids */
+            tax_ids?: string[] | null;
+            /** Unit Amount Minor */
+            unit_amount_minor: number;
+        };
         /** EffectivePermission */
         EffectivePermission: {
             /** Key */
@@ -2774,6 +3295,63 @@ export interface components {
             status: "pending" | "enrolled" | "cancelled";
             /** Target Kind */
             target_kind: string;
+        };
+        /** Extended */
+        Extended: {
+            /**
+             * Booking Series Id
+             * Format: uuid
+             */
+            booking_series_id: string;
+            /** Conflict Count */
+            conflict_count: number;
+            /** Created Count */
+            created_count: number;
+            /** Preview */
+            preview?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Results
+             * @default []
+             */
+            results: components["schemas"]["OccurrenceResult"][];
+            /** Status Url */
+            status_url?: string | null;
+        };
+        /**
+         * Extension
+         * @description Add more occurrences to the rental's series (RNT-04): same type, client and resources unless given.
+         */
+        Extension: {
+            /**
+             * End Day Offset
+             * @default 0
+             */
+            end_day_offset: number;
+            /** End Time */
+            end_time: string;
+            /**
+             * On Conflict
+             * @default abort
+             * @enum {string}
+             */
+            on_conflict: "skip" | "abort";
+            /**
+             * Preview
+             * @default false
+             */
+            preview: boolean;
+            /** Resources */
+            resources?: components["schemas"]["ResourceInput"][] | null;
+            rule: components["schemas"]["RecurrenceRule"];
+            /**
+             * Start On
+             * Format: date
+             */
+            start_on: string;
+            /** Start Time */
+            start_time: string;
         };
         /** FacilityHoursDay */
         FacilityHoursDay: {
@@ -2947,50 +3525,6 @@ export interface components {
             status: "open" | "payment_pending" | "partially_paid" | "paid" | "voided";
             /** Total Minor */
             total_minor: number;
-        };
-        /** LedgerEntryOut */
-        LedgerEntryOut: {
-            /**
-             * Account
-             * @enum {string}
-             */
-            account: "receivable" | "revenue" | "tax_payable" | "funds_received" | "client_credit" | "disputed_funds";
-            /** Charge Id */
-            charge_id: string | null;
-            /** Client Id */
-            client_id: string | null;
-            /** Credit Minor */
-            credit_minor: number;
-            /** Currency */
-            currency: string;
-            /** Debit Minor */
-            debit_minor: number;
-            /**
-             * Effective On
-             * Format: date
-             */
-            effective_on: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Ledger Transaction Id
-             * Format: uuid
-             */
-            ledger_transaction_id: string;
-            /**
-             * Location Id
-             * Format: uuid
-             */
-            location_id: string;
-            /** Payment Id */
-            payment_id: string | null;
-            /** Revenue Category Id */
-            revenue_category_id: string | null;
-            /** Tax Id */
-            tax_id: string | null;
         };
         /** Legend */
         Legend: {
@@ -3369,7 +3903,7 @@ export interface components {
         /** Page[LedgerEntryOut] */
         Page_LedgerEntryOut_: {
             /** Data */
-            data: components["schemas"]["LedgerEntryOut"][];
+            data: components["schemas"]["app__modules__billing__schemas__LedgerEntryOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[LocationOut] */
@@ -3394,6 +3928,42 @@ export interface components {
         Page_PublicLocation_: {
             /** Data */
             data: components["schemas"]["PublicLocation"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PurchaseOut] */
+        Page_PurchaseOut_: {
+            /** Data */
+            data: components["schemas"]["PurchaseOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[RentalOut] */
+        Page_RentalOut_: {
+            /** Data */
+            data: components["schemas"]["RentalOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[RentalPlanOut] */
+        Page_RentalPlanOut_: {
+            /** Data */
+            data: components["schemas"]["RentalPlanOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[RentalRateOut] */
+        Page_RentalRateOut_: {
+            /** Data */
+            data: components["schemas"]["RentalRateOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[RentalSlot] */
+        Page_RentalSlot_: {
+            /** Data */
+            data: components["schemas"]["RentalSlot"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[RentalTypeOut] */
+        Page_RentalTypeOut_: {
+            /** Data */
+            data: components["schemas"]["RentalTypeOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[ResourceGroupOut] */
@@ -3461,6 +4031,29 @@ export interface components {
              * Format: uuid
              */
             enrollment_id: string;
+        };
+        /** PartyInput */
+        PartyInput: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Is Charged
+             * @default false
+             */
+            is_charged: boolean;
+        };
+        /** PartyOut */
+        PartyOut: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Is Charged */
+            is_charged: boolean;
         };
         /** PasswordChange */
         PasswordChange: {
@@ -3654,6 +4247,61 @@ export interface components {
             /** Grants */
             grants: components["schemas"]["PermissionGrant"][];
         };
+        /** PlanSale */
+        PlanSale: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Invoice Routing */
+            invoice_routing?: ("new_single" | "cart") | null;
+            /** Quantity Total */
+            quantity_total?: number | string | null;
+            /**
+             * Rental Plan Id
+             * Format: uuid
+             */
+            rental_plan_id: string;
+        };
+        /**
+         * PortalRentalConfirm
+         * @description A PaymentProvider client token; never raw card data. Stored methods arrive with build module 8.
+         */
+        PortalRentalConfirm: {
+            /** Provider Payment Token */
+            provider_payment_token: string;
+        };
+        /** PortalRentalCreate */
+        PortalRentalCreate: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Rental Plan Purchase Id */
+            rental_plan_purchase_id?: string | null;
+            /**
+             * Rental Type Id
+             * Format: uuid
+             */
+            rental_type_id: string;
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
         /** PrincipalOut */
         PrincipalOut: {
             /**
@@ -3703,6 +4351,226 @@ export interface components {
             slug: string;
             /** Time Zone */
             time_zone: string;
+        };
+        /** PublicRentalType */
+        PublicRentalType: {
+            /** Cancel Cutoff Hours */
+            cancel_cutoff_hours: number | null;
+            /** Default Length Min */
+            default_length_min: number | null;
+            /** Deposit Pct */
+            deposit_pct: string | null;
+            /** Eligibility */
+            eligibility: string;
+            /** From Price Minor */
+            from_price_minor: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Late Cancel Fee Pct */
+            late_cancel_fee_pct: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Max Length Min */
+            max_length_min: number | null;
+            /** Min Lead Min */
+            min_lead_min: number;
+            /** Min Length Min */
+            min_length_min: number;
+            /** Name */
+            name: string;
+            /** Online Description */
+            online_description: string | null;
+            /** Online Payment Mode */
+            online_payment_mode: string;
+            /** Resources */
+            resources: {
+                [key: string]: unknown;
+            }[];
+            /** Slot Granularity Min */
+            slot_granularity_min: number;
+        };
+        /** PublicSchedule */
+        PublicSchedule: {
+            /** Is On Public Schedule */
+            is_on_public_schedule: boolean;
+        };
+        /** PurchaseCancel */
+        PurchaseCancel: {
+            /**
+             * Cancel Mode
+             * @enum {string}
+             */
+            cancel_mode: "reverse_billing" | "keep_billing";
+            /** Reason */
+            reason: string;
+        };
+        /** PurchaseOut */
+        PurchaseOut: {
+            /** Balance */
+            balance: string | null;
+            /** Cancel Mode */
+            cancel_mode: string | null;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Charge Id */
+            charge_id: string | null;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Expires On */
+            expires_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Id */
+            invoice_id?: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Model */
+            model: string;
+            /** Price Minor */
+            price_minor: number;
+            /** Quantity Total */
+            quantity_total: string | null;
+            /**
+             * Rental Plan Id
+             * Format: uuid
+             */
+            rental_plan_id: string;
+            /** Sold Via */
+            sold_via: string;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** Status */
+            status: string;
+        };
+        /**
+         * Quote
+         * @description Output of the deterministic pricing function; identical inputs give identical lines (RNT-02).
+         */
+        Quote: {
+            /** Currency */
+            currency: string;
+            /** Deposit Minor */
+            deposit_minor: number;
+            /** Discount Minor */
+            discount_minor: number;
+            /** Lines */
+            lines: components["schemas"]["QuoteLine"][];
+            /** Subtotal Minor */
+            subtotal_minor: number;
+            /** Tax Minor */
+            tax_minor: number;
+            /** Total Minor */
+            total_minor: number;
+        };
+        /** QuoteLine */
+        QuoteLine: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Applied Rule Id */
+            applied_rule_id: string | null;
+            /** Basis */
+            basis: string;
+            /** Description */
+            description: string;
+            /** Discount Minor */
+            discount_minor: number;
+            /** Is Member Price */
+            is_member_price: boolean;
+            /** Occurrence Index */
+            occurrence_index: number | null;
+            /** Quantity */
+            quantity: string;
+            /** Rental Rate Id */
+            rental_rate_id: string | null;
+            /** Resource Id */
+            resource_id: string | null;
+            /** Tax Minor */
+            tax_minor: number;
+            /** Unit Amount Minor */
+            unit_amount_minor: number;
+        };
+        /** RateRule */
+        RateRule: {
+            /** Amount Minor */
+            amount_minor?: number | null;
+            /** Discount Minor */
+            discount_minor?: number | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
+            /** End Time */
+            end_time?: string | null;
+            /** Ends On */
+            ends_on?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "rate" | "discount";
+            /** Membership Type Id */
+            membership_type_id?: string | null;
+            /** Name */
+            name?: string | null;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+            /** Start Time */
+            start_time?: string | null;
+            /** Starts On */
+            starts_on?: string | null;
+            /** Weekdays */
+            weekdays?: number[] | null;
+        };
+        /** RateRuleOut */
+        RateRuleOut: {
+            /** Amount Minor */
+            amount_minor: number | null;
+            /** Discount Minor */
+            discount_minor: number | null;
+            /** Discount Pct */
+            discount_pct: string | null;
+            /** End Time */
+            end_time: string | null;
+            /** Ends On */
+            ends_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Membership Type Id */
+            membership_type_id: string | null;
+            /** Name */
+            name: string;
+            /** Sort Order */
+            sort_order: number;
+            /** Start Time */
+            start_time: string | null;
+            /** Starts On */
+            starts_on: string | null;
+            /** Weekdays */
+            weekdays: number[] | null;
         };
         /** RecurrenceRule */
         RecurrenceRule: {
@@ -3786,6 +4654,655 @@ export interface components {
              * @enum {string}
              */
             status: "pending" | "succeeded" | "failed" | "cancelled";
+        };
+        /**
+         * RentalCancel
+         * @description Unpaid charge shares are always reversed; paid money becomes account credit (`credit_account`) unless
+         *     `keep_charge`. Plan-covered occurrences always get the balance back. Inside the type's cancellation window
+         *     a late-cancel fee is posted unless `waive_late_fee` (needs rentals.booking.override_rate).
+         */
+        RentalCancel: {
+            /**
+             * Charge Action
+             * @default credit_account
+             * @enum {string}
+             */
+            charge_action: "credit_account" | "keep_charge";
+            /** Note */
+            note?: string | null;
+            /**
+             * Reason
+             * @default staff
+             * @enum {string}
+             */
+            reason: "staff" | "client" | "other";
+            scope?: components["schemas"]["SeriesScope"] | null;
+            /**
+             * Waive Late Fee
+             * @default false
+             */
+            waive_late_fee: boolean;
+        };
+        /** RentalCancelResult */
+        RentalCancelResult: {
+            /** Cancelled Count */
+            cancelled_count: number;
+            /** Late Fee Minor */
+            late_fee_minor: number;
+            /** Plan Quantity Returned */
+            plan_quantity_returned: string;
+            /** Rentals */
+            rentals: components["schemas"]["RentalOut"][];
+            /** Reposted Minor */
+            reposted_minor: number;
+            /** Reversed Minor */
+            reversed_minor: number;
+        };
+        /** RentalCheckout */
+        RentalCheckout: {
+            /** Amount Due Minor */
+            amount_due_minor: number;
+            /** Expires At */
+            expires_at: string | null;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /** Payment Required */
+            payment_required: boolean;
+            /** Payment Status */
+            payment_status?: string | null;
+            quote: components["schemas"]["Quote"];
+            rental: components["schemas"]["RentalOut"];
+        };
+        /** RentalCreate */
+        RentalCreate: {
+            /** Buffer After Min */
+            buffer_after_min?: number | null;
+            /** Buffer Before Min */
+            buffer_before_min?: number | null;
+            charge: components["schemas"]["ChargeDecision"];
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Notes */
+            notes?: string | null;
+            /**
+             * On Conflict
+             * @default abort
+             * @enum {string}
+             */
+            on_conflict: "skip" | "abort";
+            /**
+             * Override Policy
+             * @default false
+             */
+            override_policy: boolean;
+            /**
+             * Parties
+             * @default []
+             */
+            parties: components["schemas"]["PartyInput"][];
+            recurrence?: components["schemas"]["RecurrenceRule"] | null;
+            /**
+             * Rental Type Id
+             * Format: uuid
+             */
+            rental_type_id: string;
+            /** Resources */
+            resources: components["schemas"]["ResourceInput"][];
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Title */
+            title?: string | null;
+        };
+        /** RentalCreated */
+        RentalCreated: {
+            /** Booking Series Id */
+            booking_series_id: string | null;
+            /** Conflict Count */
+            conflict_count: number;
+            /** Created Count */
+            created_count: number;
+            /**
+             * Invoice Ids
+             * @default []
+             */
+            invoice_ids: string[];
+            quote?: components["schemas"]["Quote"] | null;
+            rental: components["schemas"]["RentalOut"] | null;
+            /**
+             * Results
+             * @default []
+             */
+            results: components["schemas"]["OccurrenceResult"][];
+            /** Status Url */
+            status_url?: string | null;
+        };
+        /**
+         * RentalOut
+         * @description One rental occurrence (rental_booking 1:1 booking). Status, times and version come from the booking.
+         */
+        RentalOut: {
+            /** Amount Minor */
+            amount_minor: number | null;
+            /** Booked Via */
+            booked_via: string;
+            /**
+             * Booking Id
+             * Format: uuid
+             */
+            booking_id: string;
+            /** Booking Number */
+            booking_number: number;
+            /** Booking Series Id */
+            booking_series_id: string | null;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Charge Ids */
+            charge_ids: string[];
+            /** Charge State */
+            charge_state: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Expires At */
+            expires_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Ids */
+            invoice_ids: string[];
+            /** Is On Public Schedule */
+            is_on_public_schedule: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Parties */
+            parties: components["schemas"]["PartyOut"][];
+            /**
+             * Rental Type Id
+             * Format: uuid
+             */
+            rental_type_id: string;
+            /** Resources */
+            resources: components["schemas"]["RentalResourceOut"][];
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
+            /** Version */
+            version: number;
+        };
+        /** RentalPlanCreate */
+        RentalPlanCreate: {
+            /** Client Description */
+            client_description?: string | null;
+            /** Default Invoice Routing */
+            default_invoice_routing?: ("new_single" | "new_per_line" | "cart") | null;
+            /** Fixed Expires On */
+            fixed_expires_on?: string | null;
+            /** Fixed Starts On */
+            fixed_starts_on?: string | null;
+            /** Internal Description */
+            internal_description?: string | null;
+            /** Is Flat Rate */
+            is_flat_rate?: boolean | null;
+            /** Is Members Only */
+            is_members_only?: boolean | null;
+            /** Is Shareable */
+            is_shareable?: boolean | null;
+            /** Is Sold Online */
+            is_sold_online?: boolean | null;
+            /** Is Unlimited */
+            is_unlimited?: boolean | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Member Price Minor */
+            member_price_minor?: number | null;
+            /**
+             * Model
+             * @enum {string}
+             */
+            model: "per_hour" | "per_occurrence";
+            /** Name */
+            name: string;
+            /** Price Minor */
+            price_minor: number;
+            /** Quantity */
+            quantity?: number | string | null;
+            /**
+             * Rental Type Id
+             * Format: uuid
+             */
+            rental_type_id: string;
+            /**
+             * Revenue Category Id
+             * Format: uuid
+             */
+            revenue_category_id: string;
+            /** Start Mode */
+            start_mode?: ("sale_date" | "fixed_date") | null;
+            /** Validity Days */
+            validity_days?: number | null;
+        };
+        /** RentalPlanOut */
+        RentalPlanOut: {
+            /** Client Description */
+            client_description: string | null;
+            /** Default Invoice Routing */
+            default_invoice_routing: string;
+            /** Fixed Expires On */
+            fixed_expires_on: string | null;
+            /** Fixed Starts On */
+            fixed_starts_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Internal Description */
+            internal_description: string | null;
+            /** Is Flat Rate */
+            is_flat_rate: boolean;
+            /** Is Members Only */
+            is_members_only: boolean;
+            /** Is Shareable */
+            is_shareable: boolean;
+            /** Is Sold Online */
+            is_sold_online: boolean;
+            /** Is Unlimited */
+            is_unlimited: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Member Price Minor */
+            member_price_minor: number | null;
+            /** Model */
+            model: string;
+            /** Name */
+            name: string;
+            /** Price Minor */
+            price_minor: number;
+            /** Quantity */
+            quantity: string | null;
+            /**
+             * Rental Type Id
+             * Format: uuid
+             */
+            rental_type_id: string;
+            /**
+             * Revenue Category Id
+             * Format: uuid
+             */
+            revenue_category_id: string;
+            /** Start Mode */
+            start_mode: string;
+            /** Status */
+            status: string;
+            /** Validity Days */
+            validity_days: number | null;
+        };
+        /** RentalPlanUpdate */
+        RentalPlanUpdate: {
+            /** Client Description */
+            client_description?: string | null;
+            /** Default Invoice Routing */
+            default_invoice_routing?: ("new_single" | "new_per_line" | "cart") | null;
+            /** Fixed Expires On */
+            fixed_expires_on?: string | null;
+            /** Fixed Starts On */
+            fixed_starts_on?: string | null;
+            /** Internal Description */
+            internal_description?: string | null;
+            /** Is Flat Rate */
+            is_flat_rate?: boolean | null;
+            /** Is Members Only */
+            is_members_only?: boolean | null;
+            /** Is Shareable */
+            is_shareable?: boolean | null;
+            /** Is Sold Online */
+            is_sold_online?: boolean | null;
+            /** Is Unlimited */
+            is_unlimited?: boolean | null;
+            /** Member Price Minor */
+            member_price_minor?: number | null;
+            /** Model */
+            model?: ("per_hour" | "per_occurrence") | null;
+            /** Name */
+            name?: string | null;
+            /** Price Minor */
+            price_minor?: number | null;
+            /** Quantity */
+            quantity?: number | string | null;
+            /** Rental Type Id */
+            rental_type_id?: string | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Start Mode */
+            start_mode?: ("sale_date" | "fixed_date") | null;
+            /** Status */
+            status?: ("active" | "archived") | null;
+            /** Validity Days */
+            validity_days?: number | null;
+        };
+        /** RentalPreview */
+        RentalPreview: {
+            /** Conflict Count */
+            conflict_count: number;
+            /** Occurrences */
+            occurrences: components["schemas"]["OccurrenceResult"][];
+            quote: components["schemas"]["Quote"] | null;
+            /** Requested Count */
+            requested_count: number;
+        };
+        /** RentalRateOut */
+        RentalRateOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Basis */
+            basis: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Internal Note */
+            internal_note: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Line Grouping */
+            line_grouping: string;
+            /** Member Amount Minor */
+            member_amount_minor: number | null;
+            /** Multi Resource Mode */
+            multi_resource_mode: string;
+            /** Name */
+            name: string;
+            /**
+             * Rental Type Id
+             * Format: uuid
+             */
+            rental_type_id: string;
+            /**
+             * Rules
+             * @default []
+             */
+            rules: components["schemas"]["RateRuleOut"][];
+            /** Sort Order */
+            sort_order: number;
+            /**
+             * Tax Ids
+             * @default []
+             */
+            tax_ids: string[];
+        };
+        /**
+         * RentalRateWrite
+         * @description Create requires name, amount_minor, basis. `rules` and `tax_ids` are replaced as whole sets.
+         */
+        RentalRateWrite: {
+            /** Amount Minor */
+            amount_minor?: number | null;
+            /** Basis */
+            basis?: ("per_hour" | "per_occurrence" | "flat") | null;
+            /** Internal Note */
+            internal_note?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Line Grouping */
+            line_grouping?: ("combined" | "per_resource" | "per_occurrence" | "per_resource_occurrence") | null;
+            /** Member Amount Minor */
+            member_amount_minor?: number | null;
+            /** Multi Resource Mode */
+            multi_resource_mode?: ("once" | "per_resource") | null;
+            /** Name */
+            name?: string | null;
+            /** Rules */
+            rules?: components["schemas"]["RateRule"][] | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Tax Ids */
+            tax_ids?: string[] | null;
+        };
+        /** RentalResourceOut */
+        RentalResourceOut: {
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /** Role */
+            role: string;
+        };
+        /** RentalSlot */
+        RentalSlot: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Is Member Price */
+            is_member_price: boolean;
+            /** Price Minor */
+            price_minor: number;
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /** Resource Name */
+            resource_name: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
+        /** RentalTypeCreate */
+        RentalTypeCreate: {
+            /** Access */
+            access?: ("staff_only" | "self_service") | null;
+            /** Buffer After Min */
+            buffer_after_min?: number | null;
+            /** Buffer Before Min */
+            buffer_before_min?: number | null;
+            /** Cancel Cutoff Hours */
+            cancel_cutoff_hours?: number | null;
+            /** Color */
+            color?: string | null;
+            /** Default Length Min */
+            default_length_min?: number | null;
+            /** Deposit Pct */
+            deposit_pct?: number | string | null;
+            /** Eligibility */
+            eligibility?: ("everyone" | "active_members" | "paid_up_members") | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Late Cancel Fee Pct */
+            late_cancel_fee_pct?: number | string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Max Length Min */
+            max_length_min?: number | null;
+            /** Min Lead Min */
+            min_lead_min?: number | null;
+            /** Min Length Min */
+            min_length_min?: number | null;
+            /** Name */
+            name: string;
+            /** Online Description */
+            online_description?: string | null;
+            /** Online Payment Mode */
+            online_payment_mode?: ("pay_in_full" | "pay_later") | null;
+            /** Online Rental Rate Id */
+            online_rental_rate_id?: string | null;
+            /** Rental Plan Ids */
+            rental_plan_ids?: string[] | null;
+            /** Resource Ids */
+            resource_ids?: string[] | null;
+            /**
+             * Revenue Category Id
+             * Format: uuid
+             */
+            revenue_category_id: string;
+            /** Slot Granularity Min */
+            slot_granularity_min?: (15 | 30 | 60) | null;
+            /** Sort Order */
+            sort_order?: number | null;
+        };
+        /** RentalTypeOut */
+        RentalTypeOut: {
+            /** Access */
+            access: string;
+            /** Buffer After Min */
+            buffer_after_min: number;
+            /** Buffer Before Min */
+            buffer_before_min: number;
+            /** Cancel Cutoff Hours */
+            cancel_cutoff_hours: number | null;
+            /** Color */
+            color: string | null;
+            /** Default Length Min */
+            default_length_min: number | null;
+            /** Deposit Pct */
+            deposit_pct: string | null;
+            /** Eligibility */
+            eligibility: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Late Cancel Fee Pct */
+            late_cancel_fee_pct: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Max Length Min */
+            max_length_min: number | null;
+            /** Min Lead Min */
+            min_lead_min: number;
+            /** Min Length Min */
+            min_length_min: number;
+            /** Name */
+            name: string;
+            /** Online Description */
+            online_description: string | null;
+            /** Online Payment Mode */
+            online_payment_mode: string;
+            /** Online Rental Rate Id */
+            online_rental_rate_id: string | null;
+            /**
+             * Rental Plan Ids
+             * @default []
+             */
+            rental_plan_ids: string[];
+            /**
+             * Resource Ids
+             * @default []
+             */
+            resource_ids: string[];
+            /**
+             * Revenue Category Id
+             * Format: uuid
+             */
+            revenue_category_id: string;
+            /** Slot Granularity Min */
+            slot_granularity_min: number;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /**
+         * RentalTypeUpdate
+         * @description `access = self_service` requires online_rental_rate_id and at least one resource (422).
+         */
+        RentalTypeUpdate: {
+            /** Access */
+            access?: ("staff_only" | "self_service") | null;
+            /** Buffer After Min */
+            buffer_after_min?: number | null;
+            /** Buffer Before Min */
+            buffer_before_min?: number | null;
+            /** Cancel Cutoff Hours */
+            cancel_cutoff_hours?: number | null;
+            /** Color */
+            color?: string | null;
+            /** Default Length Min */
+            default_length_min?: number | null;
+            /** Deposit Pct */
+            deposit_pct?: number | string | null;
+            /** Eligibility */
+            eligibility?: ("everyone" | "active_members" | "paid_up_members") | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Late Cancel Fee Pct */
+            late_cancel_fee_pct?: number | string | null;
+            /** Max Length Min */
+            max_length_min?: number | null;
+            /** Min Lead Min */
+            min_lead_min?: number | null;
+            /** Min Length Min */
+            min_length_min?: number | null;
+            /** Name */
+            name?: string | null;
+            /** Online Description */
+            online_description?: string | null;
+            /** Online Payment Mode */
+            online_payment_mode?: ("pay_in_full" | "pay_later") | null;
+            /** Online Rental Rate Id */
+            online_rental_rate_id?: string | null;
+            /** Rental Plan Ids */
+            rental_plan_ids?: string[] | null;
+            /** Resource Ids */
+            resource_ids?: string[] | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Slot Granularity Min */
+            slot_granularity_min?: (15 | 30 | 60) | null;
+            /** Sort Order */
+            sort_order?: number | null;
         };
         /** ResourceCreate */
         ResourceCreate: {
@@ -5004,6 +6521,75 @@ export interface components {
             starts_on?: string | null;
             /** Weekdays */
             weekdays?: number[] | null;
+        };
+        /** LedgerEntryOut */
+        app__modules__billing__schemas__LedgerEntryOut: {
+            /**
+             * Account
+             * @enum {string}
+             */
+            account: "receivable" | "revenue" | "tax_payable" | "funds_received" | "client_credit" | "disputed_funds";
+            /** Charge Id */
+            charge_id: string | null;
+            /** Client Id */
+            client_id: string | null;
+            /** Credit Minor */
+            credit_minor: number;
+            /** Currency */
+            currency: string;
+            /** Debit Minor */
+            debit_minor: number;
+            /**
+             * Effective On
+             * Format: date
+             */
+            effective_on: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Ledger Transaction Id
+             * Format: uuid
+             */
+            ledger_transaction_id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Payment Id */
+            payment_id: string | null;
+            /** Revenue Category Id */
+            revenue_category_id: string | null;
+            /** Tax Id */
+            tax_id: string | null;
+        };
+        /** LedgerEntryOut */
+        app__modules__rentals__schemas__LedgerEntryOut: {
+            /** Balance After */
+            balance_after: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Entry Type */
+            entry_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Note */
+            note: string | null;
+            /** Quantity */
+            quantity: string;
+            /** Rental Booking Id */
+            rental_booking_id: string | null;
+            /** Used By Client Id */
+            used_by_client_id: string | null;
         };
     };
     responses: never;
@@ -7332,6 +8918,189 @@ export interface operations {
             };
         };
     };
+    listPortalRentals: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RentalOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createPortalRental: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalRentalCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RentalCheckout"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    abandonPortalRental: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                rental_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancelPortalRental: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                rental_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RentalCancelResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirmPortalRental: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path: {
+                rental_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalRentalConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RentalCheckout"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPublicLocations: {
         parameters: {
             query?: {
@@ -7359,6 +9128,1034 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_PublicLocation_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    searchRentalAvailability: {
+        parameters: {
+            query: {
+                rental_type_id: string;
+                on: string;
+                length_min?: number | null;
+                resource_id?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RentalSlot_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPublicRentalTypes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicRentalType"][];
+                };
+            };
+        };
+    };
+    listRentalPlanPurchases: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PurchaseOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sellRentalPlan: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanSale"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getRentalPlanPurchase: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                purchase_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancelRentalPlanPurchase: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                purchase_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PurchaseCancel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listRentalPlanLedger: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                purchase_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["app__modules__rentals__schemas__LedgerEntryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listRentalPlans: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RentalPlanOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createRentalPlan: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RentalPlanCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RentalPlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getRentalPlan: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                rental_plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RentalPlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteRentalPlan: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                rental_plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateRentalPlan: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                rental_plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RentalPlanUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RentalPlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getRentalRate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                rental_rate_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RentalRateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateRentalRate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                rental_rate_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RentalRateWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RentalRateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listRentalTypes: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RentalTypeOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createRentalType: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RentalTypeCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RentalTypeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getRentalType: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                rental_type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RentalTypeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateRentalType: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                rental_type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RentalTypeUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RentalTypeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listRentalRates: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                rental_type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RentalRateOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createRentalRate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                rental_type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RentalRateWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RentalRateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listRentals: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RentalOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createRental: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RentalCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RentalCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    billSelectedRentals: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillSelected"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Billed"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    previewRental: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RentalCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RentalPreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getRental: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                rental_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RentalOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancelRental: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                rental_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RentalCancel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RentalCancelResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    extendRental: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                rental_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Extension"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Extended"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    setRentalPublicSchedule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                rental_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicSchedule"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RentalOut"];
                 };
             };
             /** @description Validation Error */

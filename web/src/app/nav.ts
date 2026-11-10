@@ -13,11 +13,12 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Schedule', to: '/schedule', permission: 'scheduling.booking.read', icon: 'calendar' },
   { label: 'Resources', to: '/resources', icon: 'door' },
   { label: 'Scheduling setup', to: '/scheduling/setup', icon: 'list' },
+  { label: 'Rentals', to: '/rentals', permission: 'scheduling.booking.read', icon: 'ticket' },
+  { label: 'Rental setup', to: '/rentals/setup', icon: 'list' },
 ]
 
 // Build modules 2-17 (docs/architecture/overview.md section 6).
 export const UPCOMING_NAV: NavItem[] = [
-  { label: 'Rentals & events', icon: 'ticket' },
   { label: 'Members & households', icon: 'person' },
   { label: 'Memberships & packages', icon: 'card' },
   { label: 'Programs & registration', icon: 'clipboard' },
