@@ -108,7 +108,7 @@ per location, WCAG 2.1 AA, docs updated).
 | - | Kernel slices: lane config, `clients` skeleton, `billing` kernel, notification port, counters | done: `docs/status/kernel-slice.md` |
 | 2 | Resources and scheduling | not started |
 | 3 | Rentals and events | not started |
-| 4 | Members and households | skeleton only (client, portal access, picker) |
+| 4 | Members and households | done except photo, attachments, sharing: `docs/status/04-clients-households.md` |
 | 5 | Memberships and packages | not started |
 | 6 | Programs and registration | not started |
 | 7 | Waivers | not started |
