@@ -2,7 +2,7 @@
 
 import re
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import func, select
@@ -10,10 +10,10 @@ from sqlalchemy import func, select
 from app.core.auth import CATALOGUE, Principal, system_role_grants
 from app.core.auth.permissions import SYSTEM_ROLES
 from app.core.db.session import tenant_session
-from app.core.errors import NotFound, PermissionDenied
+from app.core.errors import NotFound, PermissionDenied, ValidationFailed
 from app.core.pagination import ListQuery
-from app.modules.platform import service, staff
-from app.modules.platform.models import AuthSession, UserPermissionOverride
+from app.modules.platform import rbac, service, staff
+from app.modules.platform.models import AuthSession, StaffUser, UserPermissionOverride
 from conftest import add_staff, link_token, login, role_id, scalar
 
 API = "/api/v1"
@@ -261,6 +261,44 @@ def test_overrides_are_sparse_deltas(client, tenant, people):
         ).status_code
         == 409
     )
+
+
+def test_staff_update_guards_security_fields(client, tenant, people):
+    owner, admin, ids = people["owner"], people["admin"], people["ids"]
+
+    def patch(headers, staff_user_id, body):
+        response = client.patch(f"{API}/staff-users/{staff_user_id}", headers=headers, json=body)
+        return response.status_code, response.json().get("code")
+
+    # No self-service on security fields, even as owner; ordinary profile fields stay editable.
+    for body in ({"access_expires_on": "2099-12-31"}, {"ip_policy": "facility_networks"}):
+        assert patch(admin, ids["admin"], body) == (403, "self-escalation")
+    assert patch(owner, ids["owner"], {"ip_policy": "facility_networks"}) == (403, "self-escalation")
+    assert patch(admin, ids["admin"], {"first_name": "Ada", "ip_policy": "any"})[0] == 200  # unchanged value is fine
+
+    # ip_policy on someone else needs platform.security.manage.
+    deny = {"grants": [{"permission_key": "platform.security.manage", "is_allowed": False}]}
+    assert (
+        client.put(f"{API}/staff-users/{ids['admin']}/permission-overrides", headers=owner, json=deny).status_code
+        == 200
+    )
+    assert patch(admin, ids["manager"], {"ip_policy": "facility_networks"})[0] == 403
+    assert patch(admin, ids["manager"], {"access_expires_on": "2099-12-31"})[0] == 200
+    allow = {"grants": []}
+    assert (
+        client.put(f"{API}/staff-users/{ids['admin']}/permission-overrides", headers=owner, json=allow).status_code
+        == 200
+    )
+    assert patch(admin, ids["manager"], {"ip_policy": "facility_networks"})[0] == 200
+
+    # Only listed fields: the API rejects extras, and so does the service if a caller passes them through.
+    assert patch(admin, ids["manager"], {"is_active": False})[0] == 422
+    with tenant_session(tenant.id) as session:
+        principal = rbac.staff_principal(session, session.get(StaffUser, UUID(ids["admin"])))
+        session.info["actor"] = principal
+        with pytest.raises(ValidationFailed) as refused:
+            staff.update_staff_user(session, principal, UUID(ids["manager"]), {"role_id": role_id(tenant, "owner")})
+    assert refused.value.code == "unknown-field"
 
 
 def test_escalation_rules(client, tenant, people):

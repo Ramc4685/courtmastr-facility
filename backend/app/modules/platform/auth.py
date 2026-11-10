@@ -119,20 +119,54 @@ def sign_in(session: Session, *, email: str, password: str, audience: str = "sta
     return grant
 
 
+_FRESH_PROOF = timedelta(minutes=15)  # the step-up window of rbac-matrix.md section 2
+
+
+def _is_fresh_magic_link_session(session: Session, principal: Principal) -> bool:
+    """The session's sign-in audit event is the record of how and when it was established (append-only)."""
+    return (
+        session.scalar(
+            select(audit.AuditEvent.id)
+            .where(
+                audit.AuditEvent.entity_type == Identity.__tablename__,
+                audit.AuditEvent.entity_id == principal.identity_id,
+                audit.AuditEvent.action == "platform.identity.sign_in",
+                audit.AuditEvent.reason == "magic_link",
+                audit.AuditEvent.auth_session_id == principal.session_id,
+                audit.AuditEvent.occurred_at > clock.now() - _FRESH_PROOF,
+            )
+            .limit(1)
+        )
+        is not None
+    )
+
+
 def change_password(session: Session, principal: Principal, *, current_password: str | None, new_password: str) -> None:
     identity = session.get(Identity, principal.identity_id)
-    if identity.password_hash and not passwords.verify_password(identity.password_hash, current_password or ""):
-        raise _invalid_credentials()
-    _set_password(identity, new_password, principal.display_name)
+    if identity.password_hash:
+        if not passwords.verify_password(identity.password_hash, current_password or ""):
+            raise _invalid_credentials()
+    elif not _is_fresh_magic_link_session(session, principal):
+        # A first password turns a session into a durable credential: demand fresh proof of the mailbox.
+        raise PermissionDenied(
+            "To set a password, use the password-reset link we email you, or sign in again with an emailed link.",
+            code="password-reset-required",
+        )
+    _set_password(session, identity, new_password, principal.display_name)
     revoke_sessions(session, identity.id, "password_reset", keep=principal.session_id)
     audit.record(session, "platform.identity.change_password", identity)
 
 
-def _set_password(identity: Identity, new_password: str, *names: str) -> None:
+def _set_password(session: Session, identity: Identity, new_password: str, *names: str) -> None:
     passwords.check_policy(new_password, forbidden=(identity.email, *names))
     identity.password_hash = passwords.hash_password(new_password)
     identity.password_changed_at = clock.now()
     identity.failed_attempt_count, identity.locked_until_at = 0, None
+    settings = get_settings()
+    body = "The password for your account was just set or changed. If this was not you, reset it now."
+    send_after_commit(
+        session, EmailMessage(identity.email, f"{settings.app.display_name}: your password was changed", body)
+    )
 
 
 # --- emailed links -----------------------------------------------------------------------------------------
@@ -230,7 +264,7 @@ def consume_password_reset(session: Session, *, token: str, new_password: str, c
     identity = _consume(session, token, TokenPurpose.PASSWORD_RESET)
     if identity.status != "active":
         raise Unauthenticated("This link is not valid or was already used.", code="token-invalid")
-    _set_password(identity, new_password)
+    _set_password(session, identity, new_password)
     revoke_sessions(session, identity.id, "password_reset")
     grant = _start_session(session, identity, client_kind)
     audit.record(session, "platform.identity.reset_password", identity, actor=grant.principal)
@@ -245,7 +279,7 @@ def accept_invitation(
     if identity.status != "invited":
         raise Unauthenticated("This invitation was already accepted.", code="token-invalid")
     if new_password:
-        _set_password(identity, new_password)
+        _set_password(session, identity, new_password)
     identity.status = "active"
     identity.email_verified_at = clock.now()
     grant = _start_session(session, identity, client_kind)
