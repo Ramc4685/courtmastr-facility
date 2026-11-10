@@ -783,3 +783,17 @@ def test_merge_moves_packages_and_their_ledger_and_erasure_strips_free_text(w, c
     )  # the record stays
     with tx(w.tenant) as session:
         assert service._export(session, UUID(w.person["id"]))["packages"][0]["sessions_consumed_count"] == 1
+
+
+def test_expiring_packages_filter_uses_the_last_valid_day_and_skips_never_expiring(w, client, owner):
+    month = package_plan(client, owner, w.tenant, validity_count=1, validity_unit="month")
+    forever = package_plan(client, owner, w.tenant)
+    a = sell_at(w, month, D(2025, 1, 10))  # last valid day 2025-02-09
+    sell_at(w, forever, D(2025, 1, 10))
+
+    def listed(day):
+        page = ok(client.get(f"{API}/client-packages?expires_on_or_before={day}&status=active", headers=owner))
+        return [p["id"] for p in page["data"]]
+
+    assert listed("2025-02-08") == [] and listed("2025-02-09") == [str(a.id)]
+    refused(client.get(f"{API}/client-packages?expires_on_or_before=soon", headers=owner), 422, "validation-failed")

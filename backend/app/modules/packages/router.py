@@ -114,7 +114,8 @@ def grant_complimentary_package(
 def list_client_packages(query: Lists, ctx: Read):
     """Filters: client_id (owner), usable_by_client_id (owned or shared), location_id, status,
     reservation_type_id, package_plan_id, package_series_id, source_contract_id, is_auto_renew,
-    is_complimentary. q searches the name. Sort: created_at, name."""
+    is_complimentary, expires_on_or_before (last valid day on or before this date). q searches the name.
+    Sort: created_at, name."""
     return service.list_packages(ctx.session, ctx.principal, query)
 
 

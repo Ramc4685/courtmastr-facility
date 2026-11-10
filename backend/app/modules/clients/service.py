@@ -705,7 +705,7 @@ def list_clients(session: Session, principal: Principal, query: ListQuery) -> di
             "client_category_id": Client.client_category_id, "referral_category_id": Client.referral_category_id,
             "default_trainer_staff_user_id": Client.default_trainer_staff_user_id,
             "default_salesperson_staff_user_id": Client.default_salesperson_staff_user_id,
-            "gender": Client.gender, "created_via": Client.created_via,
+            "gender": Client.gender, "created_via": Client.created_via, "id": Client.id,
         },
     )  # fmt: skip
 

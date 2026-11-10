@@ -682,7 +682,8 @@ export interface paths {
          * List Client Packages
          * @description Filters: client_id (owner), usable_by_client_id (owned or shared), location_id, status,
          *     reservation_type_id, package_plan_id, package_series_id, source_contract_id, is_auto_renew,
-         *     is_complimentary. q searches the name. Sort: created_at, name.
+         *     is_complimentary, expires_on_or_before (last valid day on or before this date). q searches the name.
+         *     Sort: created_at, name.
          */
         get: operations["listClientPackages"];
         put?: never;
@@ -1008,9 +1009,9 @@ export interface paths {
          * List Clients
          * @description Filters: view (all, recent, created, birthdays_this_month, birthdays_next_month, disabled, duplicates,
          *     no_category), status, home_location_id, client_category_id, referral_category_id, tag_id, gender,
-         *     created_via, default_trainer_staff_user_id, default_salesperson_staff_user_id. q searches name,
-         *     preferred name, any email, member number, any phone and address. Sort: last_name, first_name, created_at
-         *     (and viewed_at for view=recent).
+         *     created_via, default_trainer_staff_user_id, default_salesperson_staff_user_id, id (id[in]=a,b names the
+         *     clients other lists reference). q searches name, preferred name, any email, member number, any phone and
+         *     address. Sort: last_name, first_name, created_at (and viewed_at for view=recent).
          */
         get: operations["listClients"];
         put?: never;

@@ -711,7 +711,8 @@ def _page(session: Session, stmt, query: ListQuery) -> dict:
 
 def list_packages(session: Session, principal: Principal, query: ListQuery) -> dict:
     """Sold packages across locations (a client-following key). `usable_by_client_id` lists what a client can
-    spend: packages they own and packages shared with them."""
+    spend: packages they own and packages shared with them. `expires_on_or_before` (a date) keeps packages whose
+    last valid day is on or before it: the expiring-packages list."""
     stmt = select(ClientPackage)
     if (reach := clients.service.reach_filter(principal, _READ, ClientPackage.owner_client_id)) is not None:
         stmt = stmt.where(reach)
@@ -721,6 +722,13 @@ def list_packages(session: Session, principal: Principal, query: ListQuery) -> d
             stmt = stmt.where(_usable_by(UUID(spender)))
         except ValueError:
             raise ValidationFailed("Invalid client id.", pointer="/usable_by_client_id") from None
+    if by := filters.pop("expires_on_or_before", None):
+        try:
+            last = date.fromisoformat(by)
+        except ValueError:
+            raise ValidationFailed("Invalid date.", pointer="/expires_on_or_before") from None
+        # valid_during is half-open: the last valid day is upper - 1. Never-expiring packages are left out.
+        stmt = stmt.where(func.upper(ClientPackage.valid_during) <= last + _ONE_DAY)
     return _page(session, stmt, ListQuery(query.limit, query.cursor, query.sort, query.include_total, query.q, filters))
 
 

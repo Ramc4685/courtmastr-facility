@@ -36,9 +36,9 @@ def _view(ctx: Ctx, client) -> dict:
 def list_clients(query: Lists, ctx: Read):
     """Filters: view (all, recent, created, birthdays_this_month, birthdays_next_month, disabled, duplicates,
     no_category), status, home_location_id, client_category_id, referral_category_id, tag_id, gender,
-    created_via, default_trainer_staff_user_id, default_salesperson_staff_user_id. q searches name,
-    preferred name, any email, member number, any phone and address. Sort: last_name, first_name, created_at
-    (and viewed_at for view=recent)."""
+    created_via, default_trainer_staff_user_id, default_salesperson_staff_user_id, id (id[in]=a,b names the
+    clients other lists reference). q searches name, preferred name, any email, member number, any phone and
+    address. Sort: last_name, first_name, created_at (and viewed_at for view=recent)."""
     return service.list_clients(ctx.session, ctx.principal, query)
 
 

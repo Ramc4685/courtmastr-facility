@@ -23540,7 +23540,7 @@
     },
     "/api/v1/client-packages": {
       "get": {
-        "description": "Filters: client_id (owner), usable_by_client_id (owned or shared), location_id, status,\nreservation_type_id, package_plan_id, package_series_id, source_contract_id, is_auto_renew,\nis_complimentary. q searches the name. Sort: created_at, name.",
+        "description": "Filters: client_id (owner), usable_by_client_id (owned or shared), location_id, status,\nreservation_type_id, package_plan_id, package_series_id, source_contract_id, is_auto_renew,\nis_complimentary, expires_on_or_before (last valid day on or before this date). q searches the name.\nSort: created_at, name.",
         "operationId": "listClientPackages",
         "parameters": [
           {
@@ -25179,7 +25179,7 @@
     },
     "/api/v1/clients": {
       "get": {
-        "description": "Filters: view (all, recent, created, birthdays_this_month, birthdays_next_month, disabled, duplicates,\nno_category), status, home_location_id, client_category_id, referral_category_id, tag_id, gender,\ncreated_via, default_trainer_staff_user_id, default_salesperson_staff_user_id. q searches name,\npreferred name, any email, member number, any phone and address. Sort: last_name, first_name, created_at\n(and viewed_at for view=recent).",
+        "description": "Filters: view (all, recent, created, birthdays_this_month, birthdays_next_month, disabled, duplicates,\nno_category), status, home_location_id, client_category_id, referral_category_id, tag_id, gender,\ncreated_via, default_trainer_staff_user_id, default_salesperson_staff_user_id, id (id[in]=a,b names the\nclients other lists reference). q searches name, preferred name, any email, member number, any phone and\naddress. Sort: last_name, first_name, created_at (and viewed_at for view=recent).",
         "operationId": "listClients",
         "parameters": [
           {
