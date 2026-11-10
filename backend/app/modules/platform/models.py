@@ -295,6 +295,7 @@ class StaffUser(TenantOwned, Timestamps, Base):
         UniqueConstraint("tenant_id", "identity_id", name="uq_staff_user_identity"),
         *tfk("role_id", "role"),
         Index(None, "tenant_id", "linked_resource_id"),
+        *tfk("linked_resource_id", "resource", index=False),  # the trainer resource (data-model-core 9.8)
         enum_check("ip_policy", IpPolicy),
     )
 

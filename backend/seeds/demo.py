@@ -14,6 +14,8 @@ from app.core.settings import get_settings
 from app.modules.platform import service, staff
 from app.modules.platform.models import Identity, Location, StaffUser, UserLocationAccess
 from seeds import billing, clients
+from seeds import resources as resources_seed
+from seeds import scheduling as scheduling_seed
 
 TENANT = {"name": "Courtside Demo Club", "slug": "courtside-demo", "default_time_zone": "America/Chicago"}
 PASSWORD = "courtside-demo-2026"  # dev-only, documented; the seed refuses to run outside dev and test
@@ -92,6 +94,8 @@ def seed() -> None:
         # One file per context, lowest layer first (docs/dev/module-playbook.md step 9). Each is idempotent.
         session.flush()
         for context in (clients, billing):
+            context.seed(session)
+        for context in (resources_seed, scheduling_seed):
             context.seed(session)
     print(f"Seeded tenant {TENANT['name']} ({TENANT['slug']}), id {tenant_id}")
 

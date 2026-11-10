@@ -29,3 +29,16 @@ Tenant resolution in development: send `X-Tenant-Slug: courtside-demo`, or call 
 http://localhost:58025 and are also written to the API log.
 
 Operator token for `POST /api/v1/operator/tenants` (tenant onboarding): the `FH_OPERATOR_TOKEN` value in `.env`.
+
+## Demo facility (build module 2)
+
+`make seed` gives both locations a calendar for the current and the following week:
+
+- **Downtown:** Courts 1 and 2 (each split into halves A and B) and Court 3, Field 1 (North, South), Studios
+  A and B, an online room, trainers Chloe Coach and Dana Park (Dana always holds Studio B). Classes: Yoga
+  Flow, Spin, Junior Tennis Clinic, private lessons with Chloe, Open Play; a court resurfacing block and a
+  floor shift. Yoga and the clinic have participants; the first private lesson is full with one client
+  waiting. The coach sign-in (`coach@...`) is linked to the Chloe Coach resource, so it can change only
+  bookings on that column.
+- **West:** two courts, a turf field in halves, a studio, trainer Eli Stone, two weekly classes.
+- Both locations are closed on the next New Year's Day (a blackout).

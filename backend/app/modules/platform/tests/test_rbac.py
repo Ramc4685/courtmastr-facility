@@ -43,7 +43,9 @@ def _matrix_rows(context: str = "platform") -> dict[str, dict]:
 
 
 # A context joins this list when it registers its catalogue: (package name, rows in its rbac-matrix table).
-@pytest.mark.parametrize(("context", "count"), [("platform", 28), ("clients", 16), ("billing", 39)])
+@pytest.mark.parametrize(
+    ("context", "count"), [("platform", 28), ("clients", 16), ("billing", 39), ("resources", 5), ("scheduling", 20)]
+)
 def test_catalogue_matches_the_rbac_matrix_document(context, count):
     """Matrix conformance: the document cannot drift from permissions.py."""
     rows = _matrix_rows(context)
@@ -58,7 +60,7 @@ def test_catalogue_matches_the_rbac_matrix_document(context, count):
 
 
 def test_every_registered_context_is_checked_against_the_matrix():
-    assert {p.context for p in CATALOGUE.values()} == {"platform", "clients", "billing"}
+    assert {p.context for p in CATALOGUE.values()} == {"platform", "clients", "billing", "resources", "scheduling"}
 
 
 def test_system_role_grants_resolve_from_code():
@@ -73,7 +75,8 @@ def test_system_role_grants_resolve_from_code():
     for role in ("front_desk", "coach", "league_admin", "scorekeeper", "view_only"):
         assert platform_grants(role) == set()
     assert system_role_grants("coach")["clients.client.read"] == "own"
-    assert system_role_grants("scorekeeper") == system_role_grants("view_only") == {}
+    assert system_role_grants("scorekeeper") == {}
+    assert system_role_grants("view_only") == {"scheduling.booking.read": "all"}  # reads the schedule only
 
 
 @pytest.fixture

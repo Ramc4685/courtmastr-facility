@@ -106,11 +106,11 @@ per location, WCAG 2.1 AA, docs updated).
 |---|---|---|
 | 1 | Platform core (tenants, locations, staff, RBAC, auth, audit) | done; OIDC, MFA and step-up deferred |
 | - | Kernel slices: lane config, `clients` skeleton, `billing` kernel, notification port, counters | done: `docs/status/kernel-slice.md` |
-| 2 | Resources and scheduling | not started |
+| 2 | Resources and scheduling | backend done: `docs/status/02-resources-scheduling.md`; no screens, lockers, slot offers |
 | 3 | Rentals and events | not started |
 | 4 | Members and households | skeleton only (client, portal access, picker) |
 | 5 | Memberships and packages | not started |
-| 6 | Programs and registration | not started |
+| 6 | Programs and registration | session slice only (enrol, attendance, waitlist) |
 | 7 | Waivers | not started |
 | 8 | Billing and payments | kernel only (charge to ledger, fake provider) |
 | 9-17 | POS, check-in, leagues, staff, engagement, assessments, reporting, integrations, mobile | not started |

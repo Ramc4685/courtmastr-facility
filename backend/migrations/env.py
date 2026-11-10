@@ -9,6 +9,9 @@ import app.core.idempotency  # noqa: F401
 import app.modules.billing.models  # noqa: F401
 import app.modules.clients.models  # noqa: F401
 import app.modules.platform.models  # noqa: F401
+import app.modules.programs.models  # noqa: F401
+import app.modules.resources.models  # noqa: F401
+import app.modules.scheduling.models  # noqa: F401
 from app.core.db import Base
 from app.core.settings import get_settings
 

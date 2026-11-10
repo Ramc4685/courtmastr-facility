@@ -190,11 +190,73 @@ def populate(client, tenant) -> SimpleNamespace:
     post(
         f"/payments/{payment['id']}/refunds", {"amount_minor": 500, "reason": "Overpaid"}, key=f"populate-{uuid4().hex}"
     )
+    space = _populate_space(client, tenant, headers, post, location["id"], person["id"])
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
         session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
-        payment_id=payment["id"], revenue_category_id=category_id,
+        payment_id=payment["id"], revenue_category_id=category_id, **space,
     )  # fmt: skip
+
+
+def _populate_space(client, tenant, headers, post, location_id, client_id) -> dict:
+    """Build module 2: a row in every resources, scheduling and programs-slice table. Returns the ids the
+    generated isolation tests substitute into paths (`/resources/{resource_id}` needs `resource_id`)."""
+    group = post("/resource-groups", {"location_id": location_id, "name": "Courts"})
+    court = post("/resources", {"location_id": location_id, "resource_group_id": group["id"], "name": "Court 1"})
+    post(
+        "/resources",
+        {"location_id": location_id, "resource_group_id": group["id"], "name": "Court 1A", "parent_id": court["id"]},
+    )
+    coach = post(
+        "/resources",
+        {"location_id": location_id, "resource_group_id": group["id"], "name": "Coach Kim", "kind": "trainer"},
+    )
+    put = client.put(f"/api/v1/resources/{coach['id']}/links", headers=headers, json={"to_resource_ids": [court["id"]]})
+    assert put.status_code == 200, put.text
+    window = post(f"/resources/{coach['id']}/availability-windows", {
+        "starts_on": "2030-01-01", "weekdays": [1, 3], "start_time": "09:00", "end_time": "12:00",
+    })  # fmt: skip
+    category = post("/reservation-categories", {"location_id": location_id, "name": "Classes"})
+    rtype = post("/reservation-types", {
+        "location_id": location_id, "name": "Clinic", "default_capacity": 1, "default_allows_free_booking": True,
+        "reservation_category_id": category["id"], "color": "#3366cc",
+    })  # fmt: skip
+    blackout = post("/blackouts", {
+        "location_id": location_id, "name": "New Year", "starts_at": "2031-01-01T06:00:00Z", "ends_at": "2031-01-02T06:00:00Z",
+    })  # fmt: skip
+    booking = {
+        "location_id": location_id, "kind": "session", "reservation_type_id": rtype["id"],
+        "starts_at": "2030-03-04T15:00:00Z", "ends_at": "2030-03-04T16:00:00Z",
+        "resources": [{"resource_id": coach["id"], "role": "primary"}],
+        "recurrence": {"pattern": "weekly", "weekdays": [1], "range_type": "count", "occurrence_limit": 3},
+    }  # fmt: skip
+    created = post("/bookings", booking)
+    # A pass above 50 occurrences leaves its job handle (booking_series_run); no worker runs in tests.
+    long_pass = client.post(
+        f"/api/v1/booking-series/{created['booking_series_id']}/rules", headers=headers,
+        json={"start_on": "2030-06-01", "start_time": "06:00", "end_time": "07:00",
+              "rule": {"pattern": "daily", "range_type": "count", "occurrence_limit": 51}},
+    )  # fmt: skip
+    assert long_pass.status_code == 202, long_pass.text
+    long_pass = long_pass.json()
+    seat = created["booking"]["session"]["id"]
+    enrollment = post("/enrollments", {"session_id": seat, "client_id": client_id})
+    marked = client.put(
+        f"/api/v1/sessions/{seat}/attendance", headers=headers,
+        json={"marks": [{"enrollment_id": enrollment["id"], "status": "attended"}]},
+    )  # fmt: skip
+    assert marked.status_code == 200, marked.text
+    other = new_client(client, headers, location_id)
+    waiting = post("/waitlist-entries", {"session_id": seat, "client_id": other["id"]})
+    series = client.get(f"/api/v1/booking-series/{created['booking_series_id']}", headers=headers).json()
+    return {
+        "resource_group_id": group["id"], "resource_id": court["id"], "trainer_resource_id": coach["id"],
+        "availability_window_id": window["id"], "reservation_category_id": category["id"],
+        "reservation_type_id": rtype["id"], "blackout_id": blackout["id"], "booking_id": created["booking"]["id"],
+        "booking_series_id": created["booking_series_id"], "rule_id": series["rules"][0]["id"],
+        "run_id": long_pass["status_url"].rsplit("/", 1)[1], "schedule_session_id": seat,
+        "enrollment_id": enrollment["id"], "waitlist_entry_id": waiting["id"],
+    }  # fmt: skip
 
 
 @pytest.fixture(scope="session")

@@ -86,6 +86,35 @@ _BODIES = {
     "reverseCharge": {"reason": "Mistake"},
     "allocatePayment": {},
     "createRefund": {"amount_minor": 1, "reason": "Mistake"},
+    "updateResourceGroup": {"name": "Renamed"},
+    "updateResource": {"name": "Renamed"},
+    "replaceResourceLinks": {"to_resource_ids": []},
+    "createAvailabilityWindow": {
+        "starts_on": "2030-01-01",
+        "weekdays": [1],
+        "start_time": "09:00",
+        "end_time": "10:00",
+    },
+    "updateAvailabilityWindow": {"note": "Renamed"},
+    "updateReservationCategory": {"name": "Renamed"},
+    "updateReservationType": {"name": "Renamed"},
+    "updateBlackout": {"name": "Renamed"},
+    "updateBooking": {"title": "Renamed", "version": 1},
+    "rescheduleBooking": {"starts_at": "2030-03-04T17:00:00Z", "ends_at": "2030-03-04T18:00:00Z", "version": 1},
+    "cancelBooking": {"version": 1},
+    "addBookingSeriesRule": {
+        "start_on": "2030-09-02",
+        "start_time": "09:00",
+        "end_time": "10:00",
+        "rule": {"pattern": "single", "range_type": "count", "occurrence_limit": 1},
+    },
+    "editBookingSeries": {"scope": {"mode": "all"}, "patch": {"title": "Renamed"}},
+    "cancelBookingSeries": {"scope": {"mode": "all"}},
+    "updateSession": {"is_self_bookable": False},
+    "cancelEnrollment": {},
+    "putSessionAttendance": {
+        "marks": [{"enrollment_id": "00000000-0000-7000-8000-000000000000", "status": "attended"}]
+    },
 }
 # Generated from the OpenAPI document, so a new route with an id parameter is tested without being listed.
 _ID_ROUTES = [

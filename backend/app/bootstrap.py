@@ -26,4 +26,6 @@ def bootstrap() -> None:
     from app.modules import billing, clients, platform  # noqa: F401
 
     deps.set_authenticator(platform.auth.authenticate)
+    from app.modules import programs, resources, scheduling  # noqa: F401  (build module 2: same registration)
+
     _done = True
