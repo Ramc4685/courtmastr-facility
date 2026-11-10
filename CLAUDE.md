@@ -111,7 +111,7 @@ per location, WCAG 2.1 AA, docs updated).
 | 4 | Members and households | done except photo, attachments, sharing: `docs/status/04-clients-households.md` |
 | 5 | Memberships and packages | not started |
 | 6 | Programs and registration | not started |
-| 7 | Waivers | not started |
+| 7 | Waivers and documents (`documents`) | done: P0 all, P1 bar DOC-07 bulk send; `docs/status/07-waivers-documents.md` |
 | 8 | Billing and payments | kernel only (charge to ledger, fake provider) |
 | 9-17 | POS, check-in, leagues, staff, engagement, assessments, reporting, integrations, mobile | not started |
 Known gaps later modules must not assume away: the `README.md` of `platform`, `clients` and `billing`.
