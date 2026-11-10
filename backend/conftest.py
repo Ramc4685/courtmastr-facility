@@ -192,6 +192,9 @@ def populate(client, tenant) -> SimpleNamespace:
     )
     people = _populate_people(client, headers, tenant, location["id"], person["id"])
     documents = _populate_documents(client, headers, tenant, location["id"], person)
+    people |= _populate_memberships(
+        client, headers, tenant, location["id"], person["id"], people["kid_id"], category_id
+    )
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
         session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
@@ -284,6 +287,56 @@ def _populate_documents(client, headers, tenant, location_id, person) -> dict:
                    issue | {"acceptance_method": "email_link", "recipient_emails": [person["primary_email"]]})  # fmt: skip
     return {"template_id": template["id"], "binding_id": binding["id"], "document_id": signed["id"],
             "pending_document_id": pending["id"]}  # fmt: skip
+
+
+def _populate_memberships(client, headers, tenant, location_id, person_id, kid_id, category_id) -> dict:
+    """Module 5 tables: a membership plan with a bundled package plan, a sold contract with its schedule, a
+    future freeze and suspension, a share and a counted visit; a sold package with a share, and a recurring one
+    (series). Every row of memberships and packages for the generated isolation tests."""
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+
+    from app.modules import memberships
+
+    def call(method: str, path: str, body: dict | None = None) -> dict:
+        response = client.request(method, f"/api/v1{path}", json=body, headers=headers)
+        assert response.status_code in (200, 201), response.text
+        return response.json() if response.content else {}
+
+    today = clock.now().astimezone(ZoneInfo("America/Chicago")).date()
+    day = lambda n: (today + timedelta(days=n)).isoformat()  # noqa: E731
+    pack = {"reservation_type_id": str(uuid4()), "session_mode": "fixed", "fee_basis": "per_package",
+            "revenue_category_id": category_id}  # fmt: skip
+    package_plan = call("POST", "/package-plans", pack | {
+        "name": "Ten lessons", "session_count": 10, "fee_minor": 10000, "validity_count": 6, "validity_unit": "month"})  # fmt: skip
+    monthly = call("POST", "/package-plans", pack | {
+        "name": "Four a month", "kind": "recurring", "session_count": 4, "fee_minor": 4000, "recurrence_unit": "month",
+        "recurrence_interval_count": 1, "recurrence_occurrences_count": 3})  # fmt: skip
+    kind = call("POST", "/membership-types", {"name": "Adult", "revenue_category_id": category_id})
+    plan = call("POST", "/membership-plans", {
+        "membership_type_id": kind["id"], "name": "Monthly", "billing_occurrences_count": 12, "term_fee_minor": 5000,
+        "auto_renew_lead_count": 30, "auto_renew_lead_unit": "day"})  # fmt: skip
+    call("PUT", f"/membership-plans/{plan['id']}/addons", {"addons": [{"package_plan_id": package_plan["id"]}]})
+    call("PATCH", "/membership-settings", {"billing_lead_days": 0})
+    call("PATCH", "/package-settings", {"expiry_notice_days": 7})
+    sale = {"client_id": person_id, "location_id": location_id}
+    contract = call("POST", "/membership-contracts", sale | {"membership_plan_id": plan["id"]})
+    url = f"/membership-contracts/{contract['id']}"
+    share = call("POST", f"{url}/shares", {"client_id": kid_id})
+    freeze = call("POST", f"{url}/freezes", {"start_on": day(40), "end_on": day(50)})
+    suspension = call("POST", f"{url}/suspensions", {"start_on": day(100), "end_on": day(110), "fee_minor": 500})
+    period = next(p for p in call("GET", f"{url}/billing-schedule") if p["status"] == "scheduled")
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        memberships.service.record_visit(session, client_id=person_id, check_in_id=uuid4(), location_id=location_id)
+    package = call("POST", "/client-packages", sale | {"package_plan_id": package_plan["id"]})
+    package_share = call("POST", f"/client-packages/{package['id']}/shares", {"client_id": kid_id})
+    recurring = call("POST", "/client-packages", sale | {"package_plan_id": monthly["id"]})
+    return {
+        "membership_type_id": kind["id"], "membership_plan_id": plan["id"], "contract_id": contract["id"],
+        "membership_share_id": share["id"], "freeze_id": freeze["id"], "suspension_id": suspension["id"],
+        "period_id": period["id"], "package_plan_id": package_plan["id"], "package_id": package["id"],
+        "package_share_id": package_share["id"], "series_id": recurring["package_series_id"],
+    }  # fmt: skip
 
 
 @pytest.fixture(scope="session")

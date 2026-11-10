@@ -128,6 +128,24 @@ _BODIES = {
     "sendClientDocument": {"recipient_emails": ["x@example.com"]},
     "setWaiverOverride": {"waiver_override": "on_file"},
     "updateDocumentLocationSettings": {"is_consent_required": False},
+    # memberships and packages (module 5)
+    "updateMembershipType": {"name": "Renamed"},
+    "updateMembershipPlan": {"name": "Renamed"},
+    "replaceMembershipPlanAddons": {"addons": []},
+    "updateMembershipContract": {"internal_notes": "Renamed"},
+    "setMembershipContractSoldBy": {"sold_by_staff_user_id": None},
+    "repriceMembershipContract": {"term_fee_minor": 100},
+    "updateBillingSchedulePeriod": {"amount_minor": 100},
+    "updateMembershipFreeze": {"remarks": "Renamed"},
+    "updateMembershipSuspension": {"remarks": "Renamed"},
+    "cancelMembershipContract": {"reason": "voluntary"},
+    "addMembershipShare": "share",
+    "adjustMembershipVisits": {"delta": 1, "reason": "Recount"},
+    "updatePackagePlan": {"name": "Renamed"},
+    "updateClientPackage": {"internal_remarks": "Renamed"},
+    "adjustClientPackageCredits": {"delta": 1, "note": "Recount"},
+    "addPackageShare": "share",
+    "removeClientPackage": {"removal_mode": "billing_kept"},
 }
 _ACCEPTANCE = {"content_sha256": "0" * 64, "signers": [
     {"decision": "accepted", "signer_role": "client", "signer_name": "X", "method": "checkbox"}]}  # fmt: skip
@@ -157,6 +175,8 @@ def test_api_foreign_tenant_id_is_404(client, two_tenants, method, path, name):
         body = _PREFERENCES
     elif body == "acceptance":
         body = _ACCEPTANCE
+    elif body == "share":
+        body = {"client_id": a.kid_id}
     response = client.request(method, url, headers=a.headers | {"Idempotency-Key": f"iso-{name}-key"}, json=body)
     assert response.status_code == 404, response.text
     assert response.json()["code"] == "not-found"
@@ -174,6 +194,8 @@ def test_every_id_route_is_covered():
         "/locations", "/staff-users", "/roles", "/audit-events?limit=200", "/auth/sessions", "/clients", "/charges",
         "/invoices", "/payments", "/revenue-categories", "/ledger-entries", "/client-categories", "/tags",
         "/note-subjects", "/client-tasks", "/data-subject-requests", "/relationship-types", "/custom-fields",
+        "/membership-types", "/membership-plans", "/membership-contracts", "/package-plans", "/client-packages",
+        "/package-series",
     ],
 )  # fmt: skip
 def test_api_lists_never_include_the_other_tenant(client, two_tenants, path):
@@ -186,7 +208,8 @@ def test_api_lists_never_include_the_other_tenant(client, two_tenants, path):
         b.location_id, b.staff_user_id, b.role_id, b.session_id, b.client_id, b.charge_id, b.invoice_id,
         b.payment_id, b.revenue_category_id, b.client_category_id, b.tag_id, b.note_subject_id, b.task_id,
         b.request_id, b.relationship_type_id, b.custom_field_id, b.template_id, b.binding_id, b.document_id,
-        b.pending_document_id,
+        b.pending_document_id, b.membership_type_id, b.membership_plan_id, b.contract_id, b.package_plan_id,
+        b.package_id, b.series_id,
     }  # fmt: skip
     theirs = client.get(f"/api/v1{path}", headers=b.headers).json()
     theirs = theirs["data"] if isinstance(theirs, dict) else theirs
@@ -215,6 +238,8 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
     fresh = post("/charges", charge).json()["id"]  # A's own, still uninvoiced
     document = {"client_id": a.client_id, "location_id": a.location_id, "template_id": a.template_id,
                 "acceptance_method": "checkbox"}  # fmt: skip
+    membership = {"client_id": a.kid_id, "location_id": a.location_id, "membership_plan_id": a.membership_plan_id}
+    package = {"client_id": a.client_id, "location_id": a.location_id, "package_plan_id": a.package_plan_id}
     for index, (path, body) in enumerate((
         ("/clients", person | {"home_location_id": b.location_id}),
         ("/charges", charge | {"client_id": b.client_id}),
@@ -240,6 +265,22 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
         ("/client-documents", document | {"client_id": b.client_id}),
         ("/client-documents", document | {"location_id": b.location_id}),
         ("/client-documents", document | {"template_id": b.template_id}),
+        ("/membership-types", {"name": "X", "revenue_category_id": b.revenue_category_id}),
+        ("/membership-plans", {"membership_type_id": b.membership_type_id, "name": "X", "billing_occurrences_count": 1, "term_fee_minor": 1}),
+        ("/membership-contracts", membership | {"client_id": b.client_id}),
+        ("/membership-contracts", membership | {"location_id": b.location_id}),
+        ("/membership-contracts", membership | {"membership_plan_id": b.membership_plan_id}),
+        ("/membership-contracts", membership | {"referred_by_client_id": b.client_id}),
+        ("/membership-contracts", membership | {"sold_by_staff_user_id": b.staff_user_id}),
+        ("/membership-contracts", membership | {"share_client_ids": [b.client_id]}),
+        (f"/membership-contracts/{a.contract_id}/shares", {"client_id": b.client_id}),
+        (f"/membership-contracts/{a.contract_id}/renew", {"renews_as_plan_id": b.membership_plan_id}),
+        ("/client-packages", package | {"client_id": b.client_id}),
+        ("/client-packages", package | {"location_id": b.location_id}),
+        ("/client-packages", package | {"package_plan_id": b.package_plan_id}),
+        ("/client-packages", package | {"sold_by_staff_user_id": b.staff_user_id}),
+        ("/client-packages/complimentary", package | {"package_plan_id": b.package_plan_id}),
+        (f"/client-packages/{a.package_id}/shares", {"client_id": b.client_id}),
     )):  # fmt: skip
         response = post(path, body, index)
         assert (response.status_code, response.json()["code"]) == (422, "validation-failed"), (
