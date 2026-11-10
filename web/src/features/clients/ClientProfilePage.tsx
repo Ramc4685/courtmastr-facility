@@ -11,6 +11,8 @@ import { Tabs } from '../../components/Tabs'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { ClientDocumentsTab, WaiverBadge } from '../documents/ClientDocumentsTab'
+import { ClientMembershipsTab } from '../memberships/ClientMembershipsTab'
+import { ClientPackagesTab } from '../packages/ClientPackagesTab'
 import { formatDateTime, fullName } from '../../lib/format'
 import { ClientPicker, type ClientSummary } from './ClientPicker'
 import { useCategories } from './ClientsPage'
@@ -410,6 +412,8 @@ export function ClientProfilePage() {
           { id: 'family', label: 'Family', content: <Family client={client} /> },
           { id: 'notes', label: 'Notes', content: <Notes client={client} /> },
           ...(can('documents.document.read') ? [{ id: 'documents', label: 'Documents', content: <ClientDocumentsTab client={client} /> }] : []),
+          ...(can('memberships.contract.read') ? [{ id: 'memberships', label: 'Memberships', content: <ClientMembershipsTab client={client} /> }] : []),
+          ...(can('packages.package.read') ? [{ id: 'packages', label: 'Packages', content: <ClientPackagesTab client={client} /> }] : []),
           { id: 'billing', label: 'Billing', content: <EmptyState title="Billing arrives with the billing screens">Invoices, payments and balance will show here.</EmptyState> },
         ]}
       />

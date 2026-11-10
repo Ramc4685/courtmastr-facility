@@ -12,6 +12,8 @@ import { TokenLinkPage } from '../features/auth/TokenLinkPage'
 import { PublicSignPage } from '../features/documents/PublicSignPage'
 import { TemplateEditorPage } from '../features/documents/TemplateEditorPage'
 import { TemplatesPage } from '../features/documents/TemplatesPage'
+import { MembershipsPage } from '../features/memberships/MembershipsPage'
+import { PackagesPage } from '../features/packages/PackagesPage'
 import { PortalHome } from '../features/portal/PortalHome'
 import { AuditLogPage } from '../features/platform/AuditLogPage'
 import { DashboardPage } from '../features/platform/DashboardPage'
@@ -60,6 +62,8 @@ export function AppRoutes() {
         <Route path="clients/:id" element={<RequirePermission permission="clients.client.read"><ClientProfilePage /></RequirePermission>} />
         <Route path="documents" element={<RequirePermission permission="documents.template.manage"><TemplatesPage /></RequirePermission>} />
         <Route path="documents/:id" element={<RequirePermission permission="documents.template.manage"><TemplateEditorPage /></RequirePermission>} />
+        <Route path="memberships" element={<RequirePermission permission="memberships.contract.read"><MembershipsPage /></RequirePermission>} />
+        <Route path="packages" element={<RequirePermission permission="packages.package.read"><PackagesPage /></RequirePermission>} />
         {import.meta.env.DEV && (
           <Route path="dev/client-picker" element={<RequirePermission permission="clients.client.read"><ClientPickerDemo /></RequirePermission>} />
         )}
