@@ -1,6 +1,7 @@
 """Shared kernel: ids, clock, tenant_session, error rendering, idempotency, pagination, outbox, jobs."""
 
 import json
+import os
 import threading
 import time
 from datetime import UTC, datetime, timedelta
@@ -49,7 +50,8 @@ def test_uuid_v7_is_time_ordered_in_python_and_sql():
 
 def test_settings_carry_the_display_name_in_one_place(client):
     settings = get_settings()
-    assert settings.env == "test" and settings.db.name == "facilityhub_test"
+    # Tests never touch a development database; a lane names its own test database (FH_TEST_DB_NAME).
+    assert settings.env == "test" and settings.db.name == os.environ.get("FH_TEST_DB_NAME", "facilityhub_test")
     assert settings.app.display_name == "Courtmastr Facility"
     assert client.get(f"{API}/openapi.json").json()["info"]["title"] == "Courtmastr Facility API"
     assert "password" not in json.dumps(settings.model_dump()).lower().replace("password_", "")  # secrets stay in env
