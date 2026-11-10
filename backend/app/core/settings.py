@@ -3,6 +3,7 @@
 import os
 from functools import cache
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import yaml
 from pydantic import BaseModel
@@ -20,6 +21,7 @@ class AppInfo(BaseModel):
 class Api(BaseModel):
     host: str
     port: int
+    max_body_bytes: int = 1_048_576
 
 
 class Db(BaseModel):
@@ -56,6 +58,14 @@ class SessionLifetime(BaseModel):
     absolute_days: int
 
 
+class Payments(BaseModel):
+    provider: str = "fake"  # fake | none; a real processor is connected per tenant (build module 8)
+
+
+class Notifications(BaseModel):
+    adapter: str = "email"  # email | noop
+
+
 class Auth(BaseModel):
     access_ttl_min: int
     refresh_grace_sec: int
@@ -88,6 +98,8 @@ class Settings(BaseModel):
     redis: Redis
     email: Email
     jobs: Jobs
+    payments: Payments = Payments()
+    notifications: Notifications = Notifications()
     auth: Auth
     rate_limit: RateLimit
     audit: Audit
@@ -116,6 +128,18 @@ def _load_dotenv(path: Path) -> None:
                 os.environ.setdefault(key.strip(), value.strip())
 
 
+def _lane_overrides(data: dict, env: str) -> None:
+    """Parallel checkouts (lanes) share one Postgres and one machine: each gets its own databases and ports
+    through FH_DB_NAME, FH_TEST_DB_NAME, FH_API_PORT and FH_WEB_PORT. Unset means the config file value."""
+    if name := os.environ.get("FH_TEST_DB_NAME" if env == "test" else "FH_DB_NAME"):
+        data["db"]["name"] = name
+    if port := os.environ.get("FH_API_PORT"):
+        data["api"]["port"] = int(port)
+    if port := os.environ.get("FH_WEB_PORT"):
+        url = urlsplit(data["app"]["web_base_url"])
+        data["app"]["web_base_url"] = url._replace(netloc=f"{url.hostname}:{int(port)}").geturl()
+
+
 @cache
 def get_settings() -> Settings:
     _load_dotenv(REPO_ROOT / ".env")
@@ -125,8 +149,11 @@ def get_settings() -> Settings:
     overlay = config_dir / f"app.{env}.yaml"
     if overlay.exists():
         _merge(data, yaml.safe_load(overlay.read_text()) or {})
+    _lane_overrides(data, env)
     settings = Settings(env=env, **data)
     if env not in ("dev", "test") and (not settings.auth.cookie_secure or settings.email.log_links):
         # Dev conveniences that are unsafe anywhere else: cookies over plain HTTP, sign-in links in the log.
         raise RuntimeError("outside dev and test, auth.cookie_secure must be true and email.log_links false")
+    if env not in ("dev", "test") and settings.payments.provider == "fake":
+        raise RuntimeError("outside dev and test, payments.provider must not be fake: it takes no real money")
     return settings

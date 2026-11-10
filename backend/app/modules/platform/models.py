@@ -5,7 +5,18 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ARRAY, CHAR, CheckConstraint, ForeignKey, Index, SmallInteger, Text, UniqueConstraint, text
+from sqlalchemy import (
+    ARRAY,
+    CHAR,
+    BigInteger,
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    SmallInteger,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import CITEXT, INET
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -126,6 +137,16 @@ class TenantDomain(TenantOwned, Timestamps, Base):
     kind: Mapped[str] = enum_column(server_default=text("'subdomain'"))
     is_primary: Mapped[bool] = _false()
     verified_at: Mapped[datetime | None]
+
+
+class TenantCounter(TenantOwned, Timestamps, Base):
+    """Gapless per-tenant numbers (booking, invoice, receipt, member number). Taken FOR UPDATE (overview 3.5)."""
+
+    __tablename__ = "tenant_counter"
+    __table_args__ = tenant_args(UniqueConstraint("tenant_id", "counter_key", name="uq_tenant_counter"))
+
+    counter_key: Mapped[str] = mapped_column(info={"audit": "value"})
+    next_value: Mapped[int] = mapped_column(BigInteger, server_default=text("1"))
 
 
 # --- 2.2 Locations ---------------------------------------------------------------------------------------

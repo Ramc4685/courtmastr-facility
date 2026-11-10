@@ -8,6 +8,7 @@ app:
 api:
   host: 127.0.0.1
   port: 8100
+  max_body_bytes: 1048576             # request bodies over this are refused with 413
 db:
   host: 127.0.0.1
   port: 55432
@@ -23,6 +24,10 @@ email:
   log_links: true                     # dev convenience: also log emailed sign-in links
 jobs:
   broker: redis                       # redis | stub
+payments:
+  provider: fake                      # fake | none. The fake takes no real money: refused outside dev and test
+notifications:
+  adapter: email                      # email | noop
 auth:
   access_ttl_min: 30
   refresh_grace_sec: 20

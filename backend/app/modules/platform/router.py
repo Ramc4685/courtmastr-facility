@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core import clock
 from app.core.api import TxRoute
+from app.core.api import camel_id as _camel
 from app.core.auth import CATALOGUE, tokens
 from app.core.auth.deps import (
     ACCESS_COOKIE,
@@ -36,11 +37,6 @@ from app.modules.platform import schemas as s
 
 API_PREFIX = "/api/v1"
 _OUTBOX_LAG_SLO_SEC = 300
-
-
-def _camel(route) -> str:
-    head, *rest = route.name.split("_")
-    return head + "".join(part.title() for part in rest)
 
 
 def _router(**kwargs) -> APIRouter:

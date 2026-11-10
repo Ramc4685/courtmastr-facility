@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { api, ApiError, fieldErrors } from '../../api/client'
 import { Button } from '../../components/Button'
 import { Input } from '../../components/Field'
@@ -14,10 +14,14 @@ const copy: Record<Purpose, { title: string; action: string }> = {
 }
 
 /** Emailed links land here and the token is spent by a POST on a deliberate click, so mail scanners that
- * prefetch links cannot use it (security-baseline 5.1). */
+ * prefetch links cannot use it (security-baseline 5.1). The token arrives in the URL fragment, which is never
+ * sent to a server or leaked in a Referer (17.2); it is read once and then removed from the address bar. */
 export function TokenLinkPage({ purpose }: { purpose: Purpose }) {
-  const [params] = useSearchParams()
+  const [params] = useState(() => new URLSearchParams(window.location.hash.slice(1)))
   const token = params.get('token') ?? ''
+  useEffect(() => {
+    if (window.location.hash) window.history.replaceState(window.history.state, '', window.location.pathname)
+  }, [])
   const navigate = useNavigate()
   const { sessionStarted } = useAuth()
   const [password, setPassword] = useState('')

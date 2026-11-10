@@ -2,7 +2,7 @@
 COMPOSE = docker compose --env-file .env -f infra/docker-compose.yml
 UV = cd backend && uv run
 
-.PHONY: up down reset migrate seed test lint fmt api worker relay openapi web-install web web-api web-check web-test web-e2e
+.PHONY: up down reset migrate lane-db seed test lint fmt api worker relay openapi web-install web web-api web-check web-test web-e2e
 
 .env:
 	cp .env.example .env
@@ -19,6 +19,11 @@ reset:              ## stop the services and DELETE the data volume (clean slate
 migrate: .env       ## apply Alembic migrations as fh_owner
 	$(UV) alembic upgrade head
 
+lane-db: .env       ## create (if missing) and migrate the databases named by FH_DB_NAME / FH_TEST_DB_NAME
+	$(UV) python -m app.cli lane-db
+	$(UV) alembic upgrade head
+	cd backend && FH_ENV=test uv run alembic upgrade head
+
 seed: .env          ## idempotent demo data (docs/dev/demo-accounts.md)
 	$(UV) python -m seeds.demo
 
@@ -32,7 +37,7 @@ lint:               ## ruff lint and format check
 fmt:
 	$(UV) ruff check --fix . && uv run ruff format .
 
-api: .env           ## API on http://localhost:8100
+api: .env           ## API on http://localhost:8100 (FH_API_PORT overrides)
 	$(UV) python -m app.cli serve
 
 worker: .env        ## Dramatiq worker
@@ -49,7 +54,7 @@ WEB = cd web && pnpm
 web-install:        ## web dependencies and the Playwright chromium build
 	$(WEB) install && pnpm exec playwright install chromium
 
-web:                ## Vite dev server on http://localhost:5183 (proxies /api to :8100)
+web:                ## Vite dev server on http://localhost:5183 (FH_WEB_PORT overrides; proxies /api to the API port)
 	$(WEB) dev
 
 web-api:            ## regenerate web/src/api/schema.d.ts from backend/openapi.json

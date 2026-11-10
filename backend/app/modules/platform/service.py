@@ -5,10 +5,12 @@ only entry points for routers, jobs and other contexts.
 """
 
 import re
+from datetime import date
 from uuid import UUID
-from zoneinfo import available_timezones
+from zoneinfo import ZoneInfo, available_timezones
 
 from sqlalchemy import delete, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.core import audit, clock, events
@@ -21,7 +23,15 @@ from app.core.ids import new_id
 from app.core.pagination import ListQuery, paginate
 from app.modules.platform import staff
 from app.modules.platform.events import LocationCreated, TenantCreated
-from app.modules.platform.models import FacilityHours, Identity, Location, StaffUser, Tenant, UserLocationAccess
+from app.modules.platform.models import (
+    FacilityHours,
+    Identity,
+    Location,
+    StaffUser,
+    Tenant,
+    TenantCounter,
+    UserLocationAccess,
+)
 
 _SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 _DEFAULT_HOURS = ("06:00", "22:00")  # our default; the reference publishes none
@@ -197,6 +207,35 @@ def replace_facility_hours(session: Session, principal: Principal, location_id: 
     )
     session.flush()
     return get_facility_hours(session, principal, location_id)
+
+
+def location_today(session: Session, location_id: UUID) -> date:
+    """Today's date on the wall at a location (overview 3.7). Internal: for other contexts' date defaults."""
+    location = session.get(Location, location_id)
+    if location is None:
+        raise NotFound()
+    return clock.now().astimezone(ZoneInfo(location.time_zone)).date()
+
+
+# --- counters ----------------------------------------------------------------------------------------------
+
+
+def next_number(session: Session, counter_key: str) -> int:
+    """The next value of a per-tenant counter (`booking_number`, `invoice`, `receipt`, `member_number`).
+    Internal. The row lock is held to the end of the caller's transaction, so numbers are gapless: a rollback
+    returns the number."""
+    session.execute(
+        pg_insert(TenantCounter)
+        .values(id=new_id(), tenant_id=session.info["tenant_id"], counter_key=counter_key)
+        .on_conflict_do_nothing(constraint="uq_tenant_counter")
+    )
+    counter = session.execute(
+        select(TenantCounter).where(TenantCounter.counter_key == counter_key).with_for_update()
+    ).scalar_one()
+    value = counter.next_value
+    counter.next_value = value + 1
+    session.flush()
+    return value
 
 
 # --- audit trail -------------------------------------------------------------------------------------------

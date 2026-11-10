@@ -5,6 +5,7 @@ tests automatically and fails until the fixture populates it.
 """
 
 import re
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import text
@@ -82,6 +83,9 @@ _BODIES = {
     "replaceStaffPermissionOverrides": {"grants": []},
     "updateRole": {"name": "Renamed"},
     "replaceRolePermissions": {"grants": []},
+    "reverseCharge": {"reason": "Mistake"},
+    "allocatePayment": {},
+    "createRefund": {"amount_minor": 1, "reason": "Mistake"},
 }
 # Generated from the OpenAPI document, so a new route with an id parameter is tested without being listed.
 _ID_ROUTES = [
@@ -100,24 +104,34 @@ def test_api_foreign_tenant_id_is_404(client, two_tenants, method, path, name):
     body = _BODIES.get(name)
     if body == "role":
         body = {"role_id": a.role_id}  # A's own role, so only the path id is foreign
-    response = client.request(method, url, headers=a.headers, json=body)
+    response = client.request(method, url, headers=a.headers | {"Idempotency-Key": f"iso-{name}-key"}, json=body)
     assert response.status_code == 404, response.text
     assert response.json()["code"] == "not-found"
 
 
 def test_every_id_route_is_covered():
-    assert len(_ID_ROUTES) >= 21
-    assert {name for _, _, name in _ID_ROUTES if name.startswith(("update", "replace", "assign"))} == set(_BODIES)
+    assert len(_ID_ROUTES) >= 28
+    assert {name for _, _, name in _ID_ROUTES if name.startswith(("update", "replace", "assign"))} <= set(_BODIES)
+    assert set(_BODIES) <= {name for _, _, name in _ID_ROUTES}
 
 
-@pytest.mark.parametrize("path", ["/locations", "/staff-users", "/roles", "/audit-events?limit=200", "/auth/sessions"])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/locations", "/staff-users", "/roles", "/audit-events?limit=200", "/auth/sessions", "/clients", "/charges",
+        "/invoices", "/payments", "/revenue-categories", "/ledger-entries",
+    ],
+)  # fmt: skip
 def test_api_lists_never_include_the_other_tenant(client, two_tenants, path):
     a, b = two_tenants
     payload = client.get(f"/api/v1{path}", headers=a.headers).json()
     rows = payload["data"] if isinstance(payload, dict) else payload
     assert rows
     ids = {row["id"] for row in rows}
-    assert not ids & {b.location_id, b.staff_user_id, b.role_id, b.session_id}
+    assert not ids & {
+        b.location_id, b.staff_user_id, b.role_id, b.session_id, b.client_id, b.charge_id, b.invoice_id,
+        b.payment_id, b.revenue_category_id,
+    }  # fmt: skip
     theirs = client.get(f"/api/v1{path}", headers=b.headers).json()
     theirs = theirs["data"] if isinstance(theirs, dict) else theirs
     assert not ids & {row["id"] for row in theirs}
@@ -133,6 +147,36 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
         client.put(f"/api/v1/staff-users/{a.staff_user_id}/locations", headers=a.headers, json=assign).status_code
         == 422
     )
+
+    # clients and billing: every body field that carries an id.
+    def post(path: str, body: dict, index: int = 0):
+        key = {"Idempotency-Key": f"iso-foreign-{index}-{uuid4().hex}"}
+        return client.post(f"/api/v1{path}", headers=a.headers | key, json=body)
+
+    person = {"first_name": "X", "last_name": "Y", "home_location_id": a.location_id}
+    charge = {"client_id": a.client_id, "location_id": a.location_id, "description": "X", "unit_price_minor": 100}
+    payment = {"client_id": a.client_id, "location_id": a.location_id, "amount_minor": 100, "tender_kind": "cash"}
+    fresh = post("/charges", charge).json()["id"]  # A's own, still uninvoiced
+    for index, (path, body) in enumerate((
+        ("/clients", person | {"home_location_id": b.location_id}),
+        ("/charges", charge | {"client_id": b.client_id}),
+        ("/charges", charge | {"location_id": b.location_id}),
+        ("/charges", charge | {"revenue_category_id": b.revenue_category_id}),
+        ("/invoices", {"charge_ids": [b.charge_id]}),
+        ("/invoices", {"charge_ids": [fresh], "bill_to_client_id": b.client_id}),
+        ("/payments", payment | {"client_id": b.client_id}),
+        ("/payments", payment | {"location_id": b.location_id}),
+        ("/payments", payment | {"invoice_id": b.invoice_id}),
+        ("/payments", payment | {"allocations": [{"charge_id": b.charge_id, "amount_minor": 1}]}),
+        (f"/payments/{a.payment_id}/allocations", {"invoice_id": b.invoice_id}),
+        (f"/payments/{a.payment_id}/allocations", {"allocations": [{"charge_id": b.charge_id, "amount_minor": 1}]}),
+    )):  # fmt: skip
+        response = post(path, body, index)
+        assert (response.status_code, response.json()["code"]) == (422, "validation-failed"), (
+            path,
+            body,
+            response.text,
+        )
 
 
 def test_token_is_bound_to_its_tenant_host(client, two_tenants):

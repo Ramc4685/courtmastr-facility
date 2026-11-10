@@ -20,12 +20,13 @@ copy their code, text, UI layouts, icons, images or brand. Entity and screen nam
 make up            Postgres :55432, Redis :56379, Mailpit SMTP :51025 / UI :58025 (Docker Compose)
 make reset         stop and DELETE the data volume; then: make up migrate seed
 make migrate seed  Alembic upgrade head (as fh_owner); idempotent demo tenant (docs/dev/demo-accounts.md)
-make api           API on :8100 (docs at /api/v1/docs); make worker / make relay for jobs and the outbox
+make lane-db       parallel checkout: create + migrate the databases named in .env (FH_DB_NAME, FH_TEST_DB_NAME)
+make api           API on :8100 (FH_API_PORT; docs at /api/v1/docs); make worker / make relay: jobs, outbox
 make test          pytest against the real Postgres as fh_app, then the 80% gate on domain logic
 make lint | fmt    ruff check + format
 make openapi       regenerate backend/openapi.json; then make web-api (web/src/api/schema.d.ts)
 make web-install   pnpm install + Playwright chromium (once)
-make web           Vite on :5183, /api proxied to :8100
+make web           Vite on :5183 (FH_WEB_PORT), /api proxied to the API port
 make web-check     tsc + eslint (jsx-a11y);   make web-test   Vitest
 make web-e2e       Playwright + axe (needs make api and seeded data)
 ```
@@ -39,9 +40,10 @@ config/app.yaml (+ app.<FH_ENV>.yaml overlay)   non-secret config; secrets only 
 infra/                 docker-compose.yml, postgres/init (roles fh_owner, fh_app, fh_platform)
 backend/app/core/      shared kernel: db (tenant_session, mixins, enable_rls), auth, api (TxRoute, errors),
                        audit, events (outbox), idempotency, jobs (@tenant_actor), pagination, settings
+backend/app/ports/ + adapters/   email, notifications (send), payment_provider (FakeProvider)
 backend/app/modules/<context>/   one package per bounded context (platform is the worked example)
 backend/migrations/versions/     one linear Alembic history, NNNN_<context>_<what>.py
-backend/seeds/  backend/tests/  backend/conftest.py   demo data; cross-cutting tests; fixtures
+backend/seeds/<ctx>.py  backend/tests/  backend/conftest.py   demo data per context; cross-cutting tests; fixtures
 web/src/{api,app,components,features/<context>,lib}   web/e2e/   Playwright specs
 docs/architecture/  docs/adr/  docs/api/  docs/discovery/  docs/dev/
 ```
@@ -68,7 +70,9 @@ docs/architecture/  docs/adr/  docs/api/  docs/discovery/  docs/dev/
 - **Booking conflicts (3.8, ADR 0004)** are enforced by the Postgres exclusion constraint on
   `resource_hold`, never by application checks alone. Only `scheduling.service` writes holds.
 - **Money (3.6, ADR 0003).** Immutable ledger, half-up rounding once at the line, idempotent payment and
-  webhook handlers (`Idempotency-Key`, 3.12). No raw card data, ever.
+  webhook handlers (`Idempotency-Key`, 3.12). No raw card data, ever. Every context bills through
+  `billing.service` (rules in `billing/README.md`). Functions other contexts call are internal (ADR 0009
+  section 9): no principal, no `authorize`; the staff command that wraps them carries the gate.
 - **Boundaries (section 2).** A context imports `app.core`, `app.ports`, itself, and other contexts' top-level
   package only in the allowed direction. Upward flow is an event.
 - **Tests (section 5).** Real PostgreSQL 16 from Compose, connected as `fh_app`. No SQLite, no database
@@ -76,7 +80,8 @@ docs/architecture/  docs/adr/  docs/api/  docs/discovery/  docs/dev/
   generated isolation tests. Every new route is checked by `backend/tests/test_security.py`.
 - **Web.** No tokens in browser storage; all calls through `src/api/client.ts`; WCAG 2.1 AA with an axe scan
   in every Playwright spec; colours from the CSS variables, never raw values.
-- **Secrets.** Environment only. `.env` is git-ignored; `.env.example` holds dev-only values.
+- **Secrets.** Environment only. `.env` is git-ignored; `.env.example` holds dev-only values. Emailed link
+  tokens ride in the URL fragment, never the query string (security-baseline 17.2).
 - Document precedence when two disagree: `docs/architecture/README.md` section 1.
 
 ## Adding a module
@@ -100,20 +105,14 @@ per location, WCAG 2.1 AA, docs updated).
 | # | Module | Status |
 |---|---|---|
 | 1 | Platform core (tenants, locations, staff, RBAC, auth, audit) | done; OIDC, MFA and step-up deferred |
+| - | Kernel slices: lane config, `clients` skeleton, `billing` kernel, notification port, counters | done: `docs/status/kernel-slice.md` |
 | 2 | Resources and scheduling | not started |
 | 3 | Rentals and events | not started |
-| 4 | Members and households | not started |
+| 4 | Members and households | skeleton only (client, portal access, picker) |
 | 5 | Memberships and packages | not started |
 | 6 | Programs and registration | not started |
 | 7 | Waivers | not started |
-| 8 | Billing and payments | not started |
-| 9 | POS and inventory | not started |
-| 10 | Check-in and access | not started |
-| 11 | Leagues and tournaments | not started |
-| 12 | Staff | not started |
-| 13 | Engagement | not started |
-| 14 | Fitness assessments | not started |
-| 15 | Reporting | not started |
-| 16 | Integrations | not started |
-| 17 | Mobile app | not started |
-Known gaps in module 1 that later modules must not assume away: `backend/app/modules/platform/README.md`.
+| 8 | Billing and payments | kernel only (charge to ledger, fake provider) |
+| 9-17 | POS, check-in, leagues, staff, engagement, assessments, reporting, integrations, mobile | not started |
+Known gaps later modules must not assume away: the `README.md` of `platform`, `clients` and `billing`.
+Parallel lanes (worktrees), migration numbering and the kernel service APIs: top of `docs/dev/module-playbook.md`.

@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { ToastProvider } from '../components/Toast'
 import { SignInPage } from '../features/auth/SignInPage'
+import { ClientPickerDemo } from '../features/clients/ClientPickerDemo'
 import { TokenLinkPage } from '../features/auth/TokenLinkPage'
 import { PortalHome } from '../features/portal/PortalHome'
 import { AuditLogPage } from '../features/platform/AuditLogPage'
@@ -47,6 +48,9 @@ export function AppRoutes() {
         <Route path="roles/:id" element={<RequirePermission permission="platform.role.read"><RoleDetailPage /></RequirePermission>} />
         <Route path="audit" element={<RequirePermission permission="platform.audit.read"><AuditLogPage /></RequirePermission>} />
         <Route path="settings" element={<RequirePermission permission="platform.tenant.update"><TenantSettingsPage /></RequirePermission>} />
+        {import.meta.env.DEV && (
+          <Route path="dev/client-picker" element={<RequirePermission permission="clients.client.read"><ClientPickerDemo /></RequirePermission>} />
+        )}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

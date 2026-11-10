@@ -4,7 +4,9 @@ from datetime import date, datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints, field_validator
+from pydantic import BaseModel, EmailStr, Field, StringConstraints, field_validator
+
+from app.core.schemas import In, Out, Page, PageInfo  # noqa: F401  (re-exported: the router uses s.Page)
 
 Audience = Literal["staff", "client"]
 ClientKind = Literal["web", "mobile"]
@@ -13,25 +15,6 @@ Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max
 WallTime = Annotated[str, StringConstraints(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")]  # location-local HH:MM
 ClosingTime = Annotated[str, StringConstraints(pattern=r"^(([01]\d|2[0-3]):[0-5]\d|24:00)$")]
 CountryCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}$")]
-
-
-class Out(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-
-class In(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
-class PageInfo(BaseModel):
-    next_cursor: str | None
-    has_more: bool
-    total: int | None = None
-
-
-class Page[T](BaseModel):
-    data: list[T]
-    page: PageInfo
 
 
 class HealthStatus(BaseModel):

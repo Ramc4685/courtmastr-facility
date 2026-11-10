@@ -15,9 +15,14 @@ Password for every account: `courtside-demo-2026`
 | League Manager | league-admin@courtside-demo.example.com | Courtside Downtown |
 | Scorekeeper | scorekeeper@courtside-demo.example.com | Courtside Downtown |
 | View Only | view-only@courtside-demo.example.com | Courtside Downtown |
-| Client (no profile yet) | member@courtside-demo.example.com | sign in with `"audience": "client"` |
+| Client (Morgan Member) | member@courtside-demo.example.com | sign in with `"audience": "client"` |
 
 Locations: **Courtside Downtown** (`America/Chicago`) and **Courtside West** (`America/Los_Angeles`).
+
+Six demo clients (four at Downtown, two at West). Billing: a `SALES` tax of 8.25%, revenue categories
+`RENTALS` and `RETAIL` (taxed), `MEMBERSHIPS` and `PROGRAMS` (untaxed), and one paid invoice for Morgan Member
+with change left on account. Payments use the fake processor; card and bank tokens that script each outcome
+(`tok_card_ok`, `tok_card_declined`, `tok_ach_ok`, ...) are listed in `backend/app/adapters/fake_payments.py`.
 
 Tenant resolution in development: send `X-Tenant-Slug: courtside-demo`, or call the API as
 `http://courtside-demo.localhost:8100`. Emailed links (magic link, reset, invite) land in Mailpit at

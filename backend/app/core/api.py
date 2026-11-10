@@ -34,6 +34,12 @@ CONSTRAINT_CODES: dict[str, str] = {}
 CONSTRAINT_FIELDS: dict[str, str] = {"uq_identity_kind_email": "email"}
 
 
+def camel_id(route) -> str:
+    """operationId from the handler name: create_booking -> createBooking (the spec's operationIds)."""
+    head, *rest = route.name.split("_")
+    return head + "".join(part.title() for part in rest)
+
+
 def problem(request: Request, status: int, code: str, detail: str | None = None, headers=None, **extra: Any):
     body = {
         "type": f"/problems/{code}",
@@ -168,6 +174,95 @@ class RequestContextMiddleware:
             )
 
 
+_HEADERS = {
+    b"x-content-type-options": b"nosniff",
+    b"x-frame-options": b"DENY",
+    b"referrer-policy": b"no-referrer",
+    b"cross-origin-opener-policy": b"same-origin",
+    b"permissions-policy": b"camera=(self), microphone=(), geolocation=(), payment=(self)",
+    # The API serves data, never a page that should load anything (the interactive docs page is exempt).
+    b"content-security-policy": b"default-src 'none'; frame-ancestors 'none'",
+    b"cache-control": b"no-store",
+}
+
+
+class SecurityHeadersMiddleware:
+    """Standard response headers (security-baseline 9.6 and V8). A header the handler set itself wins."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+        self.headers = dict(_HEADERS)
+        if get_settings().auth.cookie_secure:  # only meaningful, and only safe, behind TLS
+            self.headers[b"strict-transport-security"] = b"max-age=31536000; includeSubDomains"
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        is_docs = scope["path"].endswith("/docs")
+
+        async def send_with_headers(message) -> None:
+            if message["type"] == "http.response.start":
+                headers = message.setdefault("headers", [])
+                present = {name.lower() for name, _ in headers}
+                for name, value in self.headers.items():
+                    if name not in present and not (is_docs and name == b"content-security-policy"):
+                        headers.append((name, value))
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
+
+
+class BodyLimitMiddleware:
+    """Refuse request bodies over api.max_body_bytes with 413, by Content-Length or by counting a chunked
+    body. File uploads never pass through the API (they go to object storage), so one small cap fits all."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+        self.limit = get_settings().api.max_body_bytes
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        declared = dict(scope["headers"]).get(b"content-length", b"")
+        seen, refused = 0, declared.isdigit() and int(declared) > self.limit
+
+        async def refuse() -> None:
+            body = {
+                "type": "/problems/payload-too-large", "title": "Payload too large", "status": 413,
+                "code": "payload-too-large", "instance": scope["path"], "trace_id": context.request_id.get(),
+                "detail": f"The request body may not exceed {self.limit} bytes.",
+            }  # fmt: skip
+            raw = json.dumps(body).encode()
+            headers = [(b"content-type", b"application/problem+json"), (b"content-length", str(len(raw)).encode())]
+            await send({"type": "http.response.start", "status": 413, "headers": headers})
+            await send({"type": "http.response.body", "body": raw})
+
+        if refused:
+            return await refuse()
+
+        async def counted():
+            nonlocal seen, refused
+            message = await receive()
+            if message["type"] == "http.request":
+                seen += len(message.get("body", b""))
+                if seen > self.limit:
+                    refused = True
+                    raise ValueError("request body over the limit")
+            return message
+
+        async def send_unless_refused(message) -> None:
+            if not refused:  # whatever the framework makes of the aborted read is replaced by the 413 below
+                await send(message)
+
+        try:
+            await self.app(scope, counted, send_unless_refused)
+        except ValueError:
+            if not refused:
+                raise
+        if refused:
+            await refuse()
+
+
 def _on_domain_error(request: Request, exc: DomainError):
     return problem(request, exc.status, exc.code, exc.detail, headers=exc.headers, **exc.extra)
 
@@ -217,7 +312,10 @@ def _on_unhandled(request: Request, exc: Exception):
 
 
 def install(app: FastAPI) -> None:
+    # Last added is outermost: the request id exists before a 413 is written, and every response gets headers.
+    app.add_middleware(BodyLimitMiddleware)
     app.add_middleware(RequestContextMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_exception_handler(DomainError, _on_domain_error)
     app.add_exception_handler(RequestValidationError, _on_validation_error)
     app.add_exception_handler(IntegrityError, _on_integrity_error)

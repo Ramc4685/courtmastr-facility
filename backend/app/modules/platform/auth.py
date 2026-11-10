@@ -149,6 +149,16 @@ _LINKS = {
 }
 
 
+def safe_redirect_path(path: str | None) -> str | None:
+    """No open redirect: a local path only. Browsers treat a backslash as a slash, so "/\\host" is refused
+    too, as are control characters, which browsers strip before resolving."""
+    if not path or not path.startswith("/") or path.startswith("//") or "\\" in path:
+        return None
+    if any(ord(char) < 0x20 or ord(char) == 0x7F for char in path):
+        return None
+    return path
+
+
 def issue_link(
     session: Session, identity: Identity, purpose: TokenPurpose, ttl: timedelta, *, redirect_path: str | None = None
 ) -> str:
@@ -167,15 +177,11 @@ def issue_link(
     raw, hashed = tokens.mint("fhl", identity.tenant_id)
     session.add(AuthToken(identity_id=identity.id, purpose=purpose, token_hash=hashed, expires_at=now + ttl))
     path, subject, intro = _LINKS[purpose]
-    url = f"{settings.app.web_base_url}{path}?token={raw}"
-    # no open redirect: local path only; browsers treat "\\" as "/", so "/\\host" is rejected too
-    if (
-        redirect_path
-        and redirect_path.startswith("/")
-        and not redirect_path.startswith("//")
-        and "\\" not in redirect_path
-    ):
-        url += f"&redirect={quote(redirect_path, safe='/')}"
+    # The token rides in the URL fragment, which browsers never send to a server or put in a Referer
+    # (security-baseline 17.2); the landing page reads it and posts it.
+    url = f"{settings.app.web_base_url}{path}#token={raw}"
+    if safe := safe_redirect_path(redirect_path):
+        url += f"&redirect={quote(safe, safe='/')}"
     minutes = int(ttl.total_seconds() // 60)
     lifetime = f"{minutes} minutes" if minutes < 120 else f"{minutes // 1440} days"
     body = f"{intro}\n\n{url}\n\nThe link works once and expires in {lifetime}. If you did not ask for it, ignore this email."

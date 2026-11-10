@@ -20,45 +20,60 @@ API = "/api/v1"
 MATRIX = Path(__file__).resolve().parents[5] / "docs" / "architecture" / "rbac-matrix.md"
 
 
-def _matrix_rows() -> dict[str, dict]:
-    """Parse section 6.1 of rbac-matrix.md: key -> {scope, flags, roles}."""
-    section = MATRIX.read_text().split("### 6.1 platform")[1].split("### 6.2")[0]
+def _matrix_rows(context: str = "platform") -> dict[str, dict]:
+    """Parse one context's table in section 6 of rbac-matrix.md: key -> {scope, flags, own, roles}."""
+    section = re.split(r"### 6\.\d+ ", MATRIX.read_text().split(f" {context}\n")[1])[0]
     columns = [key for key, (column, _) in SYSTEM_ROLES.items() if column != "-"]
     rows = {}
     for line in section.splitlines():
         cells = [cell.strip() for cell in line.strip("|").split("|")]
-        if match := re.fullmatch(r"`(platform\.[\w.]+)`", cells[0]):
+        if match := re.fullmatch(rf"`({context}\.[\w.]+)`", cells[0]):
             grants = {
                 role: "all" if cell == "Y" else cell
                 for role, cell in zip(columns, cells[4:11], strict=True)
                 if cell != "-"
             }
-            rows[match[1]] = {"scope": cells[1], "flags": tuple(cells[2].split()), "roles": grants}
+            rows[match[1]] = {
+                "scope": cells[1],
+                "flags": tuple(cells[2].split()),
+                "own": cells[3] == "own",
+                "roles": grants,
+            }
     return rows
 
 
-def test_catalogue_matches_the_rbac_matrix_document():
+# A context joins this list when it registers its catalogue: (package name, rows in its rbac-matrix table).
+@pytest.mark.parametrize(("context", "count"), [("platform", 28), ("clients", 16), ("billing", 39)])
+def test_catalogue_matches_the_rbac_matrix_document(context, count):
     """Matrix conformance: the document cannot drift from permissions.py."""
-    rows = _matrix_rows()
-    in_code = {key: p for key, p in CATALOGUE.items() if p.context == "platform"}
-    assert set(rows) == set(in_code) and len(rows) == 28
+    rows = _matrix_rows(context)
+    in_code = {key: p for key, p in CATALOGUE.items() if p.context == context}
+    assert set(rows) == set(in_code) and len(rows) == count
     for key, row in rows.items():
         permission = in_code[key]
         assert permission.scope.value[0].upper() == row["scope"], key
         assert permission.flags == row["flags"], key
         assert permission.roles == row["roles"], key
+        assert permission.accepts_own_reach == row["own"], key
+
+
+def test_every_registered_context_is_checked_against_the_matrix():
+    assert {p.context for p in CATALOGUE.values()} == {"platform", "clients", "billing"}
 
 
 def test_system_role_grants_resolve_from_code():
     assert set(system_role_grants("owner")) == set(CATALOGUE)
     assert "platform.tenant.manage_subscription" not in system_role_grants("admin")  # owner-only
     assert "platform.support_access.grant" not in system_role_grants("admin")  # owner-default
-    assert set(system_role_grants("manager")) == {
+    platform_grants = lambda role: {k for k in system_role_grants(role) if k.startswith("platform.")}  # noqa: E731
+    assert platform_grants("manager") == {
         "platform.location.update", "platform.staff_user.read", "platform.role.read", "platform.audit.read",
         "platform.import_job.read",
     }  # fmt: skip
     for role in ("front_desk", "coach", "league_admin", "scorekeeper", "view_only"):
-        assert system_role_grants(role) == {}
+        assert platform_grants(role) == set()
+    assert system_role_grants("coach")["clients.client.read"] == "own"
+    assert system_role_grants("scorekeeper") == system_role_grants("view_only") == {}
 
 
 @pytest.fixture
@@ -179,7 +194,8 @@ def test_custom_role_lifecycle(client, tenant, people):
         "Bookkeeper",
         "Site Lead",
     )
-    assert len(client.get(f"{API}/roles/{manager_role}", headers=owner).json()["permissions"]) == 5
+    manager_grants = client.get(f"{API}/roles/{manager_role}", headers=owner).json()["permissions"]
+    assert len([g for g in manager_grants if g["permission_key"].startswith("platform.")]) == 5
 
     # System roles are locked; a role in use cannot be deleted.
     for response in (
@@ -214,7 +230,7 @@ def test_overrides_are_sparse_deltas(client, tenant, people):
     view = client.put(f"{url}/permission-overrides", headers=owner, json=grants).json()
     assert view["is_diverged_from_role"] is True
     assert [o["permission_key"] for o in view["overrides"]] == ["platform.staff_user.read"]
-    assert view["effective"] == [
+    assert [e for e in view["effective"] if e["key"].startswith("platform.")] == [
         {
             "key": "platform.staff_user.read",
             "reach": "all",

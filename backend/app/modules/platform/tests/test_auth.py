@@ -150,7 +150,7 @@ def test_invite_accept_activates_the_identity(client, tenant, owner, mailbox):
     created = client.post(f"{API}/staff-users", headers=owner, json=invite)
     assert created.status_code == 201 and created.json()["identity_status"] == "invited"
     token = link_token(mailbox[-1])
-    assert "/auth/accept-invite?token=" in mailbox[-1].body and "7 days" in mailbox[-1].body
+    assert "/auth/accept-invite#token=" in mailbox[-1].body and "7 days" in mailbox[-1].body
     # Invited identities cannot sign in by magic link before accepting.
     client.post(f"{API}/auth/magic-links", headers={"X-Tenant-Slug": tenant.slug}, json={"email": invite["email"]})
     assert len(mailbox) == 1
@@ -160,7 +160,8 @@ def test_invite_accept_activates_the_identity(client, tenant, owner, mailbox):
     )
     assert accepted.status_code == 200
     me = client.get(f"{API}/me", headers=_bearer(accepted)).json()
-    assert me["role"]["system_key"] == "coach" and me["permissions"] == []
+    assert me["role"]["system_key"] == "coach"
+    assert [p for p in me["permissions"] if p["key"].startswith("platform.")] == []
     assert client.post(f"{API}/auth/invitations/accept", json={"token": token}).json()["code"] == "token-invalid"
     assert _sign_in(client, tenant, email=invite["email"], password="cora-coaches-tennis").status_code == 200
     assert client.post(f"{API}/staff-users/{created.json()['id']}/invitation/resend", headers=owner).status_code == 409

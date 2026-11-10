@@ -44,7 +44,7 @@ def mailbox():
 
 
 def link_token(message) -> str:
-    return message.body.split("token=")[1].split()[0].split("&")[0]
+    return message.body.split("#token=")[1].split()[0].split("&")[0]
 
 
 def make_tenant(time_zone: str = "America/Chicago") -> SimpleNamespace:
@@ -117,9 +117,21 @@ def owner(client, tenant):
     return login(client, tenant)
 
 
+def new_client(client, headers, location_id, **fields) -> dict:
+    """A client created through the API. `fields` override the defaults (first_name, primary_email, ...)."""
+    body = {"first_name": "Casey", "last_name": f"Client-{uuid4().hex[:6]}", "home_location_id": str(location_id)}
+    response = client.post("/api/v1/clients", headers=headers, json=body | fields)
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
 def populate(client, tenant) -> SimpleNamespace:
     """Give a tenant at least one row in every tenant-owned table, through the API where one exists."""
+    from datetime import date
+    from decimal import Decimal
+
     from app.core.events import ProcessedEvent
+    from app.modules import billing, clients
 
     headers = login(client, tenant)
     location = client.post(
@@ -146,9 +158,42 @@ def populate(client, tenant) -> SimpleNamespace:
     with tenant_session(tenant.id) as session:
         session.add(ProcessedEvent(consumer_name="tests.populate", event_id=uuid4()))
     session_id = client.get("/api/v1/auth/session", headers=headers).json()["id"]
+
+    # clients skeleton and billing kernel: a taxed charge, invoiced, paid by card with an overpayment that is
+    # then refunded, which touches every billing table including both ledger tables.
+    person = new_client(client, headers, location["id"], primary_email=f"casey@{tenant.slug}.example.com")
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        identity = Identity(kind="client", email=person["primary_email"], status="active")
+        session.add(identity)
+        session.flush()
+        clients.service.link_identity(session, person["id"], identity.id)
+        tax = billing.service.create_tax(
+            session, code="ST", label="Sales tax", rate=Decimal("0.0825"), effective_from_on=date(2020, 1, 1)
+        )
+        category = billing.service.create_revenue_category(session, code="RENT", label="Rentals", tax_ids=[tax.id])
+        category_id = str(category.id)
+
+    def post(path: str, body: dict, key: str | None = None) -> dict:
+        response = client.post(f"/api/v1{path}", json=body, headers=headers | ({"Idempotency-Key": key} if key else {}))
+        assert response.status_code in (200, 201), response.text
+        return response.json()
+
+    charge = post("/charges", {
+        "client_id": person["id"], "location_id": location["id"], "description": "Court hire",
+        "unit_price_minor": 2000, "revenue_category_id": category_id,
+    })  # fmt: skip
+    invoice = post("/invoices", {"charge_ids": [charge["id"]]})
+    payment = post("/payments", {
+        "client_id": person["id"], "location_id": location["id"], "amount_minor": charge["total_minor"] + 500,
+        "tender_kind": "card", "method_token": "tok_card_ok", "invoice_id": invoice["id"],
+    }, key=f"populate-pay-{uuid4().hex}")  # fmt: skip
+    post(
+        f"/payments/{payment['id']}/refunds", {"amount_minor": 500, "reason": "Overpaid"}, key=f"populate-{uuid4().hex}"
+    )
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
-        session_id=session_id,
+        session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
+        payment_id=payment["id"], revenue_category_id=category_id,
     )  # fmt: skip
 
 

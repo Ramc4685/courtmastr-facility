@@ -13,6 +13,7 @@ from app.core.db.session import tenant_session
 from app.core.settings import get_settings
 from app.modules.platform import service, staff
 from app.modules.platform.models import Identity, Location, StaffUser, UserLocationAccess
+from seeds import billing, clients
 
 TENANT = {"name": "Courtside Demo Club", "slug": "courtside-demo", "default_time_zone": "America/Chicago"}
 PASSWORD = "courtside-demo-2026"  # dev-only, documented; the seed refuses to run outside dev and test
@@ -76,7 +77,7 @@ def seed() -> None:
                 session.add(
                     UserLocationAccess(staff_user_id=user.id, location_id=locations["downtown"].id, is_primary=True)
                 )
-        # One client identity so the second principal kind can sign in; its profile arrives with the clients context.
+        # The client-kind identity; seeds/clients.py links it to its client record.
         if f"member@{DOMAIN}" not in existing:
             session.add(
                 Identity(
@@ -88,6 +89,10 @@ def seed() -> None:
                     password_changed_at=clock.now(),
                 )
             )
+        # One file per context, lowest layer first (docs/dev/module-playbook.md step 9). Each is idempotent.
+        session.flush()
+        for context in (clients, billing):
+            context.seed(session)
     print(f"Seeded tenant {TENANT['name']} ({TENANT['slug']}), id {tenant_id}")
 
 

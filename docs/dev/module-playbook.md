@@ -8,6 +8,59 @@ example for every step is the platform module: `backend/app/modules/platform/` a
 One build module may contain two contexts (module 2 is `resources` + `scheduling`): run steps 2 to 9 per
 context, lowest layer first.
 
+## Lanes: working in a parallel checkout
+
+Several modules are built at once, each in its own git worktree ("lane") on its own branch, all sharing one
+Postgres, Redis and Mailpit from `make up` in the main checkout.
+
+- A lane's `.env` is the main `.env` plus four variables: `FH_DB_NAME`, `FH_TEST_DB_NAME`, `FH_API_PORT`,
+  `FH_WEB_PORT`. Settings, the Makefile targets, Vite and Playwright all read them (unset = the defaults
+  `facilityhub`, `facilityhub_test`, 8100, 5183). Never run `make up`, `down` or `reset` from a lane.
+- `make lane-db` creates the two databases if missing (owned by `fh_owner`, same roles and grants as the
+  defaults) and migrates both. Run it after adding a migration too. Then `make seed` for the lane's dev data.
+- `make test` uses the lane's test database; `make api`, `make web` and `make web-e2e` use the lane's ports.
+  Do not run `make worker` or `make relay` in a lane: Redis is shared and queues are not per lane. Tests
+  use the in-memory broker and are unaffected.
+- **Migrations.** One linear history, so every lane starts at the same parent (`0002`). Number yours from
+  your lane's block so files never collide: space `01xx`, people `02xx`, money `03xx` (for example
+  `0101_resources_core.py`, revision id `"0101"`, `down_revision = "0002"` for your first). Whoever merges
+  the lanes re-points each lane's first `down_revision` at the previous lane's last revision; that one line
+  is the only edit. Never edit `0001` or `0002`.
+- **Shared files** that every lane touches (`conftest.py` `populate()`, `bootstrap.py`, `main.py`,
+  `migrations/env.py`, `seeds/demo.py`, `App.tsx`, `nav.ts`, `tests/test_isolation.py` `_BODIES`, the
+  parametrize list in `test_rbac.py`, `CLAUDE.md`): add your lines next to the existing ones and change
+  nothing else, so merges stay mechanical. Regenerate `backend/openapi.json` and `schema.d.ts` after a
+  merge rather than merging them by hand.
+
+## Kernel slices you build on (do not re-invent)
+
+Shipped ahead of their modules; details in each module `README.md` and `docs/status/kernel-slice.md`.
+
+- **clients** (`app.modules.clients.service`): `get`, `require_active`, `display_name`, `link_identity`,
+  `client_ids_for_identity`. FK to `client` with `*tfk("client_id", "client")`. Web: `ClientPicker` in
+  `web/src/features/clients/`. Tests: `new_client(client, headers, location_id)` in `conftest.py`.
+- **billing** (`app.modules.billing.service`): `post_charge`, `create_invoice_for_charges`, `take_payment`,
+  `confirm_payment`, `allocate`, `refund`, `reverse`, `default_revenue_category`, `create_revenue_category`,
+  `create_tax`. These are internal functions: no permission check, your use case authorizes. Read the rules
+  in `billing/README.md` before the first call (idempotent origin, payment status is a state, refunds return
+  unapplied money only). FK to `revenue_category` with `tfk`.
+- **platform** (`app.modules.platform.service`): `next_number(session, counter_key)` for gapless per-tenant
+  numbers (`booking_number`, `invoice`, `receipt`, `member_number`); `location_today(session, location_id)`
+  for "today" on the wall at a location.
+- **Notifications** (`app.ports.notifications`): `register_template(key, subject=, body=)` once at import
+  (`$name` placeholders, key `<ctx>.<what>`), then `send(session, key, to, data)`. It goes out after commit,
+  by email in dev (Mailpit) and into the `mailbox` fixture in tests. No consent gate yet: transactional
+  messages only (confirmations, receipts). Engagement replaces the adapter later, not your call.
+- **Shared schema bases**: `from app.core.schemas import In, Out, Page`; operation ids:
+  `generate_unique_id_function=camel_id` from `app.core.api`.
+- **Internal versus staff functions** (ADR 0009 section 9). A function another context calls takes no
+  principal and does not call `authorize`; the staff command that wraps it does. Keep the two apart in
+  `service.py` the way `billing/service.py` does.
+- **Emailed links** carry their token in the URL fragment (`https://app/path#token=...`), never the query
+  string; the landing page reads `window.location.hash` and posts the token (security-baseline 17.2).
+- Every response gets the standard security headers and request bodies are capped at `api.max_body_bytes`
+  (1 MiB): a route that needs more is a design question, not a config change.
+
 ## 0. Before writing code
 
 1. Read, for your context only (grep, do not read whole files):
@@ -150,7 +203,11 @@ Copy the top of `platform/router.py`.
 ## 9. Seed
 
 `backend/seeds/<ctx>.py` with `def seed(session) -> None`, idempotent (look up by a natural key before
-inserting), called from `seed()` in `backend/seeds/demo.py` inside its `tenant_session`. Give the demo tenant
+inserting), called from `seed()` in `backend/seeds/demo.py` inside its `tenant_session`: add your module to
+the `for context in (clients, billing, ...)` tuple there, lowest layer first. The session's actor is the
+system principal (`session.info["actor"]`). `seeds/clients.py` and `seeds/billing.py` are the examples; build
+on their rows (six clients, revenue categories `RENTALS`, `MEMBERSHIPS`, `PROGRAMS`, `RETAIL`) rather than
+creating your own. Give the demo tenant
 enough rows to demo every screen at both locations (they are in different time zones on purpose). Document
 anything a person needs in `docs/dev/demo-accounts.md`. Run `make seed` twice.
 
@@ -234,3 +291,8 @@ cd web && pnpm build
 - Browser-sent unsafe requests must carry an `Origin` equal to the request host or `app.web_base_url`;
   tests that fake a browser must send a matching one.
 - The dev API reloads on file change; the worker and relay do not.
+- Registering permissions changes what seeded roles hold: assertions like "this role has exactly these
+  keys" must filter by context prefix, or the next module breaks them.
+- `SUM()` over a `bigint` column comes back as `Decimal`; wrap it in `int()` before it reaches JSON or audit.
+- A test that sends `Idempotency-Key` must use a fresh key per request: the same key with another body is a
+  422 `idempotency-key-reused`, which can mask the error you meant to assert.

@@ -6,6 +6,8 @@ from sqlalchemy import create_engine
 import app.core.audit  # noqa: F401  (table definitions)
 import app.core.events  # noqa: F401
 import app.core.idempotency  # noqa: F401
+import app.modules.billing.models  # noqa: F401
+import app.modules.clients.models  # noqa: F401
 import app.modules.platform.models  # noqa: F401
 from app.core.db import Base
 from app.core.settings import get_settings

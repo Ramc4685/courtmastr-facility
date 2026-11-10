@@ -11,7 +11,11 @@ from app.core.db.base import GLOBAL_TABLES
 
 TENANT_TABLES = sorted(set(Base.metadata.tables) - GLOBAL_TABLES)
 # Tables that are never updated may omit updated_at (overview 3.4).
-NO_UPDATED_AT = {"audit_event", "outbox_event", "processed_event", "idempotency_key"}
+NO_UPDATED_AT = {
+    "audit_event", "outbox_event", "processed_event", "idempotency_key", "ledger_transaction", "ledger_entry",
+}  # fmt: skip
+# SELECT and INSERT only: the grant model, not code review, keeps logs and the ledger immutable.
+APPEND_ONLY = {"audit_event", "ledger_transaction", "ledger_entry"}
 
 
 def _catalog(sql: str, **params):
@@ -69,8 +73,9 @@ def test_app_role_grants():
         )
         return {r[0] for r in rows}
 
-    assert privileges("audit_event") == {"SELECT", "INSERT"}  # append-only
+    for name in APPEND_ONLY:
+        assert privileges(name) == {"SELECT", "INSERT"}, name
     assert privileges("tenant") == {"SELECT", "UPDATE"}  # provisioning is fh_platform's job
     assert privileges("subscription_plan") == {"SELECT"}
-    for name in set(TENANT_TABLES) - {"audit_event"}:
+    for name in set(TENANT_TABLES) - APPEND_ONLY:
         assert privileges(name) == {"SELECT", "INSERT", "UPDATE", "DELETE"}, name
