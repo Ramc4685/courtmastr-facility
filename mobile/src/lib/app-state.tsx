@@ -15,7 +15,7 @@ import { buildTheme, type TenantBrand, type Theme } from './theme';
 
 export type AuthStatus = 'loading' | 'noTenant' | 'signedOut' | 'locked' | 'signedIn';
 
-type AppState = {
+export type AppState = {
   status: AuthStatus;
   tenant: Tenant | null;
   principal: Principal | null;
@@ -25,11 +25,14 @@ type AppState = {
   signIn(email: string, password: string): Promise<void>;
   requestMagicLink(email: string): Promise<void>;
   consumeMagicLink(token: string): Promise<void>;
+  /** True when this device asked for a sign-in link recently; other links need explicit confirmation (login CSRF). */
+  magicLinkExpected(): Promise<boolean>;
   signOut(): Promise<void>;
   unlocked(): void;
 };
 
 const Ctx = createContext<AppState | null>(null);
+const MAGIC_LINK_WINDOW_MS = 20 * 60_000;
 const TENANT_KEY = 'fh.tenant';
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
@@ -42,12 +45,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => subscribeSession(() => setPrincipal(activeSession()?.principal ?? null)), []);
 
-  const activate = useCallback(async (next: Tenant, { lock }: { lock: boolean }) => {
+  // Any activation with a stored session re-applies the biometric lock, so a deep link (t/<slug>) can never
+  // skip unlock. Only unlocked() clears it, after a successful LocalAuthentication check.
+  const activate = useCallback(async (next: Tenant) => {
     resetClients();
     setTenant(next);
     setBrand(await cachedBrand(next.slug));
     const session = await loadSession(next.slug);
-    setLocked(lock && !!session && (await biometricEnabled()));
+    setLocked(!!session && (await biometricEnabled()));
     void fetchBrand(next.slug).then((fresh) => fresh && setBrand({ brand: fresh, source: 'tenant' }));
   }, []);
 
@@ -55,7 +60,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     (async () => {
       const pinned = config.pinnedTenant ? { slug: config.pinnedTenant, name: config.pinnedTenant, city: null } : null;
       const saved = pinned ?? (await readJson<Tenant>(TENANT_KEY));
-      if (saved && normaliseSlug(saved.slug)) await activate(saved, { lock: true });
+      if (saved && normaliseSlug(saved.slug)) await activate(saved);
       else if (saved) {
         console.warn('Ignoring a saved facility with an invalid code');
         await removeKey(TENANT_KEY);
@@ -74,7 +79,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       selectTenant: async (next) => {
         await writeJson(TENANT_KEY, next);
         await clearQueryCache();
-        await activate(next, { lock: false });
+        await activate(next);
       },
       leaveTenant: async () => {
         await removeKey(TENANT_KEY);
@@ -85,9 +90,17 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       signIn: async (email, password) => {
         await auth.signInWithPassword(tenant!.slug, email, password);
       },
-      requestMagicLink: (email) => auth.requestMagicLink(email),
+      requestMagicLink: async (email) => {
+        await auth.requestMagicLink(email);
+        await writeJson(`fh.magicRequested.${tenant!.slug}`, Date.now());
+      },
+      magicLinkExpected: async () => {
+        const at = await readJson<number>(`fh.magicRequested.${tenant!.slug}`);
+        return typeof at === 'number' && Date.now() - at < MAGIC_LINK_WINDOW_MS;
+      },
       consumeMagicLink: async (token) => {
         await auth.consumeMagicLink(tenant!.slug, token);
+        await removeKey(`fh.magicRequested.${tenant!.slug}`);
       },
       signOut: async () => {
         const slug = tenant!.slug;

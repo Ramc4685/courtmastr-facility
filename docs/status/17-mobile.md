@@ -49,7 +49,8 @@ app code.
 |---|---|---|---|
 | Typed API client from `backend/openapi.json` (`pnpm gen:api`, `make mobile-api`), problem+json errors, 401 refresh-and-retry | `src/api/*` | `auth.test.ts`, `adapters.test.ts` | done |
 | Secure token storage (SecureStore only; the persisted query cache holds no tokens) | `src/lib/session.ts` | `auth.test.ts` | done |
-| Magic-link token from the URL fragment only, used once, route replaced; `?token=` refused; paste field | `src/lib/auth.ts`, `src/app/auth/magic-link.tsx` | `auth.test.ts` | done (security-baseline 17.2) |
+| Magic-link token from the URL fragment only, used once, route replaced; `?token=` refused; paste field. A link this device did not request in the last 20 minutes needs explicit confirmation (login CSRF) | `src/lib/auth.ts`, `src/app/auth/magic-link.tsx`, `src/lib/app-state.tsx` | `auth.test.ts`, `app-state.test.tsx` | done (security-baseline 17.2) |
+| Biometric lock is re-applied on every tenant activation, so a `t/<slug>` deep link cannot skip unlock | `src/lib/app-state.tsx` | `app-state.test.tsx` | done |
 | Offline-aware data: TanStack Query persisted to AsyncStorage, NetInfo and AppState managers, offline banner | `src/lib/query.ts`, `src/ui/kit.tsx` | indirectly | done |
 | Notifications inbox with server-synced read state | `src/app/inbox.tsx` | `adapters.test.ts` | partial: waits on `listPortalInbox`, `markPortalInboxItemRead` |
 | Memberships and packages view | `src/app/memberships.tsx` | none | partial: waits on `portalListMembershipContracts`, `portalListClientPackages` |
@@ -59,7 +60,7 @@ app code.
 ## Verification
 
 - `make mobile-check`: `tsc --noEmit` and ESLint, clean.
-- `make mobile-test`: 4 suites, 34 tests, all passing (auth, offline card, household switching, adapters and theme contrast).
+- `make mobile-test`: 5 suites, 36 tests, all passing (auth, offline card, household switching, adapters and theme contrast).
 - iOS Simulator (iPhone 18 Pro, Expo Go) against the lane API on :8150. Signed in as
   `member@courtside-demo.example.com`, then walked facility search, both tenant themes, home, household
   switch, schedule, booking (with the push soft prompt), card (self and dependent), my bookings, more,

@@ -40,7 +40,8 @@ tokens end in `.DEMO`. Flip `EXPO_PUBLIC_PORTAL_ADAPTER=api` once those endpoint
 
 Tokens live only in `expo-secure-store` (`fh.session.<slug>`); TanStack Query's persisted cache in AsyncStorage
 holds no tokens. Emailed sign-in links carry the token in the URL fragment; the app reads it from the fragment,
-consumes it once and replaces the route so it never stays in navigation state. Links with `?token=` are refused.
+consumes it once and replaces the route so it never stays in navigation state. Links with `?token=` are refused, and a link this device did not ask for in the last 20 minutes is used only after
+the person confirms (login CSRF). Every tenant activation re-applies the biometric lock, deep links included.
 The paste-a-link field covers links opened on another device. Payments send only a saved payment-method id.
 
 ## Commands
