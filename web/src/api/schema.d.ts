@@ -6829,6 +6829,27 @@ export interface components {
             /** Low Stock Alert Email */
             low_stock_alert_email?: string | null;
         };
+        /**
+         * PosTenderType
+         * @description billing's tender type, as the register needs it (contexts do not share schema modules).
+         */
+        PosTenderType: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Enabled */
+            is_enabled: boolean;
+            /** Is Processed */
+            is_processed: boolean;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /** Sort Order */
+            sort_order: number;
+        };
         /** PrincipalOut */
         PrincipalOut: {
             /**
@@ -7324,7 +7345,7 @@ export interface components {
             register: components["schemas"]["RegisterOut"];
             settings: components["schemas"]["PosSettingsOut"];
             /** Tender Types */
-            tender_types: components["schemas"]["app__modules__pos__schemas__TenderTypeOut"][];
+            tender_types: components["schemas"]["PosTenderType"][];
         };
         /** RegisterUpdate */
         RegisterUpdate: {
@@ -8271,6 +8292,29 @@ export interface components {
              */
             sort_order: number;
         };
+        /** TenderTypeOut */
+        TenderTypeOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Enabled */
+            is_enabled: boolean;
+            /** Is Optional */
+            is_optional: boolean;
+            /** Is Processed */
+            is_processed: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "card" | "bank_debit" | "cash" | "cheque" | "bank_transfer" | "gift_card" | "external" | "other";
+            /** Label */
+            label: string;
+            /** Sort Order */
+            sort_order: number;
+        };
         /** TenderTypeUpdate */
         TenderTypeUpdate: {
             /** Is Enabled */
@@ -8328,29 +8372,6 @@ export interface components {
             /** Invoice Id */
             invoice_id: string | null;
         };
-        /** TenderTypeOut */
-        app__modules__billing__schemas__TenderTypeOut: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Is Enabled */
-            is_enabled: boolean;
-            /** Is Optional */
-            is_optional: boolean;
-            /** Is Processed */
-            is_processed: boolean;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "card" | "bank_debit" | "cash" | "cheque" | "bank_transfer" | "gift_card" | "external" | "other";
-            /** Label */
-            label: string;
-            /** Sort Order */
-            sort_order: number;
-        };
         /** ReasonRequest */
         app__modules__pos__schemas__ReasonRequest: {
             /** Reason */
@@ -8378,27 +8399,6 @@ export interface components {
             total_minor: number;
             /** Unit Price Minor */
             unit_price_minor: number;
-        };
-        /**
-         * TenderTypeOut
-         * @description billing's tender type, as the register needs it (contexts do not share schema modules).
-         */
-        app__modules__pos__schemas__TenderTypeOut: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Is Enabled */
-            is_enabled: boolean;
-            /** Is Processed */
-            is_processed: boolean;
-            /** Kind */
-            kind: string;
-            /** Label */
-            label: string;
-            /** Sort Order */
-            sort_order: number;
         };
     };
     responses: never;
@@ -16190,7 +16190,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__modules__billing__schemas__TenderTypeOut"][];
+                    "application/json": components["schemas"]["TenderTypeOut"][];
                 };
             };
             /** @description Validation Error */
@@ -16226,7 +16226,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__modules__billing__schemas__TenderTypeOut"];
+                    "application/json": components["schemas"]["TenderTypeOut"];
                 };
             };
             /** @description Validation Error */
@@ -16264,7 +16264,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__modules__billing__schemas__TenderTypeOut"];
+                    "application/json": components["schemas"]["TenderTypeOut"];
                 };
             };
             /** @description Validation Error */

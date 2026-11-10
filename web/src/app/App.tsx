@@ -26,6 +26,12 @@ import { PaymentPage, ReceiptPage } from '../features/billing/PaymentPage'
 import { BillingSettingsPage } from '../features/billing/SettingsPage'
 import { SetupPage } from '../features/billing/SetupPage'
 import { WorkbenchPage } from '../features/billing/WorkbenchPage'
+import { DrawersPage, EquipmentPage, PosReportsPage } from '../features/pos/OperationsPages'
+import { ProductsPage } from '../features/pos/ProductsPage'
+import { RegisterPage, RegisterPickerPage } from '../features/pos/RegisterPage'
+import { PosReceiptPage, SaleDetailPage, SalesPage } from '../features/pos/SalesPage'
+import { PosSetupPage } from '../features/pos/SetupPage'
+import { PosLayout } from '../features/pos/shared'
 import { AppFrame } from './AppFrame'
 import { RequireClient, RequirePermission, RequireStaff } from './guards'
 
@@ -52,6 +58,7 @@ export function AppRoutes() {
       <Route path="/portal/*" element={<RequireClient><PortalHome /></RequireClient>} />
       <Route path="/billing/invoices/:id/document" element={<RequireStaff><RequirePermission permission="billing.invoice.read"><InvoiceDocumentPage /></RequirePermission></RequireStaff>} />
       <Route path="/billing/payments/:id/receipt" element={<RequireStaff><RequirePermission permission="billing.payment.read"><ReceiptPage /></RequirePermission></RequireStaff>} />
+      <Route path="/pos/sales/:id/receipt" element={<RequireStaff><RequirePermission permission="pos.sale.read"><PosReceiptPage /></RequirePermission></RequireStaff>} />
       <Route element={<RequireStaff><AppFrame /></RequireStaff>}>
         <Route index element={<DashboardPage />} />
         <Route path="locations" element={<LocationsPage />} />
@@ -72,6 +79,17 @@ export function AppRoutes() {
           <Route path="coupons" element={<CouponsPage />} />
           <Route path="setup" element={<SetupPage />} />
           <Route path="settings" element={<RequirePermission permission="billing.settings.manage"><BillingSettingsPage /></RequirePermission>} />
+        </Route>
+        <Route path="pos" element={<RequirePermission permission="pos.sale.read"><PosLayout /></RequirePermission>}>
+          <Route index element={<RequirePermission permission="pos.sale.create"><RegisterPickerPage /></RequirePermission>} />
+          <Route path="register/:registerId" element={<RequirePermission permission="pos.sale.create"><RegisterPage /></RequirePermission>} />
+          <Route path="sales" element={<SalesPage />} />
+          <Route path="sales/:id" element={<SaleDetailPage />} />
+          <Route path="products" element={<ProductsPage />} />
+          <Route path="equipment" element={<RequirePermission permission="pos.equipment.rent"><EquipmentPage /></RequirePermission>} />
+          <Route path="drawers" element={<RequirePermission permission="pos.drawer.operate"><DrawersPage /></RequirePermission>} />
+          <Route path="reports" element={<PosReportsPage />} />
+          <Route path="setup" element={<RequirePermission permission="pos.register.manage"><PosSetupPage /></RequirePermission>} />
         </Route>
         {import.meta.env.DEV && (
           <Route path="dev/client-picker" element={<RequirePermission permission="clients.client.read"><ClientPickerDemo /></RequirePermission>} />
