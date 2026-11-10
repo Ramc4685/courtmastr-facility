@@ -229,7 +229,8 @@ def mark_invoice_paid(session: Session, principal: Principal, invoice_id: UUID, 
     payment = service.take_payment(
         session, client_id=invoice.bill_to_client_id, location_id=invoice.location_id,
         amount_minor=invoice.balance_minor, tender_kind="external", invoice_id=invoice.id,
-        external_reference=data.get("external_reference"), memo=data.get("memo"), idempotency_key=f"mark-paid:{key}",
+        external_reference=data.get("external_reference"), memo=data.get("memo"),
+        idempotency_key=f"mark-paid:{principal.actor_id}:{key}",
     )  # fmt: skip
     return service._payment_detail(session, payment)
 
@@ -314,5 +315,9 @@ def refund_account_credit(session: Session, principal: Principal, client_id: UUI
     authorize(principal, "billing.refund.create")
     clients.service.get(session, client_id)
     return service.refund_credit(
-        session, client_id, amount_minor=data["amount_minor"], reason=data["reason"], idempotency_key=key
+        session,
+        client_id,
+        amount_minor=data["amount_minor"],
+        reason=data["reason"],
+        idempotency_key=f"staff:{principal.actor_id}:{key}",
     )

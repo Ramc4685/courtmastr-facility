@@ -1,6 +1,7 @@
-"""Demo billing set-up: tenders, a sales tax, revenue categories, and one paid invoice with change on account."""
+"""Demo billing set-up: tenders, a sales tax, revenue categories, one paid invoice with change on account,
+and for build module 8 a coupon, a stored card and an open three-instalment autopay invoice."""
 
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import NAMESPACE_URL, uuid5
 
@@ -8,7 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules import billing
-from app.modules.billing.models import Payment
+from app.modules.billing.domain import schedule
+from app.modules.billing.models import Charge, Coupon, Payment, PaymentMethod
 from app.modules.clients.models import Client
 
 # (code, label, taxed?)
@@ -43,3 +45,21 @@ def seed(session: Session) -> None:
             session, client_id=morgan.id, location_id=morgan.home_location_id, amount_minor=5000,
             tender_kind="cash", invoice_id=invoice.id, external_reference="SEED-0001",
         )  # fmt: skip
+
+    billing.catalogue.settings_for(session)  # the tenant's settings row, with the documented defaults
+    if session.scalar(select(Coupon.id).where(Coupon.code == "WELCOME10")) is None:
+        session.add(
+            Coupon(name="Welcome 10%", code="WELCOME10", starts_at=datetime(2026, 1, 1, tzinfo=UTC), discount_pct=10)
+        )
+    if session.scalar(select(PaymentMethod.id).where(PaymentMethod.client_id == morgan.id)) is None:
+        billing.methods.attach_method(session, morgan.id, "tok_card_ok")  # the fake processor's test card
+    plan_origin = uuid5(NAMESPACE_URL, "courtside-demo/charge/2")
+    if session.scalar(select(Charge.id).where(Charge.source_id == plan_origin)) is None:
+        term = service.post_charge(
+            session, client_id=morgan.id, location_id=morgan.home_location_id, description="Winter clinic, 12 weeks",
+            unit_price_minor=36000, revenue_category_id=categories["PROGRAMS"].id, source_context="seeds",
+            source_type="demo_charge", source_id=plan_origin,
+        )  # fmt: skip
+        invoice = service.create_invoice_for_charges(session, [term.id], is_autopay=True)
+        plan = schedule.generate(invoice.total_minor, invoice.invoice_on, 1, "month", 3)
+        service.set_schedule(session, invoice.id, plan, basis={"seed": "three monthly instalments"})

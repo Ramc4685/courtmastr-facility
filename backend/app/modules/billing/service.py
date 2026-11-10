@@ -163,7 +163,9 @@ def take_payment_at_desk(session: Session, principal: Principal, data: dict, ide
     _location_in_scope(session, principal, data["location_id"])
     data = dict(data)
     allocations = [(row["charge_id"], row["amount_minor"]) for row in data.pop("allocations", None) or []]
-    payment = take_payment(session, **data, allocations=allocations or None, idempotency_key=idempotency_key)
+    payment = take_payment(
+        session, **data, allocations=allocations or None, idempotency_key=_staff_key(principal, idempotency_key)
+    )
     return _payment_detail(session, payment)
 
 
@@ -200,7 +202,13 @@ def create_refund(
 ) -> Refund:
     payment = _get(session, Payment, payment_id)
     authorize(principal, "billing.refund.create", location_id=payment.location_id)
-    return refund(session, payment_id, **data, idempotency_key=idempotency_key)
+    return refund(session, payment_id, **data, idempotency_key=_staff_key(principal, idempotency_key))
+
+
+def _staff_key(principal: Principal, idempotency_key: str | None) -> str | None:
+    """A caller's Idempotency-Key is only unique to that caller (the HTTP layer scopes it the same way), so
+    two people who happen to send the same key must never be handed each other's payment or refund."""
+    return f"staff:{principal.actor_id}:{idempotency_key}" if idempotency_key else None
 
 
 def list_ledger_entries(session: Session, principal: Principal, query: ListQuery) -> dict:
@@ -1240,7 +1248,8 @@ def void_invoice(session: Session, invoice_id: UUID, *, reason: str, release_all
         raise Conflict("Payments are applied to this invoice; release them to void it.", code="invoice-has-payments")
     was = invoice.status
     invoice.status, invoice.voided_at, invoice.void_reason = "voided", clock.now(), reason
-    invoice.voided_by_staff_user_id, invoice.balance_minor = _staff_id(session), 0
+    # Totals are projections of the invoice's items, and a voided invoice has none.
+    invoice.voided_by_staff_user_id, invoice.total_minor, invoice.balance_minor = _staff_id(session), 0, 0
     invoice.past_due_since_on, invoice.dunning_state, invoice.next_attempt_on = None, "none", None
     invoice.version += 1
     session.flush()
@@ -1441,7 +1450,10 @@ def _provider_account(session: Session) -> ProviderAccount:
     stmt = select(ProviderAccount).where(ProviderAccount.status == "active", ProviderAccount.location_id.is_(None))
     account = session.execute(stmt).scalar_one_or_none()
     if account is None:
-        if get_settings().payments.provider != "fake":
+        # The fake connects itself, but only for a tenant that never had an account: one that was
+        # disconnected stays disconnected until an Owner connects a processor again.
+        ever = session.scalar(select(func.count()).select_from(ProviderAccount))
+        if get_settings().payments.provider != "fake" or ever:
             raise Conflict("No payment processor is connected.", code="processor-not-connected")
         tenant_id = session.info["tenant_id"]
         session.execute(

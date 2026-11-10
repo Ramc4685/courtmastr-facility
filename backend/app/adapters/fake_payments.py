@@ -92,7 +92,7 @@ class FakeProvider:
     # --- accounts, customers, stored methods -----------------------------------------------------------------
 
     def create_account(self, *, tenant_ref: str, email: str, country: str, currency: str) -> AccountState:
-        return self.get_account(account_ref=f"fake_acct_{tenant_ref.replace('-', '')}")
+        return self.get_account(account_ref=f"fake_acct_{tenant_ref.replace('-', '')}_{uuid4().hex[:8]}")
 
     def get_account(self, *, account_ref: str) -> AccountState:
         return AccountState(account_ref, "active", has_card=True, has_bank_debit=True, is_payouts_enabled=True)
