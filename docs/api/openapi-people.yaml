@@ -6409,9 +6409,21 @@ components:
           type: [string, 'null']
         emails:
           type: array
-          items: {$ref: '#/components/schemas/ClientEmail'}
+          items: {$ref: '#/components/schemas/PortalClientEmailInput'}
         custom_values: {type: object, additionalProperties: true}
       required: [version]
+    PortalClientEmailInput:
+      type: object
+      additionalProperties: false
+      description: Portal-settable email fields only. The server owns id and verified_at; an address added or changed
+        through the portal is unverified until the double opt-in link is confirmed, and cannot be primary or used for
+        sign-in until then.
+      properties:
+        email: {type: string, format: email}
+        label:
+          type: [string, 'null']
+        is_primary: {type: boolean, description: accepted only for an already-verified address; else 422}
+      required: [email]
     DependentCreate:
       type: object
       description: Creates a client without its own login plus an active relationship (FAM-02).

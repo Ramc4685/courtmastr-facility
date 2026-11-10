@@ -7676,15 +7676,12 @@ components:
     PortalRegistrationCheckoutCreate:
       type: object
       additionalProperties: false
-      description: Open a portal cart. The payer is bound to the acting identity.
+      description: Open a portal cart. The payer is always the acting identity's own client (not settable); registrants on
+        the items may be the caller or dependents the caller can act for. Every confirm path (card, stored method,
+        pay_later, autopay) charges or bills that same payer.
       required: [location_id]
       properties:
         location_id: {type: string, format: uuid}
-        account_client_id:
-          type: string
-          format: uuid
-          description: payer; omitted = the caller's own client; given, must satisfy can_act_for(identity, account_client_id,
-            buy), else 403
         items: {type: array, items: {$ref: '#/components/schemas/CheckoutItemInput'}}
     CheckoutConfirm:
       type: object
