@@ -20,7 +20,7 @@ WallTime = Annotated[str, StringConstraints(pattern=r"^([01]\d|2[0-3]):[0-5]\d$"
 Ids = Annotated[list[UUID], Field(max_length=500)]
 
 
-class TenderTypeOut(Out):
+class PosTenderType(Out):
     """billing's tender type, as the register needs it (contexts do not share schema modules)."""
 
     id: UUID
@@ -618,7 +618,7 @@ class RegisterSession(Out):
     location: dict
     settings: PosSettingsOut
     drawer_session: DrawerSessionOut | None
-    tender_types: list[TenderTypeOut]
+    tender_types: list[PosTenderType]
     discount_presets: list[DiscountPresetOut]
     draft_sale_id: UUID | None
     draft_sale: PosSaleDetail | None

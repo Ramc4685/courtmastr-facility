@@ -10699,6 +10699,46 @@
         "title": "PosSettingsWrite",
         "type": "object"
       },
+      "PosTenderType": {
+        "description": "billing's tender type, as the register needs it (contexts do not share schema modules).",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_enabled": {
+            "title": "Is Enabled",
+            "type": "boolean"
+          },
+          "is_processed": {
+            "title": "Is Processed",
+            "type": "boolean"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "is_processed",
+          "is_enabled",
+          "sort_order"
+        ],
+        "title": "PosTenderType",
+        "type": "object"
+      },
       "PrincipalOut": {
         "properties": {
           "client_ids": {
@@ -12355,7 +12395,7 @@
           },
           "tender_types": {
             "items": {
-              "$ref": "#/components/schemas/app__modules__pos__schemas__TenderTypeOut"
+              "$ref": "#/components/schemas/PosTenderType"
             },
             "title": "Tender Types",
             "type": "array"
@@ -15270,6 +15310,60 @@
         "title": "TenderTypeCreate",
         "type": "object"
       },
+      "TenderTypeOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_enabled": {
+            "title": "Is Enabled",
+            "type": "boolean"
+          },
+          "is_optional": {
+            "title": "Is Optional",
+            "type": "boolean"
+          },
+          "is_processed": {
+            "title": "Is Processed",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "card",
+              "bank_debit",
+              "cash",
+              "cheque",
+              "bank_transfer",
+              "gift_card",
+              "external",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "is_processed",
+          "is_optional",
+          "is_enabled",
+          "sort_order"
+        ],
+        "title": "TenderTypeOut",
+        "type": "object"
+      },
       "TenderTypeUpdate": {
         "additionalProperties": false,
         "properties": {
@@ -15455,60 +15549,6 @@
         "title": "ReceiptLine",
         "type": "object"
       },
-      "app__modules__billing__schemas__TenderTypeOut": {
-        "properties": {
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "is_enabled": {
-            "title": "Is Enabled",
-            "type": "boolean"
-          },
-          "is_optional": {
-            "title": "Is Optional",
-            "type": "boolean"
-          },
-          "is_processed": {
-            "title": "Is Processed",
-            "type": "boolean"
-          },
-          "kind": {
-            "enum": [
-              "card",
-              "bank_debit",
-              "cash",
-              "cheque",
-              "bank_transfer",
-              "gift_card",
-              "external",
-              "other"
-            ],
-            "title": "Kind",
-            "type": "string"
-          },
-          "label": {
-            "title": "Label",
-            "type": "string"
-          },
-          "sort_order": {
-            "title": "Sort Order",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id",
-          "kind",
-          "label",
-          "is_processed",
-          "is_optional",
-          "is_enabled",
-          "sort_order"
-        ],
-        "title": "TenderTypeOut",
-        "type": "object"
-      },
       "app__modules__pos__schemas__ReasonRequest": {
         "additionalProperties": false,
         "properties": {
@@ -15581,46 +15621,6 @@
           "returned_quantity"
         ],
         "title": "ReceiptLine",
-        "type": "object"
-      },
-      "app__modules__pos__schemas__TenderTypeOut": {
-        "description": "billing's tender type, as the register needs it (contexts do not share schema modules).",
-        "properties": {
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "is_enabled": {
-            "title": "Is Enabled",
-            "type": "boolean"
-          },
-          "is_processed": {
-            "title": "Is Processed",
-            "type": "boolean"
-          },
-          "kind": {
-            "title": "Kind",
-            "type": "string"
-          },
-          "label": {
-            "title": "Label",
-            "type": "string"
-          },
-          "sort_order": {
-            "title": "Sort Order",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id",
-          "kind",
-          "label",
-          "is_processed",
-          "is_enabled",
-          "sort_order"
-        ],
-        "title": "TenderTypeOut",
         "type": "object"
       }
     }
@@ -31775,7 +31775,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/app__modules__billing__schemas__TenderTypeOut"
+                    "$ref": "#/components/schemas/TenderTypeOut"
                   },
                   "title": "Response Listtendertypes",
                   "type": "array"
@@ -31838,7 +31838,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/app__modules__billing__schemas__TenderTypeOut"
+                  "$ref": "#/components/schemas/TenderTypeOut"
                 }
               }
             },
@@ -31910,7 +31910,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/app__modules__billing__schemas__TenderTypeOut"
+                  "$ref": "#/components/schemas/TenderTypeOut"
                 }
               }
             },
