@@ -1610,7 +1610,9 @@ def change_capacity(session: Db, principal: Principal, session_ids: list[UUID], 
 
 
 def _window(start: datetime, end: datetime) -> None:
-    if start.tzinfo is None or end.tzinfo is None or end <= start or end - start > timedelta(days=MAX_CALENDAR_DAYS):
+    # The extra hour lets a 42-local-day month grid span a clock change (it is then 42 days and 1 hour of UTC).
+    widest = timedelta(days=MAX_CALENDAR_DAYS, hours=1)
+    if start.tzinfo is None or end.tzinfo is None or end <= start or end - start > widest:
         raise ValidationFailed(
             f"Send from < to with UTC offsets, at most {MAX_CALENDAR_DAYS} days apart.", pointer="/to"
         )

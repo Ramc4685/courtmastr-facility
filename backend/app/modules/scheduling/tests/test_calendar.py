@@ -85,6 +85,8 @@ def test_calendar_is_one_tile_per_booking_and_column_with_colour_fill_and_legend
     )  # half-open: an 11:00 end is not in 11:00 to 12:00
     too_wide = client.get(f"{API}/calendar?location_id={f.location}&from={at(0)}&to={at(24 * 43)}", headers=owner)
     assert too_wide.status_code == 422
+    # A six-week month grid across the autumn clock change is 42 days and one hour of UTC: still one window.
+    calendar(client, owner, f, "2026-10-26T00:00:00-05:00", "2026-12-07T00:00:00-06:00")
     assert (
         client.get(
             f"{API}/calendar?location_id={f.location}&from={at(0)}&to={at(24)}&resource_id[in]=nope", headers=owner
