@@ -1,0 +1,33 @@
+# Local infrastructure only. Host ports are deliberately non-default to avoid clashes.
+name: facilityhub
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: ${FH_POSTGRES_PASSWORD:?set in .env}
+      FH_DB_OWNER_PASSWORD: ${FH_DB_OWNER_PASSWORD:?set in .env}
+      FH_DB_APP_PASSWORD: ${FH_DB_APP_PASSWORD:?set in .env}
+      FH_DB_PLATFORM_PASSWORD: ${FH_DB_PLATFORM_PASSWORD:?set in .env}
+      TZ: UTC
+    ports: ["127.0.0.1:55432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d facilityhub"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    ports: ["127.0.0.1:56379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  mailpit:
+    image: axllent/mailpit:latest
+    ports: ["127.0.0.1:51025:1025", "127.0.0.1:58025:8025"]
+volumes:
+  pgdata:

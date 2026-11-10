@@ -1,0 +1,47 @@
+# Non-secret configuration. Secrets come from environment variables only (see .env.example).
+# An optional config/app.<FH_ENV>.yaml is deep-merged over this file.
+app:
+  display_name: Courtmastr Facility   # the product's display name lives here and nowhere else
+  code_name: facilityhub
+  web_base_url: http://localhost:5183 # links in emails point at the web app
+  base_domain: localhost              # tenants get <slug>.<base_domain>
+api:
+  host: 127.0.0.1
+  port: 8100
+db:
+  host: 127.0.0.1
+  port: 55432
+  name: facilityhub
+  pool_size: 10
+redis:
+  url: redis://127.0.0.1:56379/0
+email:
+  adapter: smtp                       # smtp | memory
+  smtp_host: 127.0.0.1
+  smtp_port: 51025                    # Mailpit; UI on http://localhost:58025
+  from_address: no-reply@facilityhub.localhost
+  log_links: true                     # dev convenience: also log emailed sign-in links
+jobs:
+  broker: redis                       # redis | stub
+auth:
+  access_ttl_min: 30
+  refresh_grace_sec: 20
+  magic_link_ttl_min: 15
+  password_reset_ttl_min: 60
+  invite_ttl_days: 7
+  lockout_threshold: 10
+  lockout_min: 15
+  password_min_length: 12
+  cookie_secure: false                # true behind TLS
+  argon2: {memory_kib: 65536, time_cost: 3, parallelism: 4}
+  sessions:                           # idle slides on refresh; absolute does not (ADR 0002 section 4)
+    staff_web:     {idle_hours: 12,   absolute_days: 7}
+    staff_mobile:  {idle_hours: 12,   absolute_days: 7}
+    client_web:    {idle_hours: 720,  absolute_days: 180}
+    client_mobile: {idle_hours: 2160, absolute_days: 400}
+rate_limit:
+  enabled: true
+  auth_per_minute: 20                 # per client IP, per auth endpoint
+audit:
+  retention_days: 730                 # standard class, 24 months
+  retention_days_long: 2557           # role and permission changes, 7 years

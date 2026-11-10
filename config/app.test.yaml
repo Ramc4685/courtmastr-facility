@@ -1,0 +1,11 @@
+db:
+  name: facilityhub_test
+email:
+  adapter: memory
+  log_links: false
+jobs:
+  broker: stub
+auth:
+  argon2: {memory_kib: 1024, time_cost: 1, parallelism: 1}
+rate_limit:
+  enabled: false

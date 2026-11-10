@@ -18,3 +18,5 @@ htmlcov/
 graphify-out/
 .expo/
 *.log
+test-results/
+playwright-report/
