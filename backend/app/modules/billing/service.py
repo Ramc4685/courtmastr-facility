@@ -319,6 +319,7 @@ def post_charge(
     service_starts_on: date | None = None,
     service_ends_on: date | None = None,
     coupon_id: UUID | None = None,
+    tax_ids: Iterable[UUID] | None = None,
 ) -> Charge:
     """Create a receivable and post it to the ledger (debit receivable; credit revenue and each tax).
 
@@ -328,7 +329,8 @@ def post_charge(
 
     Amounts: net = round(quantity * unit_price) - discount, half-up once at the line; each tax mapped to the
     revenue category (minus exclude_tax_ids) is computed on the net at the rate in force on revenue_on.
-    Dates default to today at the location. A zero-total charge is recorded but posts nothing.
+    Dates default to today at the location. A zero-total charge is recorded but posts nothing. `tax_ids`
+    replaces the revenue category's taxes with these (a POS product's own tax codes), at the same rates.
     """
     origin = (
         Charge.source_context == source_context, Charge.source_type == source_type, Charge.source_id == source_id,
@@ -361,7 +363,7 @@ def post_charge(
     taxes = [
         ChargeTax(tax_id=tax_id, rate=rate, is_excluded=tax_id in excluded,
                   amount_minor=0 if tax_id in excluded else tax_amount(net, rate))
-        for tax_id, rate in _taxes_in_force(session, category.id, revenue_on)
+        for tax_id, rate in taxes_in_force(session, revenue_on, revenue_category_id=category.id, tax_ids=tax_ids)
     ]  # fmt: skip
     tax_total = sum(row.amount_minor for row in taxes)
     charge = Charge(
@@ -723,6 +725,17 @@ def take_payment(
         },
     )  # fmt: skip
     return payment
+
+
+def find_payment(session: Session, idempotency_key: str) -> Payment | None:
+    """Internal: the payment taken with this Idempotency-Key, locked, or None (a caller's replay check)."""
+    return _payment_by_key(session, idempotency_key)
+
+
+def refundable_minor(session: Session, payment_id: UUID) -> int:
+    """Internal: what refund() can still return from this payment (its settled, unapplied remainder)."""
+    payment = _lock(session, Payment, payment_id)
+    return payment.unapplied_minor if payment.status == "succeeded" else 0
 
 
 def _payment_by_key(session: Session, idempotency_key: str | None) -> Payment | None:
@@ -1402,15 +1415,21 @@ def _charge_ref(charge: Charge) -> dict:
     }  # fmt: skip
 
 
-def _taxes_in_force(session: Session, revenue_category_id: UUID, on: date) -> list[tuple[UUID, Decimal]]:
-    """(tax_id, rate) for each tax mapped to the category that applies on the date: not deactivated by then,
-    with the latest rate whose effective_from_on is not after it. A tax with no rate yet does not apply."""
-    taxes = session.scalars(
-        select(Tax)
-        .join(RevenueCategoryTax, RevenueCategoryTax.tax_id == Tax.id)
-        .where(RevenueCategoryTax.revenue_category_id == revenue_category_id)
-        .order_by(Tax.code)
-    )
+def taxes_in_force(
+    session: Session, on: date, *, revenue_category_id: UUID | None = None, tax_ids: Iterable[UUID] | None = None
+) -> list[tuple[UUID, Decimal]]:
+    """(tax_id, rate) for each tax mapped to the category (or each of `tax_ids`, when given) that applies on
+    the date: not deactivated by then, with the latest rate whose effective_from_on is not after it. A tax with
+    no rate yet does not apply. Internal: other contexts quote the tax a charge will carry with it."""
+    if tax_ids is not None:
+        taxes = session.scalars(select(Tax).where(Tax.id.in_(list(tax_ids))).order_by(Tax.code))
+    else:
+        taxes = session.scalars(
+            select(Tax)
+            .join(RevenueCategoryTax, RevenueCategoryTax.tax_id == Tax.id)
+            .where(RevenueCategoryTax.revenue_category_id == revenue_category_id)
+            .order_by(Tax.code)
+        )
     in_force = []
     for tax in taxes:
         if tax.deactivated_on is not None and on >= tax.deactivated_on:

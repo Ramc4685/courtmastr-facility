@@ -27,7 +27,12 @@ def bootstrap() -> None:
         payment_provider.register(StripeConnectProvider.from_environment(settings.payments.stripe))
 
     # Importing a context registers its permission catalogue, models and event subscribers.
-    from app.modules import billing, clients, platform  # noqa: F401
+    from app.modules import (  # noqa: F401
+        billing,
+        clients,
+        platform,
+        pos,  # noqa: F401
+    )
 
     deps.set_authenticator(platform.auth.authenticate)
     _done = True

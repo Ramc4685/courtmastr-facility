@@ -114,6 +114,29 @@ _BODIES = {
     "updatePaymentMethod": {"is_autopay": True},
     "verifyBankAccount": {"amounts": [32, 45]},
     "updatePortalPaymentMethod": {"is_autopay": True},
+    # pos (build module 9)
+    "updateRegister": {"name": "Renamed"},
+    "putRegisterFavorites": {"product_ids": []},
+    "openDrawerSession": {"opening_float_minor": 0},
+    "closeDrawerSession": {"counted_cash_minor": 0},
+    "reconcileDrawerSession": {},
+    "openDrawerNoSale": {"reason": "Change"},
+    "updateProductCategory": {"name": "Renamed"},
+    "updateProductBrand": {"name": "Renamed"},
+    "updateProductSupplier": {"name": "Renamed"},
+    "updateProduct": {"name": "Renamed"},
+    "updateDiscountPreset": {"name": "Renamed"},
+    "updateEquipmentCategory": {"name": "Renamed"},
+    "updateEquipmentItem": {"name": "Renamed"},
+    "returnEquipment": {"outcome": "lost"},
+    "updatePosSale": {"version": 1},
+    "addPosSaleLine": lambda a: {"product_id": a.product_id},
+    "updatePosSaleLine": {"quantity": 1},
+    "addPosSaleDiscount": {"source": "custom", "discount_minor": 1},
+    "addPosSaleTender": {"tender": "pay_later", "amount_minor": 1},
+    "sendPosReceipt": {"channel": "print"},
+    "createPosReturn": lambda a: {"lines": [{"pos_sale_line_id": a.pos_sale_line_id, "quantity": 1}]},
+    "voidPosSale": {"reason": "Mistake"},
 }
 # Generated from the OpenAPI document, so a new route with an id parameter is tested without being listed.
 _ID_ROUTES = [
@@ -152,6 +175,8 @@ def test_every_id_route_is_covered():
         "/invoices", "/payments", "/revenue-categories", "/ledger-entries",
         "/taxes", "/coupons", "/payment-methods", "/autopay-runs", "/autopay-attempts", "/refunds",
         "/billing-notices", "/billing-history",
+        "/registers", "/products", "/product-categories", "/pos-sales", "/drawer-sessions", "/stock-movements",
+        "/equipment-items", "/equipment-loans", "/discount-presets",
     ],
 )  # fmt: skip
 def test_api_lists_never_include_the_other_tenant(client, two_tenants, path):
@@ -202,6 +227,14 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
         ("/payments", payment | {"allocations": [{"charge_id": b.charge_id, "amount_minor": 1}]}),
         (f"/payments/{a.payment_id}/allocations", {"invoice_id": b.invoice_id}),
         (f"/payments/{a.payment_id}/allocations", {"allocations": [{"charge_id": b.charge_id, "amount_minor": 1}]}),
+        ("/registers", {"location_id": b.location_id, "name": "X"}),
+        ("/pos-sales", {"register_id": b.register_id}),
+        ("/stock-movements", {"product_id": b.product_id, "location_id": a.location_id, "kind": "adjustment",
+                              "quantity_delta": 1, "reason": "other"}),
+        ("/products", {"product_category_id": b.product_category_id, "name": "X", "product_code": "X-iso",
+                       "unit_price_minor": 1}),
+        ("/equipment-items", {"equipment_category_id": a.equipment_category_id, "location_id": b.location_id,
+                              "name": "X", "asset_code": "X-iso"}),
     )):  # fmt: skip
         response = post(path, body, index)
         assert (response.status_code, response.json()["code"]) == (422, "validation-failed"), (

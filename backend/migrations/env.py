@@ -10,6 +10,7 @@ import app.core.inbound_webhooks  # noqa: F401
 import app.modules.billing.models  # noqa: F401
 import app.modules.clients.models  # noqa: F401
 import app.modules.platform.models  # noqa: F401
+import app.modules.pos.models  # noqa: F401
 from app.core.db import Base
 from app.core.settings import get_settings
 

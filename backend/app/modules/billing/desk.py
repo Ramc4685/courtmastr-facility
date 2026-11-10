@@ -83,7 +83,7 @@ def preview_charge(session: Session, principal: Principal, data: dict) -> dict:
     taxes = [
         {"tax_id": tax_id, "rate": rate, "is_excluded": tax_id in excluded,
          "amount_minor": 0 if tax_id in excluded else tax_amount(net, rate)}
-        for tax_id, rate in service._taxes_in_force(session, category.id, on)
+        for tax_id, rate in service.taxes_in_force(session, on, revenue_category_id=category.id)
     ]  # fmt: skip
     tax_total = sum(row["amount_minor"] for row in taxes)
     return {"net_minor": net, "tax_minor": tax_total, "total_minor": net + tax_total, "taxes": taxes}
