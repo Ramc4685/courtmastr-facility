@@ -459,3 +459,48 @@ class AuthSession(TenantOwned, Timestamps, Base):
     ip: Mapped[Any | None] = mapped_column(INET)
     user_agent: Mapped[str | None]
     last_seen_at: Mapped[datetime | None]
+
+
+# --- 2.6 Data-subject requests (IMP-04, PLT-16) --------------------------------------------------------------
+
+
+class DsrKind(StrEnum):
+    EXPORT = "export"
+    ERASURE = "erasure"
+
+
+class DsrStatus(StrEnum):
+    REQUESTED = "requested"
+    BLOCKED = "blocked"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    REJECTED = "rejected"
+    FAILED = "failed"
+
+
+class DataSubjectRequest(TenantOwned, Timestamps, Base):
+    """A personal-data export or erasure for one client; each context contributes through registered handlers
+    (app.modules.platform.privacy). `result_file_id` waits for stored_file: the export bundle is built on read."""
+
+    __tablename__ = "data_subject_request"
+    __table_args__ = tenant_args(
+        *tfk("client_id", "client"),
+        *tfk("requested_by_staff_user_id", "staff_user"),
+        enum_check("kind", DsrKind),
+        enum_check("status", DsrStatus),
+        CheckConstraint(
+            "kind <> 'erasure' OR status IN ('requested', 'blocked', 'rejected') OR confirmed_at IS NOT NULL",
+            name="confirm",
+        ),
+    )
+
+    client_id: Mapped[UUID]
+    kind: Mapped[str] = enum_column()
+    status: Mapped[str] = enum_column(server_default=text("'requested'"))
+    requested_by_staff_user_id: Mapped[UUID]
+    reason: Mapped[str | None]
+    confirmed_at: Mapped[datetime | None]
+    blockers: Mapped[list] = mapped_column(JsonDict, server_default=text("'[]'"))
+    is_blocker_override: Mapped[bool] = mapped_column(server_default=text("false"))
+    handler_results: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))
+    completed_at: Mapped[datetime | None]

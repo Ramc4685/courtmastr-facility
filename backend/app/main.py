@@ -12,7 +12,10 @@ def create_app() -> FastAPI:
     logging.configure()
     bootstrap()
     from app.modules.billing.router import router as billing_router
+    from app.modules.clients.router import public as clients_public
     from app.modules.clients.router import router as clients_router
+    from app.modules.engagement.router import router as engagement_router
+    from app.modules.platform.privacy_router import router as privacy_router
     from app.modules.platform.router import API_PREFIX, router
 
     app = FastAPI(
@@ -24,6 +27,8 @@ def create_app() -> FastAPI:
     )
     api.install(app)
     for each in (router, clients_router, billing_router):
+        app.include_router(each, prefix=API_PREFIX)
+    for each in (clients_public, engagement_router, privacy_router):
         app.include_router(each, prefix=API_PREFIX)
     return app
 

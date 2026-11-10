@@ -190,11 +190,57 @@ def populate(client, tenant) -> SimpleNamespace:
     post(
         f"/payments/{payment['id']}/refunds", {"amount_minor": 500, "reason": "Overpaid"}, key=f"populate-{uuid4().hex}"
     )
+    people = _populate_people(client, headers, tenant, location["id"], person["id"])
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
         session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
-        payment_id=payment["id"], revenue_category_id=category_id,
+        payment_id=payment["id"], revenue_category_id=category_id, **people,
     )  # fmt: skip
+
+
+def _populate_people(client, headers, tenant, location_id, person_id) -> dict:
+    """Module 4 tables: client configuration, households, activity, merge, consent and a data subject request."""
+
+    def call(method: str, path: str, body: dict | None = None) -> dict:
+        response = client.request(method, f"/api/v1{path}", json=body, headers=headers)
+        assert response.status_code in (200, 201), response.text
+        return response.json() if response.content else {}
+
+    category = call("POST", "/client-categories", {"name": "Gold"})
+    referral = call("POST", "/referral-categories", {"name": "Friend"})
+    tag = call("GET", "/tags")[0]
+    field = call("POST", "/custom-fields", {"key": "shirt_size", "label": "Shirt size"})
+    call("PUT", "/client-field-policies", {"policies": [
+        {"field_key": "organization_name", "capture_context": "portal", "requirement": "hidden"}]})  # fmt: skip
+    call("GET", "/client-settings")
+    call("GET", f"/client-location-settings/{location_id}")
+    call("PATCH", f"/clients/{person_id}", {
+        "client_category_id": category["id"], "referral_category_id": referral["id"], "tag_ids": [tag["id"]],
+        "custom_values": {"shirt_size": "M"}, "phone_mobile": "+15555550100",
+    })  # fmt: skip
+    call("PUT", f"/clients/{person_id}/emergency-contacts", {"contacts": [{"name": "Robin", "phone": "+15555550101"}]})
+    parent_of = next(t for t in call("GET", "/relationship-types") if t["code"] == "parent_of")
+    kid = new_client(client, headers, location_id, first_name="Kit")
+    relationship = call("POST", f"/clients/{person_id}/relationships",
+                        {"other_client_id": kid["id"], "relationship_type_id": parent_of["id"]})  # fmt: skip
+    subject = call("POST", "/note-subjects", {"label": "Follow-up"})
+    note = call("POST", f"/clients/{person_id}/notes", {"kind": "call", "note_subject_id": subject["id"], "body": "Hi"})
+    task = call("POST", "/client-tasks", {"client_id": person_id, "subject_text": "Call back"})
+    alert = call("POST", f"/clients/{person_id}/alerts", {"message": "Peanut allergy", "kind": "medical"})
+    duplicate = new_client(client, headers, location_id, first_name="Kit", last_name=kid["last_name"])
+    call("POST", f"/clients/{kid['id']}/merge", {"merged_client_ids": [duplicate["id"]]})
+    call("PUT", f"/clients/{person_id}/communication-preferences", {
+        "changes": [{"channel": "sms", "address": "+15555550100", "topic": "sms_marketing", "is_subscribed": True}],
+        "basis": "express_written", "note": "Signed the desk form",
+    })  # fmt: skip
+    request = call("POST", "/data-subject-requests", {"client_id": person_id, "kind": "export"})
+    email_id = call("GET", f"/clients/{person_id}")["emails"][0]["id"]
+    return {
+        "client_category_id": category["id"], "referral_category_id": referral["id"], "tag_id": tag["id"],
+        "custom_field_id": field["id"], "relationship_type_id": parent_of["id"], "relationship_id": relationship["id"],
+        "note_subject_id": subject["id"], "note_id": note["id"], "task_id": task["id"], "alert_id": alert["id"],
+        "request_id": request["id"], "email_id": email_id, "kid_id": kid["id"],
+    }  # fmt: skip
 
 
 @pytest.fixture(scope="session")

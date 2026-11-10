@@ -29,7 +29,7 @@ seed: .env          ## idempotent demo data (docs/dev/demo-accounts.md)
 
 test: .env          ## full suite against the Compose Postgres, then the 80% gate on domain logic
 	$(UV) pytest
-	$(UV) coverage report --fail-under=80 --include='app/modules/*/service.py,app/modules/*/auth.py,app/modules/*/staff.py,app/modules/*/rbac.py,app/modules/*/domain/*,app/core/ids.py,app/core/pagination.py'
+	$(UV) coverage report --fail-under=80 --include='app/modules/*/service.py,app/modules/clients/households.py,app/modules/clients/activity.py,app/modules/clients/merge.py,app/modules/platform/privacy.py,app/modules/*/auth.py,app/modules/*/staff.py,app/modules/*/rbac.py,app/modules/*/domain/*,app/core/ids.py,app/core/pagination.py'
 
 lint:               ## ruff lint and format check
 	$(UV) ruff check . && uv run ruff format --check .

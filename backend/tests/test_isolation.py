@@ -45,9 +45,15 @@ def test_no_cross_tenant_write(two_tenants, table):
         except DBAPIError as exc:
             assert "permission denied" in str(exc)  # append-only tables refuse the verb outright
     # Take one of A's own rows, give it a new id and B's tenant_id, and try to insert it.
+    with tenant_session(a) as session:  # generated columns (search keys) cannot be inserted
+        columns = ", ".join(session.scalars(text(
+            "SELECT quote_ident(column_name) FROM information_schema.columns "
+            "WHERE table_name = :t AND is_generated = 'NEVER' ORDER BY ordinal_position"
+        ), {"t": table}))  # fmt: skip
     forged = (
-        f"INSERT INTO {table} SELECT (jsonb_populate_record(NULL::{table}, to_jsonb(r) || "
-        f"jsonb_build_object('id', app.uuid_v7(), 'tenant_id', CAST(:b AS uuid)))).* FROM {table} r LIMIT 1"
+        f"INSERT INTO {table} ({columns}) SELECT {columns} FROM jsonb_populate_record(NULL::{table}, "
+        f"(SELECT to_jsonb(r) || jsonb_build_object('id', app.uuid_v7(), 'tenant_id', CAST(:b AS uuid)) "
+        f"FROM {table} r LIMIT 1))"
     )
     with pytest.raises(DBAPIError, match="row-level security"), tenant_session(a) as session:
         session.execute(text(forged), {"b": b})
@@ -86,7 +92,36 @@ _BODIES = {
     "reverseCharge": {"reason": "Mistake"},
     "allocatePayment": {},
     "createRefund": {"amount_minor": 1, "reason": "Mistake"},
+    # clients (module 4)
+    "updateClient": {"first_name": "Renamed"},
+    "replaceClientEmergencyContacts": {"contacts": []},
+    "assignClientMemberNumber": {},
+    "assignClientOwners": {},
+    "updateClientCategory": {"name": "Renamed"},
+    "updateReferralCategory": {"name": "Renamed"},
+    "updateTag": {"label": "Renamed"},
+    "updateCustomField": {"label": "Renamed"},
+    "updateClientLocationSettings": {"is_portal_photo_edit_enabled": True},
+    "updateRelationshipType": {"label": "Renamed"},
+    "createClientRelationship": "relationship",
+    "inviteClientToPortal": {},
+    "portalUpdateClient": {"city": "Elsewhere"},
+    "portalReplaceEmergencyContacts": {"contacts": []},
+    "updateNoteSubject": {"label": "Renamed"},
+    "createClientNote": {"kind": "call", "subject_text": "Hi"},
+    "updateClientNote": {"body": "Renamed"},
+    "updateClientTask": {"body": "Renamed"},
+    "createClientAlert": {"message": "Hi"},
+    "updateClientAlert": {"message": "Renamed"},
+    "precheckClientMerge": "merge",
+    "mergeClients": "merge",
+    "putClientCommunicationPreferences": "preferences",
+    "putPortalCommunicationPreferences": {
+        "changes": [{"channel": "push", "topic": "league_alerts", "is_subscribed": True}]
+    },
+    "confirmDataSubjectRequest": {"confirmation": "ERASE"},
 }
+_PREFERENCES = {"changes": [{"channel": "push", "topic": "league_alerts", "is_subscribed": True}], "note": "x"}
 # Generated from the OpenAPI document, so a new route with an id parameter is tested without being listed.
 _ID_ROUTES = [
     (method.upper(), path, operation["operationId"])
@@ -104,6 +139,12 @@ def test_api_foreign_tenant_id_is_404(client, two_tenants, method, path, name):
     body = _BODIES.get(name)
     if body == "role":
         body = {"role_id": a.role_id}  # A's own role, so only the path id is foreign
+    elif body == "relationship":
+        body = {"other_client_id": a.kid_id, "relationship_type_id": a.relationship_type_id}
+    elif body == "merge":
+        body = {"merged_client_ids": [a.kid_id]}
+    elif body == "preferences":
+        body = _PREFERENCES
     response = client.request(method, url, headers=a.headers | {"Idempotency-Key": f"iso-{name}-key"}, json=body)
     assert response.status_code == 404, response.text
     assert response.json()["code"] == "not-found"
@@ -119,7 +160,8 @@ def test_every_id_route_is_covered():
     "path",
     [
         "/locations", "/staff-users", "/roles", "/audit-events?limit=200", "/auth/sessions", "/clients", "/charges",
-        "/invoices", "/payments", "/revenue-categories", "/ledger-entries",
+        "/invoices", "/payments", "/revenue-categories", "/ledger-entries", "/client-categories", "/tags",
+        "/note-subjects", "/client-tasks", "/data-subject-requests", "/relationship-types", "/custom-fields",
     ],
 )  # fmt: skip
 def test_api_lists_never_include_the_other_tenant(client, two_tenants, path):
@@ -130,7 +172,8 @@ def test_api_lists_never_include_the_other_tenant(client, two_tenants, path):
     ids = {row["id"] for row in rows}
     assert not ids & {
         b.location_id, b.staff_user_id, b.role_id, b.session_id, b.client_id, b.charge_id, b.invoice_id,
-        b.payment_id, b.revenue_category_id,
+        b.payment_id, b.revenue_category_id, b.client_category_id, b.tag_id, b.note_subject_id, b.task_id,
+        b.request_id, b.relationship_type_id, b.custom_field_id,
     }  # fmt: skip
     theirs = client.get(f"/api/v1{path}", headers=b.headers).json()
     theirs = theirs["data"] if isinstance(theirs, dict) else theirs
@@ -170,6 +213,15 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
         ("/payments", payment | {"allocations": [{"charge_id": b.charge_id, "amount_minor": 1}]}),
         (f"/payments/{a.payment_id}/allocations", {"invoice_id": b.invoice_id}),
         (f"/payments/{a.payment_id}/allocations", {"allocations": [{"charge_id": b.charge_id, "amount_minor": 1}]}),
+        ("/clients", person | {"client_category_id": b.client_category_id}),
+        ("/clients", person | {"tag_ids": [b.tag_id]}),
+        (f"/clients/{a.client_id}/relationships", {"other_client_id": b.client_id, "relationship_type_id": a.relationship_type_id}),
+        (f"/clients/{a.client_id}/relationships", {"other_client_id": a.kid_id, "relationship_type_id": b.relationship_type_id}),
+        ("/client-tasks", {"client_id": b.client_id, "subject_text": "x"}),
+        ("/client-tasks", {"client_id": a.client_id, "subject_text": "x", "assignee_staff_user_id": b.staff_user_id}),
+        (f"/clients/{a.client_id}/notes", {"kind": "call", "note_subject_id": b.note_subject_id}),
+        (f"/clients/{a.client_id}/merge-precheck", {"merged_client_ids": [b.client_id]}),
+        ("/data-subject-requests", {"client_id": b.client_id, "kind": "export"}),
     )):  # fmt: skip
         response = post(path, body, index)
         assert (response.status_code, response.json()["code"]) == (422, "validation-failed"), (
