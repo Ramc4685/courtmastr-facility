@@ -191,10 +191,11 @@ def populate(client, tenant) -> SimpleNamespace:
         f"/payments/{payment['id']}/refunds", {"amount_minor": 500, "reason": "Overpaid"}, key=f"populate-{uuid4().hex}"
     )
     people = _populate_people(client, headers, tenant, location["id"], person["id"])
+    documents = _populate_documents(client, headers, tenant, location["id"], person)
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
         session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
-        payment_id=payment["id"], revenue_category_id=category_id, **people,
+        payment_id=payment["id"], revenue_category_id=category_id, **people, **documents,
     )  # fmt: skip
 
 
@@ -241,6 +242,48 @@ def _populate_people(client, headers, tenant, location_id, person_id) -> dict:
         "note_subject_id": subject["id"], "note_id": note["id"], "task_id": task["id"], "alert_id": alert["id"],
         "request_id": request["id"], "email_id": email_id, "kid_id": kid["id"],
     }  # fmt: skip
+
+
+def verify_email(tenant, client_id, address: str) -> None:
+    from sqlalchemy import update
+
+    from app.modules.clients.models import ClientEmail
+
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        session.execute(
+            update(ClientEmail)
+            .where(ClientEmail.client_id == client_id, ClientEmail.email == address)
+            .values(verified_at=clock.now())
+        )
+
+
+def _populate_documents(client, headers, tenant, location_id, person) -> dict:
+    """Module 7 tables: settings, a published template with a binding, an accepted document (acceptance, status,
+    rendered file) and a pending one sent by email (delivery)."""
+
+    def call(method: str, path: str, body: dict | None = None) -> dict:
+        response = client.request(method, f"/api/v1{path}", json=body, headers=headers)
+        assert response.status_code in (200, 201), response.text
+        return response.json() if response.content else {}
+
+    call("PATCH", "/document-settings", {"email_link_ttl_hours": 72})
+    template = call("POST", "/document-templates", {"name": "Liability waiver", "is_waiver": True})
+    call("PUT", f"/document-templates/{template['id']}/draft",
+         {"body_html": "<p>I, {{client.full_name}}, accept the risks.</p>", "acceptance_text": "I agree."})  # fmt: skip
+    call("POST", f"/document-templates/{template['id']}/publish")
+    binding = call("PUT", "/document-bindings",
+                   {"scope_type": "membership_plan", "scope_id": str(uuid4()), "template_id": template["id"]})  # fmt: skip
+    call("PATCH", f"/document-location-settings/{location_id}", {"is_consent_required": False})
+    issue = {"client_id": person["id"], "location_id": location_id, "template_id": template["id"]}
+    signed = call("POST", "/client-documents", issue | {"acceptance_method": "checkbox"})
+    call("POST", f"/client-documents/{signed['id']}/acceptances", {"content_sha256": signed["content_sha256"], "signers": [
+        {"decision": "accepted", "signer_role": "client", "signer_name": "Casey", "method": "typed_name",
+         "typed_signature": "Casey"}]})  # fmt: skip
+    verify_email(tenant, person["id"], person["primary_email"])
+    pending = call("POST", "/client-documents",
+                   issue | {"acceptance_method": "email_link", "recipient_emails": [person["primary_email"]]})  # fmt: skip
+    return {"template_id": template["id"], "binding_id": binding["id"], "document_id": signed["id"],
+            "pending_document_id": pending["id"]}  # fmt: skip
 
 
 @pytest.fixture(scope="session")

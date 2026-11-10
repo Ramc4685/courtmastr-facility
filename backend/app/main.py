@@ -14,6 +14,8 @@ def create_app() -> FastAPI:
     from app.modules.billing.router import router as billing_router
     from app.modules.clients.router import public as clients_public
     from app.modules.clients.router import router as clients_router
+    from app.modules.documents.router import public as documents_public
+    from app.modules.documents.router import router as documents_router
     from app.modules.engagement.router import router as engagement_router
     from app.modules.platform.privacy_router import router as privacy_router
     from app.modules.platform.router import API_PREFIX, router
@@ -26,9 +28,9 @@ def create_app() -> FastAPI:
         redoc_url=None,
     )
     api.install(app)
-    for each in (router, clients_router, billing_router):
+    for each in (router, clients_router, billing_router, documents_router):
         app.include_router(each, prefix=API_PREFIX)
-    for each in (clients_public, engagement_router, privacy_router):
+    for each in (clients_public, engagement_router, privacy_router, documents_public):
         app.include_router(each, prefix=API_PREFIX)
     return app
 

@@ -98,6 +98,13 @@ def _is_own(client: Client, principal: Principal) -> bool:
     )
 
 
+def reach_filter(principal: Principal, key: str, client_id_column):
+    """For another context's list: None when the caller reaches every client with `key`, otherwise a predicate
+    limiting `client_id_column` to the clients it reaches (own reach). Checks the key."""
+    clause = _reach_clause(principal, key)
+    return None if clause is None else client_id_column.in_(select(Client.id).where(clause))
+
+
 def load(session: Session, principal: Principal, client_id: UUID, key: str) -> Client:
     """The client the caller may act on with `key`: 404 when it does not exist or is outside the caller's reach."""
     clause = _reach_clause(principal, key)

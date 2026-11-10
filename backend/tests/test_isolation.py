@@ -120,7 +120,17 @@ _BODIES = {
         "changes": [{"channel": "push", "topic": "league_alerts", "is_subscribed": True}]
     },
     "confirmDataSubjectRequest": {"confirmation": "ERASE"},
+    # documents (module 7)
+    "updateDocumentTemplate": {"name": "Renamed"},
+    "saveDocumentTemplateDraft": {"body_html": "<p>x</p>", "acceptance_text": "I agree."},
+    "submitClientDocumentAcceptance": "acceptance",
+    "portalSubmitAcceptance": "acceptance",
+    "sendClientDocument": {"recipient_emails": ["x@example.com"]},
+    "setWaiverOverride": {"waiver_override": "on_file"},
+    "updateDocumentLocationSettings": {"is_consent_required": False},
 }
+_ACCEPTANCE = {"content_sha256": "0" * 64, "signers": [
+    {"decision": "accepted", "signer_role": "client", "signer_name": "X", "method": "checkbox"}]}  # fmt: skip
 _PREFERENCES = {"changes": [{"channel": "push", "topic": "league_alerts", "is_subscribed": True}], "note": "x"}
 # Generated from the OpenAPI document, so a new route with an id parameter is tested without being listed.
 _ID_ROUTES = [
@@ -145,6 +155,8 @@ def test_api_foreign_tenant_id_is_404(client, two_tenants, method, path, name):
         body = {"merged_client_ids": [a.kid_id]}
     elif body == "preferences":
         body = _PREFERENCES
+    elif body == "acceptance":
+        body = _ACCEPTANCE
     response = client.request(method, url, headers=a.headers | {"Idempotency-Key": f"iso-{name}-key"}, json=body)
     assert response.status_code == 404, response.text
     assert response.json()["code"] == "not-found"
@@ -173,7 +185,8 @@ def test_api_lists_never_include_the_other_tenant(client, two_tenants, path):
     assert not ids & {
         b.location_id, b.staff_user_id, b.role_id, b.session_id, b.client_id, b.charge_id, b.invoice_id,
         b.payment_id, b.revenue_category_id, b.client_category_id, b.tag_id, b.note_subject_id, b.task_id,
-        b.request_id, b.relationship_type_id, b.custom_field_id,
+        b.request_id, b.relationship_type_id, b.custom_field_id, b.template_id, b.binding_id, b.document_id,
+        b.pending_document_id,
     }  # fmt: skip
     theirs = client.get(f"/api/v1{path}", headers=b.headers).json()
     theirs = theirs["data"] if isinstance(theirs, dict) else theirs
@@ -200,6 +213,8 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
     charge = {"client_id": a.client_id, "location_id": a.location_id, "description": "X", "unit_price_minor": 100}
     payment = {"client_id": a.client_id, "location_id": a.location_id, "amount_minor": 100, "tender_kind": "cash"}
     fresh = post("/charges", charge).json()["id"]  # A's own, still uninvoiced
+    document = {"client_id": a.client_id, "location_id": a.location_id, "template_id": a.template_id,
+                "acceptance_method": "checkbox"}  # fmt: skip
     for index, (path, body) in enumerate((
         ("/clients", person | {"home_location_id": b.location_id}),
         ("/charges", charge | {"client_id": b.client_id}),
@@ -222,6 +237,9 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
         (f"/clients/{a.client_id}/notes", {"kind": "call", "note_subject_id": b.note_subject_id}),
         (f"/clients/{a.client_id}/merge-precheck", {"merged_client_ids": [b.client_id]}),
         ("/data-subject-requests", {"client_id": b.client_id, "kind": "export"}),
+        ("/client-documents", document | {"client_id": b.client_id}),
+        ("/client-documents", document | {"location_id": b.location_id}),
+        ("/client-documents", document | {"template_id": b.template_id}),
     )):  # fmt: skip
         response = post(path, body, index)
         assert (response.status_code, response.json()["code"]) == (422, "validation-failed"), (
@@ -229,6 +247,8 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
             body,
             response.text,
         )
+    foreign_binding = {"scope_type": "program_default", "template_id": b.template_id}
+    assert client.put("/api/v1/document-bindings", headers=a.headers, json=foreign_binding).status_code == 422
 
 
 def test_token_is_bound_to_its_tenant_host(client, two_tenants):

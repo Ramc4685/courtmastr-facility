@@ -300,6 +300,18 @@ def can_act_for(session: Session, identity_id: UUID, client_id: UUID, capability
     return found
 
 
+def guardian_ids(session: Session, client_id: UUID) -> list[UUID]:
+    """Clients holding an active guardianship relationship to `client_id` (they may sign for a minor, DOC-03).
+    Internal: documents calls this when it records a guardian's signature."""
+    types = _types(session)
+    found = []
+    for rel in relationships_of(session, client_id):
+        other = rel.to_client_id if rel.from_client_id == client_id else rel.from_client_id
+        if rel.status == "active" and _side_type(rel, other, types).is_guardianship:
+            found.append(other)
+    return found
+
+
 def actable_client_ids(session: Session, identity_id: UUID) -> list[UUID]:
     """Every client the identity may act for: direct access rows first, then one-hop relationships."""
     rows = _access_rows(session, identity_id)
