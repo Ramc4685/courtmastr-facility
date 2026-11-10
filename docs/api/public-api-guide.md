@@ -39,7 +39,8 @@ sign-in, password changes, creating other keys) refuse keys with `403 api-key-no
 | Over the per-key rate limit | `429 rate-limited` with `Retry-After` |
 
 **Rotation.** Rotating returns a new secret and keeps the old one working for a grace period (24 hours by
-default, `grace_minutes` 0 to 10080), so the partner can deploy the new key without downtime. **Revocation**
+default, `grace_minutes` 0 to 10080), so the partner can deploy the new key without downtime. When someone other than the key's owner rotates it,
+the key becomes theirs and the old secret stops at once. **Revocation**
 takes effect at once. `last_used_at` shows when a key was last seen (updated at most once a minute).
 
 ## Lists and pagination

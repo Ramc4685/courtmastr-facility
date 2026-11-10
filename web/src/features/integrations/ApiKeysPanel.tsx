@@ -118,7 +118,7 @@ export function ApiKeysPanel() {
   const rotate = useMutation({
     mutationFn: (k: ApiKey) => api.post('/api/v1/api-keys/{api_key_id}/rotate', { path: { api_key_id: k.id }, body: { grace_minutes: 1440 } }),
     onSuccess: (k) => {
-      done(`${k.name} rotated. The old secret works for 24 hours.`)
+      done(`${k.name} rotated. ${k.previous_valid_until ? 'The old secret works for 24 hours.' : 'The old secret stopped working.'}`)
       setSecret(k.secret)
     },
     onError: (e) => toast('error', e.message),

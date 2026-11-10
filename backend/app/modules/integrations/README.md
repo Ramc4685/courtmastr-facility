@@ -29,7 +29,7 @@ through `service.adapter_for`.
   creator, and confirmed when they move money (`$`) or set prices (`P`). A location-limited creator must name
   locations inside their own and sees only keys within them. The key's principal is recomputed from the
   creator on every request, so it shrinks with them. Rotating re-binds the key to the person who rotated it,
-  so a new secret never carries someone else's wider reach.
+  so a new secret never carries someone else's wider reach; a rotation by someone else ends the old secret at once.
 - **Keys reach only `require()`-gated routes.** `Authenticated`-only routes such as `/me` answer
   `403 api-key-not-allowed`.
 - **Webhook subscriptions are bounded by the creator.** A type needs its read permission at `all` reach, or a

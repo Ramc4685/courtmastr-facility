@@ -366,6 +366,9 @@ def test_rotation_rebinds_the_key_to_the_rotator(client, tenant, owner):
     email, staff_user_id = add_staff(tenant, "admin", all_locations=True)
     rotated = client.post(f"{API}/api-keys/{key['id']}/rotate", headers=login(client, tenant, email), json={})
     assert rotated.status_code == 200 and rotated.json()["created_by_staff_user_id"] == str(staff_user_id)
+    assert rotated.json()["previous_valid_until"] is None  # a new owner gets no grace period for the old secret
+    assert client.get(f"{API}/clients", headers=_bearer(key["secret"])).status_code == 401
+    assert client.get(f"{API}/clients", headers=_bearer(rotated.json()["secret"])).status_code == 200
 
 
 # --- delivery ----------------------------------------------------------------------------------------------

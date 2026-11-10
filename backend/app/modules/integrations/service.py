@@ -169,6 +169,8 @@ def rotate_api_key(session: Session, principal: Principal, api_key_id: UUID, dat
         raise Conflict("A revoked key cannot be rotated")
     _check_can_hold(principal, row.scopes)
     now, grace = clock.now(), timedelta(minutes=data.get("grace_minutes", 1440))
+    if principal.staff_user_id != row.created_by_staff_user_id:
+        grace = timedelta(0)  # the old secret would otherwise act as the rotator, who may reach further
     if grace:
         row.previous_key_prefix, row.previous_secret_hash = row.key_prefix, row.secret_hash
         row.previous_valid_until = now + grace
