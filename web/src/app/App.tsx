@@ -6,6 +6,7 @@ import { ToastProvider } from '../components/Toast'
 import { SignInPage } from '../features/auth/SignInPage'
 import { ClientPickerDemo } from '../features/clients/ClientPickerDemo'
 import { TokenLinkPage } from '../features/auth/TokenLinkPage'
+import { PayLinkPage } from '../features/billing/PayLinkPage'
 import { PortalHome } from '../features/portal/PortalHome'
 import { AuditLogPage } from '../features/platform/AuditLogPage'
 import { DashboardPage } from '../features/platform/DashboardPage'
@@ -16,6 +17,21 @@ import { StaffUserPage } from '../features/platform/StaffUserPage'
 import { StaffUsersPage } from '../features/platform/StaffUsersPage'
 import { TenantSettingsPage } from '../features/platform/TenantSettingsPage'
 import { AuthProvider } from '../lib/auth'
+import { AgeingPage, AutopayPage } from '../features/billing/AutopayPage'
+import { BillingLayout } from '../features/billing/BillingLayout'
+import { ClientBillingLookupPage, ClientBillingPage } from '../features/billing/ClientBillingPage'
+import { CouponsPage } from '../features/billing/CouponsPage'
+import { InvoiceDocumentPage, InvoicePage } from '../features/billing/InvoicePage'
+import { PaymentPage, ReceiptPage } from '../features/billing/PaymentPage'
+import { BillingSettingsPage } from '../features/billing/SettingsPage'
+import { SetupPage } from '../features/billing/SetupPage'
+import { WorkbenchPage } from '../features/billing/WorkbenchPage'
+import { DrawersPage, EquipmentPage, PosReportsPage } from '../features/pos/OperationsPages'
+import { ProductsPage } from '../features/pos/ProductsPage'
+import { RegisterPage, RegisterPickerPage } from '../features/pos/RegisterPage'
+import { PosReceiptPage, SaleDetailPage, SalesPage } from '../features/pos/SalesPage'
+import { PosSetupPage } from '../features/pos/SetupPage'
+import { PosLayout } from '../features/pos/shared'
 import { AppFrame } from './AppFrame'
 import { RequireClient, RequirePermission, RequireStaff } from './guards'
 
@@ -38,7 +54,11 @@ export function AppRoutes() {
       <Route path="/auth/magic-link" element={<TokenLinkPage purpose="magic-link" />} />
       <Route path="/auth/reset-password" element={<TokenLinkPage purpose="reset-password" />} />
       <Route path="/auth/accept-invite" element={<TokenLinkPage purpose="accept-invite" />} />
+      <Route path="/pay" element={<PayLinkPage />} />
       <Route path="/portal/*" element={<RequireClient><PortalHome /></RequireClient>} />
+      <Route path="/billing/invoices/:id/document" element={<RequireStaff><RequirePermission permission="billing.invoice.read"><InvoiceDocumentPage /></RequirePermission></RequireStaff>} />
+      <Route path="/billing/payments/:id/receipt" element={<RequireStaff><RequirePermission permission="billing.payment.read"><ReceiptPage /></RequirePermission></RequireStaff>} />
+      <Route path="/pos/sales/:id/receipt" element={<RequireStaff><RequirePermission permission="pos.sale.read"><PosReceiptPage /></RequirePermission></RequireStaff>} />
       <Route element={<RequireStaff><AppFrame /></RequireStaff>}>
         <Route index element={<DashboardPage />} />
         <Route path="locations" element={<LocationsPage />} />
@@ -48,6 +68,29 @@ export function AppRoutes() {
         <Route path="roles/:id" element={<RequirePermission permission="platform.role.read"><RoleDetailPage /></RequirePermission>} />
         <Route path="audit" element={<RequirePermission permission="platform.audit.read"><AuditLogPage /></RequirePermission>} />
         <Route path="settings" element={<RequirePermission permission="platform.tenant.update"><TenantSettingsPage /></RequirePermission>} />
+        <Route path="billing" element={<RequirePermission permission="billing.charge.read"><BillingLayout /></RequirePermission>}>
+          <Route index element={<WorkbenchPage />} />
+          <Route path="clients" element={<ClientBillingLookupPage />} />
+          <Route path="clients/:clientId" element={<ClientBillingPage />} />
+          <Route path="invoices/:id" element={<RequirePermission permission="billing.invoice.read"><InvoicePage /></RequirePermission>} />
+          <Route path="payments/:id" element={<RequirePermission permission="billing.payment.read"><PaymentPage /></RequirePermission>} />
+          <Route path="autopay" element={<RequirePermission permission="billing.payment.read"><AutopayPage /></RequirePermission>} />
+          <Route path="receivables" element={<RequirePermission permission="billing.invoice.read"><AgeingPage /></RequirePermission>} />
+          <Route path="coupons" element={<CouponsPage />} />
+          <Route path="setup" element={<SetupPage />} />
+          <Route path="settings" element={<RequirePermission permission="billing.settings.manage"><BillingSettingsPage /></RequirePermission>} />
+        </Route>
+        <Route path="pos" element={<RequirePermission permission="pos.sale.read"><PosLayout /></RequirePermission>}>
+          <Route index element={<RequirePermission permission="pos.sale.create"><RegisterPickerPage /></RequirePermission>} />
+          <Route path="register/:registerId" element={<RequirePermission permission="pos.sale.create"><RegisterPage /></RequirePermission>} />
+          <Route path="sales" element={<SalesPage />} />
+          <Route path="sales/:id" element={<SaleDetailPage />} />
+          <Route path="products" element={<ProductsPage />} />
+          <Route path="equipment" element={<RequirePermission permission="pos.equipment.rent"><EquipmentPage /></RequirePermission>} />
+          <Route path="drawers" element={<RequirePermission permission="pos.drawer.operate"><DrawersPage /></RequirePermission>} />
+          <Route path="reports" element={<PosReportsPage />} />
+          <Route path="setup" element={<RequirePermission permission="pos.register.manage"><PosSetupPage /></RequirePermission>} />
+        </Route>
         {import.meta.env.DEV && (
           <Route path="dev/client-picker" element={<RequirePermission permission="clients.client.read"><ClientPickerDemo /></RequirePermission>} />
         )}

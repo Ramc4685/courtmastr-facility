@@ -21,6 +21,7 @@ ANONYMOUS = {
     "/health/live", "/health/ready", "/public/locations", "/operator/tenants",
     "/auth/sign-in", "/auth/magic-links", "/auth/magic-links/consume", "/auth/password-resets",
     "/auth/password-resets/consume", "/auth/invitations/accept", "/auth/refresh",
+    "/webhooks/{provider}",  # authenticated by the provider's signature, not a session
 }  # fmt: skip
 
 
@@ -145,6 +146,9 @@ def test_platform_role_reaches_only_its_grant_list():
             "AND has_table_privilege('fh_platform', oid, 'SELECT, INSERT, UPDATE, DELETE')"
         )
     }
-    assert granted == {"tenant", "tenant_domain", "subscription_plan", "outbox_event"}
+    assert granted == {
+        "tenant", "tenant_domain", "subscription_plan", "outbox_event",
+        "provider_account_lookup", "inbound_webhook_event",  # global webhook routing tables (overview 3.1)
+    }  # fmt: skip
     with pytest.raises(DBAPIError, match="permission denied"), platform.platform_engine().connect() as conn:
         conn.execute(text("SELECT count(*) FROM identity"))

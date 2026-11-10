@@ -27,7 +27,7 @@ from app.core import clock
 from app.core.ids import new_id
 
 # Tables with no tenant_id by design (overview 3.1). The RLS meta-test fails for anything else without RLS.
-GLOBAL_TABLES = {"tenant", "subscription_plan"}
+GLOBAL_TABLES = {"tenant", "subscription_plan", "provider_account_lookup", "inbound_webhook_event"}
 
 
 def _last_col(constraint, table) -> str:

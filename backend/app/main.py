@@ -14,6 +14,7 @@ def create_app() -> FastAPI:
     from app.modules.billing.router import router as billing_router
     from app.modules.clients.router import router as clients_router
     from app.modules.platform.router import API_PREFIX, router
+    from app.modules.pos.router import router as pos_router
 
     app = FastAPI(
         title=f"{settings.app.display_name} API",
@@ -23,7 +24,7 @@ def create_app() -> FastAPI:
         redoc_url=None,
     )
     api.install(app)
-    for each in (router, clients_router, billing_router):
+    for each in (router, clients_router, billing_router, pos_router):
         app.include_router(each, prefix=API_PREFIX)
     return app
 

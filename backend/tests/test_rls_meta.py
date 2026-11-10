@@ -13,9 +13,10 @@ TENANT_TABLES = sorted(set(Base.metadata.tables) - GLOBAL_TABLES)
 # Tables that are never updated may omit updated_at (overview 3.4).
 NO_UPDATED_AT = {
     "audit_event", "outbox_event", "processed_event", "idempotency_key", "ledger_transaction", "ledger_entry",
+    "billing_notice", "stock_movement",
 }  # fmt: skip
 # SELECT and INSERT only: the grant model, not code review, keeps logs and the ledger immutable.
-APPEND_ONLY = {"audit_event", "ledger_transaction", "ledger_entry"}
+APPEND_ONLY = {"audit_event", "ledger_transaction", "ledger_entry", "billing_notice", "stock_movement"}
 
 
 def _catalog(sql: str, **params):

@@ -24,6 +24,11 @@ Six demo clients (four at Downtown, two at West). Billing: a `SALES` tax of 8.25
 with change left on account. Payments use the fake processor; card and bank tokens that script each outcome
 (`tok_card_ok`, `tok_card_declined`, `tok_ach_ok`, ...) are listed in `backend/app/adapters/fake_payments.py`.
 
+POS (Courtside Downtown): a "Pro shop" category with three stocked products (barcodes `0001000500`,
+`0001000600`, `0001000700`; the tennis balls sit below their reorder level), a `Front desk` register with those
+favourites, a `Staff 10%` discount preset and four `Demo racket` rentals. No drawer is open; sign in as front
+desk and open one from the register screen.
+
 Tenant resolution in development: send `X-Tenant-Slug: courtside-demo`, or call the API as
 `http://courtside-demo.localhost:8100`. Emailed links (magic link, reset, invite) land in Mailpit at
 http://localhost:58025 and are also written to the API log.

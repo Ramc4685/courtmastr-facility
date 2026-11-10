@@ -21,9 +21,18 @@ def bootstrap() -> None:
     notifications.configure(NoopNotifier() if settings.notifications.adapter == "noop" else EmailNotifier())
     if settings.payments.provider == "fake":
         payment_provider.register(FakeProvider())
+    if settings.payments.stripe.enabled:
+        from app.adapters.stripe_connect import StripeConnectProvider
+
+        payment_provider.register(StripeConnectProvider.from_environment(settings.payments.stripe))
 
     # Importing a context registers its permission catalogue, models and event subscribers.
-    from app.modules import billing, clients, platform  # noqa: F401
+    from app.modules import (  # noqa: F401
+        billing,
+        clients,
+        platform,
+        pos,  # noqa: F401
+    )
 
     deps.set_authenticator(platform.auth.authenticate)
     _done = True

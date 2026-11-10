@@ -23,6 +23,14 @@ describe('api client', () => {
     expect(calls[1]?.headers['content-type']).toBe('application/json')
   })
 
+  it('uses a caller-supplied idempotency key so one user action can be retried safely', async () => {
+    const calls = mockFetch({ 'POST /api/v1/locations': { status: 201, body: { id: 'l' } } })
+    const body = { name: 'A', time_zone: 'UTC', country_code: 'US' }
+    await api.post('/api/v1/locations', { body, idempotencyKey: 'k-1' })
+    await api.post('/api/v1/locations', { body, idempotencyKey: 'k-1' })
+    expect(calls.map((c) => c.headers['idempotency-key'])).toEqual(['k-1', 'k-1'])
+  })
+
   it('turns problem+json into ApiError with field errors by pointer', async () => {
     mockFetch({
       'POST /api/v1/locations': {

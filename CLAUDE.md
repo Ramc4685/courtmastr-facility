@@ -112,7 +112,8 @@ per location, WCAG 2.1 AA, docs updated).
 | 5 | Memberships and packages | not started |
 | 6 | Programs and registration | not started |
 | 7 | Waivers | not started |
-| 8 | Billing and payments | kernel only (charge to ledger, fake provider) |
-| 9-17 | POS, check-in, leagues, staff, engagement, assessments, reporting, integrations, mobile | not started |
+| 8 | Billing and payments | backend and staff screens: `docs/status/08-billing-payments{,-web}.md` |
+| 9 | Point of sale and inventory | done, P1s partial: `docs/status/09-pos-inventory.md` |
+| 10-17 | Check-in, leagues, staff, engagement, assessments, reporting, integrations, mobile | not started |
 Known gaps later modules must not assume away: the `README.md` of `platform`, `clients` and `billing`.
 Parallel lanes (worktrees), migration numbering and the kernel service APIs: top of `docs/dev/module-playbook.md`.

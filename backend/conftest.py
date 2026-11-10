@@ -172,6 +172,7 @@ def populate(client, tenant) -> SimpleNamespace:
         )
         category = billing.service.create_revenue_category(session, code="RENT", label="Rentals", tax_ids=[tax.id])
         category_id = str(category.id)
+        tax_id = str(tax.id)
 
     def post(path: str, body: dict, key: str | None = None) -> dict:
         response = client.post(f"/api/v1{path}", json=body, headers=headers | ({"Idempotency-Key": key} if key else {}))
@@ -190,11 +191,106 @@ def populate(client, tenant) -> SimpleNamespace:
     post(
         f"/payments/{payment['id']}/refunds", {"amount_minor": 500, "reason": "Overpaid"}, key=f"populate-{uuid4().hex}"
     )
+    billing_ids = _populate_billing(client, headers, post, person, location, category_id, tax_id, payment)
+    billing_ids |= _populate_pos(client, headers, post, person, location, category_id, tax_id)
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
         session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
-        payment_id=payment["id"], revenue_category_id=category_id,
+        payment_id=payment["id"], revenue_category_id=category_id, tax_id=tax_id, **billing_ids,
     )  # fmt: skip
+
+
+def _populate_billing(client, headers, post, person, location, category_id, tax_id, payment) -> dict:
+    """Build module 8: one row in every billing table it added, and the ids its routes take."""
+
+    def get(path: str):
+        response = client.get(f"/api/v1{path}", headers=headers)
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    def key() -> str:
+        return f"populate-{uuid4().hex}"
+
+    item = {"client_id": person["id"], "location_id": location["id"], "description": "Clinic", "unit_price_minor": 5000}
+    assert client.put("/api/v1/billing-settings", headers=headers, json={}).status_code == 200
+    coupon = post("/coupons", {"name": "Welcome", "code": "WELCOME", "starts_at": "2020-01-01T00:00:00Z",
+                               "discount_pct": "10"})  # fmt: skip
+    method = post(f"/clients/{person['id']}/payment-methods", {"method_token": "tok_card_ok"})  # + provider_customer
+    due = post("/charges", item | {"coupon_code": "WELCOME"})  # + coupon_redemption
+    autopay_invoice = post("/invoices", {"charge_ids": [due["id"]], "is_autopay": True})  # + payment_schedule
+    run = post("/autopay-runs", {"location_id": location["id"]}, key=key())["run"]  # + autopay_attempt
+    attempt = get(f"/autopay-attempts?autopay_run_id={run['id']}")["data"][0]
+    assert attempt["status"] == "succeeded", attempt
+    unpaid = post("/invoices", {"charge_ids": [post("/charges", item)["id"]]})
+    post(f"/invoices/{unpaid['id']}/deliveries", {})  # billing_document_delivery + invoice_pay_link
+    declined = post("/payments", {  # a decline writes the billing_notice
+        "client_id": person["id"], "location_id": location["id"], "amount_minor": 100, "tender_kind": "card",
+        "method_token": "tok_card_declined",
+    }, key=key())  # fmt: skip
+    assert declined["status"] == "failed"
+    return {
+        "tax_rate_id": get(f"/taxes/{tax_id}")["rates"][0]["id"], "tender_type_id": get("/tender-types")[0]["id"],
+        "coupon_id": coupon["id"], "payment_method_id": method["id"], "autopay_run_id": run["id"],
+        "autopay_attempt_id": attempt["id"], "provider_account_id": get("/provider-accounts")[0]["id"],
+        "payment_allocation_id": payment["allocations"][0]["id"], "unpaid_invoice_id": unpaid["id"],
+        "autopay_invoice_id": autopay_invoice["id"],
+    }  # fmt: skip
+
+
+def _populate_pos(client, headers, post, person, location, category_id, tax_id) -> dict:
+    """Build module 9: one row in every pos table, and the ids its routes take."""
+
+    def key() -> str:
+        return f"populate-{uuid4().hex}"
+
+    assert client.put("/api/v1/pos-settings", headers=headers, json={}).status_code == 200
+    category = post("/product-categories", {"name": "Drinks", "revenue_category_id": category_id, "tax_ids": [tax_id]})
+    brand = post("/product-brands", {"name": "Fizz"})
+    supplier = post("/product-suppliers", {"name": "Wholesale Co"})
+    product = post("/products", {
+        "product_category_id": category["id"], "product_brand_id": brand["id"], "product_supplier_id": supplier["id"],
+        "name": "Water", "product_code": "W-1", "sku": "0001", "unit_price_minor": 250, "reorder_level": 2,
+        "is_tax_inherited": False, "tax_ids": [tax_id],
+    })  # fmt: skip
+    post("/stock-movements", {"product_id": product["id"], "location_id": location["id"], "kind": "adjustment",
+                              "quantity_delta": 10, "reason": "new_stock"})  # fmt: skip
+    register = post("/registers", {"location_id": location["id"], "name": "Front desk"})
+    response = client.put(f"/api/v1/registers/{register['id']}/favorites", headers=headers,
+                          json={"product_ids": [product["id"]], "is_favorites_enabled": True})  # fmt: skip
+    assert response.status_code == 200, response.text
+    drawer = post(f"/registers/{register['id']}/drawer-sessions", {"opening_float_minor": 10000})
+    preset = post("/discount-presets", {"name": "Staff", "discount_pct": "10"})
+    gear = post("/equipment-categories", {"name": "Rackets"})
+    item = post("/equipment-items", {
+        "equipment_category_id": gear["id"], "location_id": location["id"], "name": "Racket", "asset_code": "R-1",
+        "rental_fee_minor": 500, "late_fee_minor": 100, "replacement_fee_minor": 5000, "unit_count": 3,
+    })  # fmt: skip
+    sale = post("/pos-sales", {"register_id": register["id"], "client_id": person["id"]})
+    sale = post(f"/pos-sales/{sale['id']}/lines", {"sku": "0001", "quantity": 2})
+    sale = post(f"/pos-sales/{sale['id']}/lines", {"equipment_item_id": item["id"]})
+    sale = post(f"/pos-sales/{sale['id']}/discounts", {"source": "preset", "discount_preset_id": preset["id"]})
+    cash = next(t for t in client.get("/api/v1/tender-types", headers=headers).json() if t["kind"] == "cash")
+    sale = post(f"/pos-sales/{sale['id']}/tenders", {"tender": "payment", "tender_type_id": cash["id"],
+                                                     "amount_minor": sale["total_minor"]}, key=key())  # fmt: skip
+    sale = post(f"/pos-sales/{sale['id']}/complete", {}, key=key())
+    assert sale["status"] == "completed", sale
+    receipt = client.post(
+        f"/api/v1/pos-sales/{sale['id']}/receipt-deliveries", headers=headers, json={"channel": "print"}
+    )
+    assert receipt.status_code == 202, receipt.text
+    product_line = next(line for line in sale["lines"] if line["line_kind"] == "product")
+    pos_return = post(f"/pos-sales/{sale['id']}/returns", {
+        "lines": [{"pos_sale_line_id": product_line["id"], "quantity": 1}], "refund_mode": "cash",
+    }, key=key())  # fmt: skip
+    loan = client.get(f"/api/v1/equipment-loans?client_id={person['id']}", headers=headers).json()["data"][0]
+    return {
+        "product_category_id": category["id"], "product_brand_id": brand["id"], "product_supplier_id": supplier["id"],
+        "product_id": product["id"], "register_id": register["id"], "drawer_session_id": drawer["id"],
+        "discount_preset_id": preset["id"], "equipment_category_id": gear["id"], "equipment_item_id": item["id"],
+        "equipment_loan_id": loan["id"], "pos_sale_id": sale["id"], "pos_sale_line_id": product_line["id"],
+        "pos_sale_discount_id": sale["discounts"][0]["id"], "pos_sale_tender_id": sale["tenders"][0]["id"],
+        "pos_return_id": pos_return["id"],
+    }  # fmt: skip
 
 
 @pytest.fixture(scope="session")

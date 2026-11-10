@@ -58,8 +58,19 @@ class SessionLifetime(BaseModel):
     absolute_days: int
 
 
+class Stripe(BaseModel):
+    """Stripe Connect adapter. Off by default; keys come from the environment only (FH_STRIPE_SECRET_KEY,
+    FH_STRIPE_WEBHOOK_SECRET), never from a file."""
+
+    enabled: bool = False
+    api_base: str = "https://api.stripe.com"
+    timeout_seconds: float = 20.0
+
+
 class Payments(BaseModel):
-    provider: str = "fake"  # fake | none; a real processor is connected per tenant (build module 8)
+    provider: str = "fake"  # fake | none: the in-process test processor; real ones are connected per tenant
+    default_country: str = "US"  # country of a newly connected processor account
+    stripe: Stripe = Stripe()
 
 
 class Notifications(BaseModel):
