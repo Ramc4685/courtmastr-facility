@@ -8,6 +8,7 @@ import { ToastProvider } from '../components/Toast'
 import { AuthProvider } from '../lib/auth'
 import { mockFetch } from '../test/fetchMock'
 import { AppRoutes, makeQueryClient, ROUTER_FUTURE } from './App'
+import { UPCOMING_NAV } from './nav'
 
 const tenant = { id: 't1', name: 'Courtside Demo Club', slug: 'courtside-demo', status: 'active', currency: 'USD', default_time_zone: 'America/Chicago', locale: 'en-US', staff_mfa_policy: 'privileged', trial_ends_on: null, settings: {} }
 const me = (permissions: string[], kind = 'staff') => ({
@@ -81,7 +82,7 @@ describe('auth flow', () => {
     expect(nav).not.toHaveTextContent('Staff users')
     expect(nav).not.toHaveTextContent('Activity log')
     expect(nav).toHaveTextContent('Scheduling')
-    expect(screen.getAllByText('(coming soon)')).toHaveLength(16)
+    expect(screen.getAllByText('(coming soon)')).toHaveLength(UPCOMING_NAV.length)
   })
 
   it('explains a 403 when the page is opened directly without the permission', async () => {

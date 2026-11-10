@@ -23,7 +23,8 @@ def bootstrap() -> None:
         payment_provider.register(FakeProvider())
 
     # Importing a context registers its permission catalogue, models and event subscribers.
-    from app.modules import billing, clients, platform  # noqa: F401
+    from app.modules import billing, clients, integrations, platform  # noqa: F401
 
     deps.set_authenticator(platform.auth.authenticate)
+    deps.set_authenticator(integrations.auth.authenticate, prefix="fhk")
     _done = True

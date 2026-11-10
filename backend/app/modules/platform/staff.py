@@ -480,3 +480,15 @@ def delete_role(session: Session, principal: Principal, role_id: UUID) -> None:
     session.execute(update(Role).where(Role.cloned_from_role_id == role.id).values(cloned_from_role_id=None))
     session.delete(role)
     session.flush()
+
+
+# --- internal: the cross-context interface =================================================================
+
+
+def principal_for(session: Session, staff_user_id: UUID) -> Principal | None:
+    """A staff user's principal as of now, or None when they may not act (deactivated, expired, identity
+    disabled). Integrations bounds API keys and webhook subscriptions by their creator through it (ADR 0012)."""
+    staff_user = session.get(StaffUser, staff_user_id)
+    if staff_user is None or staff_user.identity.status != "active":
+        return None
+    return auth._principal_for(session, staff_user.identity)

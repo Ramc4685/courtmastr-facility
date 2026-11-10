@@ -6,6 +6,7 @@ import { ToastProvider } from '../components/Toast'
 import { SignInPage } from '../features/auth/SignInPage'
 import { ClientPickerDemo } from '../features/clients/ClientPickerDemo'
 import { TokenLinkPage } from '../features/auth/TokenLinkPage'
+import { IntegrationsPage } from '../features/integrations/IntegrationsPage'
 import { PortalHome } from '../features/portal/PortalHome'
 import { AuditLogPage } from '../features/platform/AuditLogPage'
 import { DashboardPage } from '../features/platform/DashboardPage'
@@ -47,6 +48,7 @@ export function AppRoutes() {
         <Route path="roles" element={<RequirePermission permission="platform.role.read"><RolesPage /></RequirePermission>} />
         <Route path="roles/:id" element={<RequirePermission permission="platform.role.read"><RoleDetailPage /></RequirePermission>} />
         <Route path="audit" element={<RequirePermission permission="platform.audit.read"><AuditLogPage /></RequirePermission>} />
+        <Route path="integrations" element={<IntegrationsPage />} />
         <Route path="settings" element={<RequirePermission permission="platform.tenant.update"><TenantSettingsPage /></RequirePermission>} />
         {import.meta.env.DEV && (
           <Route path="dev/client-picker" element={<RequirePermission permission="clients.client.read"><ClientPickerDemo /></RequirePermission>} />

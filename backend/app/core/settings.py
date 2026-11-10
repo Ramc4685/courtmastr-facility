@@ -83,6 +83,15 @@ class Auth(BaseModel):
 class RateLimit(BaseModel):
     enabled: bool
     auth_per_minute: int
+    api_per_minute: int = 120  # per API key (ADR 0012 section 2)
+
+
+class Integrations(BaseModel):
+    # Dev only: webhook endpoints may use http:// and loopback hosts, so a local receiver works (ADR 0007 s.7).
+    webhook_allow_localhost: bool = False
+    # The real QuickBooks Online adapter stays off until credentials and an Intuit app exist (ADR 0012 s.4).
+    quickbooks_enabled: bool = False
+    accounting_file_dir: str = "var/accounting-exports"  # where the accounting_file adapter writes journals
 
 
 class Audit(BaseModel):
@@ -103,6 +112,7 @@ class Settings(BaseModel):
     auth: Auth
     rate_limit: RateLimit
     audit: Audit
+    integrations: Integrations = Integrations()
 
     def db_url(self, role: str) -> str:
         """role is owner, app or platform; the password comes from FH_DB_<ROLE>_PASSWORD."""
@@ -154,6 +164,8 @@ def get_settings() -> Settings:
     if env not in ("dev", "test") and (not settings.auth.cookie_secure or settings.email.log_links):
         # Dev conveniences that are unsafe anywhere else: cookies over plain HTTP, sign-in links in the log.
         raise RuntimeError("outside dev and test, auth.cookie_secure must be true and email.log_links false")
+    if env not in ("dev", "test") and settings.integrations.webhook_allow_localhost:
+        raise RuntimeError("outside dev and test, integrations.webhook_allow_localhost must be false (SSRF guard)")
     if env not in ("dev", "test") and settings.payments.provider == "fake":
         raise RuntimeError("outside dev and test, payments.provider must not be fake: it takes no real money")
     return settings

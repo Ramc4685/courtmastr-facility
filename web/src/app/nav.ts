@@ -10,6 +10,7 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Roles & permissions', to: '/roles', permission: 'platform.role.read', icon: 'shield' },
   { label: 'Activity log', to: '/audit', permission: 'platform.audit.read', icon: 'list' },
   { label: 'Settings', to: '/settings', permission: 'platform.tenant.update', icon: 'gear' },
+  { label: 'Integrations', to: '/integrations', permission: 'integrations.connection.manage', icon: 'plug' },
 ]
 
 // Build modules 2-17 (docs/architecture/overview.md section 6).
@@ -28,6 +29,5 @@ export const UPCOMING_NAV: NavItem[] = [
   { label: 'Engagement', icon: 'mail' },
   { label: 'Fitness assessments', icon: 'pulse' },
   { label: 'Reports', icon: 'chart' },
-  { label: 'Integrations', icon: 'plug' },
   { label: 'Mobile app', icon: 'phone' },
 ]

@@ -86,6 +86,8 @@ _BODIES = {
     "reverseCharge": {"reason": "Mistake"},
     "allocatePayment": {},
     "createRefund": {"amount_minor": 1, "reason": "Mistake"},
+    "rotateApiKey": {},
+    "updateWebhookEndpoint": {"description": "Renamed"},
 }
 # Generated from the OpenAPI document, so a new route with an id parameter is tested without being listed.
 _ID_ROUTES = [
@@ -119,7 +121,8 @@ def test_every_id_route_is_covered():
     "path",
     [
         "/locations", "/staff-users", "/roles", "/audit-events?limit=200", "/auth/sessions", "/clients", "/charges",
-        "/invoices", "/payments", "/revenue-categories", "/ledger-entries",
+        "/invoices", "/payments", "/revenue-categories", "/ledger-entries", "/api-keys", "/webhook-endpoints",
+        "/webhook-deliveries", "/external-connections", "/accounting-exports", "/adapter-commands",
     ],
 )  # fmt: skip
 def test_api_lists_never_include_the_other_tenant(client, two_tenants, path):
@@ -130,7 +133,8 @@ def test_api_lists_never_include_the_other_tenant(client, two_tenants, path):
     ids = {row["id"] for row in rows}
     assert not ids & {
         b.location_id, b.staff_user_id, b.role_id, b.session_id, b.client_id, b.charge_id, b.invoice_id,
-        b.payment_id, b.revenue_category_id,
+        b.payment_id, b.revenue_category_id, b.api_key_id, b.webhook_endpoint_id, b.webhook_delivery_id,
+        b.external_connection_id,
     }  # fmt: skip
     theirs = client.get(f"/api/v1{path}", headers=b.headers).json()
     theirs = theirs["data"] if isinstance(theirs, dict) else theirs
@@ -170,6 +174,11 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
         ("/payments", payment | {"allocations": [{"charge_id": b.charge_id, "amount_minor": 1}]}),
         (f"/payments/{a.payment_id}/allocations", {"invoice_id": b.invoice_id}),
         (f"/payments/{a.payment_id}/allocations", {"allocations": [{"charge_id": b.charge_id, "amount_minor": 1}]}),
+        ("/api-keys", {"name": "X", "scopes": ["clients.client.read"], "location_ids": [b.location_id]}),
+        ("/external-connections", {"provider": "accounting_file", "location_id": b.location_id}),
+        ("/accounting-exports", {
+            "external_connection_id": a.external_connection_id, "location_id": b.location_id, "business_on": "2020-01-02",
+        }),
     )):  # fmt: skip
         response = post(path, body, index)
         assert (response.status_code, response.json()["code"]) == (422, "validation-failed"), (
@@ -177,6 +186,13 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
             body,
             response.text,
         )
+    # A's location with B's connection: the connection id itself is not found.
+    foreign = {
+        "external_connection_id": b.external_connection_id,
+        "location_id": a.location_id,
+        "business_on": "2020-01-02",
+    }
+    assert post("/accounting-exports", foreign, 99).status_code == 404
 
 
 def test_token_is_bound_to_its_tenant_host(client, two_tenants):
