@@ -311,6 +311,244 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/client-alerts/{alert_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Client Alert */
+        patch: operations["updateClientAlert"];
+        trace?: never;
+    };
+    "/api/v1/client-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Client Categories */
+        get: operations["listClientCategories"];
+        put?: never;
+        /** Create Client Category */
+        post: operations["createClientCategory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-categories/{client_category_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Client Category
+         * @description Errors: in-use (deactivate instead).
+         */
+        delete: operations["deleteClientCategory"];
+        options?: never;
+        head?: never;
+        /** Update Client Category */
+        patch: operations["updateClientCategory"];
+        trace?: never;
+    };
+    "/api/v1/client-duplicates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Client Duplicate Candidates */
+        get: operations["listClientDuplicateCandidates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-field-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Client Field Policies */
+        get: operations["getClientFieldPolicies"];
+        /**
+         * Replace Client Field Policies
+         * @description Hidden, optional or required per field and capture context (staff, registration, portal).
+         *     Errors: validation-failed (field-locked, unknown-field).
+         */
+        put: operations["replaceClientFieldPolicies"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-location-settings/{location_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Client Location Settings */
+        get: operations["getClientLocationSettings"];
+        /** Update Client Location Settings */
+        put: operations["updateClientLocationSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-notes/{note_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Client Note */
+        delete: operations["deleteClientNote"];
+        options?: never;
+        head?: never;
+        /** Update Client Note */
+        patch: operations["updateClientNote"];
+        trace?: never;
+    };
+    "/api/v1/client-relationships/{relationship_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve Client Relationship */
+        post: operations["approveClientRelationship"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-relationships/{relationship_id}/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End Client Relationship */
+        post: operations["endClientRelationship"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Client Settings */
+        get: operations["getClientSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Client Settings */
+        patch: operations["updateClientSettings"];
+        trace?: never;
+    };
+    "/api/v1/client-tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Client Tasks
+         * @description Filters: client_id, assignee_staff_user_id, status, overdue=true.
+         */
+        get: operations["listClientTasks"];
+        put?: never;
+        /** Create Client Task */
+        post: operations["createClientTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-tasks/open-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Open Client Task Count */
+        get: operations["getOpenClientTaskCount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Client Task */
+        patch: operations["updateClientTask"];
+        trace?: never;
+    };
     "/api/v1/clients": {
         parameters: {
             query?: never;
@@ -320,14 +558,17 @@ export interface paths {
         };
         /**
          * List Clients
-         * @description Filters: status, home_location_id; q searches name, email, mobile phone and member number.
-         *     Sort: last_name, first_name, created_at.
+         * @description Filters: view (all, recent, created, birthdays_this_month, birthdays_next_month, disabled, duplicates,
+         *     no_category), status, home_location_id, client_category_id, referral_category_id, tag_id, gender,
+         *     created_via, default_trainer_staff_user_id, default_salesperson_staff_user_id. q searches name,
+         *     preferred name, any email, member number, any phone and address. Sort: last_name, first_name, created_at
+         *     (and viewed_at for view=recent).
          */
         get: operations["listClients"];
         put?: never;
         /**
          * Create Client
-         * @description Errors: already-exists (member_number), validation-failed.
+         * @description Errors: already-exists (member_number), validation-failed (field policy: field-required, field-hidden).
          */
         post: operations["createClient"];
         delete?: never;
@@ -347,6 +588,414 @@ export interface paths {
         get: operations["getClient"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Client
+         * @description `emails` replaces the whole address list atomically. Send `version` to detect concurrent edits.
+         *     Errors: version-conflict, already-exists, validation-failed.
+         */
+        patch: operations["updateClient"];
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Client Alerts */
+        get: operations["listClientAlerts"];
+        put?: never;
+        /** Create Client Alert */
+        post: operations["createClientAlert"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/communication-preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Client Communication Preferences
+         * @description Every channel, address and topic for the client's current addresses; absent rows show the default.
+         */
+        get: operations["getClientCommunicationPreferences"];
+        /**
+         * Put Client Communication Preferences
+         * @description Record consent given to staff; `note` (how and when) is required. Errors: email-unverified.
+         */
+        put: operations["putClientCommunicationPreferences"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Disable Client
+         * @description Soft-disable; revokes portal access. Reversible with enable.
+         */
+        post: operations["disableClient"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/emails/{email_id}/send-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Client Email Verification
+         * @description Errors: already-verified, rate-limited (one per minute).
+         */
+        post: operations["sendClientEmailVerification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/emergency-contacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Client Emergency Contacts */
+        get: operations["getClientEmergencyContacts"];
+        /** Replace Client Emergency Contacts */
+        put: operations["replaceClientEmergencyContacts"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enable Client */
+        post: operations["enableClient"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/member-number": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assign Client Member Number
+         * @description Give a number (typed or scanned), or omit it to generate the next one. Errors: already-exists.
+         */
+        post: operations["assignClientMemberNumber"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge Clients
+         * @description Merge the listed records into this one. Errors: merge-blocked (with blockers).
+         */
+        post: operations["mergeClients"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/merge-precheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Precheck Client Merge */
+        post: operations["precheckClientMerge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Client Notes
+         * @description Filters: kind, staff_user_id. Sort: occurred_at (default newest first).
+         */
+        get: operations["listClientNotes"];
+        put?: never;
+        /** Create Client Note */
+        post: operations["createClientNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/owners": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Assign Client Owners */
+        put: operations["assignClientOwners"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/portal-access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Client Portal Access */
+        get: operations["getClientPortalAccess"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/portal-access/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite Client To Portal
+         * @description Errors: identity-in-use (attach as manager instead), already-invited.
+         */
+        post: operations["inviteClientToPortal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/portal-access/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke Client Portal Access */
+        post: operations["revokeClientPortalAccess"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/relationships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Client Relationships */
+        get: operations["listClientRelationships"];
+        put?: never;
+        /**
+         * Create Client Relationship
+         * @description This client is <type> of the other client. Errors: relationship-exists.
+         */
+        post: operations["createClientRelationship"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Client Timeline
+         * @description Notes, tasks, alerts and changes, newest first. Page with next_before.
+         */
+        get: operations["getClientTimeline"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/custom-fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Custom Fields */
+        get: operations["listCustomFields"];
+        put?: never;
+        /** Create Custom Field */
+        post: operations["createCustomField"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/custom-fields/{custom_field_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Custom Field */
+        patch: operations["updateCustomField"];
+        trace?: never;
+    };
+    "/api/v1/data-subject-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Data Subject Requests
+         * @description Filters: client_id, kind, status.
+         */
+        get: operations["listDataSubjectRequests"];
+        put?: never;
+        /**
+         * Create Data Subject Request
+         * @description Export completes at once; erasure is `requested` (or `blocked`) until confirmed. Errors: already-erased.
+         */
+        post: operations["createDataSubjectRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-subject-requests/{request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Data Subject Request */
+        get: operations["getDataSubjectRequest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-subject-requests/{request_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Data Subject Request
+         * @description Type ERASE. Errors: erasure-blocked (send is_blocker_override to proceed).
+         */
+        post: operations["confirmDataSubjectRequest"];
         delete?: never;
         options?: never;
         head?: never;
@@ -558,6 +1207,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/note-subjects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Note Subjects */
+        get: operations["listNoteSubjects"];
+        put?: never;
+        /** Create Note Subject */
+        post: operations["createNoteSubject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/note-subjects/{note_subject_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Note Subject
+         * @description Errors: in-use (deactivate instead).
+         */
+        delete: operations["deleteNoteSubject"];
+        options?: never;
+        head?: never;
+        /** Update Note Subject */
+        patch: operations["updateNoteSubject"];
+        trace?: never;
+    };
     "/api/v1/operator/tenants": {
         parameters: {
             query?: never;
@@ -702,6 +1390,178 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/clients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Actable Clients
+         * @description Everyone the signed-in client may act for, with the authority they act under.
+         */
+        get: operations["listPortalActableClients"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/clients/{client_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Client */
+        get: operations["getPortalClient"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Portal Update Client
+         * @description Self, manager or guardian only; the portal field policy applies.
+         */
+        patch: operations["portalUpdateClient"];
+        trace?: never;
+    };
+    "/api/v1/portal/clients/{client_id}/communication-preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Communication Preferences */
+        get: operations["getPortalCommunicationPreferences"];
+        /** Put Portal Communication Preferences */
+        put: operations["putPortalCommunicationPreferences"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/clients/{client_id}/emergency-contacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Emergency Contacts */
+        get: operations["getPortalEmergencyContacts"];
+        /** Portal Replace Emergency Contacts */
+        put: operations["portalReplaceEmergencyContacts"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/dependents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Portal Create Dependent
+         * @description Add a family member who has no login of their own; you manage their profile.
+         */
+        post: operations["portalCreateDependent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/relationship-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Portal Relationship Types */
+        get: operations["listPortalRelationshipTypes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/relationships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Portal Relationships */
+        get: operations["listPortalRelationships"];
+        put?: never;
+        /**
+         * Portal Request Relationship
+         * @description Asks the other account holder to confirm by email. Always 202: the answer never reveals an account.
+         */
+        post: operations["portalRequestRelationship"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/relationships/{relationship_id}/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Portal End Relationship */
+        post: operations["portalEndRelationship"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/email-verifications/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Email Verification
+         * @description Double opt-in: the emailed token proves the address. Errors: token-invalid.
+         */
+        post: operations["confirmEmailVerification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/locations": {
         parameters: {
             query?: never;
@@ -720,6 +1580,100 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/relationship-confirmations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Public Decide Relationship
+         * @description Accept or decline a family link from the emailed token. Errors: token-invalid.
+         */
+        post: operations["publicDecideRelationship"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/referral-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Referral Categories */
+        get: operations["listReferralCategories"];
+        put?: never;
+        /** Create Referral Category */
+        post: operations["createReferralCategory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/referral-categories/{referral_category_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Referral Category
+         * @description Errors: in-use (deactivate instead).
+         */
+        delete: operations["deleteReferralCategory"];
+        options?: never;
+        head?: never;
+        /** Update Referral Category */
+        patch: operations["updateReferralCategory"];
+        trace?: never;
+    };
+    "/api/v1/relationship-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Relationship Types */
+        get: operations["listRelationshipTypes"];
+        put?: never;
+        /** Create Relationship Type */
+        post: operations["createRelationshipType"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/relationship-types/{relationship_type_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Relationship Type */
+        patch: operations["updateRelationshipType"];
         trace?: never;
     };
     "/api/v1/revenue-categories": {
@@ -1022,6 +1976,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Tags */
+        get: operations["listTags"];
+        put?: never;
+        /** Create Tag */
+        post: operations["createTag"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tags/{tag_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Tag */
+        patch: operations["updateTag"];
+        trace?: never;
+    };
     "/api/v1/tenant": {
         parameters: {
             query?: never;
@@ -1044,6 +2033,104 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AlertIn */
+        AlertIn: {
+            /** Ends On */
+            ends_on?: string | null;
+            /**
+             * Kind
+             * @default general
+             * @enum {string}
+             */
+            kind: "general" | "medical" | "injury" | "conduct";
+            /** Message */
+            message: string;
+            /**
+             * Severity
+             * @default info
+             * @enum {string}
+             */
+            severity: "info" | "warning" | "critical";
+            /**
+             * Shows On Booking
+             * @default false
+             */
+            shows_on_booking: boolean;
+            /**
+             * Shows On Check In
+             * @default true
+             */
+            shows_on_check_in: boolean;
+            /**
+             * Shows On Profile
+             * @default true
+             */
+            shows_on_profile: boolean;
+            /** Starts On */
+            starts_on?: string | null;
+        };
+        /** AlertOut */
+        AlertOut: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Created By Staff User Id
+             * Format: uuid
+             */
+            created_by_staff_user_id: string;
+            /** Ends On */
+            ends_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Kind */
+            kind: string;
+            /** Message */
+            message: string;
+            /** Severity */
+            severity: string;
+            /** Shows On Booking */
+            shows_on_booking: boolean;
+            /** Shows On Check In */
+            shows_on_check_in: boolean;
+            /** Shows On Profile */
+            shows_on_profile: boolean;
+            /** Starts On */
+            starts_on: string | null;
+        };
+        /** AlertUpdate */
+        AlertUpdate: {
+            /** Ends On */
+            ends_on?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Kind */
+            kind?: ("general" | "medical" | "injury" | "conduct") | null;
+            /** Message */
+            message?: string | null;
+            /** Severity */
+            severity?: ("info" | "warning" | "critical") | null;
+            /** Shows On Booking */
+            shows_on_booking?: boolean | null;
+            /** Shows On Check In */
+            shows_on_check_in?: boolean | null;
+            /** Shows On Profile */
+            shows_on_profile?: boolean | null;
+            /** Starts On */
+            starts_on?: string | null;
+        };
         /** AllocationIn */
         AllocationIn: {
             /** Amount Minor */
@@ -1295,8 +2382,32 @@ export interface components {
         };
         /** ClientCreate */
         ClientCreate: {
+            /** Address Line1 */
+            address_line1?: string | null;
+            /** Address Line2 */
+            address_line2?: string | null;
+            /** Birth On */
+            birth_on?: string | null;
+            /** City */
+            city?: string | null;
+            /** Client Category Id */
+            client_category_id?: string | null;
+            /** Comments */
+            comments?: string | null;
+            /** Country Code */
+            country_code?: string | null;
+            /** Custom Values */
+            custom_values?: {
+                [key: string]: unknown;
+            } | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
+            /** Emails */
+            emails?: components["schemas"]["EmailIn"][] | null;
             /** First Name */
             first_name: string;
+            /** Gender */
+            gender?: ("female" | "male" | "non_binary" | "undisclosed") | null;
             /**
              * Home Location Id
              * Format: uuid
@@ -1304,20 +2415,44 @@ export interface components {
             home_location_id: string;
             /** Last Name */
             last_name: string;
+            /** Medical Notes */
+            medical_notes?: string | null;
             /** Member Number */
             member_number?: string | null;
+            /** Organization Name */
+            organization_name?: string | null;
+            /** Phone Home */
+            phone_home?: string | null;
             /** Phone Mobile */
             phone_mobile?: string | null;
+            /** Phone Work */
+            phone_work?: string | null;
+            /** Postal Code */
+            postal_code?: string | null;
+            /** Preferred Name */
+            preferred_name?: string | null;
             /** Primary Email */
             primary_email?: string | null;
+            /** Referral Category Id */
+            referral_category_id?: string | null;
+            /** Referral Source */
+            referral_source?: string | null;
+            /** Region */
+            region?: string | null;
+            /** Tag Ids */
+            tag_ids?: string[] | null;
         };
-        /** ClientOut */
-        ClientOut: {
+        /** ClientListItem */
+        ClientListItem: {
+            /** Client Category Id */
+            client_category_id: string | null;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+            /** Erased At */
+            erased_at: string | null;
             /** First Name */
             first_name: string;
             /**
@@ -1334,8 +2469,12 @@ export interface components {
             last_name: string;
             /** Member Number */
             member_number: string | null;
+            /** Merged Into Id */
+            merged_into_id: string | null;
             /** Phone Mobile */
             phone_mobile: string | null;
+            /** Preferred Name */
+            preferred_name: string | null;
             /** Primary Email */
             primary_email: string | null;
             /**
@@ -1343,6 +2482,347 @@ export interface components {
              * @enum {string}
              */
             status: "active" | "disabled";
+        };
+        /**
+         * ClientOut
+         * @description The profile. Sensitive fields are null and `is_sensitive_masked` is true without read_sensitive.
+         */
+        ClientOut: {
+            /** Address Line1 */
+            address_line1: string | null;
+            /** Address Line2 */
+            address_line2: string | null;
+            /** Birth On */
+            birth_on: string | null;
+            /** City */
+            city: string | null;
+            /** Client Category Id */
+            client_category_id: string | null;
+            /** Comments */
+            comments: string | null;
+            /** Country Code */
+            country_code: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created Via */
+            created_via: string;
+            /** Custom Values */
+            custom_values: {
+                [key: string]: unknown;
+            };
+            /** Default Salesperson Staff User Id */
+            default_salesperson_staff_user_id: string | null;
+            /** Default Trainer Staff User Id */
+            default_trainer_staff_user_id: string | null;
+            /** Disabled At */
+            disabled_at: string | null;
+            /** Discount Pct */
+            discount_pct: string;
+            /**
+             * Emails
+             * @default []
+             */
+            emails: components["schemas"]["EmailOut"][];
+            /** Erased At */
+            erased_at: string | null;
+            /** First Name */
+            first_name: string;
+            /** Gender */
+            gender: string | null;
+            /**
+             * Home Location Id
+             * Format: uuid
+             */
+            home_location_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Is Sensitive Masked
+             * @default false
+             */
+            is_sensitive_masked: boolean;
+            /** Last Name */
+            last_name: string;
+            /** Medical Notes */
+            medical_notes: string | null;
+            /** Member Number */
+            member_number: string | null;
+            /** Member Number Source */
+            member_number_source: string | null;
+            /** Merged At */
+            merged_at: string | null;
+            /** Merged Into Id */
+            merged_into_id: string | null;
+            /** Organization Name */
+            organization_name: string | null;
+            /** Phone Home */
+            phone_home: string | null;
+            /** Phone Mobile */
+            phone_mobile: string | null;
+            /** Phone Work */
+            phone_work: string | null;
+            /** Postal Code */
+            postal_code: string | null;
+            /** Preferred Name */
+            preferred_name: string | null;
+            /** Primary Email */
+            primary_email: string | null;
+            /** Referral Category Id */
+            referral_category_id: string | null;
+            /** Referral Source */
+            referral_source: string | null;
+            /** Region */
+            region: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "disabled";
+            /**
+             * Tag Ids
+             * @default []
+             */
+            tag_ids: string[];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+        };
+        /** ClientSettingsOut */
+        ClientSettingsOut: {
+            /** Default Gender */
+            default_gender: string | null;
+            /** Is Member Number Auto Generated */
+            is_member_number_auto_generated: boolean;
+            /** Is Own Clients Scope Enabled */
+            is_own_clients_scope_enabled: boolean;
+            /** Is Verification Email Enabled */
+            is_verification_email_enabled: boolean;
+            /** Member Number Prefix */
+            member_number_prefix: string;
+            /** Member Number Trigger */
+            member_number_trigger: string;
+        };
+        /** ClientSettingsUpdate */
+        ClientSettingsUpdate: {
+            /** Default Gender */
+            default_gender?: ("female" | "male" | "non_binary" | "undisclosed") | null;
+            /** Is Member Number Auto Generated */
+            is_member_number_auto_generated?: boolean | null;
+            /** Is Own Clients Scope Enabled */
+            is_own_clients_scope_enabled?: boolean | null;
+            /** Is Verification Email Enabled */
+            is_verification_email_enabled?: boolean | null;
+            /** Member Number Prefix */
+            member_number_prefix?: string | null;
+            /** Member Number Trigger */
+            member_number_trigger?: ("client_created" | "membership_sold") | null;
+        };
+        /** ClientUpdate */
+        ClientUpdate: {
+            /** Address Line1 */
+            address_line1?: string | null;
+            /** Address Line2 */
+            address_line2?: string | null;
+            /** Birth On */
+            birth_on?: string | null;
+            /** City */
+            city?: string | null;
+            /** Client Category Id */
+            client_category_id?: string | null;
+            /** Comments */
+            comments?: string | null;
+            /** Country Code */
+            country_code?: string | null;
+            /** Custom Values */
+            custom_values?: {
+                [key: string]: unknown;
+            } | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
+            /** Emails */
+            emails?: components["schemas"]["EmailIn"][] | null;
+            /** First Name */
+            first_name?: string | null;
+            /** Gender */
+            gender?: ("female" | "male" | "non_binary" | "undisclosed") | null;
+            /** Home Location Id */
+            home_location_id?: string | null;
+            /** Last Name */
+            last_name?: string | null;
+            /** Medical Notes */
+            medical_notes?: string | null;
+            /** Organization Name */
+            organization_name?: string | null;
+            /** Phone Home */
+            phone_home?: string | null;
+            /** Phone Mobile */
+            phone_mobile?: string | null;
+            /** Phone Work */
+            phone_work?: string | null;
+            /** Postal Code */
+            postal_code?: string | null;
+            /** Preferred Name */
+            preferred_name?: string | null;
+            /** Referral Category Id */
+            referral_category_id?: string | null;
+            /** Referral Source */
+            referral_source?: string | null;
+            /** Region */
+            region?: string | null;
+            /** Tag Ids */
+            tag_ids?: string[] | null;
+            /** Version */
+            version?: number | null;
+        };
+        /** CustomFieldIn */
+        CustomFieldIn: {
+            /** Choices */
+            choices?: string[] | null;
+            /**
+             * Data Type
+             * @default text
+             * @enum {string}
+             */
+            data_type: "text" | "number" | "date" | "boolean" | "choice";
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /** CustomFieldOut */
+        CustomFieldOut: {
+            /** Choices */
+            choices: string[] | null;
+            /** Data Type */
+            data_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /** CustomFieldUpdate */
+        CustomFieldUpdate: {
+            /** Choices */
+            choices?: string[] | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Label */
+            label?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+        };
+        /** DsrConfirm */
+        DsrConfirm: {
+            /** Confirmation */
+            confirmation: string;
+            /**
+             * Is Blocker Override
+             * @default false
+             */
+            is_blocker_override: boolean;
+        };
+        /** DsrCreate */
+        DsrCreate: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "export" | "erasure";
+            /** Reason */
+            reason?: string | null;
+        };
+        /** DsrOut */
+        DsrOut: {
+            /** Blockers */
+            blockers: {
+                [key: string]: unknown;
+            }[];
+            /** Bundle */
+            bundle?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Completed At */
+            completed_at: string | null;
+            /** Confirmed At */
+            confirmed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Handler Results */
+            handler_results: {
+                [key: string]: unknown;
+            };
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Blocker Override */
+            is_blocker_override: boolean;
+            /** Kind */
+            kind: string;
+            /** Reason */
+            reason: string | null;
+            /**
+             * Requested By Staff User Id
+             * Format: uuid
+             */
+            requested_by_staff_user_id: string;
+            /** Status */
+            status: string;
+        };
+        /** DuplicateCandidate */
+        DuplicateCandidate: {
+            client: components["schemas"]["ClientListItem"];
+            /** Reasons */
+            reasons: string[];
+        };
+        /** DuplicateGroup */
+        DuplicateGroup: {
+            /** Candidates */
+            candidates: components["schemas"]["DuplicateCandidate"][];
+            client: components["schemas"]["ClientListItem"];
         };
         /** EffectivePermission */
         EffectivePermission: {
@@ -1364,6 +2844,21 @@ export interface components {
             /** Subject Type */
             subject_type?: string | null;
         };
+        /** EmailIn */
+        EmailIn: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /**
+             * Is Primary
+             * @default false
+             */
+            is_primary: boolean;
+            /** Label */
+            label?: string | null;
+        };
         /** EmailLinkRequest */
         EmailLinkRequest: {
             /**
@@ -1379,6 +2874,78 @@ export interface components {
             email: string;
             /** Redirect Path */
             redirect_path?: string | null;
+        };
+        /** EmailOut */
+        EmailOut: {
+            /** Email */
+            email: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Primary */
+            is_primary: boolean;
+            /** Label */
+            label: string | null;
+            /** Verification Sent At */
+            verification_sent_at: string | null;
+            /** Verified At */
+            verified_at: string | null;
+        };
+        /** EmailVerificationOut */
+        EmailVerificationOut: {
+            /** Email */
+            email: string;
+            /** Verified At */
+            verified_at: string | null;
+        };
+        /** EmergencyContactIn */
+        EmergencyContactIn: {
+            /** Email */
+            email?: string | null;
+            /** Name */
+            name: string;
+            /** Notes */
+            notes?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Phone Alt */
+            phone_alt?: string | null;
+            /** Relationship Label */
+            relationship_label?: string | null;
+        };
+        /** EmergencyContactOut */
+        EmergencyContactOut: {
+            /** Email */
+            email: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Notes */
+            notes: string | null;
+            /** Phone */
+            phone: string | null;
+            /** Phone Alt */
+            phone_alt: string | null;
+            /** Position */
+            position: number;
+            /** Relationship Label */
+            relationship_label: string | null;
+        };
+        /** EmergencyContacts */
+        EmergencyContacts: {
+            /** Contacts */
+            contacts: components["schemas"]["EmergencyContactIn"][];
+        };
+        /** EmergencyContactsOut */
+        EmergencyContactsOut: {
+            /** Contacts */
+            contacts: components["schemas"]["EmergencyContactOut"][];
         };
         /** FacilityHoursDay */
         FacilityHoursDay: {
@@ -1408,6 +2975,48 @@ export interface components {
         FacilityHoursReplace: {
             /** Days */
             days: components["schemas"]["FacilityHoursDay"][];
+        };
+        /** FieldPolicies */
+        FieldPolicies: {
+            /** Policies */
+            policies: components["schemas"]["FieldPolicyIn"][];
+        };
+        /** FieldPoliciesOut */
+        FieldPoliciesOut: {
+            /** Policies */
+            policies: components["schemas"]["FieldPolicyCell"][];
+        };
+        /** FieldPolicyCell */
+        FieldPolicyCell: {
+            /**
+             * Capture Context
+             * @enum {string}
+             */
+            capture_context: "staff" | "registration" | "portal";
+            /** Field Key */
+            field_key: string;
+            /** Is Locked */
+            is_locked: boolean;
+            /**
+             * Requirement
+             * @enum {string}
+             */
+            requirement: "hidden" | "optional" | "required";
+        };
+        /** FieldPolicyIn */
+        FieldPolicyIn: {
+            /**
+             * Capture Context
+             * @enum {string}
+             */
+            capture_context: "staff" | "registration" | "portal";
+            /** Field Key */
+            field_key: string;
+            /**
+             * Requirement
+             * @enum {string}
+             */
+            requirement: "hidden" | "optional" | "required";
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1705,6 +3314,21 @@ export interface components {
             /** Time Zone */
             time_zone: string;
         };
+        /** LocationSettingsOut */
+        LocationSettingsOut: {
+            /** Is Portal Photo Edit Enabled */
+            is_portal_photo_edit_enabled: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+        };
+        /** LocationSettingsUpdate */
+        LocationSettingsUpdate: {
+            /** Is Portal Photo Edit Enabled */
+            is_portal_photo_edit_enabled: boolean;
+        };
         /** LocationUpdate */
         LocationUpdate: {
             /** Accepted Card Brands */
@@ -1754,6 +3378,49 @@ export interface components {
             /** Website Url */
             website_url?: string | null;
         };
+        /** LookupIn */
+        LookupIn: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /** LookupOut */
+        LookupOut: {
+            /**
+             * Client Count
+             * @default 0
+             */
+            client_count: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /** LookupUpdate */
+        LookupUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+        };
         /** Me */
         Me: {
             /**
@@ -1774,6 +3441,159 @@ export interface components {
             principal: components["schemas"]["PrincipalOut"];
             role: components["schemas"]["RoleRef"] | null;
             tenant: components["schemas"]["TenantOut"];
+        };
+        /** MemberNumberAssign */
+        MemberNumberAssign: {
+            /** Member Number */
+            member_number?: string | null;
+            /**
+             * Source
+             * @default manual
+             * @enum {string}
+             */
+            source: "manual" | "scanned";
+        };
+        /** MergeBlocker */
+        MergeBlocker: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Code */
+            code: string;
+            /** Context */
+            context: string;
+            /** Detail */
+            detail: string;
+        };
+        /** MergePrecheck */
+        MergePrecheck: {
+            /** Backfill Fields */
+            backfill_fields: string[];
+            /** Blockers */
+            blockers: components["schemas"]["MergeBlocker"][];
+            /** Can Merge */
+            can_merge: boolean;
+            /** Merged Client Ids */
+            merged_client_ids: string[];
+            /**
+             * Survivor Client Id
+             * Format: uuid
+             */
+            survivor_client_id: string;
+        };
+        /** MergeRequest */
+        MergeRequest: {
+            /** Merged Client Ids */
+            merged_client_ids: string[];
+        };
+        /** NoteIn */
+        NoteIn: {
+            /** Body */
+            body?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "call" | "email" | "task" | "other";
+            /** Location Id */
+            location_id?: string | null;
+            /** Note Subject Id */
+            note_subject_id?: string | null;
+            /** Occurred At */
+            occurred_at?: string | null;
+            /** Staff User Id */
+            staff_user_id?: string | null;
+            /** Subject Text */
+            subject_text?: string | null;
+        };
+        /** NoteOut */
+        NoteOut: {
+            /** Body */
+            body: string | null;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Location Id */
+            location_id: string | null;
+            /** Note Subject Id */
+            note_subject_id: string | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /**
+             * Staff User Id
+             * Format: uuid
+             */
+            staff_user_id: string;
+            /** Subject Text */
+            subject_text: string | null;
+        };
+        /** NoteSubjectIn */
+        NoteSubjectIn: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Label */
+            label: string;
+        };
+        /** NoteSubjectOut */
+        NoteSubjectOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Label */
+            label: string;
+        };
+        /** NoteSubjectUpdate */
+        NoteSubjectUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Label */
+            label?: string | null;
+        };
+        /** NoteUpdate */
+        NoteUpdate: {
+            /** Body */
+            body?: string | null;
+            /** Kind */
+            kind?: ("call" | "email" | "task" | "other") | null;
+            /** Note Subject Id */
+            note_subject_id?: string | null;
+            /** Occurred At */
+            occurred_at?: string | null;
+            /** Subject Text */
+            subject_text?: string | null;
+        };
+        /** OpenTaskCount */
+        OpenTaskCount: {
+            /** Open Count */
+            open_count: number;
+            /** Overdue Count */
+            overdue_count: number;
         };
         /** OwnSession */
         OwnSession: {
@@ -1811,6 +3631,13 @@ export interface components {
             /** User Agent */
             user_agent: string | null;
         };
+        /** OwnersAssign */
+        OwnersAssign: {
+            /** Default Salesperson Staff User Id */
+            default_salesperson_staff_user_id?: string | null;
+            /** Default Trainer Staff User Id */
+            default_trainer_staff_user_id?: string | null;
+        };
         /** PageInfo */
         PageInfo: {
             /** Has More */
@@ -1832,10 +3659,16 @@ export interface components {
             data: components["schemas"]["ChargeOut"][];
             page: components["schemas"]["PageInfo"];
         };
-        /** Page[ClientOut] */
-        Page_ClientOut_: {
+        /** Page[ClientListItem] */
+        Page_ClientListItem_: {
             /** Data */
-            data: components["schemas"]["ClientOut"][];
+            data: components["schemas"]["ClientListItem"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[DsrOut] */
+        Page_DsrOut_: {
+            /** Data */
+            data: components["schemas"]["DsrOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[InvoiceOut] */
@@ -1854,6 +3687,12 @@ export interface components {
         Page_LocationOut_: {
             /** Data */
             data: components["schemas"]["LocationOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[NoteOut] */
+        Page_NoteOut_: {
+            /** Data */
+            data: components["schemas"]["NoteOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[PaymentOut] */
@@ -1890,6 +3729,12 @@ export interface components {
         Page_StaffUserOut_: {
             /** Data */
             data: components["schemas"]["StaffUserOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[TaskOut] */
+        Page_TaskOut_: {
+            /** Data */
+            data: components["schemas"]["TaskOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** PasswordChange */
@@ -2084,6 +3929,241 @@ export interface components {
             /** Grants */
             grants: components["schemas"]["PermissionGrant"][];
         };
+        /** PortalAccessList */
+        PortalAccessList: {
+            /** Data */
+            data: components["schemas"]["PortalAccessOut"][];
+        };
+        /** PortalAccessOut */
+        PortalAccessOut: {
+            /** Activated At */
+            activated_at: string | null;
+            /** Email */
+            email: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Identity Id
+             * Format: uuid
+             */
+            identity_id: string;
+            /** Identity Status */
+            identity_status: string;
+            /** Invited At */
+            invited_at: string | null;
+            /** Is Primary */
+            is_primary: boolean;
+            /** Revoked At */
+            revoked_at: string | null;
+            /** Status */
+            status: string;
+        };
+        /** PortalClientList */
+        PortalClientList: {
+            /** Data */
+            data: components["schemas"]["PortalClientOut"][];
+        };
+        /** PortalClientOut */
+        PortalClientOut: {
+            /** Address Line1 */
+            address_line1?: string | null;
+            /** Address Line2 */
+            address_line2?: string | null;
+            /**
+             * Authority
+             * @enum {string}
+             */
+            authority: "self" | "manager" | "guardian" | "delegate";
+            /** Birth On */
+            birth_on?: string | null;
+            /** Can Edit */
+            can_edit: boolean;
+            /** City */
+            city?: string | null;
+            /** Country Code */
+            country_code?: string | null;
+            /**
+             * Custom Values
+             * @default {}
+             */
+            custom_values: {
+                [key: string]: unknown;
+            };
+            /** First Name */
+            first_name: string;
+            /** Gender */
+            gender?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Name */
+            last_name: string;
+            /** Member Number */
+            member_number: string | null;
+            /** Phone Home */
+            phone_home?: string | null;
+            /** Phone Mobile */
+            phone_mobile?: string | null;
+            /** Phone Work */
+            phone_work?: string | null;
+            /** Postal Code */
+            postal_code?: string | null;
+            /** Preferred Name */
+            preferred_name: string | null;
+            /** Primary Email */
+            primary_email?: string | null;
+            /** Region */
+            region?: string | null;
+        };
+        /** PortalClientUpdate */
+        PortalClientUpdate: {
+            /** Address Line1 */
+            address_line1?: string | null;
+            /** Address Line2 */
+            address_line2?: string | null;
+            /** Birth On */
+            birth_on?: string | null;
+            /** City */
+            city?: string | null;
+            /** Country Code */
+            country_code?: string | null;
+            /** Custom Values */
+            custom_values?: {
+                [key: string]: unknown;
+            } | null;
+            /** Gender */
+            gender?: ("female" | "male" | "non_binary" | "undisclosed") | null;
+            /** Phone Home */
+            phone_home?: string | null;
+            /** Phone Mobile */
+            phone_mobile?: string | null;
+            /** Phone Work */
+            phone_work?: string | null;
+            /** Postal Code */
+            postal_code?: string | null;
+            /** Preferred Name */
+            preferred_name?: string | null;
+            /** Region */
+            region?: string | null;
+        };
+        /** PortalDependentCreate */
+        PortalDependentCreate: {
+            /** Birth On */
+            birth_on?: string | null;
+            /** Email */
+            email?: string | null;
+            /** First Name */
+            first_name: string;
+            /** Gender */
+            gender?: ("female" | "male" | "non_binary" | "undisclosed") | null;
+            /** Last Name */
+            last_name: string;
+            /**
+             * Relationship Type Id
+             * Format: uuid
+             */
+            relationship_type_id: string;
+        };
+        /** PortalInvite */
+        PortalInvite: {
+            /**
+             * Attach As Manager
+             * @default false
+             */
+            attach_as_manager: boolean;
+            /** Email */
+            email?: string | null;
+        };
+        /** PortalPreferencesReplace */
+        PortalPreferencesReplace: {
+            /** Changes */
+            changes: components["schemas"]["PreferenceChange"][];
+        };
+        /** PortalRelationshipList */
+        PortalRelationshipList: {
+            /** Data */
+            data: components["schemas"]["RelationshipOut"][];
+        };
+        /**
+         * PortalRelationshipRequest
+         * @description Ask an existing account holder to confirm a link. The answer never says whether they exist.
+         */
+        PortalRelationshipRequest: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** First Name */
+            first_name: string;
+            /** Last Name */
+            last_name: string;
+            /**
+             * Relationship Type Id
+             * Format: uuid
+             */
+            relationship_type_id: string;
+        };
+        /** PreferenceChange */
+        PreferenceChange: {
+            /** Address */
+            address?: string | null;
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "email" | "sms" | "push";
+            /** Is Subscribed */
+            is_subscribed: boolean;
+            /**
+             * Topic
+             * @enum {string}
+             */
+            topic: "session_reminders" | "card_expiration" | "email_campaigns" | "sms_marketing" | "push_announcements" | "league_alerts";
+        };
+        /** PreferenceOut */
+        PreferenceOut: {
+            /** Address */
+            address: string | null;
+            /** Changed At */
+            changed_at: string | null;
+            /** Channel */
+            channel: string;
+            /** Is Default */
+            is_default: boolean;
+            /** Is Subscribed */
+            is_subscribed: boolean;
+            /** Source */
+            source: string | null;
+            /** Topic */
+            topic: string;
+        };
+        /** Preferences */
+        Preferences: {
+            /** Data */
+            data: components["schemas"]["PreferenceOut"][];
+        };
+        /**
+         * PreferencesReplace
+         * @description Staff changes record how the client gave consent (basis) and a note; the portal records `express`.
+         */
+        PreferencesReplace: {
+            /**
+             * Basis
+             * @default express
+             * @enum {string}
+             */
+            basis: "express" | "express_written" | "express_verbal" | "implied_purchase" | "implied_inquiry";
+            /** Changes */
+            changes: components["schemas"]["PreferenceChange"][];
+            /** Note */
+            note?: string | null;
+        };
         /** PrincipalOut */
         PrincipalOut: {
             /**
@@ -2190,6 +4270,153 @@ export interface components {
              * @enum {string}
              */
             status: "pending" | "succeeded" | "failed" | "cancelled";
+        };
+        /**
+         * RelationshipCreate
+         * @description "This client is <type> of the other client" (from = this client).
+         */
+        RelationshipCreate: {
+            /**
+             * Other Client Id
+             * Format: uuid
+             */
+            other_client_id: string;
+            /**
+             * Relationship Type Id
+             * Format: uuid
+             */
+            relationship_type_id: string;
+        };
+        /** RelationshipDecision */
+        RelationshipDecision: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "accept" | "decline";
+            /** Token */
+            token: string;
+        };
+        /** RelationshipDecisionOut */
+        RelationshipDecisionOut: {
+            /** Status */
+            status: string;
+        };
+        /**
+         * RelationshipOut
+         * @description One relationship seen from one client: `label` is read from that client's side.
+         */
+        RelationshipOut: {
+            /**
+             * Acting Rights
+             * @enum {string}
+             */
+            acting_rights: "this_for_other" | "other_for_this" | "both" | "none";
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Confirmed At */
+            confirmed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created Via */
+            created_via: string;
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "outgoing" | "incoming";
+            /** Ended At */
+            ended_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Other Client Id
+             * Format: uuid
+             */
+            other_client_id: string;
+            /** Other Client Name */
+            other_client_name: string;
+            /**
+             * Relationship Type Id
+             * Format: uuid
+             */
+            relationship_type_id: string;
+            /** Status */
+            status: string;
+        };
+        /** RelationshipTypeIn */
+        RelationshipTypeIn: {
+            /** Code */
+            code: string;
+            /**
+             * Grants Acting Rights
+             * @default false
+             */
+            grants_acting_rights: boolean;
+            /** Inverse Type Id */
+            inverse_type_id?: string | null;
+            /**
+             * Is Guardianship
+             * @default false
+             */
+            is_guardianship: boolean;
+            /**
+             * Is Portal Selectable
+             * @default true
+             */
+            is_portal_selectable: boolean;
+            /** Label */
+            label: string;
+        };
+        /** RelationshipTypeOut */
+        RelationshipTypeOut: {
+            /** Code */
+            code: string;
+            /** Grants Acting Rights */
+            grants_acting_rights: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Inverse Label */
+            inverse_label: string;
+            /** Inverse Type Id */
+            inverse_type_id: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Guardianship */
+            is_guardianship: boolean;
+            /** Is Portal Selectable */
+            is_portal_selectable: boolean;
+            /** Is System */
+            is_system: boolean;
+            /** Label */
+            label: string;
+        };
+        /** RelationshipTypeUpdate */
+        RelationshipTypeUpdate: {
+            /** Grants Acting Rights */
+            grants_acting_rights?: boolean | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Is Guardianship */
+            is_guardianship?: boolean | null;
+            /** Is Portal Selectable */
+            is_portal_selectable?: boolean | null;
+            /** Label */
+            label?: string | null;
         };
         /** RevenueCategoryOut */
         RevenueCategoryOut: {
@@ -2438,6 +4665,124 @@ export interface components {
             /** Mobile Phone */
             mobile_phone?: string | null;
         };
+        /** TagIn */
+        TagIn: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Kind
+             * @default custom
+             * @enum {string}
+             */
+            kind: "sport" | "season" | "custom";
+            /** Label */
+            label: string;
+        };
+        /** TagOut */
+        TagOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+        };
+        /** TagUpdate */
+        TagUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Label */
+            label?: string | null;
+        };
+        /** TaskIn */
+        TaskIn: {
+            /** Assignee Staff User Id */
+            assignee_staff_user_id?: string | null;
+            /** Body */
+            body?: string | null;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Due On */
+            due_on?: string | null;
+            /**
+             * Has Email Reminder
+             * @default false
+             */
+            has_email_reminder: boolean;
+            /** Note Subject Id */
+            note_subject_id?: string | null;
+            /** Subject Text */
+            subject_text?: string | null;
+        };
+        /** TaskOut */
+        TaskOut: {
+            /**
+             * Assignee Staff User Id
+             * Format: uuid
+             */
+            assignee_staff_user_id: string;
+            /** Body */
+            body: string | null;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Completed At */
+            completed_at: string | null;
+            /** Completed By Staff User Id */
+            completed_by_staff_user_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Due On */
+            due_on: string | null;
+            /** Has Email Reminder */
+            has_email_reminder: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Note Subject Id */
+            note_subject_id: string | null;
+            /** Reminder Sent At */
+            reminder_sent_at: string | null;
+            /** Status */
+            status: string;
+            /** Subject Text */
+            subject_text: string | null;
+        };
+        /** TaskUpdate */
+        TaskUpdate: {
+            /** Assignee Staff User Id */
+            assignee_staff_user_id?: string | null;
+            /** Body */
+            body?: string | null;
+            /** Due On */
+            due_on?: string | null;
+            /** Has Email Reminder */
+            has_email_reminder?: boolean | null;
+            /** Note Subject Id */
+            note_subject_id?: string | null;
+            /** Status */
+            status?: ("open" | "in_progress" | "done" | "cancelled") | null;
+            /** Subject Text */
+            subject_text?: string | null;
+        };
         /** TenantOnboard */
         TenantOnboard: {
             /**
@@ -2531,6 +4876,37 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** Timeline */
+        Timeline: {
+            /** Data */
+            data: components["schemas"]["TimelineEntry"][];
+            /** Next Before */
+            next_before: string | null;
+        };
+        /** TimelineEntry */
+        TimelineEntry: {
+            /** Detail */
+            detail?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "note" | "task" | "alert" | "audit";
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Staff User Id */
+            staff_user_id?: string | null;
+            /** Title */
+            title: string;
+        };
         /** TokenConsumeRequest */
         TokenConsumeRequest: {
             /**
@@ -2541,6 +4917,11 @@ export interface components {
             client_kind: "web" | "mobile";
             /** New Password */
             new_password?: string | null;
+            /** Token */
+            token: string;
+        };
+        /** TokenIn */
+        TokenIn: {
             /** Token */
             token: string;
         };
@@ -3075,6 +5456,711 @@ export interface operations {
             };
         };
     };
+    updateClientAlert: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                alert_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listClientCategories: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LookupOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createClientCategory: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LookupIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LookupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteClientCategory: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateClientCategory: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LookupUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LookupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listClientDuplicateCandidates: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DuplicateGroup"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getClientFieldPolicies: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FieldPoliciesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replaceClientFieldPolicies: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FieldPolicies"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FieldPoliciesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getClientLocationSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                location_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateClientLocationSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                location_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocationSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LocationSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteClientNote: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateClientNote: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approveClientRelationship: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                relationship_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationshipOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    endClientRelationship: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                relationship_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationshipOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getClientSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateClientSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listClientTasks: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_TaskOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createClientTask: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getOpenClientTaskCount: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpenTaskCount"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateClientTask: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listClients: {
         parameters: {
             query?: {
@@ -3104,7 +6190,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Page_ClientOut_"];
+                    "application/json": components["schemas"]["Page_ClientListItem_"];
                 };
             };
             /** @description Validation Error */
@@ -3175,6 +6261,1070 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClientOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateClient: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listClientAlerts: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createClientAlert: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlertIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getClientCommunicationPreferences: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Preferences"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putClientCommunicationPreferences: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferencesReplace"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Preferences"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disableClient: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sendClientEmailVerification: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+                email_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getClientEmergencyContacts: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmergencyContactsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replaceClientEmergencyContacts: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmergencyContacts"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmergencyContactsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enableClient: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assignClientMemberNumber: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberNumberAssign"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mergeClients: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MergeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    precheckClientMerge: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MergeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MergePrecheck"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listClientNotes: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_NoteOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createClientNote: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assignClientOwners: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnersAssign"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getClientPortalAccess: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalAccessList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    inviteClientToPortal: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalInvite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalAccessList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revokeClientPortalAccess: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalAccessList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listClientRelationships: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationshipOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createClientRelationship: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RelationshipCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationshipOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getClientTimeline: {
+        parameters: {
+            query?: {
+                before?: string | null;
+                limit?: number;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Timeline"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCustomFields: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFieldOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createCustomField: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomFieldIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFieldOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateCustomField: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                custom_field_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomFieldUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomFieldOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listDataSubjectRequests: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_DsrOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createDataSubjectRequest: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DsrCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DsrOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getDataSubjectRequest: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DsrOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirmDataSubjectRequest: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DsrConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DsrOut"];
                 };
             };
             /** @description Validation Error */
@@ -3670,6 +7820,144 @@ export interface operations {
             };
         };
     };
+    listNoteSubjects: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteSubjectOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createNoteSubject: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteSubjectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteSubjectOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteNoteSubject: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                note_subject_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateNoteSubject: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                note_subject_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteSubjectUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteSubjectOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     onboardTenant: {
         parameters: {
             query?: never;
@@ -3962,6 +8250,457 @@ export interface operations {
             };
         };
     };
+    listPortalActableClients: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalClientList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalClient: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalClientOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    portalUpdateClient: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalClientUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalClientOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalCommunicationPreferences: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Preferences"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putPortalCommunicationPreferences: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalPreferencesReplace"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Preferences"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalEmergencyContacts: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmergencyContactsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    portalReplaceEmergencyContacts: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmergencyContacts"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmergencyContactsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    portalCreateDependent: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalDependentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalClientOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalRelationshipTypes: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationshipTypeOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalRelationships: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalRelationshipList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    portalRequestRelationship: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalRelationshipRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    portalEndRelationship: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                relationship_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationshipOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirmEmailVerification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailVerificationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPublicLocations: {
         parameters: {
             query?: {
@@ -3989,6 +8728,283 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_PublicLocation_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publicDecideRelationship: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RelationshipDecision"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationshipDecisionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listReferralCategories: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LookupOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createReferralCategory: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LookupIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LookupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteReferralCategory: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                referral_category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateReferralCategory: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                referral_category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LookupUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LookupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listRelationshipTypes: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationshipTypeOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createRelationshipType: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RelationshipTypeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationshipTypeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateRelationshipType: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                relationship_type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RelationshipTypeUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationshipTypeOut"];
                 };
             };
             /** @description Validation Error */
@@ -4722,6 +9738,112 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StaffUserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listTags: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createTag: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TagIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateTag: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                tag_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TagUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagOut"];
                 };
             };
             /** @description Validation Error */

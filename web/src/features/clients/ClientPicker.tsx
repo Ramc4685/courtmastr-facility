@@ -4,7 +4,7 @@ import { api, type Schemas } from '../../api/client'
 import { fullName } from '../../lib/format'
 import { useDebounced } from '../../lib/useDebounced'
 
-export type ClientSummary = Schemas['ClientOut']
+export type ClientSummary = Schemas['ClientListItem']
 type Props = {
   label: string
   value: ClientSummary | null

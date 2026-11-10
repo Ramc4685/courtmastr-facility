@@ -10,13 +10,13 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Roles & permissions', to: '/roles', permission: 'platform.role.read', icon: 'shield' },
   { label: 'Activity log', to: '/audit', permission: 'platform.audit.read', icon: 'list' },
   { label: 'Settings', to: '/settings', permission: 'platform.tenant.update', icon: 'gear' },
+  { label: 'Clients', to: '/clients', permission: 'clients.client.read', icon: 'person' },
 ]
 
 // Build modules 2-17 (docs/architecture/overview.md section 6).
 export const UPCOMING_NAV: NavItem[] = [
   { label: 'Scheduling', icon: 'calendar' },
   { label: 'Rentals & events', icon: 'ticket' },
-  { label: 'Members & households', icon: 'person' },
   { label: 'Memberships & packages', icon: 'card' },
   { label: 'Programs & registration', icon: 'clipboard' },
   { label: 'Waivers', icon: 'pen' },
