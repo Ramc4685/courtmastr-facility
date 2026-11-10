@@ -560,6 +560,17 @@ def upgrade() -> None:
     for fn in ("app.repoint_consent_event(uuid, uuid)", "app.erase_consent_event(uuid)"):
         op.execute(f"REVOKE ALL ON FUNCTION {fn} FROM PUBLIC")
         op.execute(f"GRANT EXECUTE ON FUNCTION {fn} TO fh_app")
+    # Back-fill: the skeleton kept only client.primary_email; it becomes the denormalised copy of one
+    # client_email row. The owner is subject to FORCE RLS, so lift it for this one statement.
+    for table in ("client", "client_email"):
+        op.execute(f"ALTER TABLE {table} NO FORCE ROW LEVEL SECURITY")
+    op.execute(
+        "INSERT INTO client_email (tenant_id, client_id, email, is_primary) "
+        "SELECT tenant_id, id, lower(primary_email), true FROM client WHERE primary_email IS NOT NULL"
+    )
+    op.execute("UPDATE client SET primary_email = lower(primary_email) WHERE primary_email IS NOT NULL")
+    for table in ("client", "client_email"):
+        op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
 
 
 def downgrade() -> None:

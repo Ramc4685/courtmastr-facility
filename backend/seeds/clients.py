@@ -23,7 +23,9 @@ CLIENTS = [
 def seed(session: Session) -> None:
     actor = session.info["actor"]
     locations = {location.slug: location.id for location in session.scalars(select(Location))}
-    existing = {client.primary_email: client for client in session.scalars(select(Client))}
+    existing = {}
+    for client in session.scalars(select(Client).order_by(Client.created_at.desc())):
+        existing[client.primary_email] = client  # oldest wins: Mia shares her parent's address (FAM-02)
     for first_name, last_name, slug, phone, member_number in CLIENTS:
         email = "member@" + DOMAIN if last_name == "Member" else f"{first_name.lower()}.{last_name.lower()}@{DOMAIN}"
         if email not in existing:
@@ -54,7 +56,8 @@ def _seed_people(session: Session, existing: dict, locations: dict, member_ident
     morgan = existing[f"member@{DOMAIN}"]
     morgan.client_category_id = gold.id
     types = {t["code"]: t["id"] for t in clients.households.list_relationship_types(session)}
-    mia = clients.service.create_client(
+    mia = session.scalar(select(Client).where(Client.first_name == "Mia", Client.last_name == "Member"))
+    mia = mia or clients.service.create_client(
         session, actor,
         {"first_name": "Mia", "last_name": "Member", "home_location_id": morgan.home_location_id,
          "birth_on": "2016-04-12", "primary_email": f"member@{DOMAIN}"},
@@ -66,8 +69,9 @@ def _seed_people(session: Session, existing: dict, locations: dict, member_ident
     clients.households.create_relationship(
         session, actor, morgan.id, {"other_client_id": riley.id, "relationship_type_id": types["spouse_of"]}
     )
-    session.add(ClientPortalAccess(identity_id=member_identity_id, client_id=mia.id, is_primary=False,
-                                   status="active", activated_at=clock.now()))  # fmt: skip
+    if not session.scalar(select(ClientPortalAccess.id).where(ClientPortalAccess.client_id == mia.id)):
+        session.add(ClientPortalAccess(identity_id=member_identity_id, client_id=mia.id, is_primary=False,
+                                       status="active", activated_at=clock.now()))  # fmt: skip
     for email, slug in ((f"member@{DOMAIN}", "downtown"), (f"sam.castillo@{DOMAIN}", "west")):
         client = existing[email]
         session.add(ClientNote(client_id=client.id, kind="call", subject_text="Welcome call", body="Booked a tour.",
