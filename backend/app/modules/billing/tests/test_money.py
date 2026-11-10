@@ -839,3 +839,28 @@ def test_books_agree_after_a_random_sequence_including_every_undo(shop):
         assert transactions(session) > 100 and session.scalar(select(func.count()).select_from(Refund)) > 0
     with tenant_session(shop.tenant.id) as session:  # and it all committed: the deferred triggers agreed
         assert sum(balances(session).values()) == 0
+
+
+@pytest.mark.parametrize(("answer", "refunded", "credit"), [("succeeded", 300, 200), ("failed", 0, 500)])
+def test_a_pending_provider_refund_reserves_the_money_until_it_settles(shop, monkeypatch, answer, refunded, credit):
+    from app.ports.payment_provider import RefundState
+
+    fake = payment_provider.get("fake")
+    monkeypatch.setattr(fake, "refund", lambda **_: RefundState("fake_ref_slow", "pending"))
+    monkeypatch.setattr(fake, "find_refund", lambda **_: None)
+    with work(shop.tenant) as session:
+        payment = card(session, shop, 500)
+        posted = transactions(session)
+        pending = svc.refund(session, payment.id, amount_minor=300, reason="Slow bank", idempotency_key=uuid4().hex)
+        assert (pending.status, payment.refunded_minor, payment.unapplied_minor) == ("pending", 300, 200)  # reserved
+        assert transactions(session) == posted  # not in the ledger until it has happened
+        monkeypatch.setattr(fake, "get_refund", lambda **_: RefundState("fake_ref_slow", "pending"))
+        assert svc.confirm_refund(session, pending.id).status == "pending"
+        assert webhooks.reconcile(session)["refunds"] == 1
+        monkeypatch.setattr(fake, "get_refund", lambda **_: RefundState("fake_ref_slow", answer, "Returned"))
+        webhooks.apply_event(session, "refund", "fake_ref_slow")  # the processor's webhook
+        assert (pending.status, payment.refunded_minor, payment.unapplied_minor) == (answer, refunded, credit)
+        assert transactions(session) == posted + (answer == "succeeded")
+        assert svc.confirm_refund(session, pending.id).status == answer  # a replay changes nothing
+        assert transactions(session) == posted + (answer == "succeeded")
+        assert_books_agree(session)
