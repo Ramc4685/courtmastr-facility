@@ -90,6 +90,11 @@ class Audit(BaseModel):
     retention_days_long: int
 
 
+class Storage(BaseModel):
+    local_dir: str = "var/storage"  # relative to the repository root
+    max_upload_bytes: int = 20_971_520  # scanned documents and attachments (security-baseline 8.2)
+
+
 class Settings(BaseModel):
     env: str
     app: AppInfo
@@ -103,6 +108,7 @@ class Settings(BaseModel):
     auth: Auth
     rate_limit: RateLimit
     audit: Audit
+    storage: Storage = Storage()
 
     def db_url(self, role: str) -> str:
         """role is owner, app or platform; the password comes from FH_DB_<ROLE>_PASSWORD."""

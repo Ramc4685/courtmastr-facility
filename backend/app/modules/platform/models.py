@@ -504,3 +504,40 @@ class DataSubjectRequest(TenantOwned, Timestamps, Base):
     is_blocker_override: Mapped[bool] = mapped_column(server_default=text("false"))
     handler_results: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))
     completed_at: Mapped[datetime | None]
+
+
+class StoredFileStatus(StrEnum):
+    PENDING = "pending"
+    READY = "ready"
+    PURGED = "purged"
+
+
+class UploaderType(StrEnum):
+    STAFF = "staff"
+    CLIENT = "client"
+    API_KEY = "api_key"
+    SYSTEM = "system"
+
+
+class StoredFile(TenantOwned, Timestamps, Base):
+    """Metadata of one object in file storage (data-model-core 2.2). Bytes live behind app.ports.storage under
+    `object_key`; rows are written through app.modules.platform.files. Image variants and expiry columns are not
+    created yet: nothing renders variants or expires files (README)."""
+
+    __tablename__ = "stored_file"
+    __table_args__ = tenant_args(
+        UniqueConstraint("tenant_id", "object_key"),
+        enum_check("status", StoredFileStatus),
+        enum_check("uploaded_by_type", UploaderType),
+        CheckConstraint("size_bytes >= 0", name="size_bytes"),
+    )
+
+    object_key: Mapped[str]
+    purpose: Mapped[str] = enum_column()
+    content_type: Mapped[str] = enum_column()
+    size_bytes: Mapped[int] = mapped_column(BigInteger)
+    sha256: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    original_name: Mapped[str | None]
+    status: Mapped[str] = enum_column(server_default=text("'pending'"))
+    uploaded_by_type: Mapped[str] = enum_column()
+    uploaded_by_id: Mapped[UUID | None]
