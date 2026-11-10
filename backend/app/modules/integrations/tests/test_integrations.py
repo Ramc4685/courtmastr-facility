@@ -306,6 +306,20 @@ def test_star_expands_and_types_follow_the_subscriber(client, tenant, owner):
     assert client.get(f"{API}/webhook-endpoints/{everything['id']}", headers=limited).status_code == 404
 
 
+def test_repointing_an_endpoint_needs_its_events_read_permissions(client, tenant, owner):
+    """A webhook manager without billing reads must not redirect the owner's billing feed to their own URL."""
+    endpoint = _endpoint(client, owner, types=["billing.charge.created"])
+    _, staff_user_id = add_staff(tenant, "admin", all_locations=True)
+    narrow = Principal(kind="staff", staff_user_id=staff_user_id, permissions={"integrations.webhook.manage": "all"})
+    with _system(tenant) as session, pytest.raises(service.PermissionDenied):
+        service.update_webhook_endpoint(session, narrow, UUID(endpoint["id"]), {"url": "https://evil.invalid/"})
+    with mock.patch.object(transport, "resolve", return_value=[PUBLIC_IP]):
+        moved = client.patch(
+            f"{API}/webhook-endpoints/{endpoint['id']}", headers=owner, json={"url": "https://new.invalid/"}
+        )
+    assert moved.status_code == 200 and moved.json()["url"] == "https://new.invalid/"
+
+
 def test_location_limited_subscriber_only_receives_its_locations(client, tenant, owner):
     mine, other = _location(client, owner), _location(client, owner, "Other")
     email, _ = add_staff(tenant, "admin", location_ids=[mine])

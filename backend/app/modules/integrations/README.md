@@ -34,6 +34,8 @@ through `service.adapter_for`.
 - **Webhook subscriptions are bounded by the creator.** A type needs its read permission at `all` reach, or a
   location-limited creator needs a location locator for that type. `*` expands at save time. A creator who is
   deactivated or loses the permission disables the endpoint on the next fan-out or on the deactivation event.
+  Changing an endpoint's URL needs the caller to be allowed every event it carries, so nobody can redirect
+  someone else's broader feed to a URL of their own.
 - **Delivery.** At least once, deduplicated per (endpoint, event) by a unique constraint, signed with every
   live secret. 8 attempts on `RETRY_DELAYS` ±10%. The endpoint is disabled on `410`, after 20 failed
   deliveries, or after 5 days without success: pending deliveries are abandoned, the creator is emailed and

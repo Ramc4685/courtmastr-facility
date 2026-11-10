@@ -290,6 +290,9 @@ def update_webhook_endpoint(session: Session, principal: Principal, endpoint_id:
     _require_person(principal)
     row = _load_endpoint(session, principal, endpoint_id)
     if data.get("url") is not None:
+        # Repointing redirects the creator's grants to a URL the caller picks: the caller must hold them too.
+        if not all(may_subscribe(principal, CATALOGUE[t]) for t in row.event_types if t in CATALOGUE):
+            raise PermissionDenied("You may not receive this endpoint's events", code="event-permission-denied")
         transport.check(data["url"])
         row.url = data["url"]
     if "description" in data:
