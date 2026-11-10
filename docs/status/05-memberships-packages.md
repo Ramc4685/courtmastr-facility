@@ -3,8 +3,8 @@
 Branch `lane/people`, migration `0203_memberships_packages`. Module READMEs:
 `backend/app/modules/memberships/README.md`, `backend/app/modules/packages/README.md`.
 
-**Scope of this build: backend only.** No web screen exists for module 5, so nothing below is usable from the
-web app yet. "done" means the API, the service rules, the daily job and the tests are in place; "partial" names
+**Scope of this build: backend only.** The staff screens came later: see `05-memberships-packages-web.md` for
+them and the combined status. "done" means the API, the service rules, the daily job and the tests are in place; "partial" names
 what is missing; the "Where" column lists operation ids (all under `/api/v1`).
 
 **Nothing schedules the daily jobs yet.** `run_membership_day` and `run_package_day` are tenant actors that are
