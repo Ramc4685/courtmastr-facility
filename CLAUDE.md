@@ -113,6 +113,7 @@ per location, WCAG 2.1 AA, docs updated).
 | 6 | Programs and registration | not started |
 | 7 | Waivers | not started |
 | 8 | Billing and payments | kernel only (charge to ledger, fake provider) |
-| 9-17 | POS, check-in, leagues, staff, engagement, assessments, reporting, integrations, mobile | not started |
+| 9-16 | POS, check-in, leagues, staff, engagement, assessments, reporting, integrations | not started |
+| 17 | Mobile member app (`mobile/`) | partial, real auth + demo adapter: `docs/status/17-mobile.md` |
 Known gaps later modules must not assume away: the `README.md` of `platform`, `clients` and `billing`.
 Parallel lanes (worktrees), migration numbering and the kernel service APIs: top of `docs/dev/module-playbook.md`.
