@@ -106,11 +106,11 @@ per location, WCAG 2.1 AA, docs updated).
 |---|---|---|
 | 1 | Platform core (tenants, locations, staff, RBAC, auth, audit) | done; OIDC, MFA and step-up deferred |
 | - | Kernel slices: lane config, `clients` skeleton, `billing` kernel, notification port, counters | done: `docs/status/kernel-slice.md` |
-| 2 | Resources and scheduling | not started |
-| 3 | Rentals and events | not started |
+| 2 | Resources and scheduling | backend + staff screens: `docs/status/02-resources-scheduling{,-web}.md`; no lockers, slot offers |
+| 3 | Rentals and events | backend + staff screens: `docs/status/03-rentals.md`; no portal screen, lockers, plan sharing |
 | 4 | Members and households | done except photo, attachments, sharing: `docs/status/04-clients-households.md` |
 | 5 | Memberships and packages | backend and staff screens done; portal pages, autopay, post-billed not built: `docs/status/05-memberships-packages-web.md` |
-| 6 | Programs and registration | not started |
+| 6 | Programs and registration | session slice only (enrol, attendance, waitlist) |
 | 7 | Waivers and documents (`documents`) | done: P0 all, P1 bar DOC-07 bulk send; `docs/status/07-waivers-documents.md` |
 | 8 | Billing and payments | backend and staff screens: `docs/status/08-billing-payments{,-web}.md` |
 | 9 | Point of sale and inventory | done, P1s partial: `docs/status/09-pos-inventory.md` |

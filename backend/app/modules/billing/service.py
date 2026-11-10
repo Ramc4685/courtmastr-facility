@@ -1380,6 +1380,38 @@ def refresh_invoice(session: Session, invoice_id: UUID) -> None:
     _refresh_invoice(session, invoice_id)
 
 
+def charge_states(session: Session, charge_ids: Iterable[UUID]) -> dict[UUID, dict]:
+    """Internal read for owning contexts: status, invoice, invoice status and total of each charge."""
+    ids = list(charge_ids)
+    rows = session.execute(
+        select(Charge.id, Charge.status, Charge.invoice_id, Invoice.status, Charge.total_minor)
+        .outerjoin(Invoice, Invoice.id == Charge.invoice_id)
+        .where(Charge.id.in_(ids))
+    ).all() if ids else []  # fmt: skip
+    return {
+        row[0]: {"status": row[1], "invoice_id": row[2], "invoice_status": row[3], "total_minor": row[4]}
+        for row in rows
+    }
+
+
+def excluded_tax_ids(session: Session, charge_id: UUID) -> list[UUID]:
+    """Internal: the taxes a charge was posted without, so a re-post can keep the same choice."""
+    return list(
+        session.scalars(select(ChargeTax.tax_id).where(ChargeTax.charge_id == charge_id, ChargeTax.is_excluded))
+    )
+
+
+def invoice_charge_ids(session: Session, invoice_id: UUID) -> list[UUID]:
+    """Internal: the active charges grouped under an invoice."""
+    return list(session.scalars(select(Charge.id).where(Charge.invoice_id == invoice_id, Charge.status == "active")))
+
+
+def category_taxes(session: Session, revenue_category_id: UUID, on: date) -> list[tuple[UUID, Decimal]]:
+    """(tax_id, rate) of the taxes post_charge would apply to a line of this category on that date; callers
+    quote with it and pass the unticked ones to post_charge as exclude_tax_ids (rentals)."""
+    return taxes_in_force(session, on, revenue_category_id=revenue_category_id)
+
+
 # === private ===============================================================================================
 
 

@@ -24,6 +24,11 @@ import { RolesPage } from '../features/platform/RolesPage'
 import { StaffUserPage } from '../features/platform/StaffUserPage'
 import { StaffUsersPage } from '../features/platform/StaffUsersPage'
 import { TenantSettingsPage } from '../features/platform/TenantSettingsPage'
+import { RentalSetupPage } from '../features/rentals/RentalSetupPage'
+import { RentalsPage } from '../features/rentals/RentalsPage'
+import { ResourcesPage } from '../features/resources/ResourcesPage'
+import { CalendarPage } from '../features/scheduling/CalendarPage'
+import { SetupPage } from '../features/scheduling/SetupPage'
 import { AuthProvider } from '../lib/auth'
 import { AgeingPage, AutopayPage } from '../features/billing/AutopayPage'
 import { BillingLayout } from '../features/billing/BillingLayout'
@@ -107,6 +112,11 @@ export function AppRoutes() {
         <Route path="documents/:id" element={<RequirePermission permission="documents.template.manage"><TemplateEditorPage /></RequirePermission>} />
         <Route path="memberships" element={<RequirePermission permission="memberships.contract.read"><MembershipsPage /></RequirePermission>} />
         <Route path="packages" element={<RequirePermission permission="packages.package.read"><PackagesPage /></RequirePermission>} />
+        <Route path="schedule" element={<RequirePermission permission="scheduling.booking.read"><CalendarPage /></RequirePermission>} />
+        <Route path="resources" element={<ResourcesPage />} />
+        <Route path="scheduling/setup" element={<SetupPage />} />
+        <Route path="rentals" element={<RequirePermission permission="scheduling.booking.read"><RentalsPage /></RequirePermission>} />
+        <Route path="rentals/setup" element={<RentalSetupPage />} />
         {import.meta.env.DEV && (
           <Route path="dev/client-picker" element={<RequirePermission permission="clients.client.read"><ClientPickerDemo /></RequirePermission>} />
         )}

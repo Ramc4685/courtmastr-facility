@@ -410,7 +410,9 @@ def test_openapi_document(client):
     )
     assert len(operations) >= 47
     # SameSite=Lax means every state-changing route must be non-GET; GETs here are reads by name.
-    assert all(name.startswith(("get", "list")) for name, (method, _) in operations.items() if method == "get")
+    assert all(
+        name.startswith(("get", "list", "search")) for name, (method, _) in operations.items() if method == "get"
+    )
 
 
 def test_committed_openapi_snapshot_is_current():

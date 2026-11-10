@@ -117,7 +117,8 @@ export async function request<T>(method: Method, template: string, opts: Options
     if (await refresh()) res = await send()
     if (res.status === 401) onUnauthenticated()
   }
-  if (res.status === 204 || res.status === 202) return undefined as T
+  // 202 may carry a body (a long booking series answers with its status_url); an empty one parses to undefined.
+  if (res.status === 204) return undefined as T
   const text = await res.text()
   const data: unknown = text ? JSON.parse(text) : undefined
   if (!res.ok) {

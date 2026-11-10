@@ -15,6 +15,10 @@ import app.modules.memberships.models  # noqa: F401
 import app.modules.packages.models  # noqa: F401
 import app.modules.platform.models  # noqa: F401
 import app.modules.pos.models  # noqa: F401
+import app.modules.programs.models  # noqa: F401
+import app.modules.rentals.models  # noqa: F401
+import app.modules.resources.models  # noqa: F401
+import app.modules.scheduling.models  # noqa: F401
 from app.core.db import Base
 from app.core.settings import get_settings
 

@@ -414,3 +414,32 @@ def delete_client_identity(session: Session, identity_id: UUID) -> None:
     session.execute(delete(AuthSession).where(AuthSession.identity_id == identity_id))
     session.execute(delete(AuthToken).where(AuthToken.identity_id == identity_id))
     session.execute(delete(Identity).where(Identity.id == identity_id, Identity.kind == "client"))
+
+
+# --- staff user <-> trainer resource (internal; used by resources and scheduling for `own` reach) ----------
+
+
+def linked_resource_id(session: Session, staff_user_id: UUID | None) -> UUID | None:
+    """The trainer resource a staff user's own calendar is (rbac-matrix 3.2). Internal."""
+    from app.modules.platform.models import StaffUser
+
+    return session.scalar(select(StaffUser.linked_resource_id).where(StaffUser.id == staff_user_id))
+
+
+def set_linked_resource(session: Session, staff_user_id: UUID, resource_id: UUID) -> None:
+    """Point a staff user at their trainer resource. Internal: resources.create_resource authorizes."""
+    from app.modules.platform.models import StaffUser
+
+    user = session.get(StaffUser, staff_user_id)
+    if user is None:
+        raise ValidationFailed("Unknown staff user.", pointer="/staff_user_id")
+    user.linked_resource_id = resource_id
+    session.flush()
+
+
+def location_time_zone(session: Session, location_id: UUID) -> str:
+    """IANA zone of a location (overview 3.7). Internal: every "day" and wall-time rule of a context uses it."""
+    zone = session.scalar(select(Location.time_zone).where(Location.id == location_id))
+    if zone is None:
+        raise NotFound()
+    return zone
