@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens. Court green carries the brand; a hot orange "ball" accent is for focus and highlights only
+   (it is not used for body text). All text pairs below meet WCAG 2.1 AA (4.5:1) on their backgrounds. */
+:root {
+  color-scheme: light;
+  --bg: 246 247 245;
+  --surface: 255 255 255;
+  --surface-2: 239 242 239;
+  --border: 214 221 216;
+  --fg: 16 24 21;
+  --muted: 78 90 86;
+  --primary: 11 104 80;
+  --primary-hover: 8 84 64;
+  --on-primary: 255 255 255;
+  --accent: 234 88 12;
+  --danger: 185 28 28;
+  --on-danger: 255 255 255;
+  --success: 21 112 56;
+  --warning: 146 84 6;
+  --info: 29 78 216;
+  --rail: 12 33 29;
+  --rail-fg: 236 244 240;
+  --rail-muted: 160 184 175;
+  --rail-active: 26 64 55;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: 10 16 15;
+  --surface: 17 25 23;
+  --surface-2: 25 35 32;
+  --border: 45 60 55;
+  --fg: 230 238 235;
+  --muted: 158 174 168;
+  --primary: 64 196 150;
+  --primary-hover: 92 214 170;
+  --on-primary: 4 28 20;
+  --accent: 251 146 60;
+  --danger: 248 113 113;
+  --on-danger: 40 6 6;
+  --success: 74 222 128;
+  --warning: 250 204 21;
+  --info: 125 168 255;
+  --rail: 7 12 11;
+  --rail-fg: 230 238 235;
+  --rail-muted: 140 160 152;
+  --rail-active: 24 46 40;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: 10 16 15;
+    --surface: 17 25 23;
+    --surface-2: 25 35 32;
+    --border: 45 60 55;
+    --fg: 230 238 235;
+    --muted: 158 174 168;
+    --primary: 64 196 150;
+    --primary-hover: 92 214 170;
+    --on-primary: 4 28 20;
+    --accent: 251 146 60;
+    --danger: 248 113 113;
+    --on-danger: 40 6 6;
+    --success: 74 222 128;
+    --warning: 250 204 21;
+    --info: 125 168 255;
+    --rail: 7 12 11;
+    --rail-fg: 230 238 235;
+    --rail-muted: 140 160 152;
+    --rail-active: 24 46 40;
+  }
+}
+
+@layer base {
+  html {
+    @apply bg-bg text-fg antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  body {
+    @apply min-h-screen text-sm;
+  }
+  h1 {
+    @apply text-2xl font-semibold tracking-tight;
+  }
+  h2 {
+    @apply text-lg font-semibold tracking-tight;
+  }
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 2px;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+dialog::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
