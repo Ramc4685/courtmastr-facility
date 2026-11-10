@@ -243,6 +243,10 @@ def consume_password_reset(session: Session, *, token: str, new_password: str, c
     return grant
 
 
+# Other contexts append fn(session, identity_id) to run when an invited identity activates (clients: access rows).
+ACTIVATION_HOOKS: list = []
+
+
 def accept_invitation(
     session: Session, *, token: str, new_password: str | None = None, client_kind: str = "web"
 ) -> Grant:
@@ -254,6 +258,8 @@ def accept_invitation(
         _set_password(identity, new_password)
     identity.status = "active"
     identity.email_verified_at = clock.now()
+    for hook in ACTIVATION_HOOKS:
+        hook(session, identity.id)
     grant = _start_session(session, identity, client_kind)
     audit.record(session, "platform.identity.accept_invitation", identity, actor=grant.principal)
     return grant

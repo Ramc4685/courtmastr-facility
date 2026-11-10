@@ -12,16 +12,17 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Settings', to: '/settings', permission: 'platform.tenant.update', icon: 'gear' },
   { label: 'Billing & payments', to: '/billing', permission: 'billing.charge.read', icon: 'cash' },
   { label: 'Point of sale', to: '/pos', permission: 'pos.sale.read', icon: 'cart' },
+  { label: 'Clients', to: '/clients', permission: 'clients.client.read', icon: 'person' },
+  { label: 'Documents', to: '/documents', permission: 'documents.template.manage', icon: 'pen' },
+  { label: 'Memberships', to: '/memberships', permission: 'memberships.contract.read', icon: 'card' },
+  { label: 'Packages', to: '/packages', permission: 'packages.package.read', icon: 'ticket' },
 ]
 
 // Build modules 2-17 (docs/architecture/overview.md section 6).
 export const UPCOMING_NAV: NavItem[] = [
   { label: 'Scheduling', icon: 'calendar' },
   { label: 'Rentals & events', icon: 'ticket' },
-  { label: 'Members & households', icon: 'person' },
-  { label: 'Memberships & packages', icon: 'card' },
   { label: 'Programs & registration', icon: 'clipboard' },
-  { label: 'Waivers', icon: 'pen' },
   { label: 'Check-in & access', icon: 'door' },
   { label: 'Leagues & tournaments', icon: 'trophy' },
   { label: 'Staff time & pay', icon: 'clock' },

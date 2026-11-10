@@ -193,10 +193,15 @@ def populate(client, tenant) -> SimpleNamespace:
     )
     billing_ids = _populate_billing(client, headers, post, person, location, category_id, tax_id, payment)
     billing_ids |= _populate_pos(client, headers, post, person, location, category_id, tax_id)
+    people = _populate_people(client, headers, tenant, location["id"], person["id"])
+    documents = _populate_documents(client, headers, tenant, location["id"], person)
+    people |= _populate_memberships(
+        client, headers, tenant, location["id"], person["id"], people["kid_id"], category_id
+    )
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
         session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
-        payment_id=payment["id"], revenue_category_id=category_id, tax_id=tax_id, **billing_ids,
+        payment_id=payment["id"], revenue_category_id=category_id, tax_id=tax_id, **billing_ids, **people, **documents,
     )  # fmt: skip
 
 
@@ -290,6 +295,143 @@ def _populate_pos(client, headers, post, person, location, category_id, tax_id) 
         "equipment_loan_id": loan["id"], "pos_sale_id": sale["id"], "pos_sale_line_id": product_line["id"],
         "pos_sale_discount_id": sale["discounts"][0]["id"], "pos_sale_tender_id": sale["tenders"][0]["id"],
         "pos_return_id": pos_return["id"],
+    }  # fmt: skip
+
+
+def _populate_people(client, headers, tenant, location_id, person_id) -> dict:
+    """Module 4 tables: client configuration, households, activity, merge, consent and a data subject request."""
+
+    def call(method: str, path: str, body: dict | None = None) -> dict:
+        response = client.request(method, f"/api/v1{path}", json=body, headers=headers)
+        assert response.status_code in (200, 201), response.text
+        return response.json() if response.content else {}
+
+    category = call("POST", "/client-categories", {"name": "Gold"})
+    referral = call("POST", "/referral-categories", {"name": "Friend"})
+    tag = call("GET", "/tags")[0]
+    field = call("POST", "/custom-fields", {"key": "shirt_size", "label": "Shirt size"})
+    call("PUT", "/client-field-policies", {"policies": [
+        {"field_key": "organization_name", "capture_context": "portal", "requirement": "hidden"}]})  # fmt: skip
+    call("GET", "/client-settings")
+    call("GET", f"/client-location-settings/{location_id}")
+    call("PATCH", f"/clients/{person_id}", {
+        "client_category_id": category["id"], "referral_category_id": referral["id"], "tag_ids": [tag["id"]],
+        "custom_values": {"shirt_size": "M"}, "phone_mobile": "+15555550100",
+    })  # fmt: skip
+    call("PUT", f"/clients/{person_id}/emergency-contacts", {"contacts": [{"name": "Robin", "phone": "+15555550101"}]})
+    parent_of = next(t for t in call("GET", "/relationship-types") if t["code"] == "parent_of")
+    kid = new_client(client, headers, location_id, first_name="Kit")
+    relationship = call("POST", f"/clients/{person_id}/relationships",
+                        {"other_client_id": kid["id"], "relationship_type_id": parent_of["id"]})  # fmt: skip
+    subject = call("POST", "/note-subjects", {"label": "Follow-up"})
+    note = call("POST", f"/clients/{person_id}/notes", {"kind": "call", "note_subject_id": subject["id"], "body": "Hi"})
+    task = call("POST", "/client-tasks", {"client_id": person_id, "subject_text": "Call back"})
+    alert = call("POST", f"/clients/{person_id}/alerts", {"message": "Peanut allergy", "kind": "medical"})
+    duplicate = new_client(client, headers, location_id, first_name="Kit", last_name=kid["last_name"])
+    call("POST", f"/clients/{kid['id']}/merge", {"merged_client_ids": [duplicate["id"]]})
+    call("PUT", f"/clients/{person_id}/communication-preferences", {
+        "changes": [{"channel": "sms", "address": "+15555550100", "topic": "sms_marketing", "is_subscribed": True}],
+        "basis": "express_written", "note": "Signed the desk form",
+    })  # fmt: skip
+    request = call("POST", "/data-subject-requests", {"client_id": person_id, "kind": "export"})
+    email_id = call("GET", f"/clients/{person_id}")["emails"][0]["id"]
+    return {
+        "client_category_id": category["id"], "referral_category_id": referral["id"], "tag_id": tag["id"],
+        "custom_field_id": field["id"], "relationship_type_id": parent_of["id"], "relationship_id": relationship["id"],
+        "note_subject_id": subject["id"], "note_id": note["id"], "task_id": task["id"], "alert_id": alert["id"],
+        "request_id": request["id"], "email_id": email_id, "kid_id": kid["id"],
+    }  # fmt: skip
+
+
+def verify_email(tenant, client_id, address: str) -> None:
+    from sqlalchemy import update
+
+    from app.modules.clients.models import ClientEmail
+
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        session.execute(
+            update(ClientEmail)
+            .where(ClientEmail.client_id == client_id, ClientEmail.email == address)
+            .values(verified_at=clock.now())
+        )
+
+
+def _populate_documents(client, headers, tenant, location_id, person) -> dict:
+    """Module 7 tables: settings, a published template with a binding, an accepted document (acceptance, status,
+    rendered file) and a pending one sent by email (delivery)."""
+
+    def call(method: str, path: str, body: dict | None = None) -> dict:
+        response = client.request(method, f"/api/v1{path}", json=body, headers=headers)
+        assert response.status_code in (200, 201), response.text
+        return response.json() if response.content else {}
+
+    call("PATCH", "/document-settings", {"email_link_ttl_hours": 72})
+    template = call("POST", "/document-templates", {"name": "Liability waiver", "is_waiver": True})
+    call("PUT", f"/document-templates/{template['id']}/draft",
+         {"body_html": "<p>I, {{client.full_name}}, accept the risks.</p>", "acceptance_text": "I agree."})  # fmt: skip
+    call("POST", f"/document-templates/{template['id']}/publish")
+    binding = call("PUT", "/document-bindings",
+                   {"scope_type": "membership_plan", "scope_id": str(uuid4()), "template_id": template["id"]})  # fmt: skip
+    call("PATCH", f"/document-location-settings/{location_id}", {"is_consent_required": False})
+    issue = {"client_id": person["id"], "location_id": location_id, "template_id": template["id"]}
+    signed = call("POST", "/client-documents", issue | {"acceptance_method": "checkbox"})
+    call("POST", f"/client-documents/{signed['id']}/acceptances", {"content_sha256": signed["content_sha256"], "signers": [
+        {"decision": "accepted", "signer_role": "client", "signer_name": "Casey", "method": "typed_name",
+         "typed_signature": "Casey"}]})  # fmt: skip
+    verify_email(tenant, person["id"], person["primary_email"])
+    pending = call("POST", "/client-documents",
+                   issue | {"acceptance_method": "email_link", "recipient_emails": [person["primary_email"]]})  # fmt: skip
+    return {"template_id": template["id"], "binding_id": binding["id"], "document_id": signed["id"],
+            "pending_document_id": pending["id"]}  # fmt: skip
+
+
+def _populate_memberships(client, headers, tenant, location_id, person_id, kid_id, category_id) -> dict:
+    """Module 5 tables: a membership plan with a bundled package plan, a sold contract with its schedule, a
+    future freeze and suspension, a share and a counted visit; a sold package with a share, and a recurring one
+    (series). Every row of memberships and packages for the generated isolation tests."""
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+
+    from app.modules import memberships
+
+    def call(method: str, path: str, body: dict | None = None) -> dict:
+        response = client.request(method, f"/api/v1{path}", json=body, headers=headers)
+        assert response.status_code in (200, 201), response.text
+        return response.json() if response.content else {}
+
+    today = clock.now().astimezone(ZoneInfo("America/Chicago")).date()
+    day = lambda n: (today + timedelta(days=n)).isoformat()  # noqa: E731
+    pack = {"reservation_type_id": str(uuid4()), "session_mode": "fixed", "fee_basis": "per_package",
+            "revenue_category_id": category_id}  # fmt: skip
+    package_plan = call("POST", "/package-plans", pack | {
+        "name": "Ten lessons", "session_count": 10, "fee_minor": 10000, "validity_count": 6, "validity_unit": "month"})  # fmt: skip
+    monthly = call("POST", "/package-plans", pack | {
+        "name": "Four a month", "kind": "recurring", "session_count": 4, "fee_minor": 4000, "recurrence_unit": "month",
+        "recurrence_interval_count": 1, "recurrence_occurrences_count": 3})  # fmt: skip
+    kind = call("POST", "/membership-types", {"name": "Adult", "revenue_category_id": category_id})
+    plan = call("POST", "/membership-plans", {
+        "membership_type_id": kind["id"], "name": "Monthly", "billing_occurrences_count": 12, "term_fee_minor": 5000,
+        "auto_renew_lead_count": 30, "auto_renew_lead_unit": "day"})  # fmt: skip
+    call("PUT", f"/membership-plans/{plan['id']}/addons", {"addons": [{"package_plan_id": package_plan["id"]}]})
+    call("PATCH", "/membership-settings", {"billing_lead_days": 0})
+    call("PATCH", "/package-settings", {"expiry_notice_days": 7})
+    sale = {"client_id": person_id, "location_id": location_id}
+    contract = call("POST", "/membership-contracts", sale | {"membership_plan_id": plan["id"]})
+    url = f"/membership-contracts/{contract['id']}"
+    share = call("POST", f"{url}/shares", {"client_id": kid_id})
+    freeze = call("POST", f"{url}/freezes", {"start_on": day(40), "end_on": day(50)})
+    suspension = call("POST", f"{url}/suspensions", {"start_on": day(100), "end_on": day(110), "fee_minor": 500})
+    period = next(p for p in call("GET", f"{url}/billing-schedule") if p["status"] == "scheduled")
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        memberships.service.record_visit(session, client_id=person_id, check_in_id=uuid4(), location_id=location_id)
+    package = call("POST", "/client-packages", sale | {"package_plan_id": package_plan["id"]})
+    package_share = call("POST", f"/client-packages/{package['id']}/shares", {"client_id": kid_id})
+    recurring = call("POST", "/client-packages", sale | {"package_plan_id": monthly["id"]})
+    return {
+        "membership_type_id": kind["id"], "membership_plan_id": plan["id"], "contract_id": contract["id"],
+        "membership_share_id": share["id"], "freeze_id": freeze["id"], "suspension_id": suspension["id"],
+        "period_id": period["id"], "package_plan_id": package_plan["id"], "package_id": package["id"],
+        "package_share_id": package_share["id"], "series_id": recurring["package_series_id"],
     }  # fmt: skip
 
 

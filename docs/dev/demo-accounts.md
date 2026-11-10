@@ -29,6 +29,17 @@ POS (Courtside Downtown): a "Pro shop" category with three stocked products (bar
 favourites, a `Staff 10%` discount preset and four `Demo racket` rentals. No drawer is open; sign in as front
 desk and open one from the register screen.
 
+Memberships and packages: plans `Adult monthly` (prorated to the 1st, bundles the `Member lesson pair`
+package, sold online), `Adult annual` and the free `Guest of a member`; Morgan Member holds an active monthly
+contract shared with Mia, Riley Reyes an annual one with a freeze two weeks out. Package plans `Ten private
+lessons` (sold online, shared with relatives), `Free trial lesson`, `Unlimited month` and the recurring `Four
+lessons a month`; Morgan has a ten-pack with two lessons used and one booked. No scheduler runs the daily jobs
+yet; run them by hand from `backend/`:
+
+```
+uv run python -c "from app.bootstrap import bootstrap; bootstrap(); from app.modules import memberships, packages; from app.core.db.platform import resolve_tenant; t = str(resolve_tenant(slug='courtside-demo').id); print(memberships.service.run_membership_day.fn(t), packages.service.run_package_day.fn(t))"
+```
+
 Tenant resolution in development: send `X-Tenant-Slug: courtside-demo`, or call the API as
 `http://courtside-demo.localhost:8100`. Emailed links (magic link, reset, invite) land in Mailpit at
 http://localhost:58025 and are also written to the API log.

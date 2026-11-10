@@ -459,3 +459,85 @@ class AuthSession(TenantOwned, Timestamps, Base):
     ip: Mapped[Any | None] = mapped_column(INET)
     user_agent: Mapped[str | None]
     last_seen_at: Mapped[datetime | None]
+
+
+# --- 2.6 Data-subject requests (IMP-04, PLT-16) --------------------------------------------------------------
+
+
+class DsrKind(StrEnum):
+    EXPORT = "export"
+    ERASURE = "erasure"
+
+
+class DsrStatus(StrEnum):
+    REQUESTED = "requested"
+    BLOCKED = "blocked"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    REJECTED = "rejected"
+    FAILED = "failed"
+
+
+class DataSubjectRequest(TenantOwned, Timestamps, Base):
+    """A personal-data export or erasure for one client; each context contributes through registered handlers
+    (app.modules.platform.privacy). `result_file_id` waits for stored_file: the export bundle is built on read."""
+
+    __tablename__ = "data_subject_request"
+    __table_args__ = tenant_args(
+        *tfk("client_id", "client"),
+        *tfk("requested_by_staff_user_id", "staff_user"),
+        enum_check("kind", DsrKind),
+        enum_check("status", DsrStatus),
+        CheckConstraint(
+            "kind <> 'erasure' OR status IN ('requested', 'blocked', 'rejected') OR confirmed_at IS NOT NULL",
+            name="confirm",
+        ),
+    )
+
+    client_id: Mapped[UUID]
+    kind: Mapped[str] = enum_column()
+    status: Mapped[str] = enum_column(server_default=text("'requested'"))
+    requested_by_staff_user_id: Mapped[UUID]
+    reason: Mapped[str | None]
+    confirmed_at: Mapped[datetime | None]
+    blockers: Mapped[list] = mapped_column(JsonDict, server_default=text("'[]'"))
+    is_blocker_override: Mapped[bool] = mapped_column(server_default=text("false"))
+    handler_results: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))
+    completed_at: Mapped[datetime | None]
+
+
+class StoredFileStatus(StrEnum):
+    PENDING = "pending"
+    READY = "ready"
+    PURGED = "purged"
+
+
+class UploaderType(StrEnum):
+    STAFF = "staff"
+    CLIENT = "client"
+    API_KEY = "api_key"
+    SYSTEM = "system"
+
+
+class StoredFile(TenantOwned, Timestamps, Base):
+    """Metadata of one object in file storage (data-model-core 2.2). Bytes live behind app.ports.storage under
+    `object_key`; rows are written through app.modules.platform.files. Image variants and expiry columns are not
+    created yet: nothing renders variants or expires files (README)."""
+
+    __tablename__ = "stored_file"
+    __table_args__ = tenant_args(
+        UniqueConstraint("tenant_id", "object_key"),
+        enum_check("status", StoredFileStatus),
+        enum_check("uploaded_by_type", UploaderType),
+        CheckConstraint("size_bytes >= 0", name="size_bytes"),
+    )
+
+    object_key: Mapped[str]
+    purpose: Mapped[str] = enum_column()
+    content_type: Mapped[str] = enum_column()
+    size_bytes: Mapped[int] = mapped_column(BigInteger)
+    sha256: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    original_name: Mapped[str | None]
+    status: Mapped[str] = enum_column(server_default=text("'pending'"))
+    uploaded_by_type: Mapped[str] = enum_column()
+    uploaded_by_id: Mapped[UUID | None]

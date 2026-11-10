@@ -5,8 +5,16 @@ import { ApiError } from '../api/client'
 import { ToastProvider } from '../components/Toast'
 import { SignInPage } from '../features/auth/SignInPage'
 import { ClientPickerDemo } from '../features/clients/ClientPickerDemo'
+import { ClientProfilePage } from '../features/clients/ClientProfilePage'
+import { ClientsPage } from '../features/clients/ClientsPage'
+import { MergePage } from '../features/clients/MergePage'
 import { TokenLinkPage } from '../features/auth/TokenLinkPage'
 import { PayLinkPage } from '../features/billing/PayLinkPage'
+import { PublicSignPage } from '../features/documents/PublicSignPage'
+import { TemplateEditorPage } from '../features/documents/TemplateEditorPage'
+import { TemplatesPage } from '../features/documents/TemplatesPage'
+import { MembershipsPage } from '../features/memberships/MembershipsPage'
+import { PackagesPage } from '../features/packages/PackagesPage'
 import { PortalHome } from '../features/portal/PortalHome'
 import { AuditLogPage } from '../features/platform/AuditLogPage'
 import { DashboardPage } from '../features/platform/DashboardPage'
@@ -55,6 +63,7 @@ export function AppRoutes() {
       <Route path="/auth/reset-password" element={<TokenLinkPage purpose="reset-password" />} />
       <Route path="/auth/accept-invite" element={<TokenLinkPage purpose="accept-invite" />} />
       <Route path="/pay" element={<PayLinkPage />} />
+      <Route path="/sign" element={<PublicSignPage />} />
       <Route path="/portal/*" element={<RequireClient><PortalHome /></RequireClient>} />
       <Route path="/billing/invoices/:id/document" element={<RequireStaff><RequirePermission permission="billing.invoice.read"><InvoiceDocumentPage /></RequirePermission></RequireStaff>} />
       <Route path="/billing/payments/:id/receipt" element={<RequireStaff><RequirePermission permission="billing.payment.read"><ReceiptPage /></RequirePermission></RequireStaff>} />
@@ -91,6 +100,13 @@ export function AppRoutes() {
           <Route path="reports" element={<PosReportsPage />} />
           <Route path="setup" element={<RequirePermission permission="pos.register.manage"><PosSetupPage /></RequirePermission>} />
         </Route>
+        <Route path="clients" element={<RequirePermission permission="clients.client.read"><ClientsPage /></RequirePermission>} />
+        <Route path="clients/merge" element={<RequirePermission permission="clients.client.merge"><MergePage /></RequirePermission>} />
+        <Route path="clients/:id" element={<RequirePermission permission="clients.client.read"><ClientProfilePage /></RequirePermission>} />
+        <Route path="documents" element={<RequirePermission permission="documents.template.manage"><TemplatesPage /></RequirePermission>} />
+        <Route path="documents/:id" element={<RequirePermission permission="documents.template.manage"><TemplateEditorPage /></RequirePermission>} />
+        <Route path="memberships" element={<RequirePermission permission="memberships.contract.read"><MembershipsPage /></RequirePermission>} />
+        <Route path="packages" element={<RequirePermission permission="packages.package.read"><PackagesPage /></RequirePermission>} />
         {import.meta.env.DEV && (
           <Route path="dev/client-picker" element={<RequirePermission permission="clients.client.read"><ClientPickerDemo /></RequirePermission>} />
         )}

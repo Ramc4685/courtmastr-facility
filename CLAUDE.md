@@ -108,10 +108,10 @@ per location, WCAG 2.1 AA, docs updated).
 | - | Kernel slices: lane config, `clients` skeleton, `billing` kernel, notification port, counters | done: `docs/status/kernel-slice.md` |
 | 2 | Resources and scheduling | not started |
 | 3 | Rentals and events | not started |
-| 4 | Members and households | skeleton only (client, portal access, picker) |
-| 5 | Memberships and packages | not started |
+| 4 | Members and households | done except photo, attachments, sharing: `docs/status/04-clients-households.md` |
+| 5 | Memberships and packages | backend and staff screens done; portal pages, autopay, post-billed not built: `docs/status/05-memberships-packages-web.md` |
 | 6 | Programs and registration | not started |
-| 7 | Waivers | not started |
+| 7 | Waivers and documents (`documents`) | done: P0 all, P1 bar DOC-07 bulk send; `docs/status/07-waivers-documents.md` |
 | 8 | Billing and payments | backend and staff screens: `docs/status/08-billing-payments{,-web}.md` |
 | 9 | Point of sale and inventory | done, P1s partial: `docs/status/09-pos-inventory.md` |
 | 10-17 | Check-in, leagues, staff, engagement, assessments, reporting, integrations, mobile | not started |
