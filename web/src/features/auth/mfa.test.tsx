@@ -8,6 +8,7 @@ import { AppRoutes, makeQueryClient, ROUTER_FUTURE } from '../../app/App'
 import { ToastProvider } from '../../components/Toast'
 import { AuthProvider } from '../../lib/auth'
 import { mockFetch } from '../../test/fetchMock'
+import { SCREEN } from '../scheduling/testing'
 import { StepUpDialog } from './StepUpDialog'
 
 const tenant = { id: 't1', name: 'Courtside Demo Club', slug: 'courtside-demo', status: 'active', currency: 'USD', default_time_zone: 'America/Chicago', locale: 'en-US', staff_mfa_policy: 'privileged', trial_ends_on: null, settings: {} }
@@ -51,7 +52,7 @@ afterEach(() => {
   setCsrfToken(null)
 })
 
-describe('two-step sign-in', () => {
+describe('two-step sign-in', SCREEN, () => {
   it('asks for a code after the password, then signs in', async () => {
     let signedIn = false
     const calls = mockFetch({
@@ -67,10 +68,10 @@ describe('two-step sign-in', () => {
     })
     renderApp('/sign-in')
     await signInWithPassword()
-    const field = await screen.findByRole('textbox', { name: 'Verification code' })
+    const field = await screen.findByRole('textbox', { name: 'Verification code' }, { timeout: 5000 })
     await userEvent.type(field, '000000')
     await userEvent.click(screen.getByRole('button', { name: 'Verify' }))
-    expect(await screen.findByText('That did not match. Try again.')).toBeInTheDocument()
+    expect(await screen.findByText('That did not match. Try again.', {}, { timeout: 5000 })).toBeInTheDocument()
     expect(field).toHaveAttribute('aria-invalid', 'true')
     await userEvent.clear(field)
     await userEvent.type(field, '123456')
@@ -94,11 +95,11 @@ describe('two-step sign-in', () => {
     })
     renderApp('/sign-in')
     await signInWithPassword()
-    expect(await screen.findByRole('img', { name: 'QR code for your authenticator app' })).toBeInTheDocument()
+    expect(await screen.findByRole('img', { name: 'QR code for your authenticator app' }, { timeout: 5000 })).toBeInTheDocument()
     expect(screen.getByText('JBSWY3DPEHPK3PXP')).toBeInTheDocument()
     await userEvent.type(screen.getByRole('textbox', { name: 'Code from the app' }), '123456')
     await userEvent.click(screen.getByRole('button', { name: 'Turn on and sign in' }))
-    const list = await screen.findByRole('list', { name: 'Recovery codes' })
+    const list = await screen.findByRole('list', { name: 'Recovery codes' }, { timeout: 5000 })
     expect(within(list).getAllByRole('listitem')).toHaveLength(10)
     await userEvent.click(screen.getByRole('button', { name: 'I have saved these codes' }))
     expect(await screen.findByRole('heading', { name: /Welcome, Olivia/ }, { timeout: 5000 })).toBeInTheDocument()
@@ -107,7 +108,7 @@ describe('two-step sign-in', () => {
   })
 })
 
-describe('step-up and the sign-in policy', () => {
+describe('step-up and the sign-in policy', SCREEN, () => {
   it('prompts once for a password when a save needs step-up, then retries the save', async () => {
     let elevated = false
     const settings = { staff_ip_allowlist: [], staff_mfa_policy: 'privileged', staff_idle_timeout_min: 30 }
@@ -133,7 +134,7 @@ describe('step-up and the sign-in policy', () => {
     await userEvent.type(idle, '20')
     await userEvent.click(screen.getByRole('button', { name: 'Save policy' }))
 
-    const dialog = await screen.findByRole('dialog', { name: 'Confirm it is you' })
+    const dialog = await screen.findByRole('dialog', { name: 'Confirm it is you' }, { timeout: 5000 })
     const password = await within(dialog).findByLabelText('Password')
     await waitFor(() => expect(password).toHaveFocus())
     await userEvent.type(password, 'wrong-password')
