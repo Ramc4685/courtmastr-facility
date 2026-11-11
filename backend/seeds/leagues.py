@@ -40,7 +40,7 @@ def seed(session: Session) -> None:
     ))  # fmt: skip
     service.transition_competition(session, actor, league.id, "activate")
     first = service.add_competition_team(session, actor, league.id, body(
-        s.CompetitionTeamCreate, team={"name": "Downtown Strikers"}, bill_to_client_id=member.id
+        s.CompetitionTeamCreate, team={"name": "Downtown Strikers", "captain_client_id": member.id}, bill_to_client_id=member.id
     ))  # fmt: skip
     service.generate_competition_teams(session, actor, league.id, body(s.TeamGenerate, count=5))
     service.add_roster_entry(
