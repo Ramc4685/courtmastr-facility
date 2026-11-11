@@ -11,6 +11,7 @@ const STUCK = ['mfa-enrolment-required', 'step-up-unavailable']
  * request is refused with step-up-required and retries that request after the user confirms. */
 export function StepUpDialog() {
   const resolver = useRef<((ok: boolean) => void) | null>(null)
+  const form = useRef<HTMLFormElement>(null)
   const [open, setOpen] = useState(false)
   const [status, setStatus] = useState<Schemas['MfaStatus'] | null>(null)
   const [value, setValue] = useState('')
@@ -31,6 +32,11 @@ export function StepUpDialog() {
     )
     return () => setStepUpHandler(null)
   }, [])
+
+  // showModal() (in Dialog, a child effect) focuses the Close button; move focus to the field once it is ready.
+  useEffect(() => {
+    if (open && status) form.current?.querySelector('input')?.focus()
+  }, [open, status])
 
   const finish = (ok: boolean) => {
     setOpen(false)
@@ -80,13 +86,12 @@ export function StepUpDialog() {
           {(error as ApiError).message}
         </p>
       ) : (
-        <form id="step-up-form" onSubmit={submit} noValidate>
+        <form ref={form} id="step-up-form" onSubmit={submit} noValidate>
           <Input
             label={status?.enrolled ? 'Authenticator or recovery code' : 'Password'}
             type={status?.enrolled ? 'text' : 'password'}
             autoComplete={status?.enrolled ? 'one-time-code' : 'current-password'}
             required
-            autoFocus
             value={value}
             error={codeMessage(error)}
             onChange={(e) => setValue(e.target.value)}
