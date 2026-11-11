@@ -158,6 +158,19 @@ def test_wrong_codes_count_toward_the_password_lockout(client, tenant, now):
     assert _sign_in(client, tenant).json()["code"] == "identity-locked"
 
 
+def test_an_emailed_link_does_not_reset_the_code_lockout(client, tenant, mailbox, now):
+    owner = login(client, tenant)
+    _enrol(client, owner)
+    for _ in range(10):
+        _verify(client, _sign_in(client, tenant).json(), "000000")
+    client.post(f"{API}/auth/magic-links", headers={"X-Tenant-Slug": tenant.slug}, json={"email": tenant.owner_email})
+    consumed = client.post(
+        f"{API}/auth/magic-links/consume", json={"token": link_token(mailbox[-1]), "client_kind": "mobile"}
+    )
+    assert consumed.status_code == 202  # the link still asks for a code, and the lock still holds
+    assert _verify(client, consumed.json(), "000000").json()["code"] == "identity-locked"
+
+
 def test_the_pending_state_grants_nothing(client, tenant, now):
     owner = login(client, tenant)
     _enrol(client, owner)
@@ -210,6 +223,16 @@ def test_required_roles_are_walked_through_enrolment():
     assert client.get(f"{API}/me/mfa", headers=headers).json()["required"] is True
     refused = client.delete(f"{API}/me/mfa/totp", headers=headers)
     assert refused.status_code == 403 and refused.json()["code"] == "mfa-required"
+
+
+def test_a_tightened_policy_stops_password_step_up_on_live_sessions(client, tenant):
+    from app.modules.platform.models import Tenant
+
+    stale = login(client, tenant, elevated=False)
+    with tenant_session(tenant.id) as session:
+        session.get(Tenant, tenant.id).staff_mfa_policy = "privileged"
+    refused = client.post(f"{API}/auth/step-up", headers=stale, json={"password": PASSWORD})
+    assert refused.status_code == 403 and refused.json()["code"] == "mfa-enrolment-required"
 
 
 def test_policy_change_is_audited_behind_step_up_and_owner_only_to_relax(client, tenant):

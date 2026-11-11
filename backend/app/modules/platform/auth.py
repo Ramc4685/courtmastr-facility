@@ -275,6 +275,7 @@ def change_password(session: Session, principal: Principal, *, current_password:
             code="password-reset-required",
         )
     _set_password(session, identity, new_password, principal.display_name)
+    _clear_failures(identity)
     revoke_sessions(session, identity.id, "password_reset", keep=principal.session_id)
     audit.record(session, "platform.identity.change_password", identity)
 
@@ -283,7 +284,6 @@ def _set_password(session: Session, identity: Identity, new_password: str, *name
     passwords.check_policy(new_password, forbidden=(identity.email, *names))
     identity.password_hash = passwords.hash_password(new_password)
     identity.password_changed_at = clock.now()
-    _clear_failures(identity)
     settings = get_settings()
     body = "The password for your account was just set or changed. If this was not you, reset it now."
     send_after_commit(
@@ -373,11 +373,12 @@ def consume_magic_link(session: Session, *, token: str, client_kind: str = "web"
     identity = _consume(session, token, TokenPurpose.MAGIC_LINK)
     if identity.status != "active":
         raise Unauthenticated("This link is not valid or was already used.", code="token-invalid")
-    # Redeeming the link proves the mailbox: verify the address and clear a password lockout.
+    # Redeeming the link proves the mailbox: verify the address, and clear a password lockout unless a second
+    # factor is still due (then only complete_challenge clears it, or a link would reset the code-guess count).
     identity.email_verified_at = identity.email_verified_at or clock.now()
-    _clear_failures(identity)
     if challenge := _second_factor(session, identity, client_kind, "magic_link"):
         return challenge
+    _clear_failures(identity)
     grant = _start_session(session, identity, client_kind)
     audit.record(session, "platform.identity.sign_in", identity, actor=grant.principal, reason="magic_link")
     return grant
@@ -400,7 +401,8 @@ def consume_password_reset(
     revoke_sessions(session, identity.id, "password_reset")
     if challenge := _second_factor(session, identity, client_kind, "password_reset"):
         audit.record(session, "platform.identity.reset_password", identity, actor=_actor(identity))
-        return challenge  # a reset never bypasses MFA (ADR 0002 section 3)
+        return challenge  # a reset never bypasses MFA (ADR 0002 section 3) nor clears its lockout
+    _clear_failures(identity)
     grant = _start_session(session, identity, client_kind)
     audit.record(session, "platform.identity.reset_password", identity, actor=grant.principal)
     return grant
@@ -426,6 +428,7 @@ def accept_invitation(
     if challenge := _second_factor(session, identity, client_kind, "invite"):
         audit.record(session, "platform.identity.accept_invitation", identity, actor=_actor(identity))
         return challenge
+    _clear_failures(identity)
     grant = _start_session(session, identity, client_kind)
     audit.record(session, "platform.identity.accept_invitation", identity, actor=grant.principal)
     return grant
@@ -655,6 +658,12 @@ def step_up(session: Session, principal: Principal, *, code: str | None = None, 
     factor = mfa.confirmed_factor(session, identity.id, lock=True)
     if factor is not None:
         ok = bool(code) and mfa.verify(session, factor, code) is not None
+    elif mfa.is_required(session, identity):
+        # The policy was tightened under a live session: a password alone no longer confirms this user.
+        raise PermissionDenied(
+            "Two-step verification is now required for your role. Sign out and sign in again to set it up.",
+            code="mfa-enrolment-required",
+        )
     elif identity.password_hash:
         ok = bool(password) and passwords.verify_password(identity.password_hash, password)
     else:
