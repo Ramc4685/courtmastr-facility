@@ -17,8 +17,8 @@ isolation and audit, and has a staff screen. **Partial** names what is missing. 
 | v2-adapter | 7 | 0 | 1 | 6 |
 | **All** | 204 | 107 | 56 | 41 |
 Module 1 (platform core) is done apart from OIDC, MFA and step-up (`backend/app/modules/platform/README.md`).
-Modules 10 to 17 (check-in, leagues, staff time and pay, engagement, assessments, reporting, integrations,
-mobile) and the rest of module 6 are not started. The five P0 features not built are CLS-02, CLS-09, CLS-10
+Modules 12 (staff time and pay) and 13 (assessments) are built on lane w2c: `12-staff.md`, `13-assessments.md`.
+Modules 10, 11 and 14 to 17 and the rest of module 6 are reported by their own lanes. The five P0 features not built are CLS-02, CLS-09, CLS-10
 (module 6 and the portal), CLI-12 (client photo) and BIL-14 (pre-defined items).
 
 ## Checks on `main`

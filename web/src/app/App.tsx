@@ -44,6 +44,7 @@ import { ProductsPage } from '../features/pos/ProductsPage'
 import { RegisterPage, RegisterPickerPage } from '../features/pos/RegisterPage'
 import { PosReceiptPage, SaleDetailPage, SalesPage } from '../features/pos/SalesPage'
 import { PosSetupPage } from '../features/pos/SetupPage'
+import { AssessmentSetupPage } from '../features/assessments/AssessmentSetupPage'
 import { ClockPage } from '../features/staff/ClockPage'
 import { PayeesPage } from '../features/staff/PayeesPage'
 import { PayrollPage } from '../features/staff/PayrollPage'
@@ -120,6 +121,7 @@ export function AppRoutes() {
           <Route path="payroll" element={<RequirePermission permission="staff.payroll_run.create"><PayrollPage /></RequirePermission>} />
           <Route path="setup" element={<RequirePermission permission="staff.time_entry.manage"><StaffSetupPage /></RequirePermission>} />
         </Route>
+        <Route path="assessments/setup" element={<RequirePermission permission="assessments.definition.manage"><AssessmentSetupPage /></RequirePermission>} />
         <Route path="clients" element={<RequirePermission permission="clients.client.read"><ClientsPage /></RequirePermission>} />
         <Route path="clients/merge" element={<RequirePermission permission="clients.client.merge"><MergePage /></RequirePermission>} />
         <Route path="clients/:id" element={<RequirePermission permission="clients.client.read"><ClientProfilePage /></RequirePermission>} />

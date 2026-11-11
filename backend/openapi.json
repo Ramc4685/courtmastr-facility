@@ -598,6 +598,708 @@
         "title": "AllocationsCreate",
         "type": "object"
       },
+      "AssessmentFieldCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "better_direction": {
+            "default": "none",
+            "enum": [
+              "higher",
+              "lower",
+              "none"
+            ],
+            "title": "Better Direction",
+            "type": "string"
+          },
+          "decimal_places": {
+            "default": 0,
+            "maximum": 6.0,
+            "minimum": 0.0,
+            "title": "Decimal Places",
+            "type": "integer"
+          },
+          "is_client_visible": {
+            "default": true,
+            "title": "Is Client Visible",
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "sort_order": {
+            "default": 0,
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Sort Order",
+            "type": "integer"
+          },
+          "unit_label": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Label"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "AssessmentFieldCreate",
+        "type": "object"
+      },
+      "AssessmentFieldOut": {
+        "properties": {
+          "assessment_template_id": {
+            "format": "uuid",
+            "title": "Assessment Template Id",
+            "type": "string"
+          },
+          "better_direction": {
+            "enum": [
+              "higher",
+              "lower",
+              "none"
+            ],
+            "title": "Better Direction",
+            "type": "string"
+          },
+          "decimal_places": {
+            "title": "Decimal Places",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_client_visible": {
+            "title": "Is Client Visible",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          },
+          "unit_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Label"
+          }
+        },
+        "required": [
+          "id",
+          "assessment_template_id",
+          "name",
+          "decimal_places",
+          "unit_label",
+          "better_direction",
+          "is_client_visible",
+          "sort_order",
+          "is_active"
+        ],
+        "title": "AssessmentFieldOut",
+        "type": "object"
+      },
+      "AssessmentFieldUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "better_direction": {
+            "anyOf": [
+              {
+                "enum": [
+                  "higher",
+                  "lower",
+                  "none"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Better Direction"
+          },
+          "decimal_places": {
+            "anyOf": [
+              {
+                "maximum": 6.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decimal Places"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "is_client_visible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Client Visible"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "sort_order": {
+            "anyOf": [
+              {
+                "maximum": 10000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort Order"
+          },
+          "unit_label": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Label"
+          }
+        },
+        "title": "AssessmentFieldUpdate",
+        "type": "object"
+      },
+      "AssessmentPoint": {
+        "properties": {
+          "recorded_at": {
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "result_id": {
+            "format": "uuid",
+            "title": "Result Id",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result_id",
+          "recorded_at",
+          "value"
+        ],
+        "title": "AssessmentPoint",
+        "type": "object"
+      },
+      "AssessmentResultCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "recorded_at": {
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/AssessmentValueIn"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Values",
+            "type": "array"
+          }
+        },
+        "required": [
+          "client_id",
+          "location_id",
+          "recorded_at",
+          "values"
+        ],
+        "title": "AssessmentResultCreate",
+        "type": "object"
+      },
+      "AssessmentResultOut": {
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "recorded_at": {
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "recorded_by_staff_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By Staff User Id"
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/AssessmentValueOut"
+            },
+            "title": "Values",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "recorded_at",
+          "recorded_by_staff_user_id",
+          "location_id",
+          "note",
+          "values"
+        ],
+        "title": "AssessmentResultOut",
+        "type": "object"
+      },
+      "AssessmentResultUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "recorded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded At"
+          },
+          "values": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AssessmentValueIn"
+                },
+                "maxItems": 200,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Values"
+          }
+        },
+        "title": "AssessmentResultUpdate",
+        "type": "object"
+      },
+      "AssessmentSeriesList": {
+        "properties": {
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/AssessmentSeriesOut"
+            },
+            "title": "Series",
+            "type": "array"
+          }
+        },
+        "required": [
+          "series"
+        ],
+        "title": "AssessmentSeriesList",
+        "type": "object"
+      },
+      "AssessmentSeriesOut": {
+        "properties": {
+          "assessment_field_id": {
+            "format": "uuid",
+            "title": "Assessment Field Id",
+            "type": "string"
+          },
+          "best_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Value"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change"
+          },
+          "first_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Value"
+          },
+          "latest_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Value"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/AssessmentPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "assessment_field_id",
+          "points",
+          "latest_value",
+          "first_value",
+          "change",
+          "best_value"
+        ],
+        "title": "AssessmentSeriesOut",
+        "type": "object"
+      },
+      "AssessmentSettingsOut": {
+        "properties": {
+          "is_portal_sharing_enabled": {
+            "title": "Is Portal Sharing Enabled",
+            "type": "boolean"
+          },
+          "summary_max_age_days_default": {
+            "title": "Summary Max Age Days Default",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "is_portal_sharing_enabled",
+          "summary_max_age_days_default"
+        ],
+        "title": "AssessmentSettingsOut",
+        "type": "object"
+      },
+      "AssessmentSettingsUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "is_portal_sharing_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Portal Sharing Enabled"
+          },
+          "summary_max_age_days_default": {
+            "anyOf": [
+              {
+                "maximum": 3650.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Max Age Days Default"
+          }
+        },
+        "title": "AssessmentSettingsUpdate",
+        "type": "object"
+      },
+      "AssessmentTemplateCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "sort_order": {
+            "default": 0,
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Sort Order",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "AssessmentTemplateCreate",
+        "type": "object"
+      },
+      "AssessmentTemplateOut": {
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/AssessmentFieldOut"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "sort_order",
+          "is_active",
+          "fields"
+        ],
+        "title": "AssessmentTemplateOut",
+        "type": "object"
+      },
+      "AssessmentTemplateUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "sort_order": {
+            "anyOf": [
+              {
+                "maximum": 10000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort Order"
+          }
+        },
+        "title": "AssessmentTemplateUpdate",
+        "type": "object"
+      },
+      "AssessmentValueIn": {
+        "additionalProperties": false,
+        "properties": {
+          "assessment_field_id": {
+            "format": "uuid",
+            "title": "Assessment Field Id",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "maximum": 999999999999.0,
+                "minimum": -999999999999.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "assessment_field_id",
+          "value"
+        ],
+        "title": "AssessmentValueIn",
+        "type": "object"
+      },
+      "AssessmentValueOut": {
+        "properties": {
+          "assessment_field_id": {
+            "format": "uuid",
+            "title": "Assessment Field Id",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assessment_field_id",
+          "value"
+        ],
+        "title": "AssessmentValueOut",
+        "type": "object"
+      },
       "AttendancePut": {
         "additionalProperties": false,
         "properties": {
@@ -21442,6 +22144,46 @@
         "title": "PageInfo",
         "type": "object"
       },
+      "Page_AssessmentResultOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AssessmentResultOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[AssessmentResultOut]",
+        "type": "object"
+      },
+      "Page_AssessmentTemplateOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AssessmentTemplateOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[AssessmentTemplateOut]",
+        "type": "object"
+      },
       "Page_AuditEventOut_": {
         "properties": {
           "data": {
@@ -22300,6 +23042,26 @@
           "page"
         ],
         "title": "Page[PermissionDefinition]",
+        "type": "object"
+      },
+      "Page_PortalAssessmentResultOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PortalAssessmentResultOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[PortalAssessmentResultOut]",
         "type": "object"
       },
       "Page_PortalClientDocumentOut_": {
@@ -25171,6 +25933,157 @@
           "released_at"
         ],
         "title": "PortalAllocationOut",
+        "type": "object"
+      },
+      "PortalAssessmentBestOut": {
+        "properties": {
+          "assessment_field_id": {
+            "format": "uuid",
+            "title": "Assessment Field Id",
+            "type": "string"
+          },
+          "best_recorded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Recorded At"
+          },
+          "best_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Value"
+          },
+          "better_direction": {
+            "enum": [
+              "higher",
+              "lower",
+              "none"
+            ],
+            "title": "Better Direction",
+            "type": "string"
+          },
+          "field_name": {
+            "title": "Field Name",
+            "type": "string"
+          },
+          "latest_recorded_at": {
+            "format": "date-time",
+            "title": "Latest Recorded At",
+            "type": "string"
+          },
+          "latest_value": {
+            "title": "Latest Value",
+            "type": "string"
+          },
+          "template_name": {
+            "title": "Template Name",
+            "type": "string"
+          },
+          "unit_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Label"
+          }
+        },
+        "required": [
+          "assessment_field_id",
+          "field_name",
+          "template_name",
+          "unit_label",
+          "better_direction",
+          "best_value",
+          "best_recorded_at",
+          "latest_value",
+          "latest_recorded_at"
+        ],
+        "title": "PortalAssessmentBestOut",
+        "type": "object"
+      },
+      "PortalAssessmentResultOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "recorded_at": {
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/PortalAssessmentValueOut"
+            },
+            "title": "Values",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "recorded_at",
+          "values"
+        ],
+        "title": "PortalAssessmentResultOut",
+        "type": "object"
+      },
+      "PortalAssessmentValueOut": {
+        "properties": {
+          "assessment_field_id": {
+            "format": "uuid",
+            "title": "Assessment Field Id",
+            "type": "string"
+          },
+          "field_name": {
+            "title": "Field Name",
+            "type": "string"
+          },
+          "template_name": {
+            "title": "Template Name",
+            "type": "string"
+          },
+          "unit_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Label"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assessment_field_id",
+          "field_name",
+          "template_name",
+          "unit_label",
+          "value"
+        ],
+        "title": "PortalAssessmentValueOut",
         "type": "object"
       },
       "PortalClientDocumentOut": {
@@ -44039,6 +44952,1056 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/assessment-fields/{assessment_field_id}": {
+      "patch": {
+        "operationId": "updateAssessmentField",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assessment_field_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assessment Field Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentFieldUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentFieldOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Assessment Field",
+        "tags": [
+          "assessments"
+        ]
+      }
+    },
+    "/api/v1/assessment-results": {
+      "get": {
+        "operationId": "listAssessmentResults",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Client Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AssessmentResultOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Assessment Results",
+        "tags": [
+          "assessments"
+        ]
+      },
+      "post": {
+        "operationId": "createAssessmentResult",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentResultCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentResultOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Assessment Result",
+        "tags": [
+          "assessments"
+        ]
+      }
+    },
+    "/api/v1/assessment-results/{assessment_result_id}": {
+      "delete": {
+        "operationId": "deleteAssessmentResult",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assessment_result_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assessment Result Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Assessment Result",
+        "tags": [
+          "assessments"
+        ]
+      },
+      "get": {
+        "operationId": "getAssessmentResult",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assessment_result_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assessment Result Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentResultOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Assessment Result",
+        "tags": [
+          "assessments"
+        ]
+      },
+      "patch": {
+        "operationId": "updateAssessmentResult",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assessment_result_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assessment Result Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentResultUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentResultOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Assessment Result",
+        "tags": [
+          "assessments"
+        ]
+      }
+    },
+    "/api/v1/assessment-series": {
+      "get": {
+        "operationId": "getAssessmentSeries",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Client Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "recorded_at[gte]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Recorded At[Gte]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "recorded_at[lte]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Recorded At[Lte]"
+            }
+          },
+          {
+            "in": "query",
+            "name": "assessment_template_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Assessment Template Id"
+            }
+          },
+          {
+            "description": "Comma-separated ids",
+            "in": "query",
+            "name": "assessment_field_id[in]",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated ids",
+              "title": "Assessment Field Id[In]"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentSeriesList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Assessment Series",
+        "tags": [
+          "assessments"
+        ]
+      }
+    },
+    "/api/v1/assessment-settings": {
+      "get": {
+        "operationId": "getAssessmentSettings",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Assessment Settings",
+        "tags": [
+          "assessments"
+        ]
+      },
+      "patch": {
+        "operationId": "updateAssessmentSettings",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Assessment Settings",
+        "tags": [
+          "assessments"
+        ]
+      }
+    },
+    "/api/v1/assessment-templates": {
+      "get": {
+        "operationId": "listAssessmentTemplates",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AssessmentTemplateOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Assessment Templates",
+        "tags": [
+          "assessments"
+        ]
+      },
+      "post": {
+        "operationId": "createAssessmentTemplate",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentTemplateCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentTemplateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Assessment Template",
+        "tags": [
+          "assessments"
+        ]
+      }
+    },
+    "/api/v1/assessment-templates/{assessment_template_id}": {
+      "patch": {
+        "operationId": "updateAssessmentTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assessment_template_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assessment Template Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentTemplateUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentTemplateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Assessment Template",
+        "tags": [
+          "assessments"
+        ]
+      }
+    },
+    "/api/v1/assessment-templates/{assessment_template_id}/fields": {
+      "post": {
+        "operationId": "createAssessmentField",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assessment_template_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assessment Template Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentFieldCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentFieldOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Assessment Field",
+        "tags": [
+          "assessments"
+        ]
+      }
+    },
     "/api/v1/audit-events": {
       "get": {
         "description": "Staff activity trail, newest first. Filters: actor_id, actor_type, action, entity_type, entity_id,\nlocation_id, occurred_at[gte|lt|...].",
@@ -66850,6 +68813,236 @@
         "summary": "List Permission Catalogue",
         "tags": [
           "platform"
+        ]
+      }
+    },
+    "/api/v1/portal/assessment-bests": {
+      "get": {
+        "description": "Personal best and latest value per client-visible field.",
+        "operationId": "listPortalAssessmentBests",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PortalAssessmentBestOut"
+                  },
+                  "title": "Response Listportalassessmentbests",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Portal Assessment Bests",
+        "tags": [
+          "assessments"
+        ]
+      }
+    },
+    "/api/v1/portal/assessment-results": {
+      "get": {
+        "description": "Client-visible results of the acted-for client (404 while sharing is off).",
+        "operationId": "listPortalAssessmentResults",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
+            }
+          },
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PortalAssessmentResultOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Portal Assessment Results",
+        "tags": [
+          "assessments"
         ]
       }
     },

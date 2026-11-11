@@ -11,6 +11,7 @@ import { Tabs } from '../../components/Tabs'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { InvoicesTable, PaymentsTable } from '../billing/ClientBillingPage'
+import { ClientAssessmentsTab } from '../assessments/ClientAssessmentsTab'
 import { ClientDocumentsTab, WaiverBadge } from '../documents/ClientDocumentsTab'
 import { ClientMembershipsTab } from '../memberships/ClientMembershipsTab'
 import { ClientPackagesTab } from '../packages/ClientPackagesTab'
@@ -433,6 +434,7 @@ export function ClientProfilePage() {
           ...(can('memberships.contract.read') ? [{ id: 'memberships', label: 'Memberships', content: <ClientMembershipsTab client={client} /> }] : []),
           ...(can('packages.package.read') ? [{ id: 'packages', label: 'Packages', content: <ClientPackagesTab client={client} /> }] : []),
           ...(can('billing.invoice.read') ? [{ id: 'billing', label: 'Billing', content: <ClientBillingTab clientId={client.id} /> }] : []),
+          ...(can('assessments.assessment.read') ? [{ id: 'assessments', label: 'Assessments', content: <ClientAssessmentsTab client={client} /> }] : []),
         ]}
       />
     </>

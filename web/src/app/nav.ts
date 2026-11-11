@@ -22,6 +22,7 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Rentals', to: '/rentals', permission: 'scheduling.booking.read', icon: 'ticket' },
   { label: 'Rental setup', to: '/rentals/setup', icon: 'list' },
   { label: 'Staff time & pay', to: '/staff-time', permission: 'staff.time_entry.punch', icon: 'clock' },
+  { label: 'Assessment setup', to: '/assessments/setup', permission: 'assessments.definition.manage', icon: 'pulse' },
 ]
 
 // Build modules 2-17 (docs/architecture/overview.md section 6).
@@ -30,7 +31,6 @@ export const UPCOMING_NAV: NavItem[] = [
   { label: 'Check-in & access', icon: 'door' },
   { label: 'Leagues & tournaments', icon: 'trophy' },
   { label: 'Engagement', icon: 'mail' },
-  { label: 'Fitness assessments', icon: 'pulse' },
   { label: 'Reports', icon: 'chart' },
   { label: 'Integrations', icon: 'plug' },
   { label: 'Mobile app', icon: 'phone' },

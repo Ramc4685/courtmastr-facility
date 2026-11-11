@@ -252,6 +252,10 @@ _BODIES = {
     "updateShift": {"note": "Renamed"},
     "updatePayStatement": {"additional_income_minor": 0},
     "assignSessionInstructor": {"staff_payee_id": None},
+    "updateAssessmentTemplate": {"sort_order": 1},
+    "createAssessmentField": {"name": "Body fat"},
+    "updateAssessmentField": {"sort_order": 1},
+    "updateAssessmentResult": {"note": "Rechecked"},
 }
 _ACCEPTANCE = {"content_sha256": "0" * 64, "signers": [
     {"decision": "accepted", "signer_role": "client", "signer_name": "X", "method": "checkbox"}]}  # fmt: skip

@@ -82,7 +82,7 @@ describe('auth flow', () => {
     expect(nav).not.toHaveTextContent('Activity log')
     expect(nav).toHaveTextContent('Scheduling')
     expect(nav).not.toHaveTextContent('Billing & payments') // built (module 8), and this role has no billing permission
-    expect(screen.getAllByText('(coming soon)')).toHaveLength(8)
+    expect(screen.getAllByText('(coming soon)')).toHaveLength(7)
   })
 
   it('explains a 403 when the page is opened directly without the permission', async () => {

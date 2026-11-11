@@ -27,7 +27,7 @@ CONFIRM_TTL = timedelta(days=7)
 EDIT = frozenset({"self", "manager", "guardian"})
 CAPABILITIES = {
     "book": None, "buy": None, "view_schedule": None,  # every authority
-    "edit_profile": EDIT, "consent": EDIT, "documents": EDIT, "invoices": EDIT,
+    "edit_profile": EDIT, "consent": EDIT, "documents": EDIT, "invoices": EDIT, "assessments": EDIT,
 }  # fmt: skip
 _MANAGE = "clients.relationship.manage"
 

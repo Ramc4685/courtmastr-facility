@@ -4,6 +4,147 @@
  */
 
 export interface paths {
+    "/api/v1/assessment-fields/{assessment_field_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Assessment Field */
+        patch: operations["updateAssessmentField"];
+        trace?: never;
+    };
+    "/api/v1/assessment-results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Assessment Results */
+        get: operations["listAssessmentResults"];
+        put?: never;
+        /** Create Assessment Result */
+        post: operations["createAssessmentResult"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assessment-results/{assessment_result_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Assessment Result */
+        get: operations["getAssessmentResult"];
+        put?: never;
+        post?: never;
+        /** Delete Assessment Result */
+        delete: operations["deleteAssessmentResult"];
+        options?: never;
+        head?: never;
+        /** Update Assessment Result */
+        patch: operations["updateAssessmentResult"];
+        trace?: never;
+    };
+    "/api/v1/assessment-series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Assessment Series */
+        get: operations["getAssessmentSeries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assessment-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Assessment Settings */
+        get: operations["getAssessmentSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Assessment Settings */
+        patch: operations["updateAssessmentSettings"];
+        trace?: never;
+    };
+    "/api/v1/assessment-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Assessment Templates */
+        get: operations["listAssessmentTemplates"];
+        put?: never;
+        /** Create Assessment Template */
+        post: operations["createAssessmentTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assessment-templates/{assessment_template_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Assessment Template */
+        patch: operations["updateAssessmentTemplate"];
+        trace?: never;
+    };
+    "/api/v1/assessment-templates/{assessment_template_id}/fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Assessment Field */
+        post: operations["createAssessmentField"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/audit-events": {
         parameters: {
             query?: never;
@@ -4486,6 +4627,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/assessment-bests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Assessment Bests
+         * @description Personal best and latest value per client-visible field.
+         */
+        get: operations["listPortalAssessmentBests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/assessment-results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Assessment Results
+         * @description Client-visible results of the acted-for client (404 while sharing is off).
+         */
+        get: operations["listPortalAssessmentResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/billing-summary": {
         parameters: {
             query?: never;
@@ -8140,6 +8321,245 @@ export interface components {
             allocations?: components["schemas"]["AllocationIn"][] | null;
             /** Invoice Id */
             invoice_id?: string | null;
+        };
+        /** AssessmentFieldCreate */
+        AssessmentFieldCreate: {
+            /**
+             * Better Direction
+             * @default none
+             * @enum {string}
+             */
+            better_direction: "higher" | "lower" | "none";
+            /**
+             * Decimal Places
+             * @default 0
+             */
+            decimal_places: number;
+            /**
+             * Is Client Visible
+             * @default true
+             */
+            is_client_visible: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+            /** Unit Label */
+            unit_label?: string | null;
+        };
+        /** AssessmentFieldOut */
+        AssessmentFieldOut: {
+            /**
+             * Assessment Template Id
+             * Format: uuid
+             */
+            assessment_template_id: string;
+            /**
+             * Better Direction
+             * @enum {string}
+             */
+            better_direction: "higher" | "lower" | "none";
+            /** Decimal Places */
+            decimal_places: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Client Visible */
+            is_client_visible: boolean;
+            /** Name */
+            name: string;
+            /** Sort Order */
+            sort_order: number;
+            /** Unit Label */
+            unit_label: string | null;
+        };
+        /** AssessmentFieldUpdate */
+        AssessmentFieldUpdate: {
+            /** Better Direction */
+            better_direction?: ("higher" | "lower" | "none") | null;
+            /** Decimal Places */
+            decimal_places?: number | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Is Client Visible */
+            is_client_visible?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Unit Label */
+            unit_label?: string | null;
+        };
+        /** AssessmentPoint */
+        AssessmentPoint: {
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /**
+             * Result Id
+             * Format: uuid
+             */
+            result_id: string;
+            /** Value */
+            value: string;
+        };
+        /** AssessmentResultCreate */
+        AssessmentResultCreate: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Note */
+            note?: string | null;
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /** Values */
+            values: components["schemas"]["AssessmentValueIn"][];
+        };
+        /** AssessmentResultOut */
+        AssessmentResultOut: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Location Id */
+            location_id: string | null;
+            /** Note */
+            note: string | null;
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /** Recorded By Staff User Id */
+            recorded_by_staff_user_id: string | null;
+            /** Values */
+            values: components["schemas"]["AssessmentValueOut"][];
+        };
+        /** AssessmentResultUpdate */
+        AssessmentResultUpdate: {
+            /** Note */
+            note?: string | null;
+            /** Recorded At */
+            recorded_at?: string | null;
+            /** Values */
+            values?: components["schemas"]["AssessmentValueIn"][] | null;
+        };
+        /** AssessmentSeriesList */
+        AssessmentSeriesList: {
+            /** Series */
+            series: components["schemas"]["AssessmentSeriesOut"][];
+        };
+        /** AssessmentSeriesOut */
+        AssessmentSeriesOut: {
+            /**
+             * Assessment Field Id
+             * Format: uuid
+             */
+            assessment_field_id: string;
+            /** Best Value */
+            best_value: string | null;
+            /** Change */
+            change: string | null;
+            /** First Value */
+            first_value: string | null;
+            /** Latest Value */
+            latest_value: string | null;
+            /** Points */
+            points: components["schemas"]["AssessmentPoint"][];
+        };
+        /** AssessmentSettingsOut */
+        AssessmentSettingsOut: {
+            /** Is Portal Sharing Enabled */
+            is_portal_sharing_enabled: boolean;
+            /** Summary Max Age Days Default */
+            summary_max_age_days_default: number;
+        };
+        /** AssessmentSettingsUpdate */
+        AssessmentSettingsUpdate: {
+            /** Is Portal Sharing Enabled */
+            is_portal_sharing_enabled?: boolean | null;
+            /** Summary Max Age Days Default */
+            summary_max_age_days_default?: number | null;
+        };
+        /** AssessmentTemplateCreate */
+        AssessmentTemplateCreate: {
+            /** Name */
+            name: string;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /** AssessmentTemplateOut */
+        AssessmentTemplateOut: {
+            /** Fields */
+            fields: components["schemas"]["AssessmentFieldOut"][];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /** AssessmentTemplateUpdate */
+        AssessmentTemplateUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+        };
+        /** AssessmentValueIn */
+        AssessmentValueIn: {
+            /**
+             * Assessment Field Id
+             * Format: uuid
+             */
+            assessment_field_id: string;
+            /** Value */
+            value: number | string;
+        };
+        /** AssessmentValueOut */
+        AssessmentValueOut: {
+            /**
+             * Assessment Field Id
+             * Format: uuid
+             */
+            assessment_field_id: string;
+            /** Value */
+            value: string;
         };
         /** AttendancePut */
         AttendancePut: {
@@ -14675,6 +15095,18 @@ export interface components {
             /** Total */
             total?: number | null;
         };
+        /** Page[AssessmentResultOut] */
+        Page_AssessmentResultOut_: {
+            /** Data */
+            data: components["schemas"]["AssessmentResultOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[AssessmentTemplateOut] */
+        Page_AssessmentTemplateOut_: {
+            /** Data */
+            data: components["schemas"]["AssessmentTemplateOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[AuditEventOut] */
         Page_AuditEventOut_: {
             /** Data */
@@ -14931,6 +15363,12 @@ export interface components {
         Page_PermissionDefinition_: {
             /** Data */
             data: components["schemas"]["PermissionDefinition"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PortalAssessmentResultOut] */
+        Page_PortalAssessmentResultOut_: {
+            /** Data */
+            data: components["schemas"]["PortalAssessmentResultOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[PortalClientDocumentOut] */
@@ -15886,6 +16324,67 @@ export interface components {
              * @enum {string}
              */
             status: "provisional" | "applied" | "released";
+        };
+        /** PortalAssessmentBestOut */
+        PortalAssessmentBestOut: {
+            /**
+             * Assessment Field Id
+             * Format: uuid
+             */
+            assessment_field_id: string;
+            /** Best Recorded At */
+            best_recorded_at: string | null;
+            /** Best Value */
+            best_value: string | null;
+            /**
+             * Better Direction
+             * @enum {string}
+             */
+            better_direction: "higher" | "lower" | "none";
+            /** Field Name */
+            field_name: string;
+            /**
+             * Latest Recorded At
+             * Format: date-time
+             */
+            latest_recorded_at: string;
+            /** Latest Value */
+            latest_value: string;
+            /** Template Name */
+            template_name: string;
+            /** Unit Label */
+            unit_label: string | null;
+        };
+        /** PortalAssessmentResultOut */
+        PortalAssessmentResultOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /** Values */
+            values: components["schemas"]["PortalAssessmentValueOut"][];
+        };
+        /** PortalAssessmentValueOut */
+        PortalAssessmentValueOut: {
+            /**
+             * Assessment Field Id
+             * Format: uuid
+             */
+            assessment_field_id: string;
+            /** Field Name */
+            field_name: string;
+            /** Template Name */
+            template_name: string;
+            /** Unit Label */
+            unit_label: string | null;
+            /** Value */
+            value: string;
         };
         /**
          * PortalClientDocumentOut
@@ -22037,6 +22536,490 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    updateAssessmentField: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                assessment_field_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssessmentFieldUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssessmentFieldOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listAssessmentResults: {
+        parameters: {
+            query: {
+                client_id: string;
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AssessmentResultOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createAssessmentResult: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssessmentResultCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssessmentResultOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getAssessmentResult: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                assessment_result_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssessmentResultOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteAssessmentResult: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                assessment_result_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateAssessmentResult: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                assessment_result_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssessmentResultUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssessmentResultOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getAssessmentSeries: {
+        parameters: {
+            query: {
+                client_id: string;
+                "recorded_at[gte]"?: string | null;
+                "recorded_at[lte]"?: string | null;
+                assessment_template_id?: string | null;
+                /** @description Comma-separated ids */
+                "assessment_field_id[in]"?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssessmentSeriesList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getAssessmentSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssessmentSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateAssessmentSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssessmentSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssessmentSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listAssessmentTemplates: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AssessmentTemplateOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createAssessmentTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssessmentTemplateCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssessmentTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateAssessmentTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                assessment_template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssessmentTemplateUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssessmentTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createAssessmentField: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                assessment_template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssessmentFieldCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssessmentFieldOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listAuditEvents: {
         parameters: {
             query?: {
@@ -33060,6 +34043,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_PermissionDefinition_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalAssessmentBests: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalAssessmentBestOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalAssessmentResults: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PortalAssessmentResultOut_"];
                 };
             };
             /** @description Validation Error */

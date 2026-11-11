@@ -47,6 +47,7 @@ CLIENT_OR_TENANT_ROUTES = {
         listMembershipSuspensions listMembershipVisits listPackageShares removePaymentMethod
         sendClientDocument sendInvoice sendReceipt setWaiverOverride submitClientDocumentAcceptance
         updatePaymentMethod uploadClientDocumentPaperScan verifyBankAccount
+        getAssessmentResult updateAssessmentResult
     """.split()),
     "tenant": set("""
         addTaxRate approveClientRelationship archiveDocumentTemplate archiveLocation assignClientMemberNumber
@@ -72,6 +73,7 @@ CLIENT_OR_TENANT_ROUTES = {
         updateRevenueCategory updateRole updateStaffUser updateTag updateTax updateTaxRate updateTenderType
         addStaffHourlyRate deleteStaffHourlyRate getCommissionRules listPayRates listStaffHourlyRates
         putCommissionRules putDefaultPayRate
+        createAssessmentField updateAssessmentField updateAssessmentTemplate
     """.split()),
 }  # fmt: skip
 

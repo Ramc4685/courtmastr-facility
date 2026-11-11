@@ -203,11 +203,26 @@ def populate(client, tenant) -> SimpleNamespace:
         client, headers, post, location["id"], person["id"], space["resource_id"], category_id, tax_id
     )
     space |= _populate_staff(client, headers, post, location["id"], invited["id"], space["trainer_resource_id"])
+    space |= _populate_assessments(client, headers, post, location["id"], person["id"])
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
         session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
         payment_id=payment["id"], revenue_category_id=category_id, tax_id=tax_id, **billing_ids, **people, **documents, **space,
     )  # fmt: skip
+
+
+def _populate_assessments(client, headers, post, location_id, client_id) -> dict:
+    """Build module 13: a category with one field, a recorded result with its value, and the settings row."""
+    template = post("/assessment-templates", {"name": "Body composition"})
+    field = post(f"/assessment-templates/{template['id']}/fields",
+                 {"name": "Weight", "decimal_places": 1, "unit_label": "kg", "better_direction": "lower"})  # fmt: skip
+    result = post("/assessment-results", {"client_id": client_id, "location_id": location_id,
+                                          "recorded_at": "2031-01-06T15:00:00Z",
+                                          "values": [{"assessment_field_id": field["id"], "value": "80.25"}]})  # fmt: skip
+    response = client.patch("/api/v1/assessment-settings", headers=headers, json={"is_portal_sharing_enabled": True})
+    assert response.status_code == 200, response.text
+    return {"assessment_template_id": template["id"], "assessment_field_id": field["id"],
+            "assessment_result_id": result["id"]}  # fmt: skip
 
 
 def _populate_billing(client, headers, post, person, location, category_id, tax_id, payment) -> dict:
