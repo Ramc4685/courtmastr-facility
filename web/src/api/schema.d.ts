@@ -14109,6 +14109,12 @@ export interface components {
             data: components["schemas"]["PermissionDefinition"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[PortalInvoiceOut] */
+        Page_PortalInvoiceOut_: {
+            /** Data */
+            data: components["schemas"]["PortalInvoiceOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[PortalPackageOut] */
         Page_PortalPackageOut_: {
             /** Data */
@@ -14119,6 +14125,12 @@ export interface components {
         Page_PortalPackagePlanOut_: {
             /** Data */
             data: components["schemas"]["PortalPackagePlanOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PortalPaymentOut] */
+        Page_PortalPaymentOut_: {
+            /** Data */
+            data: components["schemas"]["PortalPaymentOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[PosSaleOut] */
@@ -14747,6 +14759,30 @@ export interface components {
             /** Status */
             status: string;
         };
+        /** PortalAllocationOut */
+        PortalAllocationOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Applied At */
+            applied_at: string | null;
+            /**
+             * Charge Id
+             * Format: uuid
+             */
+            charge_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Released At */
+            released_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "provisional" | "applied" | "released";
+        };
         /** PortalClientList */
         PortalClientList: {
             /** Data */
@@ -15036,6 +15072,55 @@ export interface components {
             /** Email */
             email?: string | null;
         };
+        /** PortalInvoiceOut */
+        PortalInvoiceOut: {
+            /** Balance Minor */
+            balance_minor: number;
+            /** Bill To Client Id */
+            bill_to_client_id: string | null;
+            /** Comments */
+            comments: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Due On
+             * Format: date
+             */
+            due_on: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Invoice On
+             * Format: date
+             */
+            invoice_on: string;
+            /** Is Autopay */
+            is_autopay: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Number */
+            number: number;
+            /** Organization Name */
+            organization_name: string | null;
+            /** Past Due Since On */
+            past_due_since_on: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "payment_pending" | "partially_paid" | "paid" | "voided";
+            /** Total Minor */
+            total_minor: number;
+        };
         /** PortalPackageBuy */
         PortalPackageBuy: {
             /** Client Id */
@@ -15259,7 +15344,7 @@ export interface components {
             client_secret: string | null;
             /** Credit Applied Minor */
             credit_applied_minor: number;
-            payment: components["schemas"]["PaymentDetail"] | null;
+            payment: components["schemas"]["PortalPaymentDetail"] | null;
         };
         /** PortalPaymentCreate */
         PortalPaymentCreate: {
@@ -15280,10 +15365,149 @@ export interface components {
              */
             use_account_credit: boolean;
         };
+        /** PortalPaymentDetail */
+        PortalPaymentDetail: {
+            /** Allocations */
+            allocations: components["schemas"]["PortalAllocationOut"][];
+            /** Amount Minor */
+            amount_minor: number;
+            /** Client Id */
+            client_id: string | null;
+            /** Currency */
+            currency: string;
+            /** Failure Category */
+            failure_category: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "staff" | "portal" | "pos" | "kiosk" | "autopay" | "api";
+            /** Receipt Number */
+            receipt_number: number;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Refunded Minor */
+            refunded_minor: number;
+            /** Refunds */
+            refunds: components["schemas"]["PortalRefundOut"][];
+            /** Settled At */
+            settled_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "initiated" | "requires_action" | "processing" | "succeeded" | "failed" | "unknown" | "cancelled" | "disputed" | "charged_back" | "voided";
+            /**
+             * Tender Kind
+             * @enum {string}
+             */
+            tender_kind: "card" | "bank_debit" | "cash" | "cheque" | "bank_transfer" | "gift_card" | "external" | "other";
+            /** Unapplied Minor */
+            unapplied_minor: number;
+        };
+        /** PortalPaymentOut */
+        PortalPaymentOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Client Id */
+            client_id: string | null;
+            /** Currency */
+            currency: string;
+            /** Failure Category */
+            failure_category: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "staff" | "portal" | "pos" | "kiosk" | "autopay" | "api";
+            /** Receipt Number */
+            receipt_number: number;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Refunded Minor */
+            refunded_minor: number;
+            /** Settled At */
+            settled_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "initiated" | "requires_action" | "processing" | "succeeded" | "failed" | "unknown" | "cancelled" | "disputed" | "charged_back" | "voided";
+            /**
+             * Tender Kind
+             * @enum {string}
+             */
+            tender_kind: "card" | "bank_debit" | "cash" | "cheque" | "bank_transfer" | "gift_card" | "external" | "other";
+            /** Unapplied Minor */
+            unapplied_minor: number;
+        };
         /** PortalPreferencesReplace */
         PortalPreferencesReplace: {
             /** Changes */
             changes: components["schemas"]["PreferenceChange"][];
+        };
+        /** PortalRefundOut */
+        PortalRefundOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "original" | "external";
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            /**
+             * Refund On
+             * Format: date
+             */
+            refund_on: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "succeeded" | "failed" | "cancelled";
         };
         /** PortalRelationshipList */
         PortalRelationshipList: {
@@ -31223,7 +31447,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Page_InvoiceOut_"];
+                    "application/json": components["schemas"]["Page_PortalInvoiceOut_"];
                 };
             };
             /** @description Validation Error */
@@ -31726,7 +31950,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Page_PaymentOut_"];
+                    "application/json": components["schemas"]["Page_PortalPaymentOut_"];
                 };
             };
             /** @description Validation Error */

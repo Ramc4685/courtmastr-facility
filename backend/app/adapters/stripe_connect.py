@@ -253,9 +253,13 @@ class StripeConnectProvider:
 
     def find_payment(self, *, account_ref: str, idempotency_key: str) -> PaymentState | None:
         # Stripe's search index lags creation by up to a minute; the sweep only looks after five.
-        params = {"query": f"metadata['fh_key']:'{idempotency_key}'", "limit": 1}
+        # The key is caller-influenced: escape it for the search grammar, and adopt only an exact match.
+        quoted = idempotency_key.replace("\\", "\\\\").replace("'", "\\'")
+        params = {"query": f"metadata['fh_key']:'{quoted}'", "limit": 1}
         found = self._ok("GET", "/v1/payment_intents/search", params, account=account_ref).get("data") or []
-        return self._payment(found[0]) if found else None
+        if not found or (found[0].get("metadata") or {}).get("fh_key") != idempotency_key:
+            return None
+        return self._payment(found[0])
 
     def cancel_payment(self, *, account_ref: str, provider_payment_ref: str) -> PaymentState:
         status, payload = self._call("POST", f"/v1/payment_intents/{provider_payment_ref}/cancel", account=account_ref)

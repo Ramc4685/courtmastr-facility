@@ -129,9 +129,19 @@ def reverse_charge(session: Session, principal: Principal, charge_id: UUID, data
 
 
 def create_invoice(session: Session, principal: Principal, data: dict) -> dict:
+    charges = []
     for charge_id in data["charge_ids"]:
         charge = _get(session, Charge, charge_id, pointer="/charge_ids")
         authorize(principal, "billing.invoice.create", location_id=charge.location_id)
+        charges.append(charge)
+    payer = data.get("bill_to_client_id")
+    if payer is not None:
+        clients.service.require_active(session, payer, pointer="/bill_to_client_id")  # unknown first, then unrelated
+    if payer is not None and payer not in related_clients(session, [c.client_id for c in charges]):
+        raise ValidationFailed(
+            "Choose someone on the invoice or a relative of theirs.", pointer="/bill_to_client_id",
+            code="payer-not-related",
+        )  # fmt: skip
     invoice = create_invoice_for_charges(
         session, data["charge_ids"], bill_to_client_id=data.get("bill_to_client_id"), due_on=data.get("due_on"),
         is_autopay=bool(data.get("is_autopay")), comments=data.get("comments"),
@@ -184,8 +194,8 @@ def get_payment(session: Session, principal: Principal, payment_id: UUID) -> dic
 
 
 def confirm_payment_at_desk(session: Session, principal: Principal, payment_id: UUID) -> dict:
-    authorize(principal, "billing.payment.take")
-    _get(session, Payment, payment_id)
+    payment = _get(session, Payment, payment_id)
+    authorize(principal, "billing.payment.take", location_id=payment.location_id)
     return _payment_detail(session, confirm_payment(session, payment_id))
 
 
@@ -193,6 +203,16 @@ def allocate_payment(session: Session, principal: Principal, payment_id: UUID, d
     payment = _get(session, Payment, payment_id)
     authorize(principal, "billing.payment.reallocate", location_id=payment.location_id)
     rows = [(row["charge_id"], row["amount_minor"]) for row in data.get("allocations") or []]
+    if rows:
+        targets = [_get(session, Charge, charge_id, pointer="/allocations") for charge_id, _ in rows]
+    elif data.get("invoice_id"):
+        targets = [_get(session, Invoice, data["invoice_id"], pointer="/invoice_id")]
+    elif principal.kind != "system" and principal.location_ids is not None:
+        raise ValidationFailed("Choose the items or the invoice to apply this payment to.", pointer="/allocations")
+    else:
+        targets = []
+    for target in targets:  # the money moves onto each target's books, so each location must be in reach
+        authorize(principal, "billing.payment.reallocate", location_id=target.location_id)
     payment = allocate(session, payment_id, invoice_id=data.get("invoice_id"), allocations=rows or None)
     return _payment_detail(session, payment)
 
@@ -872,6 +892,7 @@ def _plan(
             amount = min(available - sum(a for _, a in plan), charge.total_minor - charge.applied_minor)
             if amount > 0:
                 plan.append((charge, amount))
+        _require_payer(session, client_id, [charge for charge, _ in plan], "/invoice_id")
         return plan
     if len({charge_id for charge_id, _ in allocations}) != len(allocations):
         raise ValidationFailed("List each item once.", pointer="/allocations")
@@ -880,6 +901,7 @@ def _plan(
         (_lock(session, Charge, charge_id, pointer="/allocations"), amount)
         for charge_id, amount in sorted(allocations, key=lambda row: row[0])
     ]
+    _require_payer(session, client_id, [charge for charge, _ in plan], "/allocations")
     for charge, amount in plan:
         if amount <= 0 or charge.status != "active" or amount > charge.total_minor - charge.applied_minor:
             raise ValidationFailed(
@@ -892,6 +914,37 @@ def _plan(
             code="allocation-exceeds-payment",
         )  # fmt: skip
     return plan
+
+
+def related_clients(session: Session, client_ids: Iterable[UUID]) -> set[UUID]:
+    """Internal: these clients and everyone with a live (pending or active) relationship to one of them. The
+    people whose money may settle an item, and who an invoice may be billed to: a parent, never a stranger."""
+    people = set(client_ids) - {None}
+    return people | {
+        other
+        for person in people
+        for rel in clients.households.relationships_of(session, person, live_only=True)
+        for other in (rel.from_client_id, rel.to_client_id)
+    }
+
+
+def _require_payer(session: Session, client_id: UUID | None, charges: Sequence[Charge], pointer: str) -> None:
+    """Money goes only where its owner points it: each item is the payer's own, on an invoice billed to the
+    payer, or a live relative's. A walk-in payment (no client) settles only items with no client."""
+    if client_id is None:
+        allowed = all(charge.client_id is None for charge in charges)
+    else:
+        payers = related_clients(session, [client_id])
+        billed_to = {
+            row.id: row.bill_to_client_id
+            for row in session.scalars(select(Invoice).where(Invoice.id.in_({c.invoice_id for c in charges} - {None})))
+        }
+        allowed = all(charge.client_id in payers or billed_to.get(charge.invoice_id) == client_id for charge in charges)
+    if not allowed:
+        raise ValidationFailed(
+            "This money belongs to someone else: it can only pay the payer's or a relative's items.",
+            pointer=pointer, code="payer-mismatch",
+        )  # fmt: skip
 
 
 def _allocate(
@@ -1140,15 +1193,23 @@ def spend_credit(
 
 
 def refund_credit(
-    session: Session, client_id: UUID, *, amount_minor: int, reason: str, idempotency_key: str
+    session: Session,
+    client_id: UUID,
+    *,
+    amount_minor: int,
+    reason: str,
+    idempotency_key: str,
+    location_ids: Iterable[UUID] | None = None,
 ) -> list[Refund]:
     """Give account credit back (PAY-05): one refund per payment, newest payment first, each to its own
-    original method (or as an external record for record-only tenders), grouped by one refund_batch_id."""
-    payments = session.scalars(
-        select(Payment)
-        .where(Payment.client_id == client_id, Payment.status == "succeeded", Payment.unapplied_minor > 0)
-        .order_by(Payment.received_at.desc(), Payment.id.desc())
-    ).all()
+    original method (or as an external record for record-only tenders), grouped by one refund_batch_id.
+    `location_ids` (not None) draws only on payments taken at those locations."""
+    stmt = select(Payment).where(
+        Payment.client_id == client_id, Payment.status == "succeeded", Payment.unapplied_minor > 0
+    )
+    if location_ids is not None:
+        stmt = stmt.where(Payment.location_id.in_(list(location_ids)))
+    payments = session.scalars(stmt.order_by(Payment.received_at.desc(), Payment.id.desc())).all()
     if not 0 < amount_minor <= sum(payment.unapplied_minor for payment in payments):
         raise ValidationFailed(
             "The amount exceeds the credit on account.", pointer="/amount_minor", code="refund-exceeds-unapplied"

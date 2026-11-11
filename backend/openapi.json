@@ -21805,6 +21805,26 @@
         "title": "Page[PermissionDefinition]",
         "type": "object"
       },
+      "Page_PortalInvoiceOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PortalInvoiceOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[PortalInvoiceOut]",
+        "type": "object"
+      },
       "Page_PortalPackageOut_": {
         "properties": {
           "data": {
@@ -21843,6 +21863,26 @@
           "page"
         ],
         "title": "Page[PortalPackagePlanOut]",
+        "type": "object"
+      },
+      "Page_PortalPaymentOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PortalPaymentOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[PortalPaymentOut]",
         "type": "object"
       },
       "Page_PosSaleOut_": {
@@ -23783,6 +23823,67 @@
         "title": "PortalAccessOut",
         "type": "object"
       },
+      "PortalAllocationOut": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "applied_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied At"
+          },
+          "charge_id": {
+            "format": "uuid",
+            "title": "Charge Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "released_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Released At"
+          },
+          "status": {
+            "enum": [
+              "provisional",
+              "applied",
+              "released"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "charge_id",
+          "amount_minor",
+          "status",
+          "applied_at",
+          "released_at"
+        ],
+        "title": "PortalAllocationOut",
+        "type": "object"
+      },
       "PortalClientList": {
         "properties": {
           "data": {
@@ -24733,6 +24834,126 @@
         "title": "PortalInvite",
         "type": "object"
       },
+      "PortalInvoiceOut": {
+        "properties": {
+          "balance_minor": {
+            "title": "Balance Minor",
+            "type": "integer"
+          },
+          "bill_to_client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bill To Client Id"
+          },
+          "comments": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comments"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "due_on": {
+            "format": "date",
+            "title": "Due On",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invoice_on": {
+            "format": "date",
+            "title": "Invoice On",
+            "type": "string"
+          },
+          "is_autopay": {
+            "title": "Is Autopay",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "organization_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Name"
+          },
+          "past_due_since_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Past Due Since On"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "payment_pending",
+              "partially_paid",
+              "paid",
+              "voided"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "total_minor": {
+            "title": "Total Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "bill_to_client_id",
+          "location_id",
+          "invoice_on",
+          "due_on",
+          "status",
+          "total_minor",
+          "balance_minor",
+          "is_autopay",
+          "past_due_since_on",
+          "comments",
+          "organization_name",
+          "created_at"
+        ],
+        "title": "PortalInvoiceOut",
+        "type": "object"
+      },
       "PortalPackageBuy": {
         "additionalProperties": false,
         "properties": {
@@ -25406,7 +25627,7 @@
           "payment": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/PaymentDetail"
+                "$ref": "#/components/schemas/PortalPaymentDetail"
               },
               {
                 "type": "null"
@@ -25477,6 +25698,290 @@
         "title": "PortalPaymentCreate",
         "type": "object"
       },
+      "PortalPaymentDetail": {
+        "properties": {
+          "allocations": {
+            "items": {
+              "$ref": "#/components/schemas/PortalAllocationOut"
+            },
+            "title": "Allocations",
+            "type": "array"
+          },
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "failure_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Category"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "staff",
+              "portal",
+              "pos",
+              "kiosk",
+              "autopay",
+              "api"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "receipt_number": {
+            "title": "Receipt Number",
+            "type": "integer"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "refunded_minor": {
+            "title": "Refunded Minor",
+            "type": "integer"
+          },
+          "refunds": {
+            "items": {
+              "$ref": "#/components/schemas/PortalRefundOut"
+            },
+            "title": "Refunds",
+            "type": "array"
+          },
+          "settled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settled At"
+          },
+          "status": {
+            "enum": [
+              "initiated",
+              "requires_action",
+              "processing",
+              "succeeded",
+              "failed",
+              "unknown",
+              "cancelled",
+              "disputed",
+              "charged_back",
+              "voided"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tender_kind": {
+            "enum": [
+              "card",
+              "bank_debit",
+              "cash",
+              "cheque",
+              "bank_transfer",
+              "gift_card",
+              "external",
+              "other"
+            ],
+            "title": "Tender Kind",
+            "type": "string"
+          },
+          "unapplied_minor": {
+            "title": "Unapplied Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "receipt_number",
+          "client_id",
+          "location_id",
+          "tender_kind",
+          "amount_minor",
+          "currency",
+          "status",
+          "origin",
+          "received_at",
+          "settled_at",
+          "failure_category",
+          "unapplied_minor",
+          "refunded_minor",
+          "allocations",
+          "refunds"
+        ],
+        "title": "PortalPaymentDetail",
+        "type": "object"
+      },
+      "PortalPaymentOut": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "failure_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Category"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "staff",
+              "portal",
+              "pos",
+              "kiosk",
+              "autopay",
+              "api"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "receipt_number": {
+            "title": "Receipt Number",
+            "type": "integer"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "refunded_minor": {
+            "title": "Refunded Minor",
+            "type": "integer"
+          },
+          "settled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settled At"
+          },
+          "status": {
+            "enum": [
+              "initiated",
+              "requires_action",
+              "processing",
+              "succeeded",
+              "failed",
+              "unknown",
+              "cancelled",
+              "disputed",
+              "charged_back",
+              "voided"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tender_kind": {
+            "enum": [
+              "card",
+              "bank_debit",
+              "cash",
+              "cheque",
+              "bank_transfer",
+              "gift_card",
+              "external",
+              "other"
+            ],
+            "title": "Tender Kind",
+            "type": "string"
+          },
+          "unapplied_minor": {
+            "title": "Unapplied Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "receipt_number",
+          "client_id",
+          "location_id",
+          "tender_kind",
+          "amount_minor",
+          "currency",
+          "status",
+          "origin",
+          "received_at",
+          "settled_at",
+          "failure_category",
+          "unapplied_minor",
+          "refunded_minor"
+        ],
+        "title": "PortalPaymentOut",
+        "type": "object"
+      },
       "PortalPreferencesReplace": {
         "additionalProperties": false,
         "properties": {
@@ -25494,6 +25999,68 @@
           "changes"
         ],
         "title": "PortalPreferencesReplace",
+        "type": "object"
+      },
+      "PortalRefundOut": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "method": {
+            "enum": [
+              "original",
+              "external"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "payment_id": {
+            "format": "uuid",
+            "title": "Payment Id",
+            "type": "string"
+          },
+          "refund_on": {
+            "format": "date",
+            "title": "Refund On",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "payment_id",
+          "amount_minor",
+          "currency",
+          "method",
+          "status",
+          "refund_on",
+          "created_at"
+        ],
+        "title": "PortalRefundOut",
         "type": "object"
       },
       "PortalRelationshipList": {
@@ -41370,6 +41937,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -41553,6 +42121,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -44441,6 +45010,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -44508,6 +45078,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -48550,6 +49121,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -55675,6 +56247,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -56020,6 +56593,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -61315,6 +61889,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -61850,6 +62425,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -61917,6 +62493,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -63701,7 +64278,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Page_InvoiceOut_"
+                  "$ref": "#/components/schemas/Page_PortalInvoiceOut_"
                 }
               }
             },
@@ -64747,7 +65324,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Page_PaymentOut_"
+                  "$ref": "#/components/schemas/Page_PortalPaymentOut_"
                 }
               }
             },
@@ -64782,6 +65359,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -66187,6 +66765,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -66753,6 +67332,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -66820,6 +67400,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -66960,6 +67541,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -68919,6 +69501,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }

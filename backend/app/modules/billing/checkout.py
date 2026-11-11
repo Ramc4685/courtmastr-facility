@@ -46,6 +46,13 @@ def secure_online_checkout(
     if on_account_ok and not has_method:
         return None
     if invoice is not None and invoice.balance_minor > 0:
+        if not has_method:  # something is due now and nothing was offered to pay it
+            if must_pay_now:
+                raise Conflict("The payment did not go through, so nothing was bought.", code="payment-failed")
+            raise ValidationFailed(
+                "A payment method is needed for what is due now.", pointer="/method_token",
+                code="payment-method-required",
+            )  # fmt: skip
         earlier = service.find_payment(session, idempotency_key)
         if earlier is not None and earlier.status in ("unknown", "initiated"):
             # a retry after a timeout: ask the processor first, so the card is never charged twice

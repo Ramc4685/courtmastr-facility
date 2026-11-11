@@ -60,6 +60,8 @@ CONSTRAINT_CODES["ck_equipment_item_on_loan"] = "equipment-unavailable"
 CONSTRAINT_CODES["ck_pos_sale_line_returned"] = "return-exceeds-sold"
 # Kinds a cashier can take at the register. Bank debit settles days later, which a till cannot wait for.
 PROCESSED_KINDS = ("card", "bank_debit")  # the provider moves the money; every other register kind is record-only
+# Each tender moves money its own way, so each needs the billing key for that move (a payment leg otherwise).
+_TENDER_KEYS = {"account_credit": "billing.credit.apply", "pay_later": "billing.invoice.create"}
 _REGISTER_KINDS = ("card", "cash", "cheque", "gift_card", "bank_transfer", "external", "other")
 COUPON_SEQ = 1_000_000  # the coupon applies last
 
@@ -190,7 +192,7 @@ def create_sale(session: Session, principal: Principal, data: dict, client_ip: s
     if draft_for_register(session, register.id) is not None:
         raise Conflict("This register already has a sale in progress.", code="draft-sale-exists")
     if data.get("client_id"):
-        clients.service.require_active(session, data["client_id"])
+        _attach_client(session, principal, data["client_id"])
     sale = PosSale(
         location_id=register.location_id, register_id=register.id, drawer_session_id=drawer.id if drawer else None,
         cashier_staff_user_id=principal.staff_user_id, client_id=data.get("client_id"), note=data.get("note"),
@@ -199,6 +201,15 @@ def create_sale(session: Session, principal: Principal, data: dict, client_ip: s
     session.flush()
     audit.record(session, _CREATE, sale, location_id=sale.location_id, changes={"status": [None, "draft"]})
     return sale_detail(session, sale)
+
+
+def _attach_client(session: Session, principal: Principal, client_id: UUID) -> None:
+    """A client the cashier may read (own reach included), and active. Out of reach reads as unknown."""
+    try:
+        clients.service.load(session, principal, client_id, "clients.client.read")
+    except NotFound:
+        raise ValidationFailed("Unknown or disabled client.", pointer="/client_id") from None
+    clients.service.require_active(session, client_id)
 
 
 def update_sale(session: Session, principal: Principal, sale_id: UUID, data: dict, client_ip: str | None) -> dict:
@@ -213,7 +224,7 @@ def update_sale(session: Session, principal: Principal, sale_id: UUID, data: dic
             if any(line.line_kind == "equipment" for line in _lines(session, sale.id)):
                 raise ValidationFailed("Equipment rentals need a client.", pointer="/client_id", code="client-required")
         else:
-            clients.service.require_active(session, data["client_id"])
+            _attach_client(session, principal, data["client_id"])
         sale.client_id = data["client_id"]
     if "note" in data:
         sale.note = data["note"]
@@ -554,6 +565,7 @@ def add_tender(
                 _settle_leg(session, sale, leg, payment)
             return sale_detail(session, sale)
     tender, amount = data["tender"], data["amount_minor"]
+    authorize(principal, _TENDER_KEYS.get(tender, "billing.payment.take"), location_id=sale.location_id)
     remaining = sale.total_minor - captured_minor(tenders)
     if amount > remaining:
         raise ValidationFailed(

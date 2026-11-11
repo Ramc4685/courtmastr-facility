@@ -899,7 +899,72 @@ class PortalPaymentCreate(In):
     set_autopay: bool = False
 
 
+# --- portal: what a client sees of their own money. No staff memos, collection state or void reasons. -------
+
+
+class PortalInvoiceOut(Out):
+    id: UUID
+    number: int
+    bill_to_client_id: UUID | None
+    location_id: UUID
+    invoice_on: date
+    due_on: date
+    status: Literal["open", "payment_pending", "partially_paid", "paid", "voided"]
+    total_minor: int
+    balance_minor: int
+    is_autopay: bool
+    past_due_since_on: date | None
+    comments: str | None
+    organization_name: str | None
+    created_at: datetime
+
+
+class PortalAllocationOut(Out):
+    id: UUID
+    charge_id: UUID
+    amount_minor: int
+    status: Literal["provisional", "applied", "released"]
+    applied_at: datetime | None
+    released_at: datetime | None
+
+
+class PortalRefundOut(Out):
+    id: UUID
+    payment_id: UUID
+    amount_minor: int
+    currency: str
+    method: Literal["original", "external"]
+    status: Literal["pending", "succeeded", "failed", "cancelled"]
+    refund_on: date
+    created_at: datetime
+
+
+class PortalPaymentOut(Out):
+    id: UUID
+    receipt_number: int
+    client_id: UUID | None
+    location_id: UUID
+    tender_kind: TenderKind
+    amount_minor: int
+    currency: str
+    status: Literal[
+        "initiated", "requires_action", "processing", "succeeded", "failed", "unknown", "cancelled", "disputed",
+        "charged_back", "voided",
+    ]  # fmt: skip
+    origin: Literal["staff", "portal", "pos", "kiosk", "autopay", "api"]
+    received_at: datetime
+    settled_at: datetime | None
+    failure_category: str | None
+    unapplied_minor: int
+    refunded_minor: int
+
+
+class PortalPaymentDetail(PortalPaymentOut):
+    allocations: list[PortalAllocationOut]
+    refunds: list[PortalRefundOut]
+
+
 class PortalPayment(Out):
     credit_applied_minor: int
-    payment: PaymentDetail | None
+    payment: PortalPaymentDetail | None
     client_secret: str | None

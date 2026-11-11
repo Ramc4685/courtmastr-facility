@@ -174,6 +174,10 @@ def _check_plan(session: Session, plan: PackagePlan) -> None:
                 )
     if plan.kind != "recurring" and plan.default_invoice_mode == "per_period":
         raise ValidationFailed("Only a recurring plan invoices per period.", pointer="/default_invoice_mode")
+    if plan.online_sale_mode == "paid_in_full" and plan.default_invoice_mode == "deferred":
+        raise ValidationFailed(
+            "A plan paid in full online cannot defer its invoice.", pointer="/default_invoice_mode"
+        )  # fmt: skip
 
 
 def list_plans(session: Session, principal: Principal, query: ListQuery) -> dict:
@@ -1193,23 +1197,23 @@ def public_list_plans(session: Session, query: ListQuery) -> dict:
 
 def portal_buy(session: Session, principal: Principal, data: dict, idempotency_key: str) -> dict:
     """Buy a plan online for oneself or a client one may buy for (PKG-09). A `paid_in_full` plan needs a card or
-    bank payment that goes through, or nothing is sold; `balance_allowed` plans may be bought on account."""
+    bank payment that goes through, or nothing is sold; `balance_allowed` plans may be bought on account.
+    Online, what is due is invoiced at once (a deferred plan default never applies), so there is always
+    something to pay."""
     data = dict(data)
     subject = _portal_client(session, principal, data.pop("client_id", None), "buy")
     token = data.pop("method_token", None)
     tender = data.pop("tender_kind", "card")
+    plan = session.get(PackagePlan, data["package_plan_id"])
+    if plan is not None and plan.default_invoice_mode == "deferred":
+        data["invoice_mode"] = "per_period" if plan.kind == "recurring" else "single"
     sold = sell(session, client_id=subject, channel="portal", online=True, **data)
     package, invoice = sold["package"], sold["invoice"]
-    plan = session.get(PackagePlan, package.package_plan_id)
-    if invoice is not None and token:
-        sold["payment"] = billing.service.take_payment(
-            session, client_id=subject, location_id=package.location_id, amount_minor=invoice.balance_minor,
-            tender_kind=tender, method_token=token, idempotency_key=idempotency_key, origin="portal", invoice_id=invoice.id,
-        )  # fmt: skip
-    # `unknown` (the processor did not answer) is not a decline: the sale stands and the payment is confirmed later
-    paid = sold["payment"] is not None and sold["payment"].status in ("succeeded", "processing", "unknown")
-    if invoice is not None and plan.online_sale_mode == "paid_in_full" and not paid:
-        raise Conflict("The payment did not go through, so nothing was bought.", code="payment-failed")
+    sold["payment"] = billing.checkout.secure_online_checkout(
+        session, client_id=subject, location_id=package.location_id, total_minor=package.price_minor,
+        invoice=invoice, idempotency_key=idempotency_key, method_token=token, tender_kind=tender,
+        must_pay_now=True, on_account_ok=plan.online_sale_mode == "balance_allowed",
+    )  # fmt: skip
     return _sale_view(session, sold)
 
 
