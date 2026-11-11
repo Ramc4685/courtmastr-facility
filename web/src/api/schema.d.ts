@@ -3882,6 +3882,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/export-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Export Jobs */
+        get: operations["listExportJobs"];
+        put?: never;
+        /** Create Export Job */
+        post: operations["createExportJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/export-jobs/{export_job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Export Job */
+        get: operations["getExportJob"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/export-jobs/{export_job_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Export Job */
+        get: operations["downloadExportJob"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/external-connections": {
         parameters: {
             query?: never;
@@ -9279,6 +9331,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/report-definitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Report Definitions */
+        get: operations["listReportDefinitions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/report-definitions/{report_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Report Definition */
+        get: operations["getReportDefinition"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/report-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Report Runs */
+        get: operations["listReportRuns"];
+        put?: never;
+        /** Create Report Run */
+        post: operations["createReportRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/report-runs/{report_run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Report Run */
+        get: operations["getReportRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/report-runs/{report_run_id}/rows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Report Run Rows */
+        get: operations["listReportRunRows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reservation-categories": {
         parameters: {
             query?: never;
@@ -9680,6 +9818,43 @@ export interface paths {
         head?: never;
         /** Update Roster Entry */
         patch: operations["updateRosterEntry"];
+        trace?: never;
+    };
+    "/api/v1/saved-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Saved Reports */
+        get: operations["listSavedReports"];
+        put?: never;
+        /** Create Saved Report */
+        post: operations["createSavedReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/saved-reports/{saved_report_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Saved Report */
+        get: operations["getSavedReport"];
+        put?: never;
+        post?: never;
+        /** Delete Saved Report */
+        delete: operations["deleteSavedReport"];
+        options?: never;
+        head?: never;
+        /** Update Saved Report */
+        patch: operations["updateSavedReport"];
         trace?: never;
     };
     "/api/v1/schedule-runs": {
@@ -17458,6 +17633,81 @@ export interface components {
             /** Return Condition */
             return_condition?: ("good" | "damaged") | null;
         };
+        /** ExportJobCreate */
+        ExportJobCreate: {
+            /**
+             * Format
+             * @default csv
+             * @enum {string}
+             */
+            format: "csv" | "xlsx" | "pdf";
+            /**
+             * Includes Details
+             * @default false
+             */
+            includes_details: boolean;
+            /** Orientation */
+            orientation?: ("portrait" | "landscape") | null;
+            /** Page Size */
+            page_size?: ("a4" | "letter") | null;
+            /** Report Run Id */
+            report_run_id?: string | null;
+            /**
+             * Source Kind
+             * @default report_run
+             * @enum {string}
+             */
+            source_kind: "report_run" | "list" | "document_batch";
+        };
+        /** ExportJobOut */
+        ExportJobOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error */
+            error: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** File Name */
+            file_name: string | null;
+            /** Format */
+            format: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Includes Details */
+            includes_details: boolean;
+            /** Orientation */
+            orientation: string | null;
+            /** Page Size */
+            page_size: string | null;
+            /** Params */
+            params: {
+                [key: string]: unknown;
+            };
+            /** Report Run Id */
+            report_run_id: string | null;
+            /** Row Count */
+            row_count: number | null;
+            /** Source Key */
+            source_key: string;
+            /** Source Kind */
+            source_kind: string;
+            /** Status */
+            status: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** Extended */
         Extended: {
             /**
@@ -20994,6 +21244,12 @@ export interface components {
             data: components["schemas"]["EquipmentLoanOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[ExportJobOut] */
+        Page_ExportJobOut_: {
+            /** Data */
+            data: components["schemas"]["ExportJobOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[ExternalConnectionOut] */
         Page_ExternalConnectionOut_: {
             /** Data */
@@ -21336,6 +21592,18 @@ export interface components {
             data: components["schemas"]["RentalTypeOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[ReportDefinitionOut] */
+        Page_ReportDefinitionOut_: {
+            /** Data */
+            data: components["schemas"]["ReportDefinitionOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[ReportRunOut] */
+        Page_ReportRunOut_: {
+            /** Data */
+            data: components["schemas"]["ReportRunOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[ResourceGroupOut] */
         Page_ResourceGroupOut_: {
             /** Data */
@@ -21358,6 +21626,12 @@ export interface components {
         Page_RoleOut_: {
             /** Data */
             data: components["schemas"]["RoleOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[SavedReportOut] */
+        Page_SavedReportOut_: {
+            /** Data */
+            data: components["schemas"]["SavedReportOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[ScheduleRunOut] */
@@ -26768,6 +27042,122 @@ export interface components {
             /** Supplier Name */
             supplier_name: string | null;
         };
+        /** ReportDefinitionOut */
+        ReportDefinitionOut: {
+            /** Category */
+            category: string;
+            /** Columns */
+            columns: {
+                [key: string]: unknown;
+            }[];
+            /** Date Basis */
+            date_basis: string;
+            /** Description */
+            description: string;
+            /** Detail Columns */
+            detail_columns: {
+                [key: string]: unknown;
+            }[] | null;
+            /** Export Formats */
+            export_formats: string[];
+            /** Features */
+            features: string[];
+            /** Is Stub */
+            is_stub: boolean;
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /** Params Schema */
+            params_schema: {
+                [key: string]: unknown;
+            };
+            /** Required Entitlement */
+            required_entitlement: string | null;
+            /** Required Permission */
+            required_permission: string;
+            /** Supports Detail */
+            supports_detail: boolean;
+            /** Total Columns */
+            total_columns: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** ReportRowsOut */
+        ReportRowsOut: {
+            /** Columns */
+            columns: {
+                [key: string]: unknown;
+            }[];
+            /** Data */
+            data: {
+                [key: string]: unknown;
+            }[];
+            /** Page */
+            page: {
+                [key: string]: unknown;
+            };
+            /** Totals */
+            totals: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** ReportRunCreate */
+        ReportRunCreate: {
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            } | null;
+            /** Report Key */
+            report_key: string;
+            /** Saved Report Id */
+            saved_report_id?: string | null;
+        };
+        /** ReportRunOut */
+        ReportRunOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error */
+            error: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Params */
+            params: {
+                [key: string]: unknown;
+            };
+            /** Report Key */
+            report_key: string;
+            /** Row Count */
+            row_count: number | null;
+            /** Saved Report Id */
+            saved_report_id: string | null;
+            /** Started At */
+            started_at: string | null;
+            /** Status */
+            status: string;
+            /** Totals */
+            totals: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** RepriceIn */
         RepriceIn: {
             /** Effective On */
@@ -27297,6 +27687,77 @@ export interface components {
             tax_minor?: number | null;
             /** Total Minor */
             total_minor: number;
+        };
+        /** SavedReportCreate */
+        SavedReportCreate: {
+            /** Columns */
+            columns?: string[] | null;
+            /**
+             * Is Shared
+             * @default false
+             */
+            is_shared: boolean;
+            /** Name */
+            name: string;
+            /**
+             * Params
+             * @default {}
+             */
+            params: {
+                [key: string]: unknown;
+            };
+            /** Report Key */
+            report_key: string;
+        };
+        /** SavedReportOut */
+        SavedReportOut: {
+            /** Columns */
+            columns: string[] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Shared */
+            is_shared: boolean;
+            /** Last Run At */
+            last_run_at: string | null;
+            /** Name */
+            name: string;
+            /**
+             * Owner Staff User Id
+             * Format: uuid
+             */
+            owner_staff_user_id: string;
+            /** Params */
+            params: {
+                [key: string]: unknown;
+            };
+            /** Report Key */
+            report_key: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** SavedReportUpdate */
+        SavedReportUpdate: {
+            /** Columns */
+            columns?: string[] | null;
+            /** Is Shared */
+            is_shared?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Params */
+            params?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** ScheduleGenerate */
         ScheduleGenerate: {
@@ -40205,6 +40666,151 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["EquipmentReturnQuote"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listExportJobs: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ExportJobOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createExportJob: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportJobCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportJobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getExportJob: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                export_job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportJobOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    downloadExportJob: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                export_job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -53593,6 +54199,227 @@ export interface operations {
             };
         };
     };
+    listReportDefinitions: {
+        parameters: {
+            query?: {
+                category?: string | null;
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ReportDefinitionOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getReportDefinition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                report_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDefinitionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listReportRuns: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ReportRunOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createReportRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportRunCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getReportRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                report_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listReportRunRows: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+                sort?: string | null;
+                group_key?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                report_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportRowsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listReservationCategories: {
         parameters: {
             query?: {
@@ -54849,6 +55676,189 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LeagueRosterEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listSavedReports: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_SavedReportOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createSavedReport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedReportCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedReportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getSavedReport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                saved_report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedReportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteSavedReport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                saved_report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateSavedReport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                saved_report_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SavedReportUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedReportOut"];
                 };
             };
             /** @description Validation Error */

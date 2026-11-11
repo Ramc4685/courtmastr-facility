@@ -19553,6 +19553,216 @@
         "title": "EquipmentReturnRequest",
         "type": "object"
       },
+      "ExportJobCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "default": "csv",
+            "enum": [
+              "csv",
+              "xlsx",
+              "pdf"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "includes_details": {
+            "default": false,
+            "title": "Includes Details",
+            "type": "boolean"
+          },
+          "orientation": {
+            "anyOf": [
+              {
+                "enum": [
+                  "portrait",
+                  "landscape"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orientation"
+          },
+          "page_size": {
+            "anyOf": [
+              {
+                "enum": [
+                  "a4",
+                  "letter"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Size"
+          },
+          "report_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report Run Id"
+          },
+          "source_kind": {
+            "default": "report_run",
+            "enum": [
+              "report_run",
+              "list",
+              "document_batch"
+            ],
+            "title": "Source Kind",
+            "type": "string"
+          }
+        },
+        "title": "ExportJobCreate",
+        "type": "object"
+      },
+      "ExportJobOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "file_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Name"
+          },
+          "format": {
+            "title": "Format",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "includes_details": {
+            "title": "Includes Details",
+            "type": "boolean"
+          },
+          "orientation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Orientation"
+          },
+          "page_size": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Size"
+          },
+          "params": {
+            "additionalProperties": true,
+            "title": "Params",
+            "type": "object"
+          },
+          "report_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report Run Id"
+          },
+          "row_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row Count"
+          },
+          "source_key": {
+            "title": "Source Key",
+            "type": "string"
+          },
+          "source_kind": {
+            "title": "Source Kind",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source_kind",
+          "report_run_id",
+          "source_key",
+          "params",
+          "format",
+          "includes_details",
+          "page_size",
+          "orientation",
+          "status",
+          "row_count",
+          "file_name",
+          "error",
+          "expires_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ExportJobOut",
+        "type": "object"
+      },
       "Extended": {
         "properties": {
           "booking_series_id": {
@@ -31205,6 +31415,26 @@
         "title": "Page[EquipmentLoanOut]",
         "type": "object"
       },
+      "Page_ExportJobOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ExportJobOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[ExportJobOut]",
+        "type": "object"
+      },
       "Page_ExternalConnectionOut_": {
         "properties": {
           "data": {
@@ -32345,6 +32575,46 @@
         "title": "Page[RentalTypeOut]",
         "type": "object"
       },
+      "Page_ReportDefinitionOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ReportDefinitionOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[ReportDefinitionOut]",
+        "type": "object"
+      },
+      "Page_ReportRunOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ReportRunOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[ReportRunOut]",
+        "type": "object"
+      },
       "Page_ResourceGroupOut_": {
         "properties": {
           "data": {
@@ -32423,6 +32693,26 @@
           "page"
         ],
         "title": "Page[RoleOut]",
+        "type": "object"
+      },
+      "Page_SavedReportOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SavedReportOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[SavedReportOut]",
         "type": "object"
       },
       "Page_ScheduleRunOut_": {
@@ -49492,6 +49782,330 @@
         "title": "ReorderRow",
         "type": "object"
       },
+      "ReportDefinitionOut": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "columns": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "date_basis": {
+            "title": "Date Basis",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "detail_columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail Columns"
+          },
+          "export_formats": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Export Formats",
+            "type": "array"
+          },
+          "features": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "is_stub": {
+            "title": "Is Stub",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "params_schema": {
+            "additionalProperties": true,
+            "title": "Params Schema",
+            "type": "object"
+          },
+          "required_entitlement": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Entitlement"
+          },
+          "required_permission": {
+            "title": "Required Permission",
+            "type": "string"
+          },
+          "supports_detail": {
+            "title": "Supports Detail",
+            "type": "boolean"
+          },
+          "total_columns": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Total Columns",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "description",
+          "category",
+          "required_permission",
+          "required_entitlement",
+          "date_basis",
+          "params_schema",
+          "columns",
+          "total_columns",
+          "detail_columns",
+          "supports_detail",
+          "export_formats",
+          "is_stub",
+          "features"
+        ],
+        "title": "ReportDefinitionOut",
+        "type": "object"
+      },
+      "ReportRowsOut": {
+        "properties": {
+          "columns": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "data": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "additionalProperties": true,
+            "title": "Page",
+            "type": "object"
+          },
+          "totals": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Totals"
+          }
+        },
+        "required": [
+          "columns",
+          "data",
+          "totals",
+          "page"
+        ],
+        "title": "ReportRowsOut",
+        "type": "object"
+      },
+      "ReportRunCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "params": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Params"
+          },
+          "report_key": {
+            "maxLength": 64,
+            "title": "Report Key",
+            "type": "string"
+          },
+          "saved_report_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved Report Id"
+          }
+        },
+        "required": [
+          "report_key"
+        ],
+        "title": "ReportRunCreate",
+        "type": "object"
+      },
+      "ReportRunOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": true,
+            "title": "Params",
+            "type": "object"
+          },
+          "report_key": {
+            "title": "Report Key",
+            "type": "string"
+          },
+          "row_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row Count"
+          },
+          "saved_report_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved Report Id"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "totals": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Totals"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "report_key",
+          "saved_report_id",
+          "params",
+          "status",
+          "row_count",
+          "totals",
+          "error",
+          "started_at",
+          "finished_at",
+          "expires_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ReportRunOut",
+        "type": "object"
+      },
       "RepriceIn": {
         "additionalProperties": false,
         "properties": {
@@ -51212,6 +51826,193 @@
           "total_minor"
         ],
         "title": "SalesReportRow",
+        "type": "object"
+      },
+      "SavedReportCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Columns"
+          },
+          "is_shared": {
+            "default": false,
+            "title": "Is Shared",
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Params",
+            "type": "object"
+          },
+          "report_key": {
+            "maxLength": 64,
+            "title": "Report Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "report_key",
+          "name"
+        ],
+        "title": "SavedReportCreate",
+        "type": "object"
+      },
+      "SavedReportOut": {
+        "properties": {
+          "columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Columns"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_shared": {
+            "title": "Is Shared",
+            "type": "boolean"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_staff_user_id": {
+            "format": "uuid",
+            "title": "Owner Staff User Id",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": true,
+            "title": "Params",
+            "type": "object"
+          },
+          "report_key": {
+            "title": "Report Key",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "report_key",
+          "name",
+          "params",
+          "columns",
+          "is_shared",
+          "owner_staff_user_id",
+          "last_run_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SavedReportOut",
+        "type": "object"
+      },
+      "SavedReportUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Columns"
+          },
+          "is_shared": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Shared"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "params": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Params"
+          }
+        },
+        "title": "SavedReportUpdate",
         "type": "object"
       },
       "ScheduleGenerate": {
@@ -80771,6 +81572,321 @@
         ]
       }
     },
+    "/api/v1/export-jobs": {
+      "get": {
+        "operationId": "listExportJobs",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ExportJobOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Export Jobs",
+        "tags": [
+          "reporting"
+        ]
+      },
+      "post": {
+        "operationId": "createExportJob",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportJobCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportJobOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Export Job",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
+    "/api/v1/export-jobs/{export_job_id}": {
+      "get": {
+        "operationId": "getExportJob",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "export_job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Export Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportJobOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Export Job",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
+    "/api/v1/export-jobs/{export_job_id}/download": {
+      "get": {
+        "operationId": "downloadExportJob",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "export_job_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Export Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Export Job",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
     "/api/v1/external-connections": {
       "get": {
         "description": "Filters: provider, status, location_id. Sort: created_at.",
@@ -108398,6 +109514,533 @@
         ]
       }
     },
+    "/api/v1/report-definitions": {
+      "get": {
+        "operationId": "listReportDefinitions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ReportDefinitionOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Report Definitions",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
+    "/api/v1/report-definitions/{report_key}": {
+      "get": {
+        "operationId": "getReportDefinition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_key",
+            "required": true,
+            "schema": {
+              "title": "Report Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportDefinitionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Report Definition",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
+    "/api/v1/report-runs": {
+      "get": {
+        "operationId": "listReportRuns",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ReportRunOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Report Runs",
+        "tags": [
+          "reporting"
+        ]
+      },
+      "post": {
+        "operationId": "createReportRun",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportRunCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportRunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Report Run",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
+    "/api/v1/report-runs/{report_run_id}": {
+      "get": {
+        "operationId": "getReportRun",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Report Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportRunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Report Run",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
+    "/api/v1/report-runs/{report_run_id}/rows": {
+      "get": {
+        "operationId": "listReportRunRows",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Report Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "in": "query",
+            "name": "group_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Group Key"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportRowsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Report Run Rows",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
     "/api/v1/reservation-categories": {
       "get": {
         "operationId": "listReservationCategories",
@@ -111116,6 +112759,389 @@
         "summary": "Update Roster Entry",
         "tags": [
           "leagues"
+        ]
+      }
+    },
+    "/api/v1/saved-reports": {
+      "get": {
+        "operationId": "listSavedReports",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_SavedReportOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Saved Reports",
+        "tags": [
+          "reporting"
+        ]
+      },
+      "post": {
+        "operationId": "createSavedReport",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedReportCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedReportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Saved Report",
+        "tags": [
+          "reporting"
+        ]
+      }
+    },
+    "/api/v1/saved-reports/{saved_report_id}": {
+      "delete": {
+        "operationId": "deleteSavedReport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "saved_report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Saved Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Saved Report",
+        "tags": [
+          "reporting"
+        ]
+      },
+      "get": {
+        "operationId": "getSavedReport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "saved_report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Saved Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedReportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Saved Report",
+        "tags": [
+          "reporting"
+        ]
+      },
+      "patch": {
+        "operationId": "updateSavedReport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "saved_report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Saved Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedReportUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedReportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Saved Report",
+        "tags": [
+          "reporting"
         ]
       }
     },
