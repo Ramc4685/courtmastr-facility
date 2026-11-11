@@ -175,7 +175,9 @@ def download_url(session: Session, file_id: UUID) -> str:
 
 def check_signature(tenant_id: UUID, file_id: UUID, expires: int, signature: str) -> None:
     """The local signed route's gate: a wrong signature is 404, a right but expired one 403."""
-    if not hmac.compare_digest(signature, _signature(tenant_id, file_id, expires)):
+    if not hmac.compare_digest(
+        signature.encode(), _signature(tenant_id, file_id, expires).encode()
+    ):  # bytes: a non-ASCII str raises
         raise NotFound()
     if expires < clock.now().timestamp():
         raise PermissionDenied("This download link has expired.", code="link-expired")

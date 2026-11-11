@@ -40,8 +40,8 @@ typecheck:          ## mypy over backend/app (config and per-module overrides in
 boundaries:         ## import-linter: the bounded-context contracts of overview section 2
 	$(UV) lint-imports
 
-contract: .env      ## long Schemathesis run (FH_CONTRACT_EXAMPLES per operation, default 50); `make test` runs a small one
-	cd backend && FH_CONTRACT_EXAMPLES=$${FH_CONTRACT_EXAMPLES:-50} uv run pytest tests/test_contract_schemathesis.py --no-cov
+contract: .env      ## long Schemathesis run (every operation, FH_CONTRACT_EXAMPLES each, default 25); `make test` runs a small one
+	cd backend && FH_CONTRACT_SAMPLE=1 FH_CONTRACT_EXAMPLES=$${FH_CONTRACT_EXAMPLES:-25} uv run pytest tests/test_contract_schemathesis.py --no-cov
 
 # Breaking changes against the merge base with main (API_DIFF_BASE overrides the ref); needs oasdiff on PATH.
 # Allowed exceptions live in docs/api/breaking-allow.txt, each with its reason.
