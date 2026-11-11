@@ -17,8 +17,8 @@ isolation and audit, and has a staff screen. **Partial** names what is missing. 
 | v2-adapter | 7 | 0 | 1 | 6 |
 | **All** | 204 | 107 | 56 | 41 |
 Module 1 (platform core) is done apart from OIDC, MFA and step-up (`backend/app/modules/platform/README.md`).
-Modules 10 to 17 (check-in, leagues, staff time and pay, engagement, assessments, reporting, integrations,
-mobile) and the rest of module 6 are not started. The five P0 features not built are CLS-02, CLS-09, CLS-10
+Module 14 (engagement) is built to P0 (5 done, 9 partial: `14-engagement.md`). Modules 16 and 17 are partial (`16-integrations.md`, `17-mobile.md`). Modules 10 to 13 and 15 (check-in,
+leagues, staff time and pay, assessments, reporting) and the rest of module 6 are not started. The five P0 features not built are CLS-02, CLS-09, CLS-10
 (module 6 and the portal), CLI-12 (client photo) and BIL-14 (pre-defined items).
 
 ## Checks on `main`
@@ -152,7 +152,7 @@ Lane detail: `04-clients-households.md`.
 | CLI-13 Duplicate detection and merge | P1 | done |  |
 | CLI-14 Disable a client | P0 | done |  |
 | CLI-15 Self-service portal access provisioning | P0 | done |  |
-| CLI-16 Communication subscriptions | P0 | partial | Opting in an email address needs that address confirmed. A staff change needs a note and a basis. **Not built**: the public signed-link preference centre and one-click unsubscribe (engagement module). |
+| CLI-16 Communication subscriptions | P0 | partial | Opting in an email address needs that address confirmed. A staff change needs a note and a basis. The public signed-link preference centre and one-click unsubscribe are built in module 14 (`14-engagement.md`); no RFC 8058 header. |
 | CLI-17 Default trainer / salesperson ownership | P1 | done |  |
 | CLI-18 Emergency contacts | P0 | done |  |
 | CLI-19 Cross-location shared client record | P0 | done |  |
@@ -380,8 +380,9 @@ Cross-cutting:
 6. **Web date defaults use the browser's time zone**, not the selected location's. Wrong only for staff working
    a location in another zone.
 7. **Portal and mobile:** the member portal (`/portal`, member sign-in at `/sign-in?as=member`) has Home,
-   Bookings, Memberships, Packages, Invoices and Profile with a household "acting for" switch. Not built:
-   portal documents and waivers, dependents and relationships, stored-method management, inbox, mobile.
+   Bookings, Memberships, Packages, Invoices and Profile with a household "acting for" switch, and an Inbox for announcements (module 14). Not built:
+   portal documents and waivers, dependents and relationships, stored-method management. The inbox lists one
+   item per client the login acts for, so a household sees an announcement once per member.
 8. **Databases created before revision `0401`** hold package plans with placeholder reservation types and
    cannot take the new foreign key: recreate them.
 9. **Stripe has never been called.** The adapter is tested against a mocked HTTP layer and is off by default.
@@ -435,9 +436,9 @@ By module (the tables above carry the per-feature gaps; these are the ones that 
   fixtures.
 - **Staff time and pay (12):** trainer resources link to staff users (`platform.service.linked_resource_id`);
   floor-shift blocks are bookings with `block_kind = floor_shift`; POS drawers and sales carry the cashier.
-- **Engagement and portal (13):** replace the notification adapter; honour
-  `engagement.service.is_subscribed`; portal routes must call `households.can_act_for`; the portal APIs listed
-  above have no screens.
+- **Engagement (14), built:** every email goes through `engagement.service._deliver` (installed as the
+  notification port's adapter); new senders should too. Portal routes must call `households.can_act_for`.
+  Not built: provider webhooks, push provider, HTML builder, SMS, daily staff summary.
 - **Reporting (15):** reporting views exist for rentals only; MEM-21, PKG-15, BIL-19 and POS reports are
   per-module endpoints today.
 - **Integrations (16):** reuse `provider_account_lookup` and `inbound_webhook_event`

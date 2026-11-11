@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 from app.core.db.rls import enable_rls
 
 revision = "0801"
-down_revision = "0401"
+down_revision = "0501"
 
 
 def upgrade() -> None:

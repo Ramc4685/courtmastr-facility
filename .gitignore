@@ -20,4 +20,5 @@ graphify-out/
 *.log
 test-results/
 playwright-report/
+backend/var/
 var/

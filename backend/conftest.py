@@ -22,6 +22,7 @@ from app.modules.platform.models import Identity, StaffUser, UserLocationAccess 
 from app.ports import email  # noqa: E402
 
 PASSWORD = "correct-horse-battery"
+PUBLIC_IP = "93.184.215.14"  # a globally routable address the webhook SSRF guard accepts (tests never connect)
 WEEK = [{"weekday": d, "opens_time": "08:00", "closes_time": "20:00", "is_closed": False} for d in range(1, 8)]
 
 
@@ -204,10 +205,12 @@ def populate(client, tenant) -> SimpleNamespace:
         client, headers, post, location["id"], person["id"], space["resource_id"], category_id, tax_id
     )
     space |= _populate_engagement(client, tenant, post, location["id"], person["id"], identity_id)
+    integration = _populate_integrations(client, headers, tenant, post, location, person)
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
         session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
         payment_id=payment["id"], revenue_category_id=category_id, tax_id=tax_id, **billing_ids, **people, **documents, **space,
+        **integration,
     )  # fmt: skip
 
 
@@ -602,3 +605,42 @@ def two_tenants():
     """Tenants A and B, each populated in every table: the reusable tenant-isolation fixture."""
     client = TestClient(fastapi_app)
     return populate(client, make_tenant()), populate(client, make_tenant("Asia/Kolkata"))
+
+
+def _populate_integrations(client, headers, tenant, post, location, person) -> dict:
+    # integrations: a key, an endpoint (its URL resolves to a public address without touching DNS), a delivery,
+    # an accounting connection with one exported day, and one simulated adapter call.
+    from unittest import mock
+
+    from app.modules import integrations
+    from app.modules.integrations.models import WebhookDelivery
+
+    api_key = post("/api-keys", {"name": "Partner", "scopes": ["clients.client.read"]})
+    with mock.patch("app.modules.integrations.transport.resolve", return_value=[PUBLIC_IP]):
+        endpoint = post(
+            "/webhook-endpoints", {"url": "https://hooks.invalid/fh", "event_types": ["clients.client.created"]}
+        )
+    # Paused, so draining the broker in other tests never fans events out to it (failed sends retry with delays).
+    assert (
+        client.patch(
+            f"/api/v1/webhook-endpoints/{endpoint['id']}", headers=headers, json={"status": "paused"}
+        ).status_code
+        == 200
+    )
+    connection = post("/external-connections", {"provider": "accounting_file", "location_id": location["id"]})
+    post("/accounting-exports", {
+        "external_connection_id": connection["id"], "location_id": location["id"], "business_on": "2020-01-01",
+    })  # fmt: skip
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        delivery = WebhookDelivery(
+            webhook_endpoint_id=endpoint["id"], event_id=uuid4(), event_type="clients.client.created",
+            payload={"type": "clients.client.created", "client_id": person["id"]}, status="delivered",
+        )  # fmt: skip
+        session.add(delivery)
+        integrations.service.video_meetings(session, location["id"]).delete_meeting("populate")
+        session.flush()
+        delivery_id = str(delivery.id)
+    return {
+        "api_key_id": api_key["id"], "webhook_endpoint_id": endpoint["id"], "webhook_delivery_id": delivery_id,
+        "external_connection_id": connection["id"],
+    }  # fmt: skip

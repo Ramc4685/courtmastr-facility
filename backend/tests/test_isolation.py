@@ -250,6 +250,9 @@ _BODIES = {
     "updateAutomationRule": {"is_enabled": True},
     "putPortalSettings": {"welcome_text": "Hi"},
     "updateVideo": {"title": "Renamed"},
+    # integrations (module 16)
+    "rotateApiKey": {},
+    "updateWebhookEndpoint": {"description": "Renamed"},
 }
 _ACCEPTANCE = {"content_sha256": "0" * 64, "signers": [
     {"decision": "accepted", "signer_role": "client", "signer_name": "X", "method": "checkbox"}]}  # fmt: skip
@@ -311,6 +314,8 @@ def test_every_id_route_is_covered():
         "/note-subjects", "/client-tasks", "/data-subject-requests", "/relationship-types", "/custom-fields",
         "/membership-types", "/membership-plans", "/membership-contracts", "/package-plans", "/client-packages",
         "/package-series",
+        "/api-keys", "/webhook-endpoints", "/webhook-deliveries", "/external-connections", "/accounting-exports",
+        "/adapter-commands",
     ],
 )  # fmt: skip
 def test_api_lists_never_include_the_other_tenant(client, two_tenants, path):
@@ -324,7 +329,8 @@ def test_api_lists_never_include_the_other_tenant(client, two_tenants, path):
         b.payment_id, b.revenue_category_id, b.client_category_id, b.tag_id, b.note_subject_id, b.task_id,
         b.request_id, b.relationship_type_id, b.custom_field_id, b.template_id, b.binding_id, b.document_id,
         b.pending_document_id, b.membership_type_id, b.membership_plan_id, b.contract_id, b.package_plan_id,
-        b.package_id, b.series_id,
+        b.package_id, b.series_id, b.api_key_id, b.webhook_endpoint_id, b.webhook_delivery_id,
+        b.external_connection_id,
     }  # fmt: skip
     theirs = client.get(f"/api/v1{path}", headers=b.headers).json()
     theirs = theirs["data"] if isinstance(theirs, dict) else theirs
@@ -404,6 +410,11 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
         ("/client-packages", package | {"sold_by_staff_user_id": b.staff_user_id}),
         ("/client-packages/complimentary", package | {"package_plan_id": b.package_plan_id}),
         (f"/client-packages/{a.package_id}/shares", {"client_id": b.client_id}),
+        ("/api-keys", {"name": "X", "scopes": ["clients.client.read"], "location_ids": [b.location_id]}),
+        ("/external-connections", {"provider": "accounting_file", "location_id": b.location_id}),
+        ("/accounting-exports", {
+            "external_connection_id": a.external_connection_id, "location_id": b.location_id, "business_on": "2020-01-02",
+        }),
     )):  # fmt: skip
         response = post(path, body, index)
         assert (response.status_code, response.json()["code"]) == (422, "validation-failed"), (
@@ -413,6 +424,13 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
         )
     foreign_binding = {"scope_type": "program_default", "template_id": b.template_id}
     assert client.put("/api/v1/document-bindings", headers=a.headers, json=foreign_binding).status_code == 422
+    # A's location with B's connection: the connection id itself is not found.
+    foreign = {
+        "external_connection_id": b.external_connection_id,
+        "location_id": a.location_id,
+        "business_on": "2020-01-02",
+    }
+    assert post("/accounting-exports", foreign, 99).status_code == 404
 
 
 def test_token_is_bound_to_its_tenant_host(client, two_tenants):

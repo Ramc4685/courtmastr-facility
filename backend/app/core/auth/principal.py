@@ -7,7 +7,7 @@ from uuid import UUID
 
 @dataclass(frozen=True)
 class Principal:
-    kind: str  # staff | client | system
+    kind: str  # staff | client | api_key | system
     tenant_id: UUID | None = None
     identity_id: UUID | None = None
     email: str = ""
@@ -18,6 +18,7 @@ class Principal:
     permissions: Mapping[str, str] = field(default_factory=dict)  # effective key -> reach (all | own)
     location_ids: frozenset[UUID] | None = None  # None = every location of the tenant
     session_id: UUID | None = None
+    api_key_id: UUID | None = None  # kind = api_key: the key; staff_user_id stays None (it is not a person)
 
     @property
     def is_owner(self) -> bool:
@@ -33,7 +34,7 @@ class Principal:
 
     @property
     def actor_id(self) -> UUID | None:
-        return self.staff_user_id or self.identity_id
+        return self.api_key_id or self.staff_user_id or self.identity_id
 
     @property
     def actor_label(self) -> str:

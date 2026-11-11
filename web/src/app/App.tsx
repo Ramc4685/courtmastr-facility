@@ -9,6 +9,7 @@ import { ClientProfilePage } from '../features/clients/ClientProfilePage'
 import { ClientsPage } from '../features/clients/ClientsPage'
 import { MergePage } from '../features/clients/MergePage'
 import { TokenLinkPage } from '../features/auth/TokenLinkPage'
+import { IntegrationsPage } from '../features/integrations/IntegrationsPage'
 import { PayLinkPage } from '../features/billing/PayLinkPage'
 import { AutomationsPage, RemindersPage } from '../features/engagement/AutomationPages'
 import { CampaignDetailPage } from '../features/engagement/CampaignDetailPage'
@@ -90,6 +91,7 @@ export function AppRoutes() {
         <Route path="roles" element={<RequirePermission permission="platform.role.read"><RolesPage /></RequirePermission>} />
         <Route path="roles/:id" element={<RequirePermission permission="platform.role.read"><RoleDetailPage /></RequirePermission>} />
         <Route path="audit" element={<RequirePermission permission="platform.audit.read"><AuditLogPage /></RequirePermission>} />
+        <Route path="integrations" element={<IntegrationsPage />} />
         <Route path="settings" element={<RequirePermission permission="platform.tenant.update"><TenantSettingsPage /></RequirePermission>} />
         <Route path="billing" element={<RequirePermission permission="billing.charge.read"><BillingLayout /></RequirePermission>}>
           <Route index element={<WorkbenchPage />} />
