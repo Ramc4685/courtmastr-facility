@@ -69,9 +69,16 @@ BIL-23 public API (wave 8). The XLSX engine is Phase 12's; B builds PDF only.
 
 ## Handovers
 
-- From Phase 8: chip T3 (location day in billing) moves here as part of chip B; the Phase 8 coordinator was
-  told. Phase 8 owns `app/scheduler.py`; a new periodic billing job (A's renewal, D's digest) is one added
-  line there, named in the merge note.
+- From Phase 8 (agreed 2026-11-11): chip T3 (REL-04) is struck from Phase 8 and lands in chip B; Phase 8
+  will not edit `billing/`. On `claude/phase8-wave7-5be825`, not yet here: `app/scheduler.py` tuples gained
+  four jobs (a new billing job is one line next to them; expect a trivial conflict); `platform.files` gained
+  `load`, `remove`, `download_url`, and `store` runs a malware scanner (B stores PDFs through these);
+  `core.jobs.chunked_actor` (example `reporting/jobs.py`) is the way to run bulk work (E's stored bulk job,
+  B's statement batches); a step-up chip makes `+` keys return `403 step-up-required` for un-elevated
+  sessions (test sign-in helpers stay elevated). Chips cut before the phases meet code against today's API
+  and name the swap in their merge note.
+- Picked up from Phase 8: purging inbound provider events after 90 days (ADR 0007 section 9; the 30-day
+  webhook-delivery purge belongs to `integrations`) goes to chip E as an idempotent `@tenant_actor`.
 - To Phase 10: card entry at the check-in window (CHK-21) uses C's `PaymentMethodField` and 3-D Secure
   handling as shipped; no Phase 10 chip edits billing.
 - To Phase 12: `app/core/pdf.py` (B) is the shared PDF engine; reports call it, they do not add another.
