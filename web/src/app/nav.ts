@@ -21,13 +21,13 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Scheduling setup', to: '/scheduling/setup', icon: 'list' },
   { label: 'Rentals', to: '/rentals', permission: 'scheduling.booking.read', icon: 'ticket' },
   { label: 'Rental setup', to: '/rentals/setup', icon: 'list' },
+  { label: 'Leagues & tournaments', to: '/leagues', permission: 'leagues.competition.manage', icon: 'trophy' },
 ]
 
 // Build modules 2-17 (docs/architecture/overview.md section 6).
 export const UPCOMING_NAV: NavItem[] = [
   { label: 'Programs & registration', icon: 'clipboard' },
   { label: 'Check-in & access', icon: 'door' },
-  { label: 'Leagues & tournaments', icon: 'trophy' },
   { label: 'Staff time & pay', icon: 'clock' },
   { label: 'Engagement', icon: 'mail' },
   { label: 'Fitness assessments', icon: 'pulse' },

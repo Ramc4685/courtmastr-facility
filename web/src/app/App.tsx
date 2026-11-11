@@ -13,6 +13,8 @@ import { PayLinkPage } from '../features/billing/PayLinkPage'
 import { PublicSignPage } from '../features/documents/PublicSignPage'
 import { TemplateEditorPage } from '../features/documents/TemplateEditorPage'
 import { TemplatesPage } from '../features/documents/TemplatesPage'
+import { LeaguePage, LeaguesPage } from '../features/leagues/LeaguesPage'
+import { PublicLeaguesPage } from '../features/leagues/PublicLeaguesPage'
 import { MembershipsPage } from '../features/memberships/MembershipsPage'
 import { PackagesPage } from '../features/packages/PackagesPage'
 import { PortalHome } from '../features/portal/PortalHome'
@@ -69,6 +71,8 @@ export function AppRoutes() {
       <Route path="/auth/accept-invite" element={<TokenLinkPage purpose="accept-invite" />} />
       <Route path="/pay" element={<PayLinkPage />} />
       <Route path="/sign" element={<PublicSignPage />} />
+      <Route path="/leagues/public" element={<PublicLeaguesPage />} />
+      <Route path="/leagues/public/:id" element={<PublicLeaguesPage />} />
       <Route path="/portal/*" element={<RequireClient><PortalHome /></RequireClient>} />
       <Route path="/billing/invoices/:id/document" element={<RequireStaff><RequirePermission permission="billing.invoice.read"><InvoiceDocumentPage /></RequirePermission></RequireStaff>} />
       <Route path="/billing/payments/:id/receipt" element={<RequireStaff><RequirePermission permission="billing.payment.read"><ReceiptPage /></RequirePermission></RequireStaff>} />
@@ -117,6 +121,8 @@ export function AppRoutes() {
         <Route path="scheduling/setup" element={<SetupPage />} />
         <Route path="rentals" element={<RequirePermission permission="scheduling.booking.read"><RentalsPage /></RequirePermission>} />
         <Route path="rentals/setup" element={<RentalSetupPage />} />
+        <Route path="leagues" element={<RequirePermission permission="leagues.competition.manage"><LeaguesPage /></RequirePermission>} />
+        <Route path="leagues/:id" element={<RequirePermission permission="leagues.competition.manage"><LeaguePage /></RequirePermission>} />
         {import.meta.env.DEV && (
           <Route path="dev/client-picker" element={<RequirePermission permission="clients.client.read"><ClientPickerDemo /></RequirePermission>} />
         )}

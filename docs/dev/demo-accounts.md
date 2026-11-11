@@ -68,3 +68,12 @@ unused until memberships exist), $50 evenings 17:00-22:00, $55 on weekends, plus
 day" flat rate; 25% deposit online; 24-hour cut-off with a 50% late-cancel fee. Morgan Member has a weekly
 Tuesday 19:00 rental on Court 3 (four weeks, billed on one invoice), Riley Reyes has an unbilled Thursday
 rental in the queue, and Jordan Okafor bought the **10-hour court pack** and used two hours of it on Friday.
+
+## Demo leagues (build module 11)
+
+At Downtown, **Wednesday Futsal** is an active, public league for the ten weeks starting next Monday. It has six
+teams: Morgan Member captains **Downtown Strikers**, whose $300 team fee is billed to Morgan (revenue category
+`PROGRAMS`), and five generated placeholders ("Team 1" to "Team 5") are ready to rename. The schedule runs
+Wednesdays 18:00-22:00 on Court 3, and its 15 games are booked on the calendar. The first game has a 4-2 result,
+so the standings are filled in. Rita Referee is the futsal official. The public schedule and standings are at
+`/api/v1/public/competitions` (send `X-Tenant-Slug: courtside-demo`) and on the web at `/leagues/public`.

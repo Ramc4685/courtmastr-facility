@@ -4,6 +4,46 @@
  */
 
 export interface paths {
+    "/api/v1/age-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Age Groups
+         * @description Filters: is_active. Sort: name, sort_order.
+         */
+        get: operations["listAgeGroups"];
+        put?: never;
+        /** Create Age Group */
+        post: operations["createAgeGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/age-groups/{age_group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Age Group */
+        get: operations["getAgeGroup"];
+        put?: never;
+        post?: never;
+        /** Delete Age Group */
+        delete: operations["deleteAgeGroup"];
+        options?: never;
+        head?: never;
+        /** Update Age Group */
+        patch: operations["updateAgeGroup"];
+        trace?: never;
+    };
     "/api/v1/audit-events": {
         parameters: {
             query?: never;
@@ -778,6 +818,58 @@ export interface paths {
          *     booking-conflict, resource-blacked-out.
          */
         post: operations["rescheduleBooking"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bracket-slots/{bracket_slot_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Bracket Slot */
+        patch: operations["updateBracketSlot"];
+        trace?: never;
+    };
+    "/api/v1/brackets/{bracket_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Bracket */
+        get: operations["getBracket"];
+        put?: never;
+        post?: never;
+        /** Delete Bracket */
+        delete: operations["deleteBracket"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/brackets/{bracket_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish Bracket */
+        post: operations["publishBracket"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2084,6 +2176,319 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/competition-teams/{competition_team_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Competition Team */
+        delete: operations["removeCompetitionTeam"];
+        options?: never;
+        head?: never;
+        /** Update Competition Team */
+        patch: operations["updateCompetitionTeam"];
+        trace?: never;
+    };
+    "/api/v1/competition-teams/{competition_team_id}/bill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bill Competition Team
+         * @description Charge and invoice the team fee to a client (once per entry).
+         */
+        post: operations["billCompetitionTeam"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competition-teams/{competition_team_id}/roster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Team Roster */
+        get: operations["listTeamRoster"];
+        put?: never;
+        /** Add Roster Entry */
+        post: operations["addRosterEntry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Competitions
+         * @description Filters: location_id, kind, status, sport_id, season_id, age_group_id. Sort: name, starts_on, created_at.
+         */
+        get: operations["listCompetitions"];
+        put?: never;
+        /**
+         * Create Competition
+         * @description Scoring, game length and team fee default from the sport. A 'Main' division is created.
+         */
+        post: operations["createCompetition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Competition */
+        get: operations["getCompetition"];
+        put?: never;
+        post?: never;
+        /** Delete Competition */
+        delete: operations["deleteCompetition"];
+        options?: never;
+        head?: never;
+        /** Update Competition */
+        patch: operations["updateCompetition"];
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Activate Competition */
+        post: operations["activateCompetition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive Competition */
+        post: operations["archiveCompetition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/brackets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Brackets */
+        get: operations["listBrackets"];
+        put?: never;
+        /**
+         * Generate Bracket
+         * @description Single elimination only; other types answer 422 not-supported.
+         */
+        post: operations["generateBracket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete Competition */
+        post: operations["completeCompetition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/divisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Divisions */
+        get: operations["listDivisions"];
+        put?: never;
+        /** Create Division */
+        post: operations["createDivision"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reopen Competition */
+        post: operations["reopenCompetition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/seeding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Competition Seeding */
+        put: operations["putCompetitionSeeding"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/standings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Standings */
+        get: operations["listStandings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/standings/recompute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Recompute Standings */
+        post: operations["recomputeStandings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/teams": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Competition Teams */
+        get: operations["listCompetitionTeams"];
+        put?: never;
+        /**
+         * Add Competition Team
+         * @description An existing team (`team_id`) or a new one (`team`). With `bill_to_client_id` the team fee is charged
+         *     and invoiced at once; otherwise the entry stays 'unbilled' until billCompetitionTeam.
+         */
+        post: operations["addCompetitionTeam"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/teams/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Copy Competition Teams */
+        post: operations["copyCompetitionTeams"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/teams/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Competition Teams */
+        post: operations["generateCompetitionTeams"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/coupons": {
         parameters: {
             query?: never;
@@ -2290,6 +2695,24 @@ export interface paths {
         head?: never;
         /** Update Discount Preset */
         patch: operations["updateDiscountPreset"];
+        trace?: never;
+    };
+    "/api/v1/divisions/{division_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Division */
+        delete: operations["deleteDivision"];
+        options?: never;
+        head?: never;
+        /** Update Division */
+        patch: operations["updateDivision"];
         trace?: never;
     };
     "/api/v1/document-bindings": {
@@ -2796,6 +3219,136 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/games": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Games
+         * @description Filters: location_id, competition_id, division_id, status, resource_id, schedule_run_id, game_type.
+         */
+        get: operations["listGames"];
+        put?: never;
+        /** Create Game */
+        post: operations["createGame"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/games/{game_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Game */
+        get: operations["getGame"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Game */
+        patch: operations["updateGame"];
+        trace?: never;
+    };
+    "/api/v1/games/{game_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Game */
+        post: operations["cancelGame"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/games/{game_id}/officials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Game Officials */
+        get: operations["listGameOfficials"];
+        /**
+         * Put Game Officials
+         * @description Replaces the game's officials. 409 official-conflict when one is already on an overlapping game.
+         */
+        put: operations["putGameOfficials"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/games/{game_id}/postpone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Postpone Game */
+        post: operations["postponeGame"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/games/{game_id}/reschedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reschedule Game */
+        post: operations["rescheduleGame"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/games/{game_id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Game Result */
+        get: operations["getGameResult"];
+        /** Put Game Result */
+        put: operations["putGameResult"];
+        post?: never;
+        /** Delete Game Result */
+        delete: operations["deleteGameResult"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3848,6 +4401,46 @@ export interface paths {
         head?: never;
         /** Update Note Subject */
         patch: operations["updateNoteSubject"];
+        trace?: never;
+    };
+    "/api/v1/officials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Officials
+         * @description Filters: location_id, is_active. Sort: last_name.
+         */
+        get: operations["listOfficials"];
+        put?: never;
+        /** Create Official */
+        post: operations["createOfficial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/officials/{official_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Official */
+        get: operations["getOfficial"];
+        put?: never;
+        post?: never;
+        /** Delete Official */
+        delete: operations["deleteOfficial"];
+        options?: never;
+        head?: never;
+        /** Update Official */
+        patch: operations["updateOfficial"];
         trace?: never;
     };
     "/api/v1/operator/tenants": {
@@ -5535,6 +6128,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/competitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Public Competitions */
+        get: operations["listPublicCompetitions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/competitions/{competition_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Public Competition */
+        get: operations["getPublicCompetition"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/competitions/{competition_id}/games": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Public Games */
+        get: operations["listPublicGames"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/competitions/{competition_id}/standings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Public Standings */
+        get: operations["listPublicStandings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/document-deliveries/decision": {
         parameters: {
             query?: never;
@@ -6685,6 +7346,157 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/roster-entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Roster Entries
+         * @description Filters: client_id, competition_team_id, competition_id, status. q searches names and jersey numbers.
+         */
+        get: operations["searchRosterEntries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roster-entries/{roster_entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Roster Entry */
+        delete: operations["removeRosterEntry"];
+        options?: never;
+        head?: never;
+        /** Update Roster Entry */
+        patch: operations["updateRosterEntry"];
+        trace?: never;
+    };
+    "/api/v1/schedule-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Schedule Runs
+         * @description Filters: location_id, state. Sort: created_at.
+         */
+        get: operations["listScheduleRuns"];
+        put?: never;
+        /** Create Schedule Run */
+        post: operations["createScheduleRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/schedule-runs/{schedule_run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Schedule Run */
+        get: operations["getScheduleRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Schedule Run */
+        patch: operations["updateScheduleRun"];
+        trace?: never;
+    };
+    "/api/v1/schedule-runs/{schedule_run_id}/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Commit Schedule
+         * @description Books every proposed game through scheduling; clashes leave games 'unschedulable' with the reason.
+         */
+        post: operations["commitSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/schedule-runs/{schedule_run_id}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Discard Schedule Run */
+        post: operations["discardScheduleRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/schedule-runs/{schedule_run_id}/games": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Schedule Run Games */
+        get: operations["listScheduleRunGames"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/schedule-runs/{schedule_run_id}/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Schedule
+         * @description Writes a preview of proposed games (no bookings). Re-running replaces the preview.
+         */
+        post: operations["generateSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/scheduling-settings": {
         parameters: {
             query?: never;
@@ -6704,6 +7516,46 @@ export interface paths {
         head?: never;
         /** Update Scheduling Settings */
         patch: operations["updateSchedulingSettings"];
+        trace?: never;
+    };
+    "/api/v1/seasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Seasons
+         * @description Filters: is_active. Sort: name.
+         */
+        get: operations["listSeasons"];
+        put?: never;
+        /** Create Season */
+        post: operations["createSeason"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seasons/{season_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Season */
+        get: operations["getSeason"];
+        put?: never;
+        post?: never;
+        /** Delete Season */
+        delete: operations["deleteSeason"];
+        options?: never;
+        head?: never;
+        /** Update Season */
+        patch: operations["updateSeason"];
         trace?: never;
     };
     "/api/v1/sessions": {
@@ -6799,6 +7651,46 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Sports
+         * @description Filters: is_active. Sort: name. q searches the name.
+         */
+        get: operations["listSports"];
+        put?: never;
+        /** Create Sport */
+        post: operations["createSport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sports/{sport_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Sport */
+        get: operations["getSport"];
+        put?: never;
+        post?: never;
+        /** Delete Sport */
+        delete: operations["deleteSport"];
+        options?: never;
+        head?: never;
+        /** Update Sport */
+        patch: operations["updateSport"];
         trace?: never;
     };
     "/api/v1/staff-users": {
@@ -7015,6 +7907,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/standings/{standing_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Adjust Standing */
+        patch: operations["adjustStanding"];
+        trace?: never;
+    };
     "/api/v1/stock-movements": {
         parameters: {
             query?: never;
@@ -7172,6 +8081,46 @@ export interface paths {
         patch: operations["updateTaxRate"];
         trace?: never;
     };
+    "/api/v1/teams": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Teams
+         * @description Filters: location_id, is_active. Sort: name. q searches the name.
+         */
+        get: operations["listTeams"];
+        put?: never;
+        /** Create Team */
+        post: operations["createTeam"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/teams/{team_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Team */
+        get: operations["getTeam"];
+        put?: never;
+        post?: never;
+        /** Delete Team */
+        delete: operations["deleteTeam"];
+        options?: never;
+        head?: never;
+        /** Update Team */
+        patch: operations["updateTeam"];
+        trace?: never;
+    };
     "/api/v1/tenant": {
         parameters: {
             query?: never;
@@ -7326,6 +8275,37 @@ export interface components {
             currency: string;
             /** Payments */
             payments: components["schemas"]["PaymentOut"][];
+        };
+        /** AgeGroupOut */
+        AgeGroupOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Max Age */
+            max_age: number | null;
+            /** Min Age */
+            min_age: number | null;
+            /** Name */
+            name: string;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /** AgeGroupWrite */
+        AgeGroupWrite: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Max Age */
+            max_age?: number | null;
+            /** Min Age */
+            min_age?: number | null;
+            /** Name */
+            name?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
         };
         /** AgeingReport */
         AgeingReport: {
@@ -7515,6 +8495,20 @@ export interface components {
             allocations?: components["schemas"]["AllocationIn"][] | null;
             /** Invoice Id */
             invoice_id?: string | null;
+        };
+        /** Assignment */
+        Assignment: {
+            /**
+             * Official Id
+             * Format: uuid
+             */
+            official_id: string;
+            /**
+             * Role
+             * @default referee
+             * @enum {string}
+             */
+            role: "referee" | "assistant" | "scorekeeper" | "other";
         };
         /** AttendancePut */
         AttendancePut: {
@@ -8356,6 +9350,109 @@ export interface components {
             title?: string | null;
             /** Version */
             version: number;
+        };
+        /** BracketGenerate */
+        BracketGenerate: {
+            /**
+             * Bracket Type
+             * @enum {string}
+             */
+            bracket_type: "single_elimination" | "double_elimination" | "three_games_guaranteed";
+            /** Competition Team Ids */
+            competition_team_ids?: string[] | null;
+            /** Division Id */
+            division_id?: string | null;
+            /**
+             * Has Third Place Game
+             * @default false
+             */
+            has_third_place_game: boolean;
+            /**
+             * Name
+             * @default Playoffs
+             */
+            name: string;
+            /**
+             * Seed Source
+             * @enum {string}
+             */
+            seed_source: "seeds" | "standings" | "manual";
+        };
+        /** BracketOut */
+        BracketOut: {
+            /** Bracket Type */
+            bracket_type: string;
+            /**
+             * Competition Id
+             * Format: uuid
+             */
+            competition_id: string;
+            /** Division Id */
+            division_id: string | null;
+            /** Has Third Place Game */
+            has_third_place_game: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Size */
+            size: number;
+            /** Slots */
+            slots: components["schemas"]["BracketSlotOut"][];
+            /** Status */
+            status: string;
+        };
+        /** BracketSlotOut */
+        BracketSlotOut: {
+            /** Away Seed */
+            away_seed: number | null;
+            /** Away Source Outcome */
+            away_source_outcome: string | null;
+            /** Away Source Slot Id */
+            away_source_slot_id: string | null;
+            /** Away Team Id */
+            away_team_id: string | null;
+            /** Game Id */
+            game_id: string | null;
+            /** Home Seed */
+            home_seed: number | null;
+            /** Home Source Outcome */
+            home_source_outcome: string | null;
+            /** Home Source Slot Id */
+            home_source_slot_id: string | null;
+            /** Home Team Id */
+            home_team_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Bye */
+            is_bye: boolean;
+            /** Position */
+            position: number;
+            /** Round Name */
+            round_name: string;
+            /** Round No */
+            round_no: number;
+            /** Side */
+            side: string;
+            /** Winner Competition Team Id */
+            winner_competition_team_id: string | null;
+        };
+        /** BracketSlotUpdate */
+        BracketSlotUpdate: {
+            /** Away Team Id */
+            away_team_id?: string | null;
+            /** Home Team Id */
+            home_team_id?: string | null;
+            /** Resource Id */
+            resource_id?: string | null;
+            /** Starts At */
+            starts_at?: string | null;
         };
         /** BrandOut */
         BrandOut: {
@@ -9627,6 +10724,320 @@ export interface components {
             /** Version */
             version?: number | null;
         };
+        /** CompetitionCreate */
+        CompetitionCreate: {
+            /** Age Group Id */
+            age_group_id?: string | null;
+            /** Color */
+            color?: string | null;
+            /** Division Label */
+            division_label?: string | null;
+            /** Ends On */
+            ends_on?: string | null;
+            /** Forfeit Score For */
+            forfeit_score_for?: number | null;
+            /**
+             * Format
+             * @default round_robin
+             * @enum {string}
+             */
+            format: "round_robin" | "pool_play" | "single_elimination" | "double_elimination" | "three_games_guaranteed";
+            /** Game Length Min */
+            game_length_min?: number | null;
+            /** Is Public */
+            is_public?: boolean | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "league" | "tournament";
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Max Defaults */
+            max_defaults?: number | null;
+            /** Max Forfeits */
+            max_forfeits?: number | null;
+            /** Min Sportsmanship */
+            min_sportsmanship?: number | string | null;
+            /** More Info */
+            more_info?: string | null;
+            /** Name */
+            name: string;
+            /** Points Default Loss */
+            points_default_loss?: number | string | null;
+            /** Points Forfeit Loss */
+            points_forfeit_loss?: number | string | null;
+            /** Points Forfeit Win */
+            points_forfeit_win?: number | string | null;
+            /** Points Loss */
+            points_loss?: number | string | null;
+            /** Points Overtime Loss */
+            points_overtime_loss?: number | string | null;
+            /** Points Tie */
+            points_tie?: number | string | null;
+            /** Points Win */
+            points_win?: number | string | null;
+            /** Registration Url */
+            registration_url?: string | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Rules Text */
+            rules_text?: string | null;
+            /** Season Id */
+            season_id?: string | null;
+            /** Shows Roster Publicly */
+            shows_roster_publicly?: boolean | null;
+            /**
+             * Sport Id
+             * Format: uuid
+             */
+            sport_id: string;
+            /** Standings Columns */
+            standings_columns?: components["schemas"]["StandingsColumn"][] | null;
+            /** Standings Sort */
+            standings_sort?: components["schemas"]["StandingsSort"][] | null;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** Team Fee Minor */
+            team_fee_minor?: number | null;
+            /** Team Fee Text */
+            team_fee_text?: string | null;
+            /** Tracks Sportsmanship */
+            tracks_sportsmanship?: boolean | null;
+        };
+        /** CompetitionOut */
+        CompetitionOut: {
+            /** Age Group Id */
+            age_group_id: string | null;
+            /** Color */
+            color: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Division Label */
+            division_label: string | null;
+            /** Ends On */
+            ends_on: string | null;
+            /** Forfeit Score For */
+            forfeit_score_for: number;
+            /** Format */
+            format: string;
+            /** Game Length Min */
+            game_length_min: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Public */
+            is_public: boolean;
+            /** Kind */
+            kind: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Max Defaults */
+            max_defaults: number | null;
+            /** Max Forfeits */
+            max_forfeits: number | null;
+            /** Min Sportsmanship */
+            min_sportsmanship: string | null;
+            /** More Info */
+            more_info: string | null;
+            /** Name */
+            name: string;
+            /** Points Default Loss */
+            points_default_loss: string;
+            /** Points Forfeit Loss */
+            points_forfeit_loss: string;
+            /** Points Forfeit Win */
+            points_forfeit_win: string;
+            /** Points Loss */
+            points_loss: string;
+            /** Points Overtime Loss */
+            points_overtime_loss: string;
+            /** Points Tie */
+            points_tie: string;
+            /** Points Win */
+            points_win: string;
+            /** Registration Url */
+            registration_url: string | null;
+            /** Revenue Category Id */
+            revenue_category_id: string | null;
+            /** Rules Text */
+            rules_text: string | null;
+            /** Season Id */
+            season_id: string | null;
+            /** Shows Roster Publicly */
+            shows_roster_publicly: boolean;
+            /**
+             * Sport Id
+             * Format: uuid
+             */
+            sport_id: string;
+            /** Standings Columns */
+            standings_columns: {
+                [key: string]: unknown;
+            }[];
+            /** Standings Sort */
+            standings_sort: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** Status */
+            status: string;
+            /** Team Fee Minor */
+            team_fee_minor: number | null;
+            /** Team Fee Text */
+            team_fee_text: string | null;
+            /** Tracks Sportsmanship */
+            tracks_sportsmanship: boolean;
+        };
+        /**
+         * CompetitionTeamCreate
+         * @description Register a team: an existing `team_id` or a new `team`. `bill_to_client_id` charges the competition's
+         *     team fee to that client through billing in the same transaction.
+         */
+        CompetitionTeamCreate: {
+            /** Bill To Client Id */
+            bill_to_client_id?: string | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Division Id */
+            division_id?: string | null;
+            /** Seed */
+            seed?: number | null;
+            team?: components["schemas"]["NewTeam"] | null;
+            /** Team Id */
+            team_id?: string | null;
+        };
+        /** CompetitionTeamOut */
+        CompetitionTeamOut: {
+            /**
+             * Competition Id
+             * Format: uuid
+             */
+            competition_id: string;
+            /** Display Name */
+            display_name: string | null;
+            /**
+             * Division Id
+             * Format: uuid
+             */
+            division_id: string;
+            /** Fee Client Id */
+            fee_client_id: string | null;
+            /** Fee Status */
+            fee_status: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Id */
+            invoice_id?: string | null;
+            /** Name */
+            name: string;
+            /** Seed */
+            seed: number | null;
+            /** Status */
+            status: string;
+            /**
+             * Team Id
+             * Format: uuid
+             */
+            team_id: string;
+        };
+        /** CompetitionTeamUpdate */
+        CompetitionTeamUpdate: {
+            /** Display Name */
+            display_name?: string | null;
+            /** Division Id */
+            division_id?: string | null;
+            /** Seed */
+            seed?: number | null;
+            /** Status */
+            status?: ("active" | "withdrawn") | null;
+        };
+        /** CompetitionUpdate */
+        CompetitionUpdate: {
+            /** Age Group Id */
+            age_group_id?: string | null;
+            /** Color */
+            color?: string | null;
+            /** Division Label */
+            division_label?: string | null;
+            /** Ends On */
+            ends_on?: string | null;
+            /** Forfeit Score For */
+            forfeit_score_for?: number | null;
+            /** Format */
+            format?: ("round_robin" | "pool_play" | "single_elimination" | "double_elimination" | "three_games_guaranteed") | null;
+            /** Game Length Min */
+            game_length_min?: number | null;
+            /** Is Public */
+            is_public?: boolean | null;
+            /** Max Defaults */
+            max_defaults?: number | null;
+            /** Max Forfeits */
+            max_forfeits?: number | null;
+            /** Min Sportsmanship */
+            min_sportsmanship?: number | string | null;
+            /** More Info */
+            more_info?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Points Default Loss */
+            points_default_loss?: number | string | null;
+            /** Points Forfeit Loss */
+            points_forfeit_loss?: number | string | null;
+            /** Points Forfeit Win */
+            points_forfeit_win?: number | string | null;
+            /** Points Loss */
+            points_loss?: number | string | null;
+            /** Points Overtime Loss */
+            points_overtime_loss?: number | string | null;
+            /** Points Tie */
+            points_tie?: number | string | null;
+            /** Points Win */
+            points_win?: number | string | null;
+            /** Registration Url */
+            registration_url?: string | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Rules Text */
+            rules_text?: string | null;
+            /** Season Id */
+            season_id?: string | null;
+            /** Shows Roster Publicly */
+            shows_roster_publicly?: boolean | null;
+            /** Standings Columns */
+            standings_columns?: components["schemas"]["StandingsColumn"][] | null;
+            /** Standings Sort */
+            standings_sort?: components["schemas"]["StandingsSort"][] | null;
+            /** Starts On */
+            starts_on?: string | null;
+            /** Team Fee Minor */
+            team_fee_minor?: number | null;
+            /** Team Fee Text */
+            team_fee_text?: string | null;
+            /** Tracks Sportsmanship */
+            tracks_sportsmanship?: boolean | null;
+        };
         /** ContractHistoryOut */
         ContractHistoryOut: {
             /** Action */
@@ -10565,6 +11976,34 @@ export interface components {
              * Format: uuid
              */
             pos_sale_line_id: string;
+        };
+        /** DivisionOut */
+        DivisionOut: {
+            /**
+             * Competition Id
+             * Format: uuid
+             */
+            competition_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Name */
+            name: string;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /** DivisionWrite */
+        DivisionWrite: {
+            /** Kind */
+            kind?: ("division" | "pool") | null;
+            /** Name */
+            name?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
         };
         /** DocumentAcceptanceOut */
         DocumentAcceptanceOut: {
@@ -11727,6 +13166,236 @@ export interface components {
              */
             start_on: string;
         };
+        /** GameCreate */
+        GameCreate: {
+            /** Away Label */
+            away_label?: string | null;
+            /** Away Team Id */
+            away_team_id?: string | null;
+            /**
+             * Competition Id
+             * Format: uuid
+             */
+            competition_id: string;
+            /** Division Id */
+            division_id?: string | null;
+            /**
+             * Game Type
+             * @default regular
+             * @enum {string}
+             */
+            game_type: "regular" | "post_season";
+            /** Home Label */
+            home_label?: string | null;
+            /** Home Team Id */
+            home_team_id?: string | null;
+            /** Length Min */
+            length_min?: number | null;
+            /** Notes */
+            notes?: string | null;
+            /** Resource Id */
+            resource_id?: string | null;
+            /** Round Label */
+            round_label?: string | null;
+            /** Starts At */
+            starts_at?: string | null;
+        };
+        /** GameOfficialOut */
+        GameOfficialOut: {
+            /**
+             * Game Id
+             * Format: uuid
+             */
+            game_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Official Id
+             * Format: uuid
+             */
+            official_id: string;
+            /** Role */
+            role: string;
+        };
+        /** GameOfficialsPut */
+        GameOfficialsPut: {
+            /** Assignments */
+            assignments: components["schemas"]["Assignment"][];
+        };
+        /** GameOut */
+        GameOut: {
+            /** Away Label */
+            away_label: string | null;
+            /** Away Name */
+            away_name: string | null;
+            /** Away Score */
+            away_score?: number | null;
+            /** Away Team Id */
+            away_team_id: string | null;
+            /** Booking Id */
+            booking_id: string | null;
+            /**
+             * Competition Id
+             * Format: uuid
+             */
+            competition_id: string;
+            /** Conflict Note */
+            conflict_note: {
+                [key: string]: unknown;
+            } | null;
+            /** Division Id */
+            division_id: string | null;
+            /** Ends At */
+            ends_at: string | null;
+            /** Game Type */
+            game_type: string;
+            /** Home Label */
+            home_label: string | null;
+            /** Home Name */
+            home_name: string | null;
+            /** Home Score */
+            home_score?: number | null;
+            /** Home Team Id */
+            home_team_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Bye */
+            is_bye: boolean;
+            /** Length Min */
+            length_min: number;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Notes */
+            notes: string | null;
+            /** Resource Id */
+            resource_id: string | null;
+            /** Round Label */
+            round_label: string | null;
+            /** Round No */
+            round_no: number | null;
+            /** Schedule Run Id */
+            schedule_run_id: string | null;
+            /** Starts At */
+            starts_at: string | null;
+            /** Status */
+            status: string;
+            /** Version */
+            version: number;
+        };
+        /** GamePostpone */
+        GamePostpone: {
+            /** Resource Id */
+            resource_id?: string | null;
+            /** Starts At */
+            starts_at?: string | null;
+        };
+        /** GameReschedule */
+        GameReschedule: {
+            /** Length Min */
+            length_min?: number | null;
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
+        /** GameResultOut */
+        GameResultOut: {
+            away: components["schemas"]["GameSideOut"] | null;
+            /**
+             * Game Id
+             * Format: uuid
+             */
+            game_id: string;
+            home: components["schemas"]["GameSideOut"] | null;
+            /** Recorded At */
+            recorded_at: string | null;
+            /** Status */
+            status: string;
+        };
+        /** GameResultPut */
+        GameResultPut: {
+            away: components["schemas"]["GameSideIn"];
+            home: components["schemas"]["GameSideIn"];
+        };
+        /** GameSideIn */
+        GameSideIn: {
+            /**
+             * Bonus Points
+             * @default 0
+             */
+            bonus_points: number | string;
+            /**
+             * Participation
+             * @default full
+             * @enum {string}
+             */
+            participation: "full" | "default" | "forfeit";
+            /** Score */
+            score?: number | null;
+            /** Sportsmanship */
+            sportsmanship?: number | string | null;
+            /**
+             * Went To Overtime
+             * @default false
+             */
+            went_to_overtime: boolean;
+        };
+        /** GameSideOut */
+        GameSideOut: {
+            /** Bonus Points */
+            bonus_points: string;
+            /**
+             * Competition Team Id
+             * Format: uuid
+             */
+            competition_team_id: string;
+            /** Outcome */
+            outcome: string;
+            /** Participation */
+            participation: string;
+            /** Score */
+            score: number | null;
+            /** Sportsmanship */
+            sportsmanship: string | null;
+            /** Went To Overtime */
+            went_to_overtime: boolean;
+        };
+        /** GameUpdate */
+        GameUpdate: {
+            /** Away Label */
+            away_label?: string | null;
+            /** Away Team Id */
+            away_team_id?: string | null;
+            /** Game Type */
+            game_type?: ("regular" | "post_season") | null;
+            /** Home Label */
+            home_label?: string | null;
+            /** Home Team Id */
+            home_team_id?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Round Label */
+            round_label?: string | null;
+            /** Version */
+            version?: number | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -12083,6 +13752,137 @@ export interface components {
              * @default false
              */
             release_allocations: boolean;
+        };
+        /** LeagueRosterEntryOut */
+        LeagueRosterEntryOut: {
+            /** Client Id */
+            client_id: string | null;
+            /**
+             * Competition Team Id
+             * Format: uuid
+             */
+            competition_team_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Jersey Number */
+            jersey_number: string | null;
+            /** Name */
+            name: string;
+            /** Origin */
+            origin: string;
+            /** Position */
+            position: string | null;
+            /** Role */
+            role: string;
+            /** Status */
+            status: string;
+        };
+        /** LeagueStandingOut */
+        LeagueStandingOut: {
+            /** Adjustment Points */
+            adjustment_points: string;
+            /** Adjustment Reason */
+            adjustment_reason: string | null;
+            /** Bonus Points */
+            bonus_points: string;
+            /**
+             * Competition Team Id
+             * Format: uuid
+             */
+            competition_team_id: string;
+            /** Defaults */
+            defaults: number;
+            /**
+             * Division Id
+             * Format: uuid
+             */
+            division_id: string;
+            /** Forfeits */
+            forfeits: number;
+            /** Games Played */
+            games_played: number;
+            /** Goal Difference */
+            goal_difference: number;
+            /** Goals Against */
+            goals_against: number;
+            /** Goals For */
+            goals_for: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Over Discipline Cap */
+            is_over_discipline_cap: boolean;
+            /** Losses */
+            losses: number;
+            /** Overtime Losses */
+            overtime_losses: number;
+            /** Points */
+            points: string;
+            /** Rank */
+            rank: number;
+            /** Sportsmanship Avg */
+            sportsmanship_avg: string | null;
+            /** Team Name */
+            team_name: string;
+            /** Ties */
+            ties: number;
+            /** Win Pct */
+            win_pct: string;
+            /** Wins */
+            wins: number;
+        };
+        /** LeagueTeamCreate */
+        LeagueTeamCreate: {
+            /** Captain Client Id */
+            captain_client_id?: string | null;
+            /** Color */
+            color?: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+        };
+        /** LeagueTeamOut */
+        LeagueTeamOut: {
+            /** Captain Client Id */
+            captain_client_id: string | null;
+            /** Color */
+            color: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Placeholder */
+            is_placeholder: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+        };
+        /** LeagueTeamUpdate */
+        LeagueTeamUpdate: {
+            /** Captain Client Id */
+            captain_client_id?: string | null;
+            /** Color */
+            color?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
         };
         /** LedgerEntryOut */
         LedgerEntryOut: {
@@ -12866,6 +14666,15 @@ export interface components {
              */
             kind: "portal_access" | "relationship";
         };
+        /** NewTeam */
+        NewTeam: {
+            /** Captain Client Id */
+            captain_client_id?: string | null;
+            /** Color */
+            color?: string | null;
+            /** Name */
+            name: string;
+        };
         /** NoSaleRequest */
         NoSaleRequest: {
             /** Reason */
@@ -13029,6 +14838,82 @@ export interface components {
              * @enum {string}
              */
             status: "ok" | "conflict" | "blackout" | "outside_hours" | "skipped_by_rule" | "capacity-below-booked";
+        };
+        /** OfficialCreate */
+        OfficialCreate: {
+            /**
+             * Age Group Ids
+             * @default []
+             */
+            age_group_ids: string[];
+            /** Email */
+            email?: string | null;
+            /** First Name */
+            first_name: string;
+            /** Last Name */
+            last_name: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Phone */
+            phone?: string | null;
+            /**
+             * Sport Ids
+             * @default []
+             */
+            sport_ids: string[];
+            /** Staff User Id */
+            staff_user_id?: string | null;
+        };
+        /** OfficialOut */
+        OfficialOut: {
+            /** Age Group Ids */
+            age_group_ids: string[];
+            /** Email */
+            email: string | null;
+            /** First Name */
+            first_name: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Last Name */
+            last_name: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Phone */
+            phone: string | null;
+            /** Sport Ids */
+            sport_ids: string[];
+            /** Staff User Id */
+            staff_user_id: string | null;
+        };
+        /** OfficialUpdate */
+        OfficialUpdate: {
+            /** Age Group Ids */
+            age_group_ids?: string[] | null;
+            /** Email */
+            email?: string | null;
+            /** First Name */
+            first_name?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Last Name */
+            last_name?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Sport Ids */
+            sport_ids?: string[] | null;
+            /** Staff User Id */
+            staff_user_id?: string | null;
         };
         /** OnboardingLink */
         OnboardingLink: {
@@ -13908,6 +15793,12 @@ export interface components {
             /** Total */
             total?: number | null;
         };
+        /** Page[AgeGroupOut] */
+        Page_AgeGroupOut_: {
+            /** Data */
+            data: components["schemas"]["AgeGroupOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[AuditEventOut] */
         Page_AuditEventOut_: {
             /** Data */
@@ -13966,6 +15857,12 @@ export interface components {
         Page_ClientListItem_: {
             /** Data */
             data: components["schemas"]["ClientListItem"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[CompetitionOut] */
+        Page_CompetitionOut_: {
+            /** Data */
+            data: components["schemas"]["CompetitionOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[ContractOut] */
@@ -14052,6 +15949,12 @@ export interface components {
             data: components["schemas"]["EquipmentLoanOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[GameOut] */
+        Page_GameOut_: {
+            /** Data */
+            data: components["schemas"]["GameOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[HistoryOut] */
         Page_HistoryOut_: {
             /** Data */
@@ -14062,6 +15965,18 @@ export interface components {
         Page_InvoiceOut_: {
             /** Data */
             data: components["schemas"]["InvoiceOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[LeagueRosterEntryOut] */
+        Page_LeagueRosterEntryOut_: {
+            /** Data */
+            data: components["schemas"]["LeagueRosterEntryOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[LeagueTeamOut] */
+        Page_LeagueTeamOut_: {
+            /** Data */
+            data: components["schemas"]["LeagueTeamOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[LedgerEntryOut] */
@@ -14098,6 +16013,12 @@ export interface components {
         Page_NoticeOut_: {
             /** Data */
             data: components["schemas"]["NoticeOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[OfficialOut] */
+        Page_OfficialOut_: {
+            /** Data */
+            data: components["schemas"]["OfficialOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[PackageOut] */
@@ -14286,10 +16207,28 @@ export interface components {
             data: components["schemas"]["RoleOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[ScheduleRunOut] */
+        Page_ScheduleRunOut_: {
+            /** Data */
+            data: components["schemas"]["ScheduleRunOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[SeasonOut] */
+        Page_SeasonOut_: {
+            /** Data */
+            data: components["schemas"]["SeasonOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[SessionOut] */
         Page_SessionOut_: {
             /** Data */
             data: components["schemas"]["SessionOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[SportOut] */
+        Page_SportOut_: {
+            /** Data */
+            data: components["schemas"]["SportOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[StaffUserOut] */
@@ -16815,6 +18754,46 @@ export interface components {
              */
             provider: "stripe" | "fake";
         };
+        /** PublicCompetitionOut */
+        PublicCompetitionOut: {
+            /** Division Label */
+            division_label: string | null;
+            /** Ends On */
+            ends_on: string | null;
+            /** Format */
+            format: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** More Info */
+            more_info: string | null;
+            /** Name */
+            name: string;
+            /** Registration Url */
+            registration_url: string | null;
+            /** Rules Text */
+            rules_text: string | null;
+            /** Sport Name */
+            sport_name: string;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** Status */
+            status: string;
+            /** Team Fee Text */
+            team_fee_text: string | null;
+        };
         /** PublicDocumentDecision */
         PublicDocumentDecision: {
             /** Content Sha256 */
@@ -16862,6 +18841,32 @@ export interface components {
             tenant_name: string;
             /** Title */
             title: string;
+        };
+        /** PublicGameOut */
+        PublicGameOut: {
+            /** Away Name */
+            away_name: string | null;
+            /** Away Score */
+            away_score: number | null;
+            /** Ends At */
+            ends_at: string | null;
+            /** Home Name */
+            home_name: string | null;
+            /** Home Score */
+            home_score: number | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Round Label */
+            round_label: string | null;
+            /** Starts At */
+            starts_at: string | null;
+            /** Status */
+            status: string;
+            /** Venue */
+            venue: string | null;
         };
         /** PublicLocation */
         PublicLocation: {
@@ -16973,6 +18978,33 @@ export interface components {
         PublicSchedule: {
             /** Is On Public Schedule */
             is_on_public_schedule: boolean;
+        };
+        /** PublicStandingOut */
+        PublicStandingOut: {
+            /** Division Name */
+            division_name: string;
+            /** Games Played */
+            games_played: number;
+            /** Goal Difference */
+            goal_difference: number;
+            /** Goals Against */
+            goals_against: number;
+            /** Goals For */
+            goals_for: number;
+            /** Losses */
+            losses: number;
+            /** Points */
+            points: string;
+            /** Rank */
+            rank: number;
+            /** Team Name */
+            team_name: string;
+            /** Ties */
+            ties: number;
+            /** Win Pct */
+            win_pct: string;
+            /** Wins */
+            wins: number;
         };
         /** PurchaseCancel */
         PurchaseCancel: {
@@ -18717,6 +20749,38 @@ export interface components {
             /** Waiting Count */
             waiting_count: number;
         };
+        /** RosterEntryCreate */
+        RosterEntryCreate: {
+            /** Client Id */
+            client_id?: string | null;
+            /** First Name */
+            first_name?: string | null;
+            /** Jersey Number */
+            jersey_number?: string | null;
+            /** Last Name */
+            last_name?: string | null;
+            /** Position */
+            position?: string | null;
+            /**
+             * Role
+             * @default player
+             * @enum {string}
+             */
+            role: "player" | "captain" | "coach" | "manager";
+        };
+        /** RosterEntryUpdate */
+        RosterEntryUpdate: {
+            /** Client Id */
+            client_id?: string | null;
+            /** Jersey Number */
+            jersey_number?: string | null;
+            /** Position */
+            position?: string | null;
+            /** Role */
+            role?: ("player" | "captain" | "coach" | "manager") | null;
+            /** Status */
+            status?: ("active" | "removed") | null;
+        };
         /** SalePayment */
         SalePayment: {
             /** Amount Minor */
@@ -18814,6 +20878,155 @@ export interface components {
         ScheduleReplace: {
             /** Instalments */
             instalments: components["schemas"]["InstalmentIn"][];
+        };
+        /** ScheduleRunCreate */
+        ScheduleRunCreate: {
+            /**
+             * Blackout Dates
+             * @default []
+             */
+            blackout_dates: string[];
+            /**
+             * Bye Mode
+             * @default hidden
+             * @enum {string}
+             */
+            bye_mode: "hidden" | "occupy_slot" | "fold_last_round" | "rotate_extra_game";
+            /** Competition Ids */
+            competition_ids: string[];
+            /**
+             * Ends On
+             * Format: date
+             */
+            ends_on: string;
+            /** Game Length Min */
+            game_length_min?: number | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Removes Previous Games
+             * @default false
+             */
+            removes_previous_games: boolean;
+            /** Resource Ids */
+            resource_ids: string[];
+            /** Rounds */
+            rounds?: number | null;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** Time Slots */
+            time_slots: components["schemas"]["TimeWindow"][];
+        };
+        /** ScheduleRunOut */
+        ScheduleRunOut: {
+            /** Blackout Dates */
+            blackout_dates: string[];
+            /** Bye Mode */
+            bye_mode: string;
+            /** Committed At */
+            committed_at: string | null;
+            /** Competition Ids */
+            competition_ids: string[];
+            /** Ends On */
+            ends_on: string | null;
+            /** Game Length Min */
+            game_length_min: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Removes Previous Games */
+            removes_previous_games: boolean;
+            /** Resource Ids */
+            resource_ids: string[];
+            /** Rounds */
+            rounds: number | null;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** State */
+            state: string;
+            /** Stats */
+            stats: {
+                [key: string]: unknown;
+            } | null;
+            /** Time Slots */
+            time_slots: {
+                [key: string]: unknown;
+            }[];
+            /** Wizard Step */
+            wizard_step: number;
+        };
+        /** ScheduleRunUpdate */
+        ScheduleRunUpdate: {
+            /** Blackout Dates */
+            blackout_dates?: string[] | null;
+            /** Bye Mode */
+            bye_mode?: ("hidden" | "occupy_slot" | "fold_last_round" | "rotate_extra_game") | null;
+            /** Ends On */
+            ends_on?: string | null;
+            /** Game Length Min */
+            game_length_min?: number | null;
+            /** Removes Previous Games */
+            removes_previous_games?: boolean | null;
+            /** Resource Ids */
+            resource_ids?: string[] | null;
+            /** Rounds */
+            rounds?: number | null;
+            /** Starts On */
+            starts_on?: string | null;
+            /** Time Slots */
+            time_slots?: components["schemas"]["TimeWindow"][] | null;
+            /** Wizard Step */
+            wizard_step?: number | null;
+        };
+        /** SeasonOut */
+        SeasonOut: {
+            /** Ends On */
+            ends_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Starts On */
+            starts_on: string | null;
+        };
+        /** SeasonWrite */
+        SeasonWrite: {
+            /** Ends On */
+            ends_on?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Starts On */
+            starts_on?: string | null;
+        };
+        /** Seeding */
+        Seeding: {
+            /** Competition Team Ids */
+            competition_team_ids: string[];
         };
         /** SeriesCancel */
         SeriesCancel: {
@@ -19263,6 +21476,132 @@ export interface components {
             /** Remarks */
             remarks?: string | null;
         };
+        /** SportCreate */
+        SportCreate: {
+            /**
+             * Default Game Length Min
+             * @default 60
+             */
+            default_game_length_min: number;
+            /** Default Team Fee Minor */
+            default_team_fee_minor?: number | null;
+            /** Fees Text */
+            fees_text?: string | null;
+            /** Forfeit Score For */
+            forfeit_score_for?: number | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Points Default Loss */
+            points_default_loss?: number | string | null;
+            /** Points Forfeit Loss */
+            points_forfeit_loss?: number | string | null;
+            /** Points Forfeit Win */
+            points_forfeit_win?: number | string | null;
+            /** Points Loss */
+            points_loss?: number | string | null;
+            /** Points Overtime Loss */
+            points_overtime_loss?: number | string | null;
+            /** Points Tie */
+            points_tie?: number | string | null;
+            /** Points Win */
+            points_win?: number | string | null;
+            /** Rules Text */
+            rules_text?: string | null;
+            /** Standings Columns */
+            standings_columns?: components["schemas"]["StandingsColumn"][] | null;
+            /** Standings Sort */
+            standings_sort?: components["schemas"]["StandingsSort"][] | null;
+            /** Tracks Sportsmanship */
+            tracks_sportsmanship?: boolean | null;
+        };
+        /** SportOut */
+        SportOut: {
+            /** Default Game Length Min */
+            default_game_length_min: number;
+            /** Default Team Fee Minor */
+            default_team_fee_minor: number | null;
+            /** Fees Text */
+            fees_text: string | null;
+            /** Forfeit Score For */
+            forfeit_score_for: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Points Default Loss */
+            points_default_loss: string;
+            /** Points Forfeit Loss */
+            points_forfeit_loss: string;
+            /** Points Forfeit Win */
+            points_forfeit_win: string;
+            /** Points Loss */
+            points_loss: string;
+            /** Points Overtime Loss */
+            points_overtime_loss: string;
+            /** Points Tie */
+            points_tie: string;
+            /** Points Win */
+            points_win: string;
+            /** Rules Text */
+            rules_text: string | null;
+            /** Standings Columns */
+            standings_columns: {
+                [key: string]: unknown;
+            }[];
+            /** Standings Sort */
+            standings_sort: {
+                [key: string]: unknown;
+            }[];
+            /** Tracks Sportsmanship */
+            tracks_sportsmanship: boolean;
+        };
+        /** SportUpdate */
+        SportUpdate: {
+            /** Default Game Length Min */
+            default_game_length_min?: number | null;
+            /** Default Team Fee Minor */
+            default_team_fee_minor?: number | null;
+            /** Fees Text */
+            fees_text?: string | null;
+            /** Forfeit Score For */
+            forfeit_score_for?: number | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Points Default Loss */
+            points_default_loss?: number | string | null;
+            /** Points Forfeit Loss */
+            points_forfeit_loss?: number | string | null;
+            /** Points Forfeit Win */
+            points_forfeit_win?: number | string | null;
+            /** Points Loss */
+            points_loss?: number | string | null;
+            /** Points Overtime Loss */
+            points_overtime_loss?: number | string | null;
+            /** Points Tie */
+            points_tie?: number | string | null;
+            /** Points Win */
+            points_win?: number | string | null;
+            /** Rules Text */
+            rules_text?: string | null;
+            /** Standings Columns */
+            standings_columns?: components["schemas"]["StandingsColumn"][] | null;
+            /** Standings Sort */
+            standings_sort?: components["schemas"]["StandingsSort"][] | null;
+            /** Tracks Sportsmanship */
+            tracks_sportsmanship?: boolean | null;
+        };
         /** StaffSigner */
         StaffSigner: {
             /**
@@ -19433,6 +21772,13 @@ export interface components {
             /** Mobile Phone */
             mobile_phone?: string | null;
         };
+        /** StandingAdjust */
+        StandingAdjust: {
+            /** Adjustment Points */
+            adjustment_points: number | string;
+            /** Reason */
+            reason: string;
+        };
         /** StandingOut */
         StandingOut: {
             /**
@@ -19465,6 +21811,30 @@ export interface components {
             visits_remaining_count?: number | null;
             /** Visits Used Count */
             visits_used_count?: number | null;
+        };
+        /** StandingsColumn */
+        StandingsColumn: {
+            /** Heading */
+            heading?: string | null;
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "GP" | "W" | "L" | "T" | "GF" | "GA" | "PTS" | "GD" | "WP" | "OTL" | "FF" | "BP" | "SPT" | "H2H";
+        };
+        /** StandingsSort */
+        StandingsSort: {
+            /**
+             * Direction
+             * @default desc
+             * @enum {string}
+             */
+            direction: "asc" | "desc";
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "GP" | "W" | "L" | "T" | "GF" | "GA" | "PTS" | "GD" | "WP" | "OTL" | "FF" | "BP" | "SPT" | "H2H";
         };
         /** StatementOut */
         StatementOut: {
@@ -19958,6 +22328,41 @@ export interface components {
             /** Remarks */
             remarks?: string | null;
         };
+        /** TeamCopy */
+        TeamCopy: {
+            /** Competition Team Ids */
+            competition_team_ids?: string[] | null;
+            /**
+             * Includes Rosters
+             * @default false
+             */
+            includes_rosters: boolean;
+            /**
+             * Source Competition Id
+             * Format: uuid
+             */
+            source_competition_id: string;
+        };
+        /** TeamFeeBill */
+        TeamFeeBill: {
+            /**
+             * Bill To Client Id
+             * Format: uuid
+             */
+            bill_to_client_id: string;
+        };
+        /** TeamGenerate */
+        TeamGenerate: {
+            /** Count */
+            count: number;
+            /** Division Id */
+            division_id?: string | null;
+            /**
+             * Name Prefix
+             * @default Team
+             */
+            name_prefix: string;
+        };
         /** TenantOnboard */
         TenantOnboard: {
             /**
@@ -20106,6 +22511,20 @@ export interface components {
             label?: string | null;
             /** Sort Order */
             sort_order?: number | null;
+        };
+        /** TimeWindow */
+        TimeWindow: {
+            /** Ends At */
+            ends_at: string;
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /** Starts At */
+            starts_at: string;
+            /** Weekday */
+            weekday: number;
         };
         /** Timeline */
         Timeline: {
@@ -20534,6 +22953,189 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listAgeGroups: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AgeGroupOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createAgeGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgeGroupWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgeGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getAgeGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                age_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgeGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteAgeGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                age_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateAgeGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                age_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgeGroupWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgeGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listAuditEvents: {
         parameters: {
             query?: {
@@ -22200,6 +24802,144 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BookingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateBracketSlot: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                bracket_slot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BracketSlotUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BracketSlotOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getBracket: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                bracket_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BracketOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteBracket: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                bracket_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publishBracket: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                bracket_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BracketOut"];
                 };
             };
             /** @description Validation Error */
@@ -25528,6 +28268,905 @@ export interface operations {
             };
         };
     };
+    removeCompetitionTeam: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateCompetitionTeam: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompetitionTeamUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionTeamOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    billCompetitionTeam: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeamFeeBill"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionTeamOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listTeamRoster: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueRosterEntryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    addRosterEntry: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RosterEntryCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueRosterEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCompetitions: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CompetitionOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createCompetition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompetitionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getCompetition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteCompetition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateCompetition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompetitionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activateCompetition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    archiveCompetition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listBrackets: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BracketOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generateBracket: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BracketGenerate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BracketOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    completeCompetition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listDivisions: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DivisionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createDivision: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DivisionWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DivisionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reopenCompetition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putCompetitionSeeding: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Seeding"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionTeamOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listStandings: {
+        parameters: {
+            query?: {
+                division_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueStandingOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recomputeStandings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueStandingOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCompetitionTeams: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionTeamOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    addCompetitionTeam: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompetitionTeamCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionTeamOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    copyCompetitionTeams: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeamCopy"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionTeamOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generateCompetitionTeams: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeamGenerate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionTeamOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listCoupons: {
         parameters: {
             query?: {
@@ -26142,6 +29781,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiscountPresetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteDivision: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                division_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateDivision: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                division_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DivisionWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DivisionOut"];
                 };
             };
             /** @description Validation Error */
@@ -27457,6 +31166,443 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["EquipmentReturnQuote"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listGames: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_GameOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createGame: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GameCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getGame: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateGame: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GameUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancelGame: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listGameOfficials: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameOfficialOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putGameOfficials: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GameOfficialsPut"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameOfficialOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    postponeGame: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GamePostpone"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rescheduleGame: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GameReschedule"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getGameResult: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameResultOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putGameResult: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GameResultPut"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameResultOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteGameResult: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -30034,6 +34180,189 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NoteSubjectOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listOfficials: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_OfficialOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createOfficial: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OfficialCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getOfficial: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                official_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteOfficial: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                official_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateOfficial: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                official_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OfficialUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialOut"];
                 };
             };
             /** @description Validation Error */
@@ -34151,6 +38480,130 @@ export interface operations {
             };
         };
     };
+    listPublicCompetitions: {
+        parameters: {
+            query?: {
+                location_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicCompetitionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPublicCompetition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicCompetitionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPublicGames: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicGameOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPublicStandings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicStandingOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     publicDecideDocument: {
         parameters: {
             query?: never;
@@ -37191,6 +41644,417 @@ export interface operations {
             };
         };
     };
+    searchRosterEntries: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_LeagueRosterEntryOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    removeRosterEntry: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                roster_entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateRosterEntry: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                roster_entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RosterEntryUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueRosterEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listScheduleRuns: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ScheduleRunOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createScheduleRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleRunCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getScheduleRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateScheduleRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleRunUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    commitSchedule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discardScheduleRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listScheduleRunGames: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_GameOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generateSchedule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getSchedulingSettings: {
         parameters: {
             query?: {
@@ -37250,6 +42114,189 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listSeasons: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_SeasonOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createSeason: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeasonWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getSeason: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                season_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteSeason: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                season_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateSeason: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                season_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeasonWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonOut"];
                 };
             };
             /** @description Validation Error */
@@ -37473,6 +42520,189 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Roster"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listSports: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_SportOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createSport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SportCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getSport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                sport_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteSport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                sport_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateSport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                sport_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SportUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SportOut"];
                 };
             };
             /** @description Validation Error */
@@ -37955,6 +43185,44 @@ export interface operations {
             };
         };
     };
+    adjustStanding: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                standing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StandingAdjust"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueStandingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listStockMovements: {
         parameters: {
             query?: {
@@ -38424,6 +43692,189 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TaxDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listTeams: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_LeagueTeamOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createTeam: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeagueTeamCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueTeamOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getTeam: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueTeamOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteTeam: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateTeam: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeagueTeamUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueTeamOut"];
                 };
             };
             /** @description Validation Error */

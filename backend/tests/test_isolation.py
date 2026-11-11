@@ -240,6 +240,32 @@ _BODIES = {
     "confirmPortalRental": {"provider_payment_token": "tok_card_ok"},
     "updateRentalPlan": {"name": "Renamed"},
     "cancelRentalPlanPurchase": {"cancel_mode": "keep_billing", "reason": "Mistake"},
+    # leagues (build module 11)
+    "updateSport": {"name": "Renamed"},
+    "updateAgeGroup": {"name": "Renamed"},
+    "updateSeason": {"name": "Renamed"},
+    "updateCompetition": {"name": "Renamed"},
+    "createDivision": {"name": "North"},
+    "updateDivision": {"name": "Renamed"},
+    "updateTeam": {"name": "Renamed"},
+    "addCompetitionTeam": {"team": {"name": "Other"}},
+    "generateCompetitionTeams": {"count": 1},
+    "copyCompetitionTeams": lambda ids: {"source_competition_id": ids.competition_id},
+    "putCompetitionSeeding": lambda ids: {"competition_team_ids": [ids.competition_team_id]},
+    "updateCompetitionTeam": {"display_name": "Renamed"},
+    "billCompetitionTeam": lambda ids: {"bill_to_client_id": ids.client_id},
+    "addRosterEntry": {"first_name": "Walk", "last_name": "On"},
+    "updateRosterEntry": {"position": "Keeper"},
+    "adjustStanding": {"adjustment_points": "-1", "reason": "Late"},
+    "updateScheduleRun": {"rounds": 2},
+    "updateGame": {"notes": "Renamed"},
+    "rescheduleGame": lambda ids: {"resource_id": ids.resource_id, "starts_at": "2031-07-02T23:00:00Z"},
+    "postponeGame": {},
+    "putGameResult": {"home": {"score": 1}, "away": {"score": 0}},
+    "updateOfficial": {"first_name": "Renamed"},
+    "putGameOfficials": lambda ids: {"assignments": [{"official_id": ids.official_id}]},
+    "generateBracket": {"bracket_type": "single_elimination", "seed_source": "seeds"},
+    "updateBracketSlot": {},
 }
 _ACCEPTANCE = {"content_sha256": "0" * 64, "signers": [
     {"decision": "accepted", "signer_role": "client", "signer_name": "X", "method": "checkbox"}]}  # fmt: skip
@@ -277,7 +303,10 @@ def test_api_foreign_tenant_id_is_404(client, two_tenants, method, path, name):
     a, b = two_tenants
     url = re.sub(r"\{(\w+)_id\}", lambda m: str(getattr(b, f"{m[1]}_id")), path)
     body = body_for(name, a)  # A's own ids in the body, so only the path id is foreign
-    response = client.request(method, url, headers=a.headers | {"Idempotency-Key": f"iso-{name}-key"}, json=body)
+    headers = a.headers | {"Idempotency-Key": f"iso-{name}-key"}
+    if path.startswith("/api/v1/public/"):
+        headers |= {"X-Tenant-Slug": a.tenant.slug}  # anonymous routes take the tenant from the host
+    response = client.request(method, url, headers=headers, json=body)
     assert response.status_code == 404, response.text
     assert response.json()["code"] == "not-found"
 
