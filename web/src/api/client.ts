@@ -1,9 +1,10 @@
 /**
  * Thin fetch wrapper over the generated OpenAPI types (security-baseline 5.3, overview 3.12/3.13).
- * - Cookies carry the session (HttpOnly); the CSRF token is kept in memory only and sent on every non-GET.
- * - Every mutation carries an Idempotency-Key, reused on the one retry after a token refresh.
- * - Non-2xx responses become ApiError with the problem+json body.
- * - A 401 triggers one shared POST /auth/refresh, then the request is retried once.
+ * - One HttpOnly cookie carries the session; its CSRF token is kept in memory only and sent on every non-GET.
+ * - The anonymous auth POSTs (sign-in, emailed links, link consumption) send the pre-session token instead
+ *   (login CSRF), fetched once from GET /auth/pre-session and fetched again if the server refuses it.
+ * - Every mutation carries an Idempotency-Key, reused on that one retry.
+ * - Non-2xx responses become ApiError with the problem+json body; a 401 means the session is over.
  */
 import type { components, paths } from './schema'
 
@@ -54,8 +55,11 @@ export function fieldErrors(error: unknown): Record<string, string> {
 }
 
 let csrfToken: string | null = null
+let preToken: Promise<string | null> | null = null
+/** Set on sign-in and session restore, cleared on sign-out; either way the pre-session token is re-fetched. */
 export const setCsrfToken = (token: string | null | undefined) => {
   csrfToken = token ?? null
+  preToken = null
 }
 
 let onUnauthenticated: () => void = () => {}
@@ -68,10 +72,13 @@ export const setUnauthenticatedHandler = (fn: () => void) => {
 const TENANT_SLUG: string | undefined =
   import.meta.env.VITE_TENANT_SLUG ?? (import.meta.env.DEV || import.meta.env.MODE === 'test' ? 'courtside-demo' : undefined)
 
-// Anonymous auth endpoints: a 401 there is an answer, not an expired session.
-const NO_REFRESH = ['/api/v1/auth/sign-in', '/api/v1/auth/refresh', '/api/v1/auth/magic-links/consume']
-// Kiosk routes authenticate with the device's kiosk cookie, never a staff session.
-NO_REFRESH.push('/api/v1/kiosk/pair', '/api/v1/kiosk/config', '/api/v1/kiosk/lookups', '/api/v1/kiosk/check-ins', '/api/v1/kiosk/exit')
+// Anonymous auth endpoints guarded by the pre-session token (security-baseline 5.3 item 4).
+const PRE_SESSION = [
+  '/api/v1/auth/sign-in', '/api/v1/auth/magic-links', '/api/v1/auth/password-resets', '/api/v1/auth/magic-links/consume',
+  '/api/v1/auth/password-resets/consume', '/api/v1/auth/invitations/accept',
+]
+// A 401 from these is an answer, not an expired session. Kiosk routes use the device's kiosk cookie.
+const NOT_SESSION = [...PRE_SESSION, '/api/v1/kiosk/pair', '/api/v1/kiosk/config', '/api/v1/kiosk/lookups', '/api/v1/kiosk/check-ins', '/api/v1/kiosk/exit']
 
 type Options = { path?: Record<string, string>; query?: Record<string, string | number | boolean | null | undefined>; body?: unknown; idempotencyKey?: string }
 
@@ -83,20 +90,16 @@ function buildUrl(template: string, opts: Options): string {
   return q ? `${path}?${q}` : path
 }
 
-let refreshing: Promise<boolean> | null = null
-function refresh(): Promise<boolean> {
-  refreshing ??= fetch('/api/v1/auth/refresh', { method: 'POST', credentials: 'same-origin', headers: { accept: 'application/json' } })
-    .then(async (res) => {
-      if (!res.ok) return false
-      setCsrfToken(((await res.json()) as Schemas['AuthSessionOut']).csrf_token)
-      return true
-    })
-    .catch(() => false)
-    .finally(() => {
-      refreshing = null
-    })
-  return refreshing
+/** The pre-session token, shared by concurrent callers; null when it cannot be had (the server then refuses). */
+function preSessionToken(): Promise<string | null> {
+  preToken ??= fetch('/api/v1/auth/pre-session', { credentials: 'same-origin', headers: { accept: 'application/json' } })
+    .then(async (res) => (res.ok ? ((await res.json()) as Schemas['PreSessionOut']).csrf_token : null))
+    .catch(() => null)
+  return preToken
 }
+
+const csrfRefused = async (res: Response) =>
+  res.status === 403 && ((await res.clone().json().catch(() => ({}))) as Problem).code === 'csrf-failed'
 
 export async function request<T>(method: Method, template: string, opts: Options = {}): Promise<T> {
   const url = buildUrl(template, opts)
@@ -106,21 +109,23 @@ export async function request<T>(method: Method, template: string, opts: Options
   // A caller that may retry one user action across requests (taking a payment) passes its own stable key.
   if (method !== 'get') headers['idempotency-key'] = opts.idempotencyKey ?? crypto.randomUUID()
 
-  const send = () => {
-    if (method !== 'get' && csrfToken) headers['x-csrf-token'] = csrfToken
+  const guarded = PRE_SESSION.includes(template)
+  const send = async () => {
+    const token = guarded ? await preSessionToken() : csrfToken
     return fetch(url, {
       method: method.toUpperCase(),
-      headers,
+      headers: method !== 'get' && token ? { ...headers, 'x-csrf-token': token } : headers,
       credentials: 'same-origin',
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
     })
   }
 
   let res = await send()
-  if (res.status === 401 && !NO_REFRESH.includes(template)) {
-    if (await refresh()) res = await send()
-    if (res.status === 401) onUnauthenticated()
+  if (guarded && (await csrfRefused(res))) {
+    preToken = null // the pre-session cookie lapsed: take a fresh pair and retry once
+    res = await send()
   }
+  if (res.status === 401 && !NOT_SESSION.includes(template)) onUnauthenticated()
   // 202 may carry a body (a long booking series answers with its status_url); an empty one parses to undefined.
   if (res.status === 204) return undefined as T
   const text = await res.text()
@@ -147,7 +152,7 @@ export const api = {
 }
 
 /** PUT raw file bytes (the one upload route, /client-documents/{id}/paper-scan). Same CSRF, idempotency and
- * problem handling as `request`; no refresh retry, since the body stream is consumed. */
+ * problem handling as `request`. */
 export async function uploadFile<T>(template: keyof paths, path: Record<string, string>, file: File): Promise<T> {
   const headers: Record<string, string> = {
     accept: 'application/json',
@@ -167,8 +172,8 @@ export async function uploadFile<T>(template: keyof paths, path: Record<string, 
 export async function downloadFile(template: keyof paths, opts: Options, fallbackName: string): Promise<void> {
   const headers: Record<string, string> = {}
   if (TENANT_SLUG) headers['x-tenant-slug'] = TENANT_SLUG
-  let res = await fetch(buildUrl(template as string, opts), { headers, credentials: 'same-origin' })
-  if (res.status === 401 && (await refresh())) res = await fetch(buildUrl(template as string, opts), { headers, credentials: 'same-origin' })
+  const res = await fetch(buildUrl(template as string, opts), { headers, credentials: 'same-origin' })
+  if (res.status === 401) onUnauthenticated()
   if (!res.ok) throw new ApiError({ ...(((await res.json().catch(() => ({}))) ?? {}) as Problem), status: res.status })
   const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ?? fallbackName
   const url = URL.createObjectURL(await res.blob())

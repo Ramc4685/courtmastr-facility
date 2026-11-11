@@ -9,6 +9,7 @@ api:
   host: 127.0.0.1
   port: 8100
   max_body_bytes: 1048576             # request bodies over this are refused with 413
+  trusted_proxies: []                 # CIDRs of reverse proxies whose X-Forwarded-For is believed (baseline 5.1)
 db:
   host: 127.0.0.1
   port: 55432
@@ -34,19 +35,31 @@ auth:
   magic_link_ttl_min: 15
   password_reset_ttl_min: 60
   invite_ttl_days: 7
-  lockout_threshold: 10
-  lockout_min: 15
+  lockout_threshold: 10               # failed passwords inside lockout_window_min lock password sign-in
+  lockout_window_min: 15
+  lockout_min: 15                     # first lockout; each further one doubles, up to lockout_max_min
+  lockout_max_min: 240
+  pre_session_ttl_min: 60             # the login-CSRF cookie (baseline 5.3 item 4)
   password_min_length: 12
-  cookie_secure: false                # true behind TLS
+  cookie_secure: false                # true behind TLS; also switches the cookie names to __Host-fh_*
   argon2: {memory_kib: 65536, time_cost: 3, parallelism: 4}
   sessions:                           # idle slides on refresh; absolute does not (ADR 0002 section 4)
     staff_web:     {idle_hours: 12,   absolute_days: 7}
     staff_mobile:  {idle_hours: 12,   absolute_days: 7}
     client_web:    {idle_hours: 720,  absolute_days: 180}
     client_mobile: {idle_hours: 2160, absolute_days: 400}
-rate_limit:
+rate_limit:                           # security-baseline 6; fixed windows. closed: refuse when Redis is down
   enabled: true
-  auth_per_minute: 20                 # per client IP, per auth endpoint
+  buckets:
+    sign-in:          {limit: 10, window_sec: 60,   closed: true}   # per IP
+    sign-in-identity: {limit: 10, window_sec: 900,  closed: true}   # per email, then lockout (5.1)
+    magic-link:       {limit: 5,  window_sec: 900,  closed: true}   # per IP
+    password-reset:   {limit: 5,  window_sec: 900,  closed: true}   # per IP
+    link-address:     {limit: 3,  window_sec: 3600, closed: true}   # per target address, link and reset
+    consume:          {limit: 20, window_sec: 900,  closed: true}   # token confirm, per IP
+    document-link:    {limit: 20, window_sec: 900,  closed: true}   # token confirm (DOC-04), per IP
+    refresh:          {limit: 60, window_sec: 60}                   # mobile token rotation, per IP
+    default:          {limit: 20, window_sec: 60}                   # any other named bucket, per IP
 audit:
   retention_days: 730                 # standard class, 24 months
   retention_days_long: 2557           # role and permission changes, 7 years

@@ -7,7 +7,7 @@ const SESSION_KEY = ['session'] as const
 // Drop every cached tenant query except the session itself (qc.clear() would detach the session observer).
 const notSession = { predicate: (q: { queryKey: readonly unknown[] }) => q.queryKey[0] !== SESSION_KEY[0] }
 
-/** Session restore: the CSRF token comes from GET /auth/session (refreshing once if the access cookie lapsed). */
+/** Session restore: the CSRF token comes from GET /auth/session; a 401 there means no session. */
 async function restore(): Promise<Me | null> {
   try {
     const session = await api.get('/api/v1/auth/session')

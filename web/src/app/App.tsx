@@ -34,6 +34,7 @@ import { RoleDetailPage } from '../features/platform/RoleDetailPage'
 import { RolesPage } from '../features/platform/RolesPage'
 import { StaffUserPage } from '../features/platform/StaffUserPage'
 import { StaffUsersPage } from '../features/platform/StaffUsersPage'
+import { SecuritySettingsPage } from '../features/platform/SecuritySettingsPage'
 import { TenantSettingsPage } from '../features/platform/TenantSettingsPage'
 import { RentalSetupPage } from '../features/rentals/RentalSetupPage'
 import { RentalsPage } from '../features/rentals/RentalsPage'
@@ -117,6 +118,7 @@ export function AppRoutes() {
         <Route path="audit" element={<RequirePermission permission="platform.audit.read"><AuditLogPage /></RequirePermission>} />
         <Route path="integrations" element={<IntegrationsPage />} />
         <Route path="settings" element={<RequirePermission permission="platform.tenant.update"><TenantSettingsPage /></RequirePermission>} />
+        <Route path="settings/security" element={<RequirePermission permission="platform.security.manage"><SecuritySettingsPage /></RequirePermission>} />
         <Route path="billing" element={<RequirePermission permission="billing.charge.read"><BillingLayout /></RequirePermission>}>
           <Route index element={<WorkbenchPage />} />
           <Route path="clients" element={<ClientBillingLookupPage />} />

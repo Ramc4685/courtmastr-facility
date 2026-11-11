@@ -18,7 +18,7 @@ from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.core import context, idempotency
+from app.core import context, idempotency, networks
 from app.core.db.session import run_after_commit
 from app.core.errors import DomainError, PermissionDenied
 from app.core.ids import new_id
@@ -62,6 +62,7 @@ def _finish(request: Request, exc: BaseException | None, response=None) -> None:
     if session is None:
         return
     request.state.session = None
+    committed = False
     try:
         if exc is None or getattr(exc, "persist", False):
             if claim and exc is None:
@@ -71,6 +72,7 @@ def _finish(request: Request, exc: BaseException | None, response=None) -> None:
             if exc is None:
                 response.background = BackgroundTask(run_after_commit, session)
                 return
+            committed = True
         else:
             session.rollback()
     except BaseException:
@@ -80,6 +82,8 @@ def _finish(request: Request, exc: BaseException | None, response=None) -> None:
         raise
     finally:
         session.close()
+    if committed:  # a persisted error (failed sign-in, lockout) still sends what it queued, e.g. the lockout email
+        run_after_commit(session)
     if claim:
         idempotency.abandon(session.info["tenant_id"], *claim)
 
@@ -126,11 +130,24 @@ class TxRoute(APIRoute):
 
 
 def _ip(scope) -> str | None:
-    """The socket peer when it is an IP (inet columns reject anything else, e.g. a unix socket path)."""
+    """The client address (inet columns reject anything else, e.g. a unix socket path). The socket peer, unless
+    the peer is a configured trusted proxy: then the right-most X-Forwarded-For hop that is not itself a trusted
+    proxy (baseline 5.1). The left-most hops are client-supplied and never believed."""
     try:
-        return str(ipaddress.ip_address(scope["client"][0]))
+        peer = str(ipaddress.ip_address(scope["client"][0]))
     except (KeyError, TypeError, ValueError):
         return None
+    trusted = get_settings().api.trusted_proxies
+    if not trusted or not networks.contains(trusted, peer):
+        return peer
+    forwarded = b",".join(value for name, value in scope["headers"] if name == b"x-forwarded-for").decode("latin-1")
+    for hop in reversed([part.strip() for part in forwarded.split(",") if part.strip()]):
+        if not networks.contains(trusted, hop):
+            try:
+                return str(ipaddress.ip_address(hop))
+            except ValueError:
+                return None  # a malformed hop after our proxy: refuse to guess
+    return peer
 
 
 class RequestContextMiddleware:
