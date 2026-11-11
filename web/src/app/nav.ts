@@ -1,7 +1,10 @@
 /** Sidebar entries. Modules 1 and 2 are built; the other build modules show as "coming soon" until they land.
  * `permission` hides an entry the role cannot use (the API still enforces it; pages handle 403). */
-export type NavItem = { label: string; to?: string; permission?: string; icon: IconName }
+export type NavItem = { label: string; to?: string; permission?: string | string[]; icon: IconName }
 export type IconName = 'home' | 'pin' | 'users' | 'shield' | 'list' | 'gear' | 'calendar' | 'ticket' | 'person' | 'card' | 'clipboard' | 'pen' | 'cash' | 'cart' | 'door' | 'trophy' | 'clock' | 'mail' | 'pulse' | 'chart' | 'plug' | 'phone'
+
+// Any report family key opens the report centre; listed here so nav.ts stays free of feature imports.
+const REPORT_KEYS = ['reporting.financial.run', 'reporting.membership.run', 'reporting.attendance.run', 'reporting.pos.run', 'reporting.time_clock.run']
 
 export const PLATFORM_NAV: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: 'home' },
@@ -28,11 +31,11 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Leagues & tournaments', to: '/leagues', permission: 'leagues.competition.manage', icon: 'trophy' },
   { label: 'Staff time & pay', to: '/staff-time', permission: 'staff.time_entry.punch', icon: 'clock' },
   { label: 'Assessment setup', to: '/assessments/setup', permission: 'assessments.definition.manage', icon: 'pulse' },
+  { label: 'Reports', to: '/reports', permission: REPORT_KEYS, icon: 'chart' },
   { label: 'Integrations', to: '/integrations', permission: 'integrations.connection.manage', icon: 'plug' },
 ]
 
 // Build modules 2-17 (docs/architecture/overview.md section 6).
 export const UPCOMING_NAV: NavItem[] = [
-  { label: 'Reports', icon: 'chart' },
   { label: 'Mobile app', icon: 'phone' },
 ]

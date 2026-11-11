@@ -6332,7 +6332,7 @@ paths:
       required: true
       schema: {type: string, format: uuid}
     get:
-      operationId: downloadExportJob
+      operationId: getExportJobFile
       tags: [reporting]
       summary: Redirect to a short-lived signed file URL
       x-priority: P0

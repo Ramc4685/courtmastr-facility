@@ -18,8 +18,9 @@ isolation and audit, and has a staff screen. **Partial** names what is missing. 
 | **All** | 204 | 107 | 56 | 41 |
 Module 1 (platform core) is done apart from OIDC, MFA and step-up (`backend/app/modules/platform/README.md`).
 Module 14 (engagement) is built to P0 (5 done, 9 partial: `14-engagement.md`). Modules 16 and 17 are partial (`16-integrations.md`, `17-mobile.md`).
-Modules 12 (staff time and pay) and 13 (assessments) are built to P0 (`12-staff.md`, `13-assessments.md`). Modules 10, 11 and 15 (check-in,
-leagues, reporting) and the rest of module 6 are reported by their own lanes or not started. The five P0 features not built are CLS-02, CLS-09, CLS-10
+Modules 12 (staff time and pay), 13 (assessments) and 15 (reporting) are built to P0 (`12-staff.md`, `13-assessments.md`,
+`15-reporting.md`). Modules 10 and 11 (check-in,
+leagues) and the rest of module 6 are reported by their own lanes or not started. The five P0 features not built are CLS-02, CLS-09, CLS-10
 (module 6 and the portal), CLI-12 (client photo) and BIL-14 (pre-defined items).
 
 ## Checks on `main`
@@ -447,8 +448,9 @@ By module (the tables above carry the per-feature gaps; these are the ones that 
 - **Engagement (14), built:** every email goes through `engagement.service._deliver` (installed as the
   notification port's adapter); new senders should too. Portal routes must call `households.can_act_for`.
   Not built: provider webhooks, push provider, HTML builder, SMS, daily staff summary.
-- **Reporting (15):** reporting views exist for rentals only; MEM-21, PKG-15, BIL-19 and POS reports are
-  per-module endpoints today.
+- **Reporting (15):** built to P0 (`15-reporting.md`): the report centre reads `rpt_*` views and adds a report
+  as one `ReportSpec` in `reporting/registry.py`. MEM-21, PKG-15, BIL-19 and the POS screens are still
+  per-module endpoints; moving them into the registry is follow-up work.
 - **Integrations (16):** reuse `provider_account_lookup` and `inbound_webhook_event`
   (`app/core/inbound_webhooks.py`); API keys and scopes are not built (CLI-21, MEM-22, PKG-16, BIL-23).
 - **Mobile (17):** the staff API is complete in `backend/openapi.json`; tokens must not be kept in browser

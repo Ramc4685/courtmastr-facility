@@ -81834,7 +81834,7 @@
     },
     "/api/v1/export-jobs/{export_job_id}/download": {
       "get": {
-        "operationId": "downloadExportJob",
+        "operationId": "getExportJobFile",
         "parameters": [
           {
             "in": "path",
@@ -81881,7 +81881,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Download Export Job",
+        "summary": "Get Export Job File",
         "tags": [
           "reporting"
         ]

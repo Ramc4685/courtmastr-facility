@@ -99,7 +99,7 @@ def get_export_job(export_job_id: UUID, ctx: Export):
 
 
 @router.get("/export-jobs/{export_job_id}/download", response_class=Response)
-def download_export_job(export_job_id: UUID, ctx: Export):
+def get_export_job_file(export_job_id: UUID, ctx: Export):
     row, data = service.download_export(ctx.session, ctx.principal, export_job_id)
     name = (row.original_name or "export.csv").replace('"', "")
     return Response(

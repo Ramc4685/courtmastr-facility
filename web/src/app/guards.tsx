@@ -24,8 +24,8 @@ export function RequireClient({ children }: { children: ReactNode }) {
 }
 
 /** Pages the role cannot open render the same 403 explanation the API would produce. */
-export function RequirePermission({ permission, children }: { permission: string; children: ReactNode }) {
+export function RequirePermission({ permission, children }: { permission: string | string[]; children: ReactNode }) {
   const { can } = useAuth()
-  if (!can(permission)) return <ErrorState error={new ApiError({ status: 403, code: 'permission-denied' })} />
+  if (![permission].flat().some(can)) return <ErrorState error={new ApiError({ status: 403, code: 'permission-denied' })} />
   return <>{children}</>
 }

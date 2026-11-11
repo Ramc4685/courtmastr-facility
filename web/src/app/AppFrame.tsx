@@ -21,7 +21,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
       <nav aria-label="Main" className="flex-1 overflow-y-auto px-3 pb-6">
         <ul className="space-y-0.5">
-          {PLATFORM_NAV.filter((i) => !i.permission || can(i.permission)).map((item) => (
+          {PLATFORM_NAV.filter((i) => !i.permission || [i.permission].flat().some(can)).map((item) => (
             <li key={item.label}>
               <NavLink
                 to={item.to ?? '/'}

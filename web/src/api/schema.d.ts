@@ -3924,8 +3924,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Download Export Job */
-        get: operations["downloadExportJob"];
+        /** Get Export Job File */
+        get: operations["getExportJobFile"];
         put?: never;
         post?: never;
         delete?: never;
@@ -40791,7 +40791,7 @@ export interface operations {
             };
         };
     };
-    downloadExportJob: {
+    getExportJobFile: {
         parameters: {
             query?: never;
             header?: {

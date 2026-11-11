@@ -9,7 +9,7 @@ export function DashboardPage() {
   const { can } = useAuth()
   const { locationId } = useCurrentLocation()
   const location = me.locations?.find((l) => l.id === locationId)
-  const shortcuts = PLATFORM_NAV.filter((i) => i.to !== '/' && (!i.permission || can(i.permission)))
+  const shortcuts = PLATFORM_NAV.filter((i) => i.to !== '/' && (!i.permission || [i.permission].flat().some(can)))
   const firstName = me.principal.display_name.split(' ')[0]
 
   return (
