@@ -53,6 +53,29 @@ _EVENT_KINDS = (
 _NO_REDIRECTS = {"enabled": True, "allow_redirects": "never"}
 
 
+def _test_account_details(email: str, country: str) -> dict:
+    """Test mode only (test_onboarding: api): a platform-managed account with Stripe's documented test values
+    (verified dob 1901-01-01, address_full_match, id 000000000, btok_us_verified), so it goes active with no hosted
+    form. shortcut: US test values only; another country needs its own test values."""
+    return {
+        "controller": {
+            "stripe_dashboard": {"type": "none"}, "fees": {"payer": "application"},
+            "losses": {"payments": "application"}, "requirement_collection": "application",
+        },
+        "business_type": "individual",
+        "business_profile": {"mcc": "7997", "url": "https://accessible.stripe.com",
+                             "product_description": "Sports facility (test account)"},
+        "individual": {
+            "first_name": "Test", "last_name": "Owner", "email": email, "phone": "0000000000",
+            "dob": {"day": 1, "month": 1, "year": 1901}, "id_number": "000000000",
+            "address": {"line1": "address_full_match", "city": "Bloomington", "state": "IL",
+                        "postal_code": "61701", "country": country},
+        },
+        "external_account": "btok_us_verified",
+        "settings": {"payments": {"statement_descriptor": "FACILITY TEST"}},
+    }  # fmt: skip
+
+
 class ProviderUnavailable(Exception):
     """No usable answer: a timeout, a connection failure or a 5xx. The outcome of the call is not known."""
 
@@ -93,10 +116,12 @@ class StripeConnectProvider:
 
     def __init__(
         self, secret_key: str, webhook_secret: str, *, api_base: str, transport: Transport,
-        publishable_key: str = "", api_version: str | None = None,
+        publishable_key: str = "", api_version: str | None = None, api_onboarding: bool = False,
     ) -> None:  # fmt: skip
+        if api_onboarding and not secret_key.startswith(("sk_test_", "rk_test_")):
+            raise RuntimeError("payments.stripe.test_onboarding api needs a test-mode key")
         self._key, self._webhook_secret, self._base, self._send = secret_key, webhook_secret, api_base, transport
-        self.publishable_key, self._version = publishable_key, api_version
+        self.publishable_key, self._version, self._api_onboarding = publishable_key, api_version, api_onboarding
 
     @classmethod
     def from_environment(cls, cfg) -> "StripeConnectProvider":
@@ -111,7 +136,7 @@ class StripeConnectProvider:
             raise RuntimeError("the Stripe secret and publishable keys are from different modes")
         return cls(
             key, secret, api_base=cfg.api_base, transport=_urllib_transport(cfg.timeout_seconds),
-            publishable_key=publishable, api_version=cfg.api_version,
+            publishable_key=publishable, api_version=cfg.api_version, api_onboarding=cfg.test_onboarding == "api",
         )  # fmt: skip
 
     def _call(
@@ -174,8 +199,12 @@ class StripeConnectProvider:
             },
             "metadata": {"fh_tenant": tenant_ref},
         }  # fmt: skip
+        if self._api_onboarding:
+            params |= _test_account_details(email, country)
         # The key carries a hash of the request: Stripe refuses a reused key with different parameters for 24 hours.
         digest = hashlib.sha256(json.dumps(params, sort_keys=True).encode()).hexdigest()[:16]
+        if self._api_onboarding:  # after the digest: a fresh timestamp must not change the key
+            params["tos_acceptance"] = {"date": int(datetime.now(UTC).timestamp()), "ip": "127.0.0.1"}
         return self._account(self._ok("POST", "/v1/accounts", params, idempotency_key=f"{tenant_ref}:account:{digest}"))
 
     def get_account(self, *, account_ref: str) -> AccountState:

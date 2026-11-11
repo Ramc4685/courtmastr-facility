@@ -54,9 +54,13 @@ the worker: Redis queues are shared). The reconciliation sweep (`webhooks.reconc
 
 1. Sign in as the demo owner (`docs/dev/demo-accounts.md`), open **Billing → Set-up** and connect Stripe. A
    tenant that already has the fake processor connected must disconnect it first (one live account per tenant).
-2. Click **Finish onboarding**. Stripe's hosted onboarding accepts test data (its test prefill, SMS code
-   `000000`). It returns to `/billing/setup`; the `account.updated` webhook makes the account `active` once
-   Stripe enables charges.
+2. In dev nothing else is needed: `config/app.dev.yaml` sets `payments.stripe.test_onboarding: api`, so Connect
+   creates a platform-managed test account already filled with Stripe's documented test values (US only) and
+   Stripe enables charges within seconds; the `account.updated` webhook, or reloading the page, shows `active`.
+   No Stripe login is created. Refused with a live key and outside dev and test.
+3. To try the production path instead (Stripe's hosted onboarding, a full dashboard for the tenant), set
+   `test_onboarding: hosted`, connect, and click **Finish onboarding**: it accepts Stripe's test prefill and SMS
+   code `000000`, then returns to `/billing/setup`.
 
 ## 4. Try the flows
 

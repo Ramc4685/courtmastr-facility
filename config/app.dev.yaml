@@ -1,3 +1,6 @@
 # Overlay for FH_ENV=dev (the default). Only conveniences that must never reach another environment.
 integrations:
   webhook_allow_localhost: true       # http:// and loopback webhook targets for a local receiver; refused outside dev and test
+payments:
+  stripe:
+    test_onboarding: api              # Stripe test accounts go active on Connect, no hosted form; refused outside dev and test

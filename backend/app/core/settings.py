@@ -65,6 +65,9 @@ class Stripe(BaseModel):
     api_base: str = "https://api.stripe.com"
     api_version: str = "2026-05-27.dahlia"  # pinned so the account default cannot change the request shapes
     timeout_seconds: float = 20.0
+    # hosted: Stripe's onboarding pages, the tenant gets a full dashboard (production). api: dev and test only, the
+    # platform fills Stripe's test values on create so a test account goes active with no Stripe login.
+    test_onboarding: str = "hosted"
 
 
 STRIPE_KEY_VARS = ("FH_STRIPE_SECRET_KEY", "FH_STRIPE_PUBLISHABLE_KEY", "FH_STRIPE_WEBHOOK_SECRET")
@@ -190,6 +193,8 @@ def get_settings() -> Settings:
         raise RuntimeError("outside dev and test, auth.cookie_secure must be true and email.log_links false")
     if env not in ("dev", "test") and settings.integrations.webhook_allow_localhost:
         raise RuntimeError("outside dev and test, integrations.webhook_allow_localhost must be false (SSRF guard)")
+    if env not in ("dev", "test") and settings.payments.stripe.test_onboarding != "hosted":
+        raise RuntimeError("outside dev and test, payments.stripe.test_onboarding must be hosted")
     if env not in ("dev", "test") and settings.payments.provider == "fake":
         raise RuntimeError("outside dev and test, payments.provider must not be fake: it takes no real money")
     if env not in PRODUCTION_ENVS and any(

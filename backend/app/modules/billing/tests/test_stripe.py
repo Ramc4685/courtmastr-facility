@@ -100,6 +100,37 @@ def test_test_mode_keys_build_a_pinned_adapter(monkeypatch, http):
     assert http.last["headers"]["Authorization"] == "Bearer rk_test_restricted"
 
 
+def test_api_onboarding_fills_stripe_test_values_with_a_stable_key(http):
+    with pytest.raises(RuntimeError, match="test-mode key"):
+        StripeConnectProvider("sk_live_x", SECRET, api_base="https://stripe.test", transport=http, api_onboarding=True)
+    stripe = StripeConnectProvider(
+        "sk_test_x", SECRET, api_base="https://stripe.test", transport=http, api_onboarding=True
+    )
+    http.reply(200, {"id": ACCOUNT, "charges_enabled": True}).reply(200, {"id": ACCOUNT, "charges_enabled": True})
+    for _ in range(2):
+        assert (
+            stripe.create_account(tenant_ref="t1", email="o@example.com", country="US", currency="USD").status
+            == "active"
+        )
+    first = http.calls[0]["params"]
+    assert first["controller[requirement_collection]"] == ["application"]
+    assert first["controller[stripe_dashboard][type]"] == ["none"] and first["external_account"] == ["btok_us_verified"]
+    assert first["individual[dob][year]"] == ["1901"] and first["tos_acceptance[date]"]
+    assert http.calls[0]["headers"]["Idempotency-Key"] == http.calls[1]["headers"]["Idempotency-Key"]
+
+
+def test_api_onboarding_is_refused_outside_dev_and_test(monkeypatch, tmp_path):
+    config = (REPO_ROOT / "config" / "app.yaml").read_text().replace("cookie_secure: false", "cookie_secure: true")
+    (tmp_path / "app.yaml").write_text(config)
+    (tmp_path / "app.staging.yaml").write_text(
+        "email:\n  log_links: false\npayments:\n  provider: stripe\n  stripe:\n    test_onboarding: api\n"
+    )
+    monkeypatch.setenv("FH_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("FH_ENV", "staging")
+    with pytest.raises(RuntimeError, match="test_onboarding must be hosted"):
+        get_settings.__wrapped__()
+
+
 @pytest.mark.parametrize("name", list(TEST_KEYS))
 @pytest.mark.parametrize("env", ["dev", "test", "staging"])
 def test_a_live_key_refuses_to_start_outside_production(monkeypatch, tmp_path, name, env):
