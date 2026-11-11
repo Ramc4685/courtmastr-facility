@@ -116,11 +116,29 @@ describe('PaymentMethodField', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 
-  it('says plainly that Stripe card entry is not available yet', async () => {
+  it('mounts Stripe Elements on the connected account and hands on only the pm_ reference', async () => {
+    const mounted: HTMLElement[] = []
+    const card = { mount: (el: HTMLElement) => mounted.push(el), destroy: vi.fn(), on: vi.fn() }
+    const createPaymentMethod = vi.fn().mockResolvedValue({ paymentMethod: { id: 'pm_123', card: { brand: 'visa', last4: '4242' } } })
+    const Stripe = vi.fn(() => ({ elements: () => ({ create: () => card }), createPaymentMethod }))
+    window.Stripe = Stripe
+    const stripeAccount = { ...fake[0], provider: 'stripe', provider_account_ref: 'acct_1', publishable_key: 'pk_test_1' }
+    mockFetch({ 'GET /api/v1/provider-accounts': { status: 200, body: [stripeAccount] } })
+    const onChange = vi.fn()
+    wrap(<PaymentMethodField kind="card" value="" onChange={onChange} />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Use this card' }))
+    expect(Stripe).toHaveBeenCalledWith('pk_test_1', { stripeAccount: 'acct_1' })
+    expect(mounted[0]).toHaveAttribute('data-testid', 'stripe-card')
+    expect(onChange).toHaveBeenCalledWith('pm_123')
+    expect(await screen.findByRole('status')).toHaveTextContent('visa ending 4242 is ready.')
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument() // the card number lives in Stripe's iframe
+    delete window.Stripe
+  })
+
+  it('says plainly that Stripe bank entry is not available yet', async () => {
     mockFetch({ 'GET /api/v1/provider-accounts': { status: 200, body: [{ ...fake[0], provider: 'stripe' }] } })
-    wrap(<PaymentMethodField kind="card" value="" onChange={() => {}} />)
-    expect(await screen.findByRole('alert')).toHaveTextContent('Card entry through Stripe is not available')
-    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    wrap(<PaymentMethodField kind="bank" value="" onChange={() => {}} />)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Bank account entry through Stripe is not available')
   })
 
   it('points to set-up when no processor is connected', async () => {

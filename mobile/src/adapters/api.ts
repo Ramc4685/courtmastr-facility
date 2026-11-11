@@ -1,28 +1,28 @@
-// The real implementation. Portal clients, invoices, payment methods, payments, contracts and packages are
-// merged (backend/openapi.json) and mapped to the app shapes here; the rest targets the planned operations
-// in docs/api/openapi-*.yaml. Flip EXPO_PUBLIC_PORTAL_ADAPTER=api once those land too.
+// The real member-portal API (backend/openapi.json), mapped to the app shapes in types.ts. Acting-for client
+// ids always come from GET /portal/clients and the server re-checks each one. Two things the demo shows have no
+// portal endpoint yet and reject with NotAvailable: the facility directory and the facility theme.
 import { raw } from '../api/client';
 import type { components } from '../api/schema';
-import type {
-  ActableClient,
-  AppCard,
-  AppConfig,
-  Booking,
-  ClientPackage,
-  DeviceRegistration,
-  DirectoryEntry,
-  Enrollment,
-  InboxItem,
-  MembershipContract,
-  Page,
-  PaymentMethod,
-  PortalAdapter,
-  PortalInvoice,
-  PortalPayment,
-  SessionListing,
+import {
+  NotAvailable,
+  type ActableClient,
+  type AssessmentBest,
+  type Booking,
+  type ClientPackage,
+  type Enrollment,
+  type MembershipContract,
+  type Page,
+  type PaymentMethod,
+  type PortalAdapter,
+  type PortalInvoice,
+  type PortalPayment,
+  type SessionListing,
 } from './types';
 
-const all = async <T>(path: string, query: Record<string, string | number | undefined> = {}): Promise<T[]> => {
+type S = components['schemas'];
+type Query = Record<string, string | number | undefined>;
+
+const all = async <T>(path: string, query: Query = {}): Promise<T[]> => {
   const out: T[] = [];
   let cursor: string | undefined;
   do {
@@ -34,10 +34,9 @@ const all = async <T>(path: string, query: Record<string, string | number | unde
 };
 
 const DAY = 86_400_000;
+const LISTINGS = '/portal/session-listings';
 
-type S = components['schemas'];
-
-const toActable = (c: S['PortalClientList']['data'][number]): ActableClient => ({
+const toActable = (c: S['PortalClientOut']): ActableClient => ({
   client: {
     id: c.id,
     first_name: c.first_name,
@@ -52,37 +51,96 @@ const toActable = (c: S['PortalClientList']['data'][number]): ActableClient => (
   relationship_label: c.authority === 'self' ? null : c.authority[0]!.toUpperCase() + c.authority.slice(1),
 });
 
+const toEnrollment = (e: S['PortalEnrollmentOut']): Enrollment => ({
+  id: e.id,
+  client_id: e.client_id,
+  session_id: e.session_id ?? null,
+  status: e.status as Enrollment['status'],
+});
+
+// The server's verdict (selfservice._verdict) mapped to the app's badges; the app decides nothing itself.
+const BY_REASON: Record<string, SessionListing['eligibility']> = { 'members-only': 'needs_purchase', full: 'full' };
+
+function toListing(l: S['PortalSessionListing'], enrollmentId: string | undefined, packageIds: string[]): SessionListing {
+  return {
+    session_id: l.session_id,
+    name: l.title ?? 'Session',
+    starts_at: l.starts_at,
+    ends_at: l.ends_at,
+    resource_name: null, // not in PortalSessionListing
+    trainer_name: null,
+    spots_left: l.spots_left ?? null,
+    my_enrollment_id: enrollmentId ?? null,
+    eligibility: enrollmentId
+      ? 'already_booked'
+      : l.is_bookable
+        ? 'bookable'
+        : l.can_join_waitlist
+          ? 'full_waitlist'
+          : (BY_REASON[l.reason ?? ''] ?? 'closed'),
+    eligible_client_package_ids: packageIds,
+  };
+}
+
+/** Sessions with the client's booking and the packages that can pay for each (by the package's type). */
+async function listings(clientId: string, from: string, to: string): Promise<SessionListing[]> {
+  const window = { client_id: clientId, 'starts_at[gte]': from, 'starts_at[lt]': to };
+  const [rows, enrollments, packages] = await Promise.all([
+    raw<S['PortalSessionListing'][]>(LISTINGS, { query: window }),
+    all<S['PortalEnrollmentOut']>('/portal/enrollments', { client_id: clientId, status: 'enrolled', target_kind: 'session' }),
+    all<S['PortalPackageOut']>('/portal/client-packages', { client_id: clientId }),
+  ]);
+  const usable = packages.filter((p) => p.status === 'active' && (p.is_unlimited || (p.sessions_available_count ?? 0) > 0));
+  const covered = new Map<string, string[]>();
+  // shortcut: one listings call per usable package (members hold a handful); upgrade if a portal listing ever
+  // returns its reservation type or eligible packages.
+  await Promise.all(
+    usable.map(async (p) => {
+      const typed = await raw<S['PortalSessionListing'][]>(LISTINGS, {
+        query: { ...window, reservation_type_id: p.reservation_type_id, location_id: p.location_id },
+      });
+      typed.forEach((l) => covered.set(l.session_id, [...(covered.get(l.session_id) ?? []), p.id]));
+    }),
+  );
+  const booked = new Map(enrollments.map((e) => [e.session_id, e.id]));
+  return rows.map((l) => toListing(l, booked.get(l.session_id), covered.get(l.session_id) ?? []));
+}
+
 // shortcut: the invoice list has no lines; show them from getPortalInvoice when the screen needs detail.
 const toInvoice = (i: S['PortalInvoiceOut']): PortalInvoice => ({ ...i, is_past_due: i.past_due_since_on != null, charges: [] });
 
 export const apiAdapter: PortalAdapter = {
   isDemo: false,
-  searchDirectory: async (q) => (await raw<Page<DirectoryEntry>>('/public/app-directory', { query: { q } })).data,
-  getAppConfig: () => raw<AppConfig>('/public/app-config'),
+  searchDirectory: () => Promise.reject(new NotAvailable('Facility search by name')),
+  getAppConfig: () => Promise.reject(new NotAvailable('The facility theme')),
   listActableClients: async () => (await raw<S['PortalClientList']>('/portal/clients')).data.map(toActable),
   issueAppCard: (clientId, deviceLabel) =>
-    raw<AppCard>('/portal/app-cards', {
+    raw<S['PortalAppCardIssued']>('/portal/app-cards', {
       method: 'POST',
       body: { client_id: clientId, device_label: deviceLabel },
       idempotencyKey: `card-${clientId}-${deviceLabel}-${new Date().toISOString().slice(0, 13)}`,
-    }),
-  listSessionListings: ({ clientId, from, to }) =>
-    all<SessionListing>('/portal/session-listings', { acting_for: clientId, 'starts_at[gte]': from, 'starts_at[lt]': to }),
-  createEnrollment: ({ clientId, sessionId, idempotencyKey }) =>
-    raw<Enrollment>('/portal/enrollments', { method: 'POST', body: { client_id: clientId, session_id: sessionId }, idempotencyKey }),
-  cancelEnrollment: (id) => raw<Enrollment>(`/portal/enrollments/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
-  // The Enrollment schema carries only session_id, so bookings join enrollments to the listings window.
+    }).then((c) => ({ ...c, device_label: c.device_label ?? null, expires_at: c.expires_at ?? null })),
+  listSessionListings: ({ clientId, from, to }) => listings(clientId, from, to),
+  createEnrollment: async ({ clientId, sessionId, clientPackageId, idempotencyKey }) =>
+    toEnrollment(
+      await raw<S['PortalEnrollmentOut']>('/portal/enrollments', {
+        method: 'POST',
+        body: { client_id: clientId, session_id: sessionId, client_package_id: clientPackageId ?? null },
+        idempotencyKey,
+      }),
+    ),
+  cancelEnrollment: async (id) =>
+    toEnrollment(await raw<S['PortalEnrollmentOut']>(`/portal/enrollments/${encodeURIComponent(id)}/cancel`, { method: 'POST' })),
+  // shortcut: a booking shows only while its session is listed (60 days ahead); a full session under a
+  // "hide full sessions" policy drops out. Upgrade when enrollments carry their session times.
   listBookings: async (clientId) => {
     const now = new Date();
-    const [enrollments, sessions] = await Promise.all([
-      all<Enrollment>('/portal/enrollments', { acting_for: clientId, 'status[in]': 'enrolled', target_kind: 'session', 'starts_at[gte]': now.toISOString() }),
-      apiAdapter.listSessionListings({ clientId, from: now.toISOString(), to: new Date(now.getTime() + 60 * DAY).toISOString() }),
-    ]);
-    const byId = new Map(sessions.map((s) => [s.session_id, s]));
-    return enrollments.flatMap((e): Booking[] => {
-      const session = e.session_id ? byId.get(e.session_id) : undefined;
-      return session ? [{ enrollment: e, session }] : [];
-    });
+    const rows = await listings(clientId, now.toISOString(), new Date(now.getTime() + 60 * DAY).toISOString());
+    return rows.flatMap((session): Booking[] =>
+      session.my_enrollment_id
+        ? [{ enrollment: { id: session.my_enrollment_id, client_id: clientId, session_id: session.session_id, status: 'enrolled' }, session }]
+        : [],
+    );
   },
   listMemberships: async (clientId) =>
     (await raw<S['PortalContractOut'][]>('/portal/membership-contracts', { query: { client_id: clientId } })).map(
@@ -94,7 +152,10 @@ export const apiAdapter: PortalAdapter = {
     ),
   // The server scopes invoices to what this login may pay; there is no per-client filter.
   listInvoices: async () => (await all<S['PortalInvoiceOut']>('/portal/invoices')).map(toInvoice),
-  listPaymentMethods: () => raw<PaymentMethod[]>('/portal/payment-methods'),
+  listPaymentMethods: async () =>
+    (await raw<S['PaymentMethodOut'][]>('/portal/payment-methods'))
+      .filter((m) => m.status === 'active')
+      .map((m): PaymentMethod => ({ id: m.id, kind: m.kind, brand: m.brand ?? null, last4: m.last4, is_autopay: m.is_autopay })),
   payInvoices: async ({ invoiceIds, paymentMethodId, idempotencyKey }) => {
     const res = await raw<S['PortalPayment']>('/portal/payments', {
       method: 'POST',
@@ -113,7 +174,11 @@ export const apiAdapter: PortalAdapter = {
       next_action: res.client_secret ? { kind: 'confirm', provider: 'card' } : null,
     };
   },
-  listInbox: () => all<InboxItem>('/portal/inbox'),
-  markInboxRead: (id) => raw<InboxItem>(`/portal/inbox/${encodeURIComponent(id)}/read`, { method: 'POST' }),
-  registerDevice: (registration) => raw<DeviceRegistration>('/portal/devices', { method: 'POST', body: registration }),
+  listProgress: (clientId) => raw<AssessmentBest[]>('/portal/assessment-bests', { query: { client_id: clientId } }),
+  listInbox: () => all('/portal/inbox'),
+  markInboxRead: (id) => raw(`/portal/inbox/${encodeURIComponent(id)}/read`, { method: 'POST' }),
+  registerDevice: async (registration) => {
+    const saved = await raw<S['PortalDeviceOut']>('/portal/devices', { method: 'POST', body: registration });
+    return { ...registration, id: saved.id };
+  },
 };

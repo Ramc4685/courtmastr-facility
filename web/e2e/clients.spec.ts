@@ -11,6 +11,7 @@ async function scan(page: Page, label: string) {
 }
 
 test('client list, profile tabs and merge flow pass the axe WCAG 2.1 AA scan', async ({ page }) => {
+  test.setTimeout(120_000) // twelve axe scans across two colour schemes; over 30s on a loaded machine
   await page.goto('/clients')
   await page.getByRole('textbox', { name: 'Email' }).fill(OWNER.email)
   await page.getByRole('textbox', { name: 'Password' }).fill(OWNER.password)

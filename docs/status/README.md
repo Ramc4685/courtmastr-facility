@@ -114,7 +114,7 @@ Lane detail: `03-rentals.md`.
 | RNT-03 Staff-booked rental, single or recurring, one or many resources | P0 | done |  |
 | RNT-04 Extend a rental and bill selected occurrences | P1 | done |  |
 | RNT-05 Online rental policy per rental type | P0 | done |  |
-| RNT-06 Client online rental search and booking | P0 | partial | Backend complete, including hold expiry and the paid-invoice handler. Portal Bookings screen: search by type, date and length, hold, pay by new card (test processor only; Stripe Elements not mounted), abandon, cancel. Confirm takes a new card token only, not a stored method. |
+| RNT-06 Client online rental search and booking | P0 | partial | Backend complete, including hold expiry and the paid-invoice handler. Portal Bookings screen: search by type, date and length, hold, pay by new card (fake processor, or Stripe Elements in Stripe test mode), abandon, cancel. Confirm takes a new card token only, not a stored method. |
 | RNT-07 Buffer times on rentals | P1 | done |  |
 | RNT-08 Remove a rental or recurring rental | P0 | done |  |
 | RNT-09 Rental plans | P1 | partial | Append-only ledger, full-coverage debit under lock, credit back on cancel. Not built: auto-renew and autopay, portal plan purchase, members-only sales (no memberships yet). |
@@ -187,7 +187,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | MEM-06 Simple (record-only) membership | P2 | done |  |
 | MEM-07 Staff sale of a membership contract | P0 | done |  |
 | MEM-08 Contract document acceptance at sale | P1 | done |  |
-| MEM-09 Online membership sales | P1 | partial | Portal Memberships screen quotes and buys with a new card (test processor only; Stripe Elements not mounted). No stored-method option: the buy endpoint takes a token only. |
+| MEM-09 Online membership sales | P1 | partial | Portal Memberships screen quotes and buys with a new card (fake processor, or Stripe Elements in Stripe test mode). No stored-method option: the buy endpoint takes a token only. |
 | MEM-10 Contract list, status views and edit | P0 | done |  |
 | MEM-11 Contract renewal | P0 | done |  |
 | MEM-12 Freeze a contract | P0 | done |  |
@@ -210,7 +210,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | PKG-06 Package sharing | P1 | done |  |
 | PKG-07 Staff sale of a package | P0 | partial | No ad-hoc package, per-sale pricing, coupons or account-credit pre-apply. |
 | PKG-08 Sale through point of sale | P1 | done | Integration: sold as a POS cart line (POS-19), `sales_channel = pos`. Priced one-off plans only; no discounts on the line; removed from the client profile, not returned at the till. |
-| PKG-09 Online package sales | P1 | partial | Portal Packages screen buys with a new card (test processor only; Stripe Elements not mounted); history and auto-renew opt-out. |
+| PKG-09 Online package sales | P1 | partial | Portal Packages screen buys with a new card (fake processor, or Stripe Elements in Stripe test mode); history and auto-renew opt-out. |
 | PKG-10 Member-only plans | P1 | done |  |
 | PKG-11 Post-billed packages | P2 | not built | No tables, rate table or batch close. Not built here either. |
 | PKG-12 Session registration, roster and attendance | P0 | partial | Integration: staff register a client into a session and pick the package that pays; the credit follows attendance marks and cancellation. Not built: book all linked sessions, speed register, selling a package inline,... |
@@ -313,19 +313,19 @@ Lane detail: `08-billing-payments.md`, `08-billing-payments-web.md`.
 | PAY-03 Client payment ledger and receipts | P0 | partial | No PDF (backend gap). |
 | PAY-04 Void payment | P0 | done |  |
 | PAY-05 Refunds | P0 | partial | Only unapplied money can be refunded; the dialog defaults to that amount. Backend gaps carry over. |
-| PAY-06 Stored payment methods | P0 | partial | Methods are added through the provider-agnostic `PaymentMethodField`: scripted test methods for the fake processor. Stripe Elements is not mounted yet, so a Stripe tenant cannot add a card here. |
+| PAY-06 Stored payment methods | P0 | partial | Methods are added through the provider-agnostic `PaymentMethodField`: scripted test methods for the fake processor. With Stripe, cards go through Stripe Elements (`StripeCardField`); bank accounts through Stripe are not built (Financial Connections). |
 | PAY-07 Card expiry notifications and report | P1 | partial |  |
 | PAY-08 Decline notifications | P0 | partial |  |
 | PAY-09 Autopay collection run | P0 | done | Integration: `make scheduler` starts the daily pass per tenant; staff can still start a run by hand. |
-| PAY-10 ACH / direct debit | P0 | partial | Fake processor only. |
-| PAY-11 Merchant processor integration | P0 | partial | Stripe Elements card entry is not mounted (`shortcut:` in `PaymentMethodField.tsx`). |
+| PAY-10 ACH / direct debit | P0 | partial | Fake processor end to end; Stripe adapter and webhooks handle ACH debits and returns, but no browser bank entry through Stripe. |
+| PAY-11 Merchant processor integration | P0 | partial | Stripe test mode works end to end with Elements card entry and signed webhooks (`docs/dev/stripe-test-mode.md`); never run against Stripe live. Not built: browser bank-account entry through Stripe, 3-D Secure completion, platform application fee. |
 | PAY-12 EMV card terminals | v2-adapter | not built |  |
 | PAY-13 Clover terminal integration | v2-adapter | not built |  |
 | PAY-14 Credit card surcharging | P1 | not built |  |
 | PAY-15 Digital wallets and tap-to-pay | P1 | not built |  |
 | PAY-16 Processor disbursement reconciliation | P1 | not built |  |
-| PAY-17 Chargeback and transaction sync | P1 | not built |  |
-| PAY-18 Self-service payment of open invoices | P0 | partial | Portal Invoices screen: list, document, pay one invoice with a stored or new card and optional account credit, payment history. A payment that needs 3-D Secure shows as pending: no in-page confirmation (Stripe Elements not mounted). |
+| PAY-17 Chargeback and transaction sync | P1 | partial | Disputes by webhook: `dispute` table, payment `disputed` then `succeeded` or `charged_back`, allocations released, ledger postings (ADR 0003 section 9). No staff screen; one dispute per payment. |
+| PAY-18 Self-service payment of open invoices | P0 | partial | Portal Invoices screen: list, document, pay one invoice with a stored or new card and optional account credit, payment history. A payment that needs 3-D Secure shows as pending: no in-page confirmation (`handleNextAction` not called yet). |
 | PAY-19 Magnetic card swipe entry | P2 | not built | Excluded by the no-raw-card-data rule. |
 
 ## Module 9: Point of sale and inventory
@@ -390,8 +390,9 @@ Cross-cutting:
    a location in another zone.
 7. **Portal and mobile:** the member portal (`/portal`, member sign-in at `/sign-in?as=member`) has Home,
    Bookings, Memberships, Packages, Invoices and Profile with a household "acting for" switch, and an Inbox for announcements (module 14). Not built:
-   portal documents and waivers, dependents and relationships, stored-method management. The inbox lists one
-   item per client the login acts for, so a household sees an announcement once per member.
+   portal documents and waivers, dependents and relationships, stored-method management. The inbox shows the
+   acting-for member's items only (each item belongs to one recipient), so a household announcement appears
+   once per view; a delegate (book and buy only) gets 404 on another member's inbox.
 8. **Databases created before revision `0401`** hold package plans with placeholder reservation types and
    cannot take the new foreign key: recreate them.
 9. **Stripe has never been called.** The adapter is tested against a mocked HTTP layer and is off by default.
@@ -413,9 +414,9 @@ By module (the tables above carry the per-feature gaps; these are the ones that 
 - **Documents:** the staff decision notice is not sent; an erased client's signed documents have no restricted
   view.
 - **Billing:** `take_payment` returns the first payment for a repeated key even if the amount differs; a
-  stored webhook that failed to enqueue is never re-enqueued; no disputes, payouts, surcharging, wallets,
-  statement batches or goodwill credit; amounts in notices assume two-decimal currencies; Stripe Elements is
-  not mounted.
+  stored webhook that failed to enqueue is never re-enqueued; no payouts, surcharging, wallets, statement
+  batches or goodwill credit; disputes have no staff screen; amounts in notices assume two-decimal currencies;
+  Stripe (test mode only) has card entry but no browser bank entry or 3-D Secure completion.
 - **POS:** a package line takes no discount or coupon and cannot be returned at the till; recurring,
   free and choose-your-quantity plans are sold from the client profile; memberships are not sold at the till
   (not in the parity matrix).

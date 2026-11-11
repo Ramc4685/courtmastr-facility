@@ -59,16 +59,24 @@ class SessionLifetime(BaseModel):
 
 
 class Stripe(BaseModel):
-    """Stripe Connect adapter. Off by default; keys come from the environment only (FH_STRIPE_SECRET_KEY,
-    FH_STRIPE_WEBHOOK_SECRET), never from a file."""
+    """Stripe Connect adapter, used when payments.provider is stripe. Keys come from the environment only
+    (STRIPE_KEY_VARS), never from a file."""
 
-    enabled: bool = False
     api_base: str = "https://api.stripe.com"
+    api_version: str = "2026-05-27.dahlia"  # pinned so the account default cannot change the request shapes
     timeout_seconds: float = 20.0
+    # hosted: Stripe's onboarding pages, the tenant gets a full dashboard (production). api: dev and test only, the
+    # platform fills Stripe's test values on create so a test account goes active with no Stripe login.
+    test_onboarding: str = "hosted"
+
+
+STRIPE_KEY_VARS = ("FH_STRIPE_SECRET_KEY", "FH_STRIPE_PUBLISHABLE_KEY", "FH_STRIPE_WEBHOOK_SECRET")
+_LIVE_KEY_PREFIXES = ("sk_live_", "pk_live_", "rk_live_")
+PRODUCTION_ENVS = ("prod", "production")  # the only FH_ENV values that may hold a live Stripe key
 
 
 class Payments(BaseModel):
-    provider: str = "fake"  # fake | none: the in-process test processor; real ones are connected per tenant
+    provider: str = "fake"  # fake | stripe | none. fake: the in-process test processor (dev and test only)
     default_country: str = "US"  # country of a newly connected processor account
     stripe: Stripe = Stripe()
 
@@ -177,12 +185,21 @@ def get_settings() -> Settings:
     if overlay.exists():
         _merge(data, yaml.safe_load(overlay.read_text()) or {})
     _lane_overrides(data, env)
+    if env != "test" and (provider := os.environ.get("FH_PAYMENTS_PROVIDER")):
+        data["payments"]["provider"] = provider  # try Stripe test mode locally without editing a config file
     settings = Settings(env=env, **data)
     if env not in ("dev", "test") and (not settings.auth.cookie_secure or settings.email.log_links):
         # Dev conveniences that are unsafe anywhere else: cookies over plain HTTP, sign-in links in the log.
         raise RuntimeError("outside dev and test, auth.cookie_secure must be true and email.log_links false")
     if env not in ("dev", "test") and settings.integrations.webhook_allow_localhost:
         raise RuntimeError("outside dev and test, integrations.webhook_allow_localhost must be false (SSRF guard)")
+    if env not in ("dev", "test") and settings.payments.stripe.test_onboarding != "hosted":
+        raise RuntimeError("outside dev and test, payments.stripe.test_onboarding must be hosted")
     if env not in ("dev", "test") and settings.payments.provider == "fake":
         raise RuntimeError("outside dev and test, payments.provider must not be fake: it takes no real money")
+    if env not in PRODUCTION_ENVS and any(
+        os.environ.get(name, "").startswith(_LIVE_KEY_PREFIXES) for name in STRIPE_KEY_VARS
+    ):
+        # A live Stripe key moves real money: only a production deployment may hold one.
+        raise RuntimeError(f"a live Stripe key is set but FH_ENV is {env!r}: use test-mode keys outside production")
     return settings

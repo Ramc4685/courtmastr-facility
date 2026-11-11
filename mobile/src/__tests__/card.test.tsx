@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react-native';
 import * as SecureStore from 'expo-secure-store';
 
 import type { ActableClient, AppCard } from '../adapters/types';
-import { cardStatus, decodeCardToken, loadCards, syncCards } from '../lib/card';
+import { cardCode, cardStatus, decodeCardToken, loadCards, syncCards } from '../lib/card';
 import { buildTheme } from '../lib/theme';
 import { code128Bits } from '../ui/Barcode';
 import { MemberCard } from '../ui/MemberCard';
@@ -58,6 +58,17 @@ describe('card token', () => {
     expect(cardStatus(t, now + 40 * HOUR)).toBe('expiring');
     expect(cardStatus(t, now + 73 * HOUR)).toBe('expired');
     expect(cardStatus(undefined, now)).toBe('missing');
+  });
+
+  // Vector from backend access/domain/cards.py: seed(UUID, bytes(range(32))) and qr_text at 1794000000.
+  const SEED = '01a1cb37-0c92-77d0-b7c5-fbed2ada71bd.AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8';
+
+  it('derives the same rotating QR as the server from a real card seed, which never expires on the phone', async () => {
+    expect(await cardCode(SEED, 1_794_000_000_000)).toBe('fhq.01a1cb37-0c92-77d0-b7c5-fbed2ada71bd.59800000.ujn9qdv11ZSDMxdEnH0WUA');
+    expect(await cardCode(SEED, 1_794_000_030_000)).toMatch(/^fhq\.01a1cb37-[^.]+\.59800001\./);
+    const real = { credential_id: 'k', client_id: 'c1', device_label: null, card_payload: SEED, issued_at: '', expires_at: null };
+    expect(cardStatus(real, Date.now() + 1000 * HOUR)).toBe('valid');
+    expect(await cardCode('FH1.demo.DEMO', 0)).toBe('FH1.demo.DEMO');
   });
 });
 

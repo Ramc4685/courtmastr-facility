@@ -25,7 +25,9 @@ email:
 jobs:
   broker: redis                       # redis | stub
 payments:
-  provider: fake                      # fake | none. The fake takes no real money: refused outside dev and test
+  provider: fake                      # fake | stripe | none. The fake takes no real money: refused outside dev and test
+  # stripe: keys from FH_STRIPE_SECRET_KEY, FH_STRIPE_PUBLISHABLE_KEY, FH_STRIPE_WEBHOOK_SECRET (test-mode keys
+  # outside FH_ENV=prod or production; a live key anywhere else refuses to start). docs/dev/stripe-test-mode.md
 notifications:
   adapter: email                      # email | noop
 auth:

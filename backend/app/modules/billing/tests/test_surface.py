@@ -1,6 +1,7 @@
 """Build module 8 through HTTP: configuration, the items workbench, invoices and schedules, documents and the
 pay link, account credit, stored methods, the provider webhook, the client portal, and the permission gates."""
 
+from dataclasses import replace
 from datetime import timedelta
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
@@ -471,7 +472,7 @@ def test_receipts_statements_credit_and_ageing(api, shop, emailed, mailbox):
 # --- payments through the API ------------------------------------------------------------------------------
 
 
-def test_payment_commands_and_their_gates(api, shop, desk):
+def test_payment_commands_and_their_gates(api, shop, desk, monkeypatch):
     who = {"client_id": str(shop.client_id), "location_id": str(shop.location_id)}
     charge_id = api("POST", "/charges", item(shop), 201)["id"]
     invoice = api("POST", "/invoices", {"charge_ids": [charge_id]}, 201)
@@ -526,12 +527,20 @@ def test_payment_commands_and_their_gates(api, shop, desk):
     api("POST", "/provider-accounts", {"provider": "fake"}, 409, "processor-already-connected")
     api("POST", "/provider-accounts", {"provider": "stripe"}, 409, "provider-unavailable")  # disabled by default
     api("POST", "/provider-accounts", {"provider": "fake"}, 403, headers=desk.front)
-    assert "/settings/billing" in api("POST", f"/provider-accounts/{accounts[0]['id']}/onboarding-links")["url"]
+    assert "/billing/setup" in api("POST", f"/provider-accounts/{accounts[0]['id']}/onboarding-links")["url"]
     assert api("POST", f"/provider-accounts/{accounts[0]['id']}/disconnect")["status"] == "disabled"
     api("POST", f"/provider-accounts/{accounts[0]['id']}/disconnect", None, 409, "processor-not-connected")
     api("POST", "/payments", who | {"amount_minor": 5, "tender_kind": "card", "method_token": "tok_card_ok"}, 409,
         "processor-not-connected")  # fmt: skip
     assert api("GET", f"/clients/{shop.client_id}/payment-methods") == []  # its stored methods went with it
+    fake = payment_provider.get("fake")
+
+    def refuse(**_):
+        raise ValueError("Review your platform profile.")
+
+    monkeypatch.setattr(fake, "create_account", refuse)
+    api("POST", "/provider-accounts", {"provider": "fake"}, 409, "provider-refused")  # the processor's no, not a 500
+    monkeypatch.undo()
     again = api("POST", "/provider-accounts", {"provider": "fake"}, 201)
     assert again["status"] == "active" and again["id"] != accounts[0]["id"]
     assert (
@@ -649,6 +658,75 @@ def test_webhooks_are_verified_stored_once_and_idempotent(client, shop):
     assert inbound_webhooks.record("fake", "evt-malformed-test-" + uuid4().hex, None, "x", {}) is not None
     bad = b'{"id": "only"}'
     assert deliver({"fake-signature": sign("whsec_fake_dev_only", bad)}, bad).status_code == 400
+
+
+def test_disputes_arrive_by_webhook_and_move_the_money(client, shop):
+    """PAY-17: opened releases the allocations and parks the funds; won returns them as credit; lost charges
+    back. Replays change nothing, a bank-debit dispute is lost on arrival, inquiries are ignored."""
+    from app.modules.billing.models import Dispute
+
+    fake = payment_provider.get("fake")
+    fake.outbox.clear()  # deliveries other tests left behind
+
+    def paid(token="tok_card_ok", kind="card"):
+        with work(shop.tenant) as session:
+            invoice = svc.create_invoice_for_charges(session, [charge(session, shop).id])
+            payment = svc.take_payment(
+                session, client_id=shop.client_id, location_id=shop.location_id, amount_minor=invoice.total_minor,
+                tender_kind=kind, method_token=token, idempotency_key=uuid4().hex, invoice_id=invoice.id,
+            )  # fmt: skip
+            if kind == "bank_debit":
+                fake.settle(payment.provider_payment_ref)
+                fake.outbox.clear()
+                svc.confirm_payment(session, payment.id)
+            return payment.id, invoice.id, payment.provider_payment_ref, invoice.total_minor
+
+    def deliver_all():
+        while fake.outbox:
+            headers, body = fake.outbox.pop(0)
+            assert client.post(f"{API}/webhooks/fake", content=body, headers=headers).status_code == 200
+        drain()
+
+    def state(payment_id, invoice_id):
+        with work(shop.tenant) as session:
+            payment, invoice = session.get(Payment, payment_id), session.get(svc.Invoice, invoice_id)
+            dispute = session.scalars(select(Dispute).where(Dispute.payment_id == payment_id)).one_or_none()
+            assert_books_agree(session)
+            return payment.status, payment.unapplied_minor, invoice.status, dispute and dispute.status
+
+    won_id, won_invoice, won_ref, total = paid()
+    dispute_ref = fake.open_dispute(won_ref)
+    replay = list(fake.outbox)
+    deliver_all()
+    assert state(won_id, won_invoice) == ("disputed", 0, "open", "open")
+    # A redelivery (re-signed, as a processor does on every attempt), then the same event under a new id.
+    fake.outbox.extend(({"fake-signature": sign("whsec_fake_dev_only", body)}, body) for _, body in replay)
+    fake._emit(fake._payments[won_ref][3], "dispute", dispute_ref, "dispute.updated")
+    deliver_all()
+    assert state(won_id, won_invoice) == ("disputed", 0, "open", "open")
+    fake.close_dispute(dispute_ref, won=True)
+    deliver_all()
+    assert state(won_id, won_invoice) == ("succeeded", total, "open", "won")  # credit, not re-applied
+
+    lost_id, lost_invoice, lost_ref, _ = paid()
+    fake.close_dispute(fake.open_dispute(lost_ref), won=False)
+    deliver_all()
+    assert state(lost_id, lost_invoice) == ("charged_back", 0, "open", "lost")
+
+    ach_id, ach_invoice, ach_ref, _ = paid("tok_ach_ok", "bank_debit")
+    fake.open_dispute(ach_ref)
+    deliver_all()
+    assert state(ach_id, ach_invoice) == ("charged_back", 0, "open", "lost")
+
+    quiet_id, quiet_invoice, quiet_ref, _ = paid()
+    inquiry = fake.open_dispute(quiet_ref)
+    fake._disputes[inquiry] = (replace(fake._disputes[inquiry][0], status=None), fake._disputes[inquiry][1])
+    deliver_all()
+    assert state(quiet_id, quiet_invoice) == ("succeeded", 0, "paid", None)
+    with work(shop.tenant) as session:
+        kinds = session.scalars(select(LedgerTransaction.kind).where(LedgerTransaction.source_type == "dispute")).all()
+    assert sorted(kinds) == ["dispute_lost", "dispute_lost", "dispute_opened", "dispute_opened", "dispute_opened",
+                             "dispute_won"]  # fmt: skip
 
 
 def test_webhook_events_for_methods_and_accounts(shop):

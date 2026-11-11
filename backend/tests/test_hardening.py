@@ -125,6 +125,7 @@ def test_fake_payments_are_refused_outside_dev_and_test(monkeypatch, tmp_path):
     (tmp_path / "app.prod.yaml").write_text("email:\n  log_links: false\n")
     monkeypatch.setenv("FH_CONFIG_DIR", str(tmp_path))
     monkeypatch.setenv("FH_ENV", "prod")
+    monkeypatch.setenv("FH_PAYMENTS_PROVIDER", "")  # a local .env trying Stripe must not mask the config under test
     with pytest.raises(RuntimeError, match="payments.provider"):
         get_settings.__wrapped__()
     (tmp_path / "app.prod.yaml").write_text("email:\n  log_links: false\npayments:\n  provider: none\n")

@@ -249,6 +249,33 @@ def test_announcement_reaches_the_portal_inbox_and_can_be_recalled(client, tenan
         assert session.get(DeviceRegistration, device["id"]).revoked_at is not None
 
 
+def test_household_inbox_shows_each_item_once_in_its_recipients_view(client, tenant, owner, site):
+    """Known gap: a login holding a dependent's record saw a household announcement once per member, merged into
+    one list. Each item belongs to one recipient; the dependent's shows only when acting for them."""
+    parent = _person(client, owner, site, "parent@example.com", tenant=tenant, first_name="Pat")
+    kid = new_client(client, owner, site, first_name="Kit")
+    portal = _member(client, tenant, parent)
+    with tenant_session(tenant.id, actor=SYSTEM) as session:
+        identity_id = session.scalar(select(Identity.id).where(Identity.email == "parent@example.com"))
+        clients.service.link_identity(session, kid["id"], identity_id, is_primary=False)
+    notice = _campaign(client, owner, site, [parent["id"], kid["id"]], channel="push", subject="Hi $first_name",
+                       body_text="Closed at 6 today.")  # fmt: skip
+    assert ok(client.post(f"{API}/campaigns/{notice['id']}/send", headers=owner))["inbox_count"] == 2
+    own = ok(client.get(f"{API}/portal/inbox", headers=portal))["data"]
+    assert [i["title"] for i in own] == ["Hi Pat"]
+    assert ok(client.get(f"{API}/portal/inbox/unread-count", headers=portal)) == {"unread": 1}
+    as_kid = {"client_id": kid["id"]}
+    theirs = ok(client.get(f"{API}/portal/inbox", headers=portal, params=as_kid))["data"]
+    assert [i["title"] for i in theirs] == ["Hi Kit"]
+    ok(client.post(f"{API}/portal/inbox/{theirs[0]['id']}/read", headers=portal))
+    assert ok(client.get(f"{API}/portal/inbox/unread-count", headers=portal, params=as_kid)) == {"unread": 0}
+    assert ok(client.get(f"{API}/portal/inbox/unread-count", headers=portal)) == {"unread": 1}
+    stranger = _member(client, tenant, _person(client, owner, site, "other@example.com", tenant=tenant))
+    refused(client.get(f"{API}/portal/inbox", headers=stranger, params=as_kid), 404)
+    refused(client.get(f"{API}/portal/inbox/unread-count", headers=stranger, params=as_kid), 404)
+    refused(client.post(f"{API}/portal/inbox/{own[0]['id']}/read", headers=stranger), 404)
+
+
 def test_campaigns_stay_inside_the_senders_locations(client, tenant, owner, site):
     west = {"name": "West", "time_zone": "America/Chicago", "country_code": "US"}
     other = ok(client.post(f"{API}/locations", headers=owner, json=west), 201)["id"]

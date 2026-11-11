@@ -1,6 +1,12 @@
-// The app-facing shapes. Operations not yet merged follow the planned docs/api/openapi-*.yaml field for
-// field; merged ones (portal clients, invoices, payment methods, payments, contracts, packages) are mapped
-// from backend/openapi.json in api.ts, so screens and the demo adapter share one shape.
+// The app-facing shapes. api.ts maps the real member-portal API (backend/openapi.json) onto them, so screens
+// and the demo adapter share one shape. Fields the portal does not return are null or empty, never guessed.
+
+/** The portal has no endpoint for this yet; the screen shows a "not available yet" state. */
+export class NotAvailable extends Error {
+  constructor(readonly what: string) {
+    super(`${what} is not available yet.`);
+  }
+}
 
 export type Page<T> = { data: T[]; page: { next_cursor: string | null; has_more: boolean } };
 
@@ -42,31 +48,26 @@ export type AppCard = {
   expires_at: string | null;
 };
 
-/** openapi-programs listPortalSessionListings -> SessionListing */
+/** listPortalSessionListings, joined with the client's enrollments and packages (api.ts). */
 export type SessionListing = {
   session_id: string;
-  reservation_type_id: string;
   name: string;
   starts_at: string;
   ends_at: string;
   resource_name: string | null;
   trainer_name: string | null;
   spots_left: number | null;
-  is_virtual: boolean;
   my_enrollment_id: string | null;
-  my_waitlist_entry_id: string | null;
   eligibility: 'bookable' | 'needs_purchase' | 'full_waitlist' | 'full' | 'closed' | 'not_yet_open' | 'already_booked';
   eligible_client_package_ids: string[];
 };
 
-/** openapi-programs Enrollment (subset) */
+/** PortalEnrollmentOut (subset) */
 export type Enrollment = {
   id: string;
   client_id: string;
   session_id: string | null;
   status: 'pending' | 'enrolled' | 'cancelled';
-  pricing: 'fee' | 'entitlement' | 'free';
-  client_package_id: string | null;
 };
 
 /** My bookings row: an enrollment joined to its session listing. */
@@ -142,6 +143,19 @@ export type InboxItem = {
   created_at: string;
 };
 
+/** listPortalAssessmentBests -> PortalAssessmentBestOut (values are decimal strings) */
+export type AssessmentBest = {
+  assessment_field_id: string;
+  template_name: string;
+  field_name: string;
+  unit_label: string | null;
+  better_direction: 'higher' | 'lower' | 'none';
+  latest_value: string;
+  latest_recorded_at: string;
+  best_value: string | null;
+  best_recorded_at: string | null;
+};
+
 /** openapi-programs DeviceRegistration */
 export type DeviceRegistration = {
   id?: string;
@@ -153,7 +167,7 @@ export type DeviceRegistration = {
   is_push_enabled?: boolean;
 };
 
-/** Everything the member app needs that is not on main yet. One implementation per data source. */
+/** Everything the member app reads from the portal. One implementation per data source. */
 export interface PortalAdapter {
   readonly isDemo: boolean;
   searchDirectory(q: string): Promise<DirectoryEntry[]>;
@@ -161,7 +175,7 @@ export interface PortalAdapter {
   listActableClients(): Promise<ActableClient[]>;
   issueAppCard(clientId: string, deviceLabel: string): Promise<AppCard>;
   listSessionListings(args: { clientId: string; from: string; to: string }): Promise<SessionListing[]>;
-  createEnrollment(args: { clientId: string; sessionId: string; idempotencyKey: string }): Promise<Enrollment>;
+  createEnrollment(args: { clientId: string; sessionId: string; clientPackageId?: string | null; idempotencyKey: string }): Promise<Enrollment>;
   cancelEnrollment(enrollmentId: string): Promise<Enrollment>;
   listBookings(clientId: string): Promise<Booking[]>;
   listMemberships(clientId: string): Promise<MembershipContract[]>;
@@ -169,6 +183,7 @@ export interface PortalAdapter {
   listInvoices(clientId: string): Promise<PortalInvoice[]>;
   listPaymentMethods(): Promise<PaymentMethod[]>;
   payInvoices(args: { invoiceIds: string[]; paymentMethodId: string; idempotencyKey: string }): Promise<PortalPayment>;
+  listProgress(clientId: string): Promise<AssessmentBest[]>;
   listInbox(): Promise<InboxItem[]>;
   markInboxRead(id: string): Promise<InboxItem>;
   registerDevice(registration: DeviceRegistration): Promise<DeviceRegistration>;

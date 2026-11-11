@@ -1,5 +1,5 @@
-// In-app DEMO data for the portal operations that are not on main yet. Every screen that reads from here
-// shows the DemoBanner; nothing in this file ever reaches a server. Remove once the real endpoints merge.
+// In-app DEMO data (EXPO_PUBLIC_PORTAL_ADAPTER=demo): runs the app with no backend. Every screen that reads
+// from here shows the DemoBanner; nothing in this file ever reaches a server.
 import { activeSession } from '../lib/session';
 import type {
   ActableClient,
@@ -82,16 +82,13 @@ function sessions(fromMs: number, toMs: number, clientId: string): SessionListin
       const booked = mine?.status === 'enrolled';
       out.push({
         session_id: sessionId,
-        reservation_type_id: `demo-type-${i}`,
         name: c.name,
         starts_at: new Date(startsAt).toISOString(),
         ends_at: new Date(startsAt + c.minutes * 60_000).toISOString(),
         resource_name: c.resource,
         trainer_name: c.trainer,
         spots_left: booked ? Math.max(c.spots - 1, 0) : c.spots,
-        is_virtual: false,
         my_enrollment_id: booked ? mine.id : null,
-        my_waitlist_entry_id: null,
         eligibility: booked ? 'already_booked' : c.spots === 0 ? 'full' : 'bookable',
         eligible_client_package_ids: [],
       });
@@ -137,7 +134,7 @@ export const demoAdapter: PortalAdapter = {
     const key = `${clientId}:${sessionId}`;
     const existing = state.enrollments.get(key);
     if (existing?.status === 'enrolled') return delay(existing); // idempotent replay
-    const enrollment: Enrollment = { id: `demo-enrollment-${state.seq++}`, client_id: clientId, session_id: sessionId, status: 'enrolled', pricing: 'free', client_package_id: null };
+    const enrollment: Enrollment = { id: `demo-enrollment-${state.seq++}`, client_id: clientId, session_id: sessionId, status: 'enrolled' };
     state.enrollments.set(key, enrollment);
     return delay(enrollment);
   },
@@ -186,6 +183,11 @@ export const demoAdapter: PortalAdapter = {
     invoiceIds.forEach((id) => state.invoicesPaid.add(id));
     return delay({ id: `demo-pay-${state.seq++}`, receipt_number: 5000 + state.seq, amount_minor: 0, currency: 'USD', status: 'succeeded' as const, invoice_ids: invoiceIds, next_action: null });
   },
+  listProgress: () =>
+    delay([
+      { assessment_field_id: 'demo-f1', template_name: 'Fitness', field_name: 'Plank hold', unit_label: 's', better_direction: 'higher' as const, latest_value: '95', latest_recorded_at: new Date(Date.now() - 2 * DAY).toISOString(), best_value: '102', best_recorded_at: new Date(Date.now() - 30 * DAY).toISOString() },
+      { assessment_field_id: 'demo-f2', template_name: 'Fitness', field_name: 'Resting heart rate', unit_label: 'bpm', better_direction: 'lower' as const, latest_value: '61', latest_recorded_at: new Date(Date.now() - 2 * DAY).toISOString(), best_value: '61', best_recorded_at: new Date(Date.now() - 2 * DAY).toISOString() },
+    ]),
   listInbox: () => delay(INBOX.map((item) => ({ ...item, read_at: state.inboxRead.get(item.id) ?? null }))),
   markInboxRead: (id) => {
     const item = INBOX.find((i) => i.id === id);

@@ -1,11 +1,29 @@
+import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import type { AppCard } from '../adapters/types';
 import { useTheme } from '../lib/app-state';
-import { cardStatus, type CardDisplay } from '../lib/card';
+import { cardCode, cardStatus, isCardSeed, type CardDisplay } from '../lib/card';
 import { Barcode } from './Barcode';
 import { Badge } from './kit';
+
+/** The code on screen; a seed's code rotates every 30 s, so re-derive well inside each step. */
+function useCardCode(payload: string | undefined): string | null {
+  const [code, setCode] = useState<{ payload: string; text: string } | null>(null);
+  useEffect(() => {
+    if (!payload) return;
+    let live = true;
+    const tick = () => void cardCode(payload, Date.now()).then((text) => live && setCode({ payload, text }));
+    tick();
+    const id = isCardSeed(payload) ? setInterval(tick, 5_000) : undefined;
+    return () => {
+      live = false;
+      clearInterval(id);
+    };
+  }, [payload]);
+  return code && code.payload === payload ? code.text : null;
+}
 
 type Props = { display: CardDisplay; token: AppCard | undefined; tenantName: string; now: number; online: boolean; demo: boolean; width: number };
 
@@ -19,6 +37,7 @@ export function MemberCard({ display, token, tenantName, now, online, demo, widt
   const status = cardStatus(token, now);
   const usable = status === 'valid' || status === 'expiring';
   const until = token?.expires_at ? new Date(token.expires_at).toLocaleString() : null;
+  const code = useCardCode(usable ? token?.card_payload : undefined);
   return (
     <View
       accessible
@@ -39,8 +58,8 @@ export function MemberCard({ display, token, tenantName, now, online, demo, widt
           {demo && <Badge label="Demo credential" tone="brand" />}
         </View>
         <View style={{ backgroundColor: '#FFFFFF', padding: t.space(3), borderRadius: t.radius.md, alignSelf: 'stretch', alignItems: 'center' }}>
-          {usable && token ? (
-            <QRCode value={token.card_payload} size={Math.min(width - 80, 240)} color="#000000" backgroundColor="#FFFFFF" />
+          {usable && code ? (
+            <QRCode value={code} size={Math.min(width - 80, 240)} color="#000000" backgroundColor="#FFFFFF" />
           ) : display.memberNumber ? (
             <Barcode value={display.memberNumber} />
           ) : (
@@ -52,7 +71,7 @@ export function MemberCard({ display, token, tenantName, now, online, demo, widt
         </Text>
         <Text style={{ color: t.colors.textMuted, fontSize: t.font.small, textAlign: 'center' }}>
           {usable
-            ? `Valid until ${until}. Staff confirm your photo at check-in.`
+            ? `${until ? `Valid until ${until}.` : 'The code changes every 30 seconds.'} Staff confirm your photo at check-in.`
             : 'This code has expired. It refreshes next time you are online; meanwhile the desk can scan your member number.'}
         </Text>
         {demo && (

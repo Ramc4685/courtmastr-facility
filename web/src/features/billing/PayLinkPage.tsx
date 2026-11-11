@@ -73,7 +73,7 @@ export function PayLinkPage() {
                 The payment was declined. Try another card.
               </p>
             )}
-            <PaymentMethodField kind="card" label="Card" value={method} onChange={setMethod} provider={inv.provider} />
+            <PaymentMethodField kind="card" label="Card" value={method} onChange={setMethod} provider={inv.provider} keys={inv} />
             <Button type="submit" className="w-full" loading={pay.isPending} disabled={!method || !inv.provider}>
               Pay {m(inv.balance_minor)}
             </Button>

@@ -24276,6 +24276,17 @@
       },
       "LinkInvoice": {
         "properties": {
+          "account_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Ref"
+          },
           "balance_minor": {
             "title": "Balance Minor",
             "type": "integer"
@@ -24330,6 +24341,17 @@
               }
             ],
             "title": "Provider"
+          },
+          "publishable_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publishable Key"
           },
           "status": {
             "title": "Status",
@@ -44611,6 +44633,23 @@
             "title": "Provider",
             "type": "string"
           },
+          "provider_account_ref": {
+            "title": "Provider Account Ref",
+            "type": "string"
+          },
+          "publishable_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For Stripe.js on staff screens; null for the fake.",
+            "readOnly": true,
+            "title": "Publishable Key"
+          },
           "requirements_due": {
             "anyOf": [
               {
@@ -44639,13 +44678,15 @@
         "required": [
           "id",
           "provider",
+          "provider_account_ref",
           "status",
           "has_card",
           "has_bank_debit",
           "is_payouts_enabled",
           "requirements_due",
           "connected_at",
-          "disabled_at"
+          "disabled_at",
+          "publishable_key"
         ],
         "title": "ProviderAccountOut",
         "type": "object"
@@ -55030,6 +55071,17 @@
       },
       "SetupIntentOut": {
         "properties": {
+          "account_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Ref"
+          },
           "client_secret": {
             "title": "Client Secret",
             "type": "string"
@@ -55037,6 +55089,17 @@
           "provider": {
             "title": "Provider",
             "type": "string"
+          },
+          "publishable_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publishable Key"
           }
         },
         "required": [
@@ -98746,9 +98809,26 @@
     },
     "/api/v1/portal/inbox": {
       "get": {
-        "description": "Announcements and notices for the clients this login holds, newest first; recalled and expired items\nare hidden.",
+        "description": "Announcements and notices for one client the login acts for (default: its own record), newest first;\nrecalled and expired items are hidden. Errors: 404 when the login may not act for client_id.",
         "operationId": "listPortalInbox",
         "parameters": [
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
+            }
+          },
           {
             "description": "Page size",
             "in": "query",
@@ -98887,6 +98967,23 @@
       "get": {
         "operationId": "getPortalInboxUnreadCount",
         "parameters": [
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
+            }
+          },
           {
             "description": "Optional; keys live 24 hours.",
             "in": "header",

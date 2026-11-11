@@ -34,7 +34,7 @@ from app.modules.billing.models import (
     PaymentAllocation,
     Refund,
 )
-from app.ports import notifications
+from app.ports import notifications, payment_provider
 
 PAY_LINK_DAYS = 14
 MAX_STATEMENT_DAYS = 366
@@ -209,7 +209,9 @@ def invoice_by_link(session: Session, token: str) -> dict:
                     "balance_minor", "lines")
     }  # fmt: skip
     try:
-        shown["provider"] = service._provider_account(session).provider
+        account = service._provider_account(session)
+        shown["provider"] = account.provider
+        shown |= payment_provider.browser_keys(account.provider, account.provider_account_ref)
     except Conflict:
         shown["provider"] = None
     return shown

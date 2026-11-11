@@ -6791,8 +6791,8 @@ export interface paths {
         };
         /**
          * List Portal Inbox
-         * @description Announcements and notices for the clients this login holds, newest first; recalled and expired items
-         *     are hidden.
+         * @description Announcements and notices for one client the login acts for (default: its own record), newest first;
+         *     recalled and expired items are hidden. Errors: 404 when the login may not act for client_id.
          */
         get: operations["listPortalInbox"];
         put?: never;
@@ -19563,6 +19563,8 @@ export interface components {
         };
         /** LinkInvoice */
         LinkInvoice: {
+            /** Account Ref */
+            account_ref?: string | null;
             /** Balance Minor */
             balance_minor: number;
             /** Bill To Name */
@@ -19585,6 +19587,8 @@ export interface components {
             number: number;
             /** Provider */
             provider: ("stripe" | "fake") | null;
+            /** Publishable Key */
+            publishable_key?: string | null;
             /** Status */
             status: string;
             /** Total Minor */
@@ -25874,6 +25878,13 @@ export interface components {
              * @enum {string}
              */
             provider: "stripe" | "fake";
+            /** Provider Account Ref */
+            provider_account_ref: string;
+            /**
+             * Publishable Key
+             * @description For Stripe.js on staff screens; null for the fake.
+             */
+            readonly publishable_key: string | null;
             /** Requirements Due */
             requirements_due: string[] | null;
             /**
@@ -29117,10 +29128,14 @@ export interface components {
         };
         /** SetupIntentOut */
         SetupIntentOut: {
+            /** Account Ref */
+            account_ref?: string | null;
             /** Client Secret */
             client_secret: string;
             /** Provider */
             provider: string;
+            /** Publishable Key */
+            publishable_key?: string | null;
         };
         /** SetupIntentRequest */
         SetupIntentRequest: {
@@ -49120,6 +49135,7 @@ export interface operations {
     listPortalInbox: {
         parameters: {
             query?: {
+                client_id?: string | null;
                 /** @description Page size */
                 limit?: number;
                 /** @description Opaque keyset cursor from page.next_cursor */
@@ -49162,7 +49178,9 @@ export interface operations {
     };
     getPortalInboxUnreadCount: {
         parameters: {
-            query?: never;
+            query?: {
+                client_id?: string | null;
+            };
             header?: {
                 /** @description Optional; keys live 24 hours. */
                 "idempotency-key"?: string | null;

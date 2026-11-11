@@ -4,22 +4,26 @@ Direct charges on the tenant's connected account (`Stripe-Account` header): the 
 and its customers, stored methods, refunds and disputes live on its own account. No card or bank number
 passes through here: `method_token` is a `pm_...` reference made by Stripe's hosted fields.
 
-Disabled by default (`payments.stripe.enabled`). It has only ever been run against a mocked HTTP layer:
-before a live tenant, re-check the request shapes below against Stripe's current API reference (ADR 0003
-open question 8), in particular the connected-account controller properties and the ACH capability name.
+Selected by `payments.provider: stripe`, with test-mode keys outside production (app.core.settings refuses a
+live key anywhere else). CI runs it against a mocked HTTP layer only; docs/dev/stripe-test-mode.md is how to
+run it against a Stripe test account. Requests pin `payments.stripe.api_version`.
 
 The HTTP layer is one injectable function, so tests need no network and no Stripe SDK.
 """
 
+import hashlib
 import json
 import os
 import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
+from datetime import UTC, datetime
 
+from app.core.settings import STRIPE_KEY_VARS
 from app.ports.payment_provider import (
     AccountState,
+    DisputeState,
     MethodState,
     PaymentState,
     ProviderEvent,
@@ -31,6 +35,8 @@ from app.ports.payment_provider import (
 
 # (method, url, headers, form-encoded body or None) -> (HTTP status, decoded JSON body)
 Transport = Callable[[str, str, dict[str, str], bytes | None], tuple[int, dict]]
+# Stripe dispute status -> ours. Inquiries (warning_*) and prevented disputes move no money: None.
+_DISPUTES = {"needs_response": "open", "under_review": "open", "won": "won", "lost": "lost"}
 _DECLINES = {
     "insufficient_funds": "insufficient_funds", "expired_card": "expired_card",
     "authentication_required": "authentication_required", "account_closed": "account_closed",
@@ -39,8 +45,38 @@ _DECLINES = {
 }  # fmt: skip
 _EVENT_KINDS = (
     ("payment_intent.", "payment"), ("refund.", "refund"), ("charge.refund.", "refund"),
-    ("payment_method.", "method"), ("account.", "account"),
+    ("payment_method.", "method"), ("account.", "account"), ("charge.dispute.", "dispute"),
 )  # fmt: skip
+
+
+# We confirm server-side with a known method and have no return page: no redirect-based methods.
+_NO_REDIRECTS = {"enabled": True, "allow_redirects": "never"}
+
+
+def _test_account_details(email: str, country: str) -> dict:
+    """Test mode only (test_onboarding: api): a platform-managed account with Stripe's documented test values
+    (verified dob 1901-01-01, address_full_match, id 000000000, btok_us_verified), so it goes active with no hosted
+    form. shortcut: US test values only; another country needs its own test values."""
+    return {
+        "controller": {
+            "stripe_dashboard": {"type": "none"}, "fees": {"payer": "application"},
+            "losses": {"payments": "application"}, "requirement_collection": "application",
+        },
+        "business_type": "individual",
+        "business_profile": {"mcc": "7997", "url": "https://accessible.stripe.com",
+                             "product_description": "Sports facility (test account)"},
+        "individual": {
+            "first_name": "Test", "last_name": "Owner", "email": email, "phone": "0000000000",
+            "dob": {"day": 1, "month": 1, "year": 1901}, "id_number": "000000000",
+            "address": {"line1": "address_full_match", "city": "Bloomington", "state": "IL",
+                        "postal_code": "61701", "country": country},
+        },
+        "external_account": "btok_us_verified",
+        # Midnight UTC, not now: the body (and so the idempotency key) must stay the same when Connect is retried.
+        "tos_acceptance": {"ip": "127.0.0.1", "date": int(
+            datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())},
+        "settings": {"payments": {"statement_descriptor": "FACILITY TEST"}},
+    }  # fmt: skip
 
 
 class ProviderUnavailable(Exception):
@@ -81,21 +117,38 @@ def _urllib_transport(timeout: float) -> Transport:
 class StripeConnectProvider:
     name = "stripe"
 
-    def __init__(self, secret_key: str, webhook_secret: str, *, api_base: str, transport: Transport) -> None:
+    def __init__(
+        self, secret_key: str, webhook_secret: str, *, api_base: str, transport: Transport,
+        publishable_key: str = "", api_version: str | None = None, api_onboarding: bool = False,
+    ) -> None:  # fmt: skip
+        if api_onboarding and not secret_key.startswith(("sk_test_", "rk_test_")):
+            raise RuntimeError("payments.stripe.test_onboarding api needs a test-mode key")
         self._key, self._webhook_secret, self._base, self._send = secret_key, webhook_secret, api_base, transport
+        self.publishable_key, self._version, self._api_onboarding = publishable_key, api_version, api_onboarding
 
     @classmethod
     def from_environment(cls, cfg) -> "StripeConnectProvider":
-        key, secret = os.environ.get("FH_STRIPE_SECRET_KEY", ""), os.environ.get("FH_STRIPE_WEBHOOK_SECRET", "")
-        if not key or not secret:
-            raise RuntimeError("payments.stripe.enabled needs FH_STRIPE_SECRET_KEY and FH_STRIPE_WEBHOOK_SECRET")
-        return cls(key, secret, api_base=cfg.api_base, transport=_urllib_transport(cfg.timeout_seconds))
+        """Refuses to start without all three keys or with keys that do not belong together. A live key outside
+        production never gets this far: get_settings() refuses it first."""
+        key, publishable, secret = (os.environ.get(name, "") for name in STRIPE_KEY_VARS)
+        if not (key and publishable and secret):
+            raise RuntimeError("payments.provider stripe needs " + ", ".join(STRIPE_KEY_VARS))
+        if not key.startswith(("sk_", "rk_")) or not publishable.startswith("pk_") or not secret.startswith("whsec_"):
+            raise RuntimeError("Stripe keys are in the wrong variables: sk_/rk_, pk_ and whsec_ expected")
+        if key[3:7] != publishable[3:7]:  # "test" or "live" on both
+            raise RuntimeError("the Stripe secret and publishable keys are from different modes")
+        return cls(
+            key, secret, api_base=cfg.api_base, transport=_urllib_transport(cfg.timeout_seconds),
+            publishable_key=publishable, api_version=cfg.api_version, api_onboarding=cfg.test_onboarding == "api",
+        )  # fmt: skip
 
     def _call(
         self, method: str, path: str, params: dict | None = None, *, account: str | None = None,
         idempotency_key: str | None = None,
     ) -> tuple[int, dict]:  # fmt: skip
         headers = {"Authorization": f"Bearer {self._key}"}
+        if self._version:
+            headers["Stripe-Version"] = self._version
         if account:
             headers["Stripe-Account"] = account
         if idempotency_key:
@@ -142,12 +195,18 @@ class StripeConnectProvider:
                 "stripe_dashboard": {"type": "full"}, "fees": {"payer": "account"},
                 "losses": {"payments": "stripe"}, "requirement_collection": "stripe",
             },
+            # Stripe refuses card_payments without transfers on a connected account.
             "capabilities": {
-                "card_payments": {"requested": True}, "us_bank_account_ach_payments": {"requested": True},
+                "card_payments": {"requested": True}, "transfers": {"requested": True},
+                "us_bank_account_ach_payments": {"requested": True},
             },
             "metadata": {"fh_tenant": tenant_ref},
         }  # fmt: skip
-        return self._account(self._ok("POST", "/v1/accounts", params, idempotency_key=f"{tenant_ref}:account"))
+        if self._api_onboarding:
+            params |= _test_account_details(email, country)
+        # The key carries a hash of the request: Stripe refuses a reused key with different parameters for 24 hours.
+        digest = hashlib.sha256(json.dumps(params, sort_keys=True).encode()).hexdigest()[:16]
+        return self._account(self._ok("POST", "/v1/accounts", params, idempotency_key=f"{tenant_ref}:account:{digest}"))
 
     def get_account(self, *, account_ref: str) -> AccountState:
         return self._account(self._ok("GET", f"/v1/accounts/{account_ref}"))
@@ -164,8 +223,9 @@ class StripeConnectProvider:
         return self._ok("POST", "/v1/customers", params, account=account_ref, idempotency_key=idempotency_key)["id"]
 
     def create_setup(self, *, account_ref: str, customer_ref: str, kinds: tuple[str, ...]) -> SetupState:
-        types = ["us_bank_account" if kind == "bank_account" else "card" for kind in kinds]
-        params = {"customer": customer_ref, "usage": "off_session", "payment_method_types": types}
+        # The payment methods offered come from the account's dashboard settings (dynamic payment methods),
+        # not from `kinds`: Stripe's hosted fields decide what the payer sees.
+        params = {"customer": customer_ref, "usage": "off_session", "automatic_payment_methods": _NO_REDIRECTS}
         payload = self._ok("POST", "/v1/setup_intents", params, account=account_ref)
         return SetupState(payload["id"], payload["client_secret"])
 
@@ -227,7 +287,7 @@ class StripeConnectProvider:
         params = {
             "amount": amount_minor, "currency": currency.lower(), "payment_method": method_token, "confirm": True,
             "customer": customer_ref, "off_session": True if off_session else None,
-            "payment_method_types": ["card", "us_bank_account"], "metadata": {"fh_key": idempotency_key},
+            "automatic_payment_methods": _NO_REDIRECTS, "metadata": {"fh_key": idempotency_key},
             "expand": ["latest_charge"],
         }  # fmt: skip
         try:
@@ -309,6 +369,18 @@ class StripeConnectProvider:
 
     def get_refund(self, *, account_ref: str, provider_refund_ref: str) -> RefundState:
         return self._refund(self._ok("GET", f"/v1/refunds/{provider_refund_ref}", account=account_ref))
+
+    # --- disputes ---------------------------------------------------------------------------------------------------
+
+    def get_dispute(self, *, account_ref: str, provider_dispute_ref: str) -> DisputeState:
+        payload = self._ok("GET", f"/v1/disputes/{provider_dispute_ref}", account=account_ref)
+        due = (payload.get("evidence_details") or {}).get("due_by")
+        intent = payload.get("payment_intent")
+        return DisputeState(
+            payload["id"], (intent.get("id") if isinstance(intent, dict) else intent) or "", payload["amount"],
+            _DISPUTES.get(payload.get("status")), reason_code=payload.get("reason"),
+            evidence_due_at=datetime.fromtimestamp(due, UTC) if due else None,
+        )  # fmt: skip
 
     # --- webhooks --------------------------------------------------------------------------------------------------
 

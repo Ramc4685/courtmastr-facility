@@ -152,8 +152,6 @@ def _portal_client(session: Session, principal: Principal, client_id: UUID):
         principal.kind != "client"
         or households.can_act_for(session, principal.identity_id, client_id, "consent") is None
     ):
-        from app.core.errors import NotFound  # noqa: PLC0415
-
         raise NotFound()
     return clients.get(session, client_id)
 
@@ -1104,22 +1102,36 @@ def _identity_clients(session: Session, principal: Principal) -> list[UUID]:
     return clients.client_ids_for_identity(session, principal.identity_id)
 
 
-def list_portal_inbox(session: Session, principal: Principal, query: ListQuery) -> dict:
-    """Announcements and notices for the clients this login holds directly, newest first."""
+def _inbox_owner(session: Session, principal: Principal, client_id: UUID | None) -> UUID:
+    """Whose inbox to show: each item belongs to one recipient, so a login sees the acting-for client's items
+    only (default: its own record), never a merge of the household's."""
+    if client_id is not None:
+        return _portal_client(session, principal, client_id).id
     ids = _identity_clients(session, principal)
-    stmt = select(InboxItem).where(
-        InboxItem.client_id.in_(ids), InboxItem.recalled_at.is_(None), InboxItem.expires_at > _now()
-    )
+    if not ids:
+        raise NotFound()
+    return ids[0]
+
+
+def _live_items(owner: UUID):
+    return (InboxItem.client_id == owner, InboxItem.recalled_at.is_(None), InboxItem.expires_at > _now())
+
+
+def list_portal_inbox(session: Session, principal: Principal, query: ListQuery, client_id: UUID | None = None) -> dict:
+    """Announcements and notices for one client this login acts for, newest first."""
+    stmt = select(InboxItem).where(*_live_items(_inbox_owner(session, principal, client_id)))
     query.filters.pop("client_id", None)
     return paginate(session, stmt, query, id_column=InboxItem.id,
                     sort_fields={"published_at": InboxItem.published_at}, default_sort="-published_at")  # fmt: skip
 
 
 def mark_portal_inbox_read(session: Session, principal: Principal, item_id: UUID) -> InboxItem:
-    ids = _identity_clients(session, principal)
-    row = session.scalar(select(InboxItem).where(InboxItem.id == item_id, InboxItem.client_id.in_(ids)))
+    if principal.kind != "client":
+        raise NotFound()
+    row = session.scalar(select(InboxItem).where(InboxItem.id == item_id))
     if row is None or row.recalled_at is not None:
         raise NotFound()
+    _portal_client(session, principal, row.client_id)  # 404 unless the login may act for the recipient
     if row.read_at is None:
         row.read_at = _now()
         audit.record(session, "engagement.inbox.read", row, location_id=row.location_id, changes={"read": True})
@@ -1127,12 +1139,11 @@ def mark_portal_inbox_read(session: Session, principal: Principal, item_id: UUID
     return row
 
 
-def unread_count(session: Session, principal: Principal) -> int:
-    ids = _identity_clients(session, principal)
-    return int(session.scalar(select(func.count()).select_from(InboxItem).where(
-        InboxItem.client_id.in_(ids), InboxItem.read_at.is_(None), InboxItem.recalled_at.is_(None),
-        InboxItem.expires_at > _now(),
-    )) or 0)  # fmt: skip
+def unread_count(session: Session, principal: Principal, client_id: UUID | None = None) -> int:
+    owner = _inbox_owner(session, principal, client_id)
+    return int(session.scalar(
+        select(func.count()).select_from(InboxItem).where(*_live_items(owner), InboxItem.read_at.is_(None))
+    ) or 0)  # fmt: skip
 
 
 def register_portal_device(session: Session, principal: Principal, data: dict) -> DeviceRegistration:

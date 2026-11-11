@@ -4,20 +4,21 @@ import * as SecureStore from 'expo-secure-store';
 import { portal } from '../adapters';
 import { apiAdapter } from '../adapters/api';
 import { demoAdapter, resetDemo } from '../adapters/demo';
+import { NotAvailable } from '../adapters/types';
 import { resetClients } from '../api/client';
 import { signInWithPassword } from '../lib/auth';
 import { loadSession } from '../lib/session';
 import { buildTheme, contrast } from '../lib/theme';
-import { grant, json, mockFetch } from '../test/helpers';
+import { grant, json, mockFetch, type Call } from '../test/helpers';
 
 const store = (SecureStore as unknown as { __store: Map<string, string> }).__store;
 const page = (data: unknown[], next: string | null = null) => ({ data, page: { has_more: next !== null, next_cursor: next } });
 
 describe('adapter switch', () => {
-  it('defaults to the demo adapter, which labels itself as demo', () => {
-    expect(portal).toBe(demoAdapter);
-    expect(portal.isDemo).toBe(true);
+  it('defaults to the real API; the demo adapter labels itself as demo', () => {
+    expect(portal).toBe(apiAdapter);
     expect(apiAdapter.isDemo).toBe(false);
+    expect(demoAdapter.isDemo).toBe(true);
   });
 });
 
@@ -65,10 +66,11 @@ describe('api adapter', () => {
     expect(calls[0]!.headers.authorization).toBe('Bearer fhs_access_1');
   });
 
-  it('books with the caller-supplied Idempotency-Key and the planned body', async () => {
-    const calls = mockFetch([() => json({ id: 'e1' }, 201)]);
-    await apiAdapter.createEnrollment({ clientId: 'c1', sessionId: 's1', idempotencyKey: 'intent-1' });
-    expect(calls[0]).toMatchObject({ method: 'POST', body: { client_id: 'c1', session_id: 's1' } });
+  it('books with the caller-supplied Idempotency-Key and the chosen package', async () => {
+    const calls = mockFetch([() => json({ id: 'e1', client_id: 'c1', session_id: 's1', status: 'enrolled', target_kind: 'session' }, 201)]);
+    const out = await apiAdapter.createEnrollment({ clientId: 'c1', sessionId: 's1', clientPackageId: 'p1', idempotencyKey: 'intent-1' });
+    expect(out).toEqual({ id: 'e1', client_id: 'c1', session_id: 's1', status: 'enrolled' });
+    expect(calls[0]).toMatchObject({ method: 'POST', body: { client_id: 'c1', session_id: 's1', client_package_id: 'p1' } });
     expect(calls[0]!.url).toBe('http://localhost:8150/api/v1/portal/enrollments');
     expect(calls[0]!.headers['idempotency-key']).toBe('intent-1');
   });
@@ -101,13 +103,84 @@ describe('api adapter', () => {
     expect(current!.is_past_due).toBe(false);
   });
 
-  it('scopes session listings to the acting-for client', async () => {
-    const calls = mockFetch([() => json(page([]))]);
-    await apiAdapter.listSessionListings({ clientId: 'dep 1', from: '2026-11-10T00:00:00Z', to: '2026-11-11T00:00:00Z' });
-    const url = new URL(calls[0]!.url);
-    expect(url.pathname).toBe('/api/v1/portal/session-listings');
-    expect(url.searchParams.get('acting_for')).toBe('dep 1');
-    expect(url.searchParams.get('starts_at[gte]')).toBe('2026-11-10T00:00:00Z');
+  describe('schedule', () => {
+    const listing = (id: string, over: Record<string, unknown> = {}) => ({
+      session_id: id, location_id: 'l1', title: `Class ${id}`, starts_at: '2026-11-12T15:00:00Z', ends_at: '2026-11-12T16:00:00Z',
+      spots_left: 3, is_bookable: true, can_join_waitlist: false, reason: null, ...over,
+    });
+    const pkg = (id: string, over: Record<string, unknown> = {}) => ({
+      id, status: 'active', is_unlimited: false, sessions_available_count: 2, reservation_type_id: `rt-${id}`, location_id: 'l1', ...over,
+    });
+    // Routes by URL: the adapter fires its reads concurrently, so arrival order is not fixed.
+    function serve() {
+      const route = (call: Call) => {
+        const url = new URL(call.url);
+        if (url.pathname.endsWith('/portal/enrollments'))
+          return json(page([{ id: 'e2', client_id: 'dep 1', session_id: 's2', status: 'enrolled', target_kind: 'session' }]));
+        if (url.pathname.endsWith('/portal/client-packages')) return json(page([pkg('p1'), pkg('p0', { sessions_available_count: 0 })]));
+        if (url.searchParams.get('reservation_type_id') === 'rt-p1') return json([listing('s1')]);
+        return json([
+          listing('s1'),
+          listing('s2'),
+          listing('s3', { is_bookable: false, can_join_waitlist: true, reason: 'full', spots_left: 0 }),
+          listing('s4', { is_bookable: false, reason: 'members-only' }),
+          listing('s5', { is_bookable: false, reason: 'cutoff-passed', title: null }),
+        ]);
+      };
+      return mockFetch(Array.from({ length: 4 }, () => route));
+    }
+
+    it('scopes every read to the acting-for client and joins bookings and packages', async () => {
+      const calls = serve();
+      const rows = await apiAdapter.listSessionListings({ clientId: 'dep 1', from: '2026-11-10T00:00:00Z', to: '2026-11-11T00:00:00Z' });
+      const urls = calls.map((c) => new URL(c.url));
+      expect(urls.every((u) => u.searchParams.get('client_id') === 'dep 1')).toBe(true);
+      const base = urls.find((u) => u.pathname.endsWith('/session-listings') && !u.searchParams.has('reservation_type_id'))!;
+      expect(base.searchParams.get('starts_at[gte]')).toBe('2026-11-10T00:00:00Z');
+      const enrollments = urls.find((u) => u.pathname.endsWith('/portal/enrollments'))!;
+      expect([enrollments.searchParams.get('status'), enrollments.searchParams.get('target_kind')]).toEqual(['enrolled', 'session']);
+      // Only the package with sessions left is asked about; the exhausted one is skipped.
+      expect(urls.filter((u) => u.searchParams.has('reservation_type_id')).map((u) => u.searchParams.get('location_id'))).toEqual(['l1']);
+      expect(rows.map((r) => [r.session_id, r.eligibility, r.my_enrollment_id, r.eligible_client_package_ids])).toEqual([
+        ['s1', 'bookable', null, ['p1']],
+        ['s2', 'already_booked', 'e2', []],
+        ['s3', 'full_waitlist', null, []],
+        ['s4', 'needs_purchase', null, []],
+        ['s5', 'closed', null, []],
+      ]);
+      expect(rows[4]!.name).toBe('Session');
+    });
+
+    it('lists my bookings from the same joined window', async () => {
+      serve();
+      const bookings = await apiAdapter.listBookings('dep 1');
+      expect(bookings).toHaveLength(1);
+      expect(bookings[0]).toMatchObject({ enrollment: { id: 'e2', client_id: 'dep 1', status: 'enrolled' }, session: { session_id: 's2', name: 'Class s2' } });
+    });
+  });
+
+  it('maps cards, devices, payment methods and progress from the real shapes', async () => {
+    let calls = mockFetch([() => json({ credential_id: 'k1', client_id: 'c1', device_label: 'inst', card_payload: 'seed', issued_at: 'x' }, 201)]);
+    expect(await apiAdapter.issueAppCard('c1', 'inst')).toMatchObject({ card_payload: 'seed', expires_at: null });
+    expect(calls[0]!.body).toEqual({ client_id: 'c1', device_label: 'inst' });
+
+    mockFetch([() => json({ id: 'd1', platform: 'ios', is_push_enabled: true, last_active_at: null }, 201)]);
+    expect(await apiAdapter.registerDevice({ platform: 'ios', push_token: 'tok' })).toMatchObject({ id: 'd1', push_token: 'tok' });
+
+    const method = { id: 'pm1', kind: 'card', brand: 'visa', last4: '4242', is_autopay: true, client_id: 'c1', created_at: 'x' };
+    mockFetch([() => json([{ ...method, status: 'active' }, { ...method, id: 'pm2', status: 'removed' }])]);
+    expect(await apiAdapter.listPaymentMethods()).toEqual([{ id: 'pm1', kind: 'card', brand: 'visa', last4: '4242', is_autopay: true }]);
+
+    calls = mockFetch([() => json([{ assessment_field_id: 'f1', field_name: 'Weight', latest_value: '81.5' }])]);
+    expect(await apiAdapter.listProgress('c1')).toMatchObject([{ field_name: 'Weight' }]);
+    expect(calls[0]!.url).toBe('http://localhost:8150/api/v1/portal/assessment-bests?client_id=c1');
+  });
+
+  it('reports what the portal has no endpoint for as not available, without calling the server', async () => {
+    const calls = mockFetch([]);
+    await expect(apiAdapter.searchDirectory('court')).rejects.toBeInstanceOf(NotAvailable);
+    await expect(apiAdapter.getAppConfig()).rejects.toBeInstanceOf(NotAvailable);
+    expect(calls).toHaveLength(0);
   });
 
   it('surfaces problem+json from a missing endpoint as an ApiError', async () => {

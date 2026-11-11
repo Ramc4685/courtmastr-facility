@@ -19,7 +19,7 @@ from app.core.db.session import tenant_session  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
 from app.modules.platform import service, staff  # noqa: E402
 from app.modules.platform.models import Identity, StaffUser, UserLocationAccess  # noqa: E402
-from app.ports import email  # noqa: E402
+from app.ports import email, payment_provider  # noqa: E402
 
 PASSWORD = "correct-horse-battery"
 PUBLIC_IP = "93.184.215.14"  # a globally routable address the webhook SSRF guard accepts (tests never connect)
@@ -194,6 +194,15 @@ def populate(client, tenant) -> SimpleNamespace:
     )
     billing_ids = _populate_billing(client, headers, post, person, location, category_id, tax_id, payment)
     billing_ids |= _populate_pos(client, headers, post, person, location, category_id, tax_id)
+    disputed = post("/payments", {  # + dispute: a settled card payment the payer then disputes
+        "client_id": person["id"], "location_id": location["id"], "amount_minor": 300, "tender_kind": "card",
+        "method_token": "tok_card_ok",
+    }, key=f"populate-{uuid4().hex}")  # fmt: skip
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        paid = session.get(billing.models.Payment, disputed["id"])
+        account = session.get(billing.models.ProviderAccount, paid.provider_account_id)
+        ref = payment_provider.get("fake").open_dispute(paid.provider_payment_ref)
+        billing_ids["dispute_id"] = str(billing.service.sync_dispute(session, account, ref).id)
     people = _populate_people(client, headers, tenant, location["id"], person["id"])
     documents = _populate_documents(client, headers, tenant, location["id"], person)
     space = _populate_space(client, tenant, headers, post, location["id"], person["id"])
