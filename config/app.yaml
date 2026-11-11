@@ -54,7 +54,7 @@ rate_limit:                           # security-baseline 6; fixed windows. clos
     sign-in:          {limit: 10, window_sec: 60,   closed: true}   # per IP
     sign-in-identity: {limit: 10, window_sec: 900,  closed: true}   # per email, then lockout (5.1)
     magic-link:       {limit: 5,  window_sec: 900,  closed: true}   # per IP
-    password-reset:   {limit: 5,  window_sec: 900,  closed: true}   # per IP
+    reset-request:    {limit: 5,  window_sec: 900,  closed: true}   # per IP
     link-address:     {limit: 3,  window_sec: 3600, closed: true}   # per target address, link and reset
     consume:          {limit: 20, window_sec: 900,  closed: true}   # token confirm, per IP
     document-link:    {limit: 20, window_sec: 900,  closed: true}   # token confirm (DOC-04), per IP

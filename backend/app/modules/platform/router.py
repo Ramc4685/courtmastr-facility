@@ -185,7 +185,7 @@ def consume_magic_link(body: s.TokenConsumeRequest, request: Request, response: 
     return _session_out(auth.consume_magic_link(session, token=body.token, client_kind=body.client_kind), response)
 
 
-@public.post("/auth/password-resets", status_code=202, dependencies=_guarded("password-reset"))
+@public.post("/auth/password-resets", status_code=202, dependencies=_guarded("reset-request"))
 def request_password_reset(body: s.EmailLinkRequest, response: Response, session: PublicSession) -> None:
     """Email a single-use 60-minute reset link. Always 202."""
     _per_address(session, "link-address", body, response)
