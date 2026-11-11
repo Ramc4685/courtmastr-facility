@@ -193,6 +193,9 @@ def test_key_stops_when_its_creator_is_deactivated(client, tenant, owner):
 BLOCKED = [
     "127.0.0.1", "::1", "0.0.0.0", "10.1.2.3", "172.16.0.1", "192.168.1.1", "169.254.169.254", "fe80::1",
     "fd00::1", "100.64.0.1", "224.0.0.1", "203.0.113.5", "::ffff:127.0.0.1", "::ffff:10.0.0.1",
+    # W2-04: IPv6 forms embedding IPv4 (NAT64, IPv4-compatible, 6to4, Teredo), public targets included
+    "64:ff9b::a00:1", "64:ff9b::7f00:1", "64:ff9b::808:808", "::a00:1", "::7f00:1", "::808:808",
+    "2002:a00:1::1", "2002:808:808::1", "2001:0:4136:e378:8000:63bf:3fff:fdd2",
 ]  # fmt: skip
 
 

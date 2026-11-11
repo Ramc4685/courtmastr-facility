@@ -33,12 +33,24 @@ def verify(secret: str, header: str, body: bytes, now: int, tolerance: int = SIG
     return any(hmac.compare_digest(expected, v) for k, v in parts if k == "v1")
 
 
+# IPv6 forms that carry an IPv4 address a gateway may translate to (W2-04). Python 3.12 calls NAT64 and
+# IPv4-compatible addresses global, so 64:ff9b::a00:1 would otherwise reach 10.0.0.1.
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+_IPV4_COMPATIBLE = ipaddress.ip_network("::/96")
+
+
 def blocked_reason(address: str, *, allow_loopback: bool = False) -> str | None:
     """Why an outbound target address is refused, or None. Anything not globally routable is refused:
-    private, loopback, link-local (cloud metadata 169.254.169.254 included), shared, reserved, multicast."""
+    private, loopback, link-local (cloud metadata 169.254.169.254 included), shared, reserved, multicast,
+    and IPv6 forms that embed an IPv4 address (NAT64, IPv4-compatible, 6to4, Teredo)."""
     ip = ipaddress.ip_address(address)
-    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
-        ip = ip.ipv4_mapped  # ::ffff:10.0.0.1 is 10.0.0.1
+    if isinstance(ip, ipaddress.IPv6Address):
+        if ip.ipv4_mapped:
+            ip = ip.ipv4_mapped  # ::ffff:10.0.0.1 is 10.0.0.1
+        elif not (ip.is_loopback or ip.is_unspecified) and (
+            ip in _NAT64 or ip in _IPV4_COMPATIBLE or ip.sixtofour or ip.teredo
+        ):
+            return "embedded-ipv4"
     if ip.is_loopback:
         return None if allow_loopback else "loopback"
     for reason, test in (

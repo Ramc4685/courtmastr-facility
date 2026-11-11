@@ -47,7 +47,10 @@ through `service.adapter_for`.
   `integrations.webhook_endpoint.disabled` is published.
 - **SSRF.** HTTPS only and public addresses only. Every resolved address is checked at save time and at send
   time, and the send is pinned. `integrations.webhook_allow_localhost` (dev only, `config/app.dev.yaml`; startup
-  refuses it elsewhere) allows `http` and loopback for a local receiver.
+  refuses it elsewhere) allows `http` and loopback for a local receiver. IPv4-mapped addresses are judged by
+  their IPv4 address; other IPv6 forms that embed IPv4 (NAT64 `64:ff9b::/96`, IPv4-compatible `::/96`, 6to4,
+  Teredo) are refused outright as `embedded-ipv4`, because Python 3.12 calls NAT64 and IPv4-compatible
+  addresses global (W2-04).
 - **Accounting export.** One row per (connection, location, business day), idempotent. The doc number is
   `FH-<LOCATION SLUG>-<YYYYMMDD>` and the request id `{tenant}:qbo_je:{export id}`. Unbalanced days fail and
   record the error. QuickBooks is refused (`provider-not-configured`) unless `integrations.quickbooks_enabled`.
