@@ -18,9 +18,10 @@ from app.core.audit import AuditEvent
 from app.core.auth import Principal, authorize, passwords, scope_query, system_principal
 from app.core.db import platform as platform_db
 from app.core.db.session import tenant_session
-from app.core.errors import Conflict, NotFound, ValidationFailed
+from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.ids import new_id
 from app.core.pagination import ListQuery, paginate
+from app.core.settings import get_settings
 from app.modules.platform import staff
 from app.modules.platform.events import LocationCreated, TenantCreated
 from app.modules.platform.models import (
@@ -74,16 +75,40 @@ def update_tenant(session: Session, principal: Principal, data: dict) -> Tenant:
 # --- security settings (PLT-07) -----------------------------------------------------------------------------
 
 
+_MFA_STRENGTH = {"optional": 0, "privileged": 1, "all": 2}
+
+
+def _security_view(tenant) -> dict:
+    return {
+        "staff_ip_allowlist": [str(net) for net in tenant.staff_ip_allowlist],
+        "staff_mfa_policy": tenant.staff_mfa_policy,
+        "staff_idle_timeout_min": tenant.staff_idle_timeout_min or get_settings().auth.sessions["staff_web"].idle_min,
+    }
+
+
 def get_security_settings(session: Session, principal: Principal) -> dict:
     authorize(principal, "platform.security.manage")
-    return {"staff_ip_allowlist": [str(net) for net in get_tenant(session).staff_ip_allowlist]}
+    return _security_view(get_tenant(session))
 
 
 def update_security_settings(session: Session, principal: Principal, data: dict) -> dict:
-    """Replace the staff IP allow-list. A non-empty list must contain the caller's own address, so nobody can
-    lock themselves (or an Owner) out from where they stand; an empty list lifts the restriction."""
+    """Staff IP allow-list, MFA policy and staff idle timeout. The key carries `+`, so the caller re-authenticated
+    in the last 10 minutes. A non-empty allow-list must contain the caller's own address, so nobody can lock
+    themselves (or an Owner) out from where they stand; an empty list lifts the restriction. Weakening the MFA
+    policy is for an Owner only (owner decision 3)."""
     authorize(principal, "platform.security.manage")
     tenant = get_tenant(session)
+    policy = data.get("staff_mfa_policy")
+    if policy and _MFA_STRENGTH[policy] < _MFA_STRENGTH[tenant.staff_mfa_policy] and not principal.is_owner:
+        raise PermissionDenied("Only an Owner can relax the two-step verification policy.", code="owner-only")
+    policy_changes = {}  # policy values are not personal data: audited as values
+    if policy and policy != tenant.staff_mfa_policy:
+        policy_changes["staff_mfa_policy"] = [tenant.staff_mfa_policy, policy]
+        tenant.staff_mfa_policy = policy
+    idle = data.get("staff_idle_timeout_min")
+    if idle is not None and idle != tenant.staff_idle_timeout_min:
+        policy_changes["staff_idle_timeout_min"] = [tenant.staff_idle_timeout_min, idle]
+        tenant.staff_idle_timeout_min = idle
     before = [str(net) for net in tenant.staff_ip_allowlist]
     if data.get("staff_ip_allowlist") is not None:
         allowed = networks.normalize(data["staff_ip_allowlist"], "/staff_ip_allowlist")
@@ -95,9 +120,11 @@ def update_security_settings(session: Session, principal: Principal, data: dict)
         tenant.staff_ip_allowlist = allowed
     after = [str(net) for net in tenant.staff_ip_allowlist]
     if after != before:
-        audit.record(session, "platform.security.manage", tenant, changes={"staff_ip_allowlist": [before, after]})
+        policy_changes["staff_ip_allowlist"] = [before, after]
+    if policy_changes:
+        audit.record(session, "platform.security.manage", tenant, changes=policy_changes)
     session.flush()
-    return {"staff_ip_allowlist": after}
+    return _security_view(tenant)
 
 
 # --- locations ---------------------------------------------------------------------------------------------

@@ -19,6 +19,7 @@ class Principal:
     location_ids: frozenset[UUID] | None = None  # None = every location of the tenant
     session_id: UUID | None = None
     api_key_id: UUID | None = None  # kind = api_key: the key; staff_user_id stays None (it is not a person)
+    elevated: bool = False  # the session re-authenticated within the step-up window (auth_session.elevated_until_at)
 
     @property
     def is_owner(self) -> bool:

@@ -1,8 +1,8 @@
 """Sign-in, emailed links and server-side sessions (ADR 0002 sections 3 and 4)."""
 
 import hmac
-from dataclasses import dataclass
-from datetime import timedelta
+from dataclasses import dataclass, replace
+from datetime import datetime, timedelta
 from urllib.parse import quote
 from uuid import UUID
 
@@ -11,9 +11,10 @@ from sqlalchemy.orm import Session
 
 from app.core import audit, clock, context, events, networks
 from app.core.auth import Principal, passwords, tokens
-from app.core.errors import NotFound, PermissionDenied, Unauthenticated
+from app.core.auth.permissions import require_elevated
+from app.core.errors import NotFound, PermissionDenied, Unauthenticated, ValidationFailed
 from app.core.settings import get_settings
-from app.modules.platform import rbac
+from app.modules.platform import mfa, rbac
 from app.modules.platform.events import IdentityLocked
 from app.modules.platform.models import AuthSession, AuthToken, Identity, StaffUser, Tenant, TokenPurpose
 from app.ports import notifications
@@ -39,6 +40,17 @@ class Grant:
     access_token: str
     refresh_token: str | None = None
     csrf_token: str | None = None
+    recovery_codes: list[str] | None = None  # shown once, when enrolment completed at sign-in
+
+
+@dataclass
+class Challenge:
+    """The pending sign-in after a correct first factor: a single-purpose token that can only complete the
+    second factor (or the forced enrolment). It grants nothing else; no session exists yet."""
+
+    token: str
+    expires_at: datetime
+    enrolment_required: bool
 
 
 def _invalid_credentials(persist: bool = False) -> Unauthenticated:
@@ -91,18 +103,34 @@ def _refused_before_password(session: Session, audience: str, identity: Identity
     return not (principal and principal.has("platform.security.bypass_ip_allowlist"))
 
 
-def _start_session(session: Session, identity: Identity, client_kind: str) -> Grant:
-    """Web: one token for the session cookie, valid until the sliding idle limit, plus a CSRF token whose hash
-    sits on the row (security-baseline 5.2, 5.3). Mobile: a short access token and a rotating refresh token."""
+def _lifetime(session: Session, identity: Identity, client_kind: str) -> tuple[timedelta, timedelta]:
+    """(idle, absolute) for this kind of session (security-baseline 5.1). Staff web idle is the tenant's
+    setting (15 to 60 minutes) when it has one."""
+    life = get_settings().auth.sessions[f"{identity.kind}_{client_kind}"]
+    idle = life.idle_min
+    if identity.kind == "staff" and client_kind == "web":
+        idle = session.get(Tenant, identity.tenant_id).staff_idle_timeout_min or idle
+    return timedelta(minutes=idle), timedelta(hours=life.absolute_hours)
+
+
+def _start_session(
+    session: Session, identity: Identity, client_kind: str, *, elevated: bool = False, mfa_verified_at=None,
+    absolute_expires_at=None,
+) -> Grant:  # fmt: skip
+    """The one place a session is minted. Web: one token for the session cookie, valid until the sliding idle
+    limit, plus a CSRF token whose hash sits on the row (security-baseline 5.2, 5.3). Mobile: a short access token
+    and a rotating refresh token. `elevated`: the credential just checked satisfies step-up for 10 minutes.
+    `absolute_expires_at`: a rotation (step-up) keeps the original absolute limit."""
     cfg = get_settings().auth
-    life = cfg.sessions[f"{identity.kind}_{client_kind}"]
+    idle_for, absolute_for = _lifetime(session, identity, client_kind)
     now = clock.now()
-    absolute = now + timedelta(days=life.absolute_days)
-    idle = min(now + timedelta(hours=life.idle_hours), absolute)
+    absolute = absolute_expires_at or now + absolute_for
+    idle = min(now + idle_for, absolute)
     access, access_hash = tokens.mint("fhs", identity.tenant_id)
     row = AuthSession(
         identity_id=identity.id, kind=client_kind, access_token_hash=access_hash, idle_expires_at=idle,
-        absolute_expires_at=absolute, ip=context.client_ip.get(), last_seen_at=now,
+        absolute_expires_at=absolute, ip=context.client_ip.get(), last_seen_at=now, mfa_verified_at=mfa_verified_at,
+        elevated_until_at=now + timedelta(minutes=cfg.step_up_min) if elevated else None,
     )  # fmt: skip
     grant = Grant(row, None, access)
     if client_kind == "web":
@@ -113,9 +141,10 @@ def _start_session(session: Session, identity: Identity, client_kind: str) -> Gr
         row.access_expires_at = now + timedelta(minutes=cfg.access_ttl_min)
     session.add(row)
     session.flush()
-    grant.principal = _principal_for(session, identity, row.id)
-    if grant.principal is None:
+    principal = _principal_for(session, identity, row.id)
+    if principal is None:
         raise _invalid_credentials()
+    grant.principal = replace(principal, elevated=elevated)
     check_ip_allowlist(session, grant.principal)
     identity.last_sign_in_at = now
     return grant
@@ -165,7 +194,9 @@ def _clear_failures(identity: Identity) -> None:
     identity.locked_until_at, identity.lockout_count = None, 0
 
 
-def sign_in(session: Session, *, email: str, password: str, audience: str = "staff", client_kind: str = "web") -> Grant:
+def sign_in(
+    session: Session, *, email: str, password: str, audience: str = "staff", client_kind: str = "web"
+) -> Grant | Challenge:
     now = clock.now()
     identity = _find_identity(session, audience, email)
     if _refused_before_password(session, audience, identity):
@@ -179,17 +210,18 @@ def sign_in(session: Session, *, email: str, password: str, audience: str = "sta
         raise Unauthenticated(
             "Too many failed attempts. Try again later or use an emailed link.", code="identity-locked"
         )
-    actor = Principal(kind=identity.kind, tenant_id=identity.tenant_id, identity_id=identity.id, email=identity.email)
     if not passwords.verify_password(identity.password_hash, password):
         _password_failed(session, identity)
-        audit.record(session, "platform.identity.sign_in_failed", identity, actor=actor)
+        audit.record(session, "platform.identity.sign_in_failed", identity, actor=_actor(identity))
         raise _invalid_credentials(persist=True)
     if identity.status != "active":
         raise _invalid_credentials()
     if passwords.needs_rehash(identity.password_hash):
         identity.password_hash = passwords.hash_password(password)
+    if challenge := _second_factor(session, identity, client_kind, "password"):
+        return challenge  # failures stay counted until the second factor passes too
     _clear_failures(identity)
-    grant = _start_session(session, identity, client_kind)
+    grant = _start_session(session, identity, client_kind, elevated=True)
     audit.record(session, "platform.identity.sign_in", identity, actor=grant.principal)
     return grant
 
@@ -337,13 +369,15 @@ def request_magic_link(
         issue_link(session, identity, TokenPurpose.MAGIC_LINK, ttl, redirect_path=redirect_path)
 
 
-def consume_magic_link(session: Session, *, token: str, client_kind: str = "web") -> Grant:
+def consume_magic_link(session: Session, *, token: str, client_kind: str = "web") -> Grant | Challenge:
     identity = _consume(session, token, TokenPurpose.MAGIC_LINK)
     if identity.status != "active":
         raise Unauthenticated("This link is not valid or was already used.", code="token-invalid")
     # Redeeming the link proves the mailbox: verify the address and clear a password lockout.
     identity.email_verified_at = identity.email_verified_at or clock.now()
     _clear_failures(identity)
+    if challenge := _second_factor(session, identity, client_kind, "magic_link"):
+        return challenge
     grant = _start_session(session, identity, client_kind)
     audit.record(session, "platform.identity.sign_in", identity, actor=grant.principal, reason="magic_link")
     return grant
@@ -356,12 +390,17 @@ def request_password_reset(session: Session, *, email: str, audience: str = "sta
         issue_link(session, identity, TokenPurpose.PASSWORD_RESET, ttl)
 
 
-def consume_password_reset(session: Session, *, token: str, new_password: str, client_kind: str = "web") -> Grant:
+def consume_password_reset(
+    session: Session, *, token: str, new_password: str, client_kind: str = "web"
+) -> Grant | Challenge:
     identity = _consume(session, token, TokenPurpose.PASSWORD_RESET)
     if identity.status != "active":
         raise Unauthenticated("This link is not valid or was already used.", code="token-invalid")
     _set_password(session, identity, new_password)
     revoke_sessions(session, identity.id, "password_reset")
+    if challenge := _second_factor(session, identity, client_kind, "password_reset"):
+        audit.record(session, "platform.identity.reset_password", identity, actor=_actor(identity))
+        return challenge  # a reset never bypasses MFA (ADR 0002 section 3)
     grant = _start_session(session, identity, client_kind)
     audit.record(session, "platform.identity.reset_password", identity, actor=grant.principal)
     return grant
@@ -373,7 +412,7 @@ ACTIVATION_HOOKS: list = []
 
 def accept_invitation(
     session: Session, *, token: str, new_password: str | None = None, client_kind: str = "web"
-) -> Grant:
+) -> Grant | Challenge:
     """Activate an invited identity. The password is optional: the invitee may stay on magic links."""
     identity = _consume(session, token, TokenPurpose.INVITE)
     if identity.status != "invited":
@@ -384,6 +423,9 @@ def accept_invitation(
     identity.email_verified_at = clock.now()
     for hook in ACTIVATION_HOOKS:
         hook(session, identity.id)
+    if challenge := _second_factor(session, identity, client_kind, "invite"):
+        audit.record(session, "platform.identity.accept_invitation", identity, actor=_actor(identity))
+        return challenge
     grant = _start_session(session, identity, client_kind)
     audit.record(session, "platform.identity.accept_invitation", identity, actor=grant.principal)
     return grant
@@ -411,10 +453,9 @@ def authenticate(session: Session, access_token: str) -> Principal:
     if row.last_seen_at is None or now - row.last_seen_at > timedelta(minutes=1):
         row.last_seen_at = now
         if row.kind == "web":
-            life = get_settings().auth.sessions[f"{identity.kind}_web"]
-            row.idle_expires_at = min(now + timedelta(hours=life.idle_hours), row.absolute_expires_at)
+            row.idle_expires_at = min(now + _lifetime(session, identity, "web")[0], row.absolute_expires_at)
             row.access_expires_at = row.idle_expires_at
-    return principal
+    return replace(principal, elevated=row.elevated_until_at is not None and row.elevated_until_at > now)
 
 
 def refresh(session: Session, *, refresh_token: str) -> Grant:
@@ -438,12 +479,11 @@ def refresh(session: Session, *, refresh_token: str) -> Grant:
     principal = _principal_for(session, identity, row.id) if identity.status == "active" else None
     if principal is None:
         raise Unauthenticated("Your session has ended. Sign in again.", code="session-revoked")
-    life = cfg.sessions[f"{identity.kind}_{row.kind}"]
     access, row.access_token_hash = tokens.mint("fhs", row.tenant_id)
     row.previous_refresh_token_hash, row.refresh_rotated_at = row.refresh_token_hash, now
     refresh_token, row.refresh_token_hash = tokens.mint("fhr", row.tenant_id)
     row.access_expires_at = now + timedelta(minutes=cfg.access_ttl_min)
-    row.idle_expires_at = min(now + timedelta(hours=life.idle_hours), row.absolute_expires_at)
+    row.idle_expires_at = min(now + _lifetime(session, identity, row.kind)[0], row.absolute_expires_at)
     row.last_seen_at = now
     return Grant(row, principal, access, refresh_token)
 
@@ -481,3 +521,213 @@ def revoke_session(session: Session, principal: Principal, session_id: UUID) -> 
         raise NotFound()
     if row.revoked_at is None:
         row.revoked_at, row.revoked_reason = clock.now(), "sign_out"
+
+
+# --- second factor (chip S2: ADR 0002 section 6, security-baseline 5.1) -------------------------------------
+
+
+def _actor(identity: Identity) -> Principal:
+    """Audit attribution before a session exists."""
+    return Principal(kind=identity.kind, tenant_id=identity.tenant_id, identity_id=identity.id, email=identity.email)
+
+
+def _second_factor(session: Session, identity: Identity, client_kind: str, method: str) -> Challenge | None:
+    """After a correct first factor: None when a session may start now; otherwise the pending challenge, for an
+    identity with a confirmed factor (any kind) or a staff identity the tenant policy requires to enrol."""
+    if mfa.confirmed_factor(session, identity.id) is None and not mfa.is_required(session, identity):
+        return None
+    if _principal_for(session, identity) is None:
+        raise _invalid_credentials()
+    now = clock.now()
+    session.execute(
+        update(AuthToken)
+        .where(
+            AuthToken.identity_id == identity.id,
+            AuthToken.purpose == TokenPurpose.MFA_CHALLENGE,
+            AuthToken.consumed_at.is_(None),
+        )
+        .values(consumed_at=now)
+    )
+    raw, hashed = tokens.mint("fhm", identity.tenant_id)
+    expires = now + timedelta(minutes=get_settings().auth.mfa_challenge_ttl_min)
+    payload = {"client_kind": client_kind, "method": method}
+    session.add(
+        AuthToken(
+            identity_id=identity.id, purpose=TokenPurpose.MFA_CHALLENGE, token_hash=hashed, expires_at=expires,
+            payload=payload,
+        )
+    )  # fmt: skip
+    session.flush()
+    return Challenge(raw, expires, mfa.confirmed_factor(session, identity.id) is None)
+
+
+def _pending(session: Session, token: str) -> tuple[AuthToken, Identity]:
+    """A live challenge, locked, not consumed: a wrong code may be retried within the challenge's budget."""
+    row = session.execute(
+        select(AuthToken)
+        .where(AuthToken.token_hash == tokens.digest(token), AuthToken.purpose == TokenPurpose.MFA_CHALLENGE)
+        .with_for_update()
+    ).scalar_one_or_none()
+    if row is None or row.consumed_at is not None or row.expires_at <= clock.now():
+        raise Unauthenticated("This sign-in has expired. Sign in again.", code="mfa-challenge-invalid")
+    identity = session.get(Identity, row.identity_id)
+    if identity.status != "active":
+        raise Unauthenticated("This sign-in has expired. Sign in again.", code="mfa-challenge-invalid")
+    return row, identity
+
+
+def _refuse_if_locked(identity: Identity, error=Unauthenticated) -> None:
+    """Signed-in callers get 403: a 401 would mean their session is over."""
+    if identity.locked_until_at and identity.locked_until_at > clock.now():
+        raise error("Too many failed attempts. Try again later or use an emailed link.", code="identity-locked")
+
+
+def _code_failed(session: Session, identity: Identity, action: str, error) -> None:
+    """A wrong second-factor code counts against the same lockout as a wrong password, then is refused with a
+    persisted error so the count survives the rollback of the rest."""
+    _password_failed(session, identity)
+    audit.record(session, action, identity, actor=_actor(identity))
+    raise error
+
+
+def start_challenge_enrolment(session: Session, *, token: str) -> tuple[str, str]:
+    """Forced enrolment inside a pending sign-in: a new secret for the identity. (secret, otpauth URI)."""
+    _, identity = _pending(session, token)
+    return mfa.start_enrolment(session, identity)
+
+
+def complete_challenge(session: Session, *, token: str, code: str) -> Grant:
+    """Second factor of a pending sign-in: a TOTP code, a recovery code (consumed), or, for a forced enrolment,
+    the first code of the new factor. Only now is a session minted, MFA-verified and elevated."""
+    row, identity = _pending(session, token)
+    _refuse_if_locked(identity)
+    wrong = Unauthenticated("That code is not right. Try the current one.", code="mfa-code-invalid", persist=True)
+    factor = mfa.factor(session, identity.id, lock=True)
+    recovery_codes = None
+    if factor is not None and factor.confirmed_at is not None:
+        used = mfa.verify(session, factor, code)
+    elif factor is not None:  # forced enrolment: the first code proves the authenticator was set up
+        used = "totp" if mfa.match_totp(factor, code) else None
+        if used:
+            recovery_codes = _confirm(session, identity, factor)
+    else:
+        raise ValidationFailed("Set up your authenticator app first.", code="mfa-enrolment-not-started")
+    if used is None:
+        _code_failed(session, identity, "platform.identity.mfa_failed", wrong)
+    now = clock.now()
+    row.consumed_at = now
+    _clear_failures(identity)
+    grant = _start_session(session, identity, row.payload["client_kind"], elevated=True, mfa_verified_at=now)
+    grant.recovery_codes = recovery_codes
+    if used == "recovery":
+        audit.record(session, "platform.identity.mfa_recovery_used", identity, actor=grant.principal)
+    audit.record(session, "platform.identity.sign_in", identity, actor=grant.principal, reason=row.payload["method"])
+    return grant
+
+
+def _confirm(session: Session, identity: Identity, factor) -> list[str]:
+    factor.confirmed_at = clock.now()
+    codes = mfa.new_recovery_codes(session, identity.id)
+    audit.record(session, "platform.identity.mfa_enrol", identity, actor=_actor(identity))
+    _mfa_changed_email(session, identity, "turned on")
+    return codes
+
+
+def _mfa_changed_email(session: Session, identity: Identity, what: str) -> None:
+    name = get_settings().app.display_name
+    body = f"Two-step verification was just {what} for your account. If this was not you, reset your password now."
+    send_after_commit(session, EmailMessage(identity.email, f"{name}: two-step verification {what}", body))
+
+
+# --- step-up -------------------------------------------------------------------------------------------------
+
+
+def step_up(session: Session, principal: Principal, *, code: str | None = None, password: str | None = None) -> Grant:
+    """Re-authenticate the signed-in caller (ADR 0002 section 4): their TOTP or recovery code when enrolled, else
+    their password. Rotates the session through _start_session (new session id and CSRF token, baseline 5.1),
+    keeps its absolute limit, and makes it satisfy `+` keys for 10 minutes. Failures count toward lockout."""
+    identity = session.get(Identity, principal.identity_id)
+    current = session.get(AuthSession, principal.session_id)
+    if current is None or current.kind not in ("web", "mobile"):
+        raise PermissionDenied("This session cannot be confirmed.", code="step-up-unavailable")
+    wrong = PermissionDenied("That did not match. Try again.", code="reauthentication-failed", persist=True)
+    _refuse_if_locked(identity, PermissionDenied)
+    factor = mfa.confirmed_factor(session, identity.id, lock=True)
+    if factor is not None:
+        ok = bool(code) and mfa.verify(session, factor, code) is not None
+    elif identity.password_hash:
+        ok = bool(password) and passwords.verify_password(identity.password_hash, password)
+    else:
+        raise PermissionDenied(
+            "Set a password or turn on two-step verification to confirm it is you.", code="step-up-unavailable"
+        )
+    if not ok:
+        _code_failed(session, identity, "platform.identity.step_up_failed", wrong)
+    _clear_failures(identity)
+    now = clock.now()
+    current.revoked_at, current.revoked_reason = now, "step_up"
+    grant = _start_session(
+        session, identity, current.kind, elevated=True, absolute_expires_at=current.absolute_expires_at,
+        mfa_verified_at=now if factor is not None else current.mfa_verified_at,
+    )  # fmt: skip
+    audit.record(session, "platform.identity.step_up", identity, actor=grant.principal)
+    return grant
+
+
+# --- the caller's own second factor ---------------------------------------------------------------------------
+
+
+def mfa_status(session: Session, principal: Principal) -> dict:
+    identity = session.get(Identity, principal.identity_id)
+    factor = mfa.confirmed_factor(session, identity.id)
+    return {
+        "enrolled": factor is not None,
+        "confirmed_at": factor.confirmed_at if factor else None,
+        "recovery_codes_remaining": mfa.remaining_recovery_codes(session, identity.id) if factor else 0,
+        "required": mfa.is_required(session, identity),
+    }
+
+
+def begin_mfa_enrolment(session: Session, principal: Principal) -> tuple[str, str]:
+    """Changing MFA needs a recent re-authentication (ADR 0002 section 4)."""
+    require_elevated(principal)
+    return mfa.start_enrolment(session, session.get(Identity, principal.identity_id))
+
+
+def confirm_mfa_enrolment(session: Session, principal: Principal, code: str) -> list[str]:
+    """First code of the new factor: turns it on, returns the ten recovery codes once, signs out other sessions
+    (MFA change, ADR 0002 section 4) and marks this one MFA-verified."""
+    identity = session.get(Identity, principal.identity_id)
+    factor = mfa.factor(session, identity.id, lock=True)
+    if factor is None or factor.confirmed_at is not None:
+        raise ValidationFailed("Set up your authenticator app first.", code="mfa-enrolment-not-started")
+    _refuse_if_locked(identity, PermissionDenied)
+    if not mfa.match_totp(factor, code):
+        wrong = PermissionDenied("That code is not right. Try the current one.", code="mfa-code-invalid", persist=True)
+        _code_failed(session, identity, "platform.identity.mfa_failed", wrong)
+    codes = _confirm(session, identity, factor)
+    revoke_sessions(session, identity.id, "mfa_change", keep=principal.session_id)
+    session.get(AuthSession, principal.session_id).mfa_verified_at = clock.now()
+    return codes
+
+
+def disable_mfa(session: Session, principal: Principal) -> None:
+    require_elevated(principal)
+    identity = session.get(Identity, principal.identity_id)
+    if mfa.confirmed_factor(session, identity.id) is None:
+        raise NotFound()
+    if mfa.is_required(session, identity):
+        raise PermissionDenied("Your role requires two-step verification.", code="mfa-required")
+    mfa.remove(session, identity.id)
+    revoke_sessions(session, identity.id, "mfa_change", keep=principal.session_id)
+    audit.record(session, "platform.identity.mfa_disable", identity)
+    _mfa_changed_email(session, identity, "turned off")
+
+
+def regenerate_recovery_codes(session: Session, principal: Principal) -> list[str]:
+    require_elevated(principal)
+    if mfa.confirmed_factor(session, principal.identity_id) is None:
+        raise NotFound()
+    codes = mfa.new_recovery_codes(session, principal.identity_id)
+    audit.record(session, "platform.identity.mfa_recovery_regenerate", session.get(Identity, principal.identity_id))
+    return codes
