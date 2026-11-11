@@ -54,6 +54,8 @@ class Permission:
 
 
 CATALOGUE: dict[str, Permission] = {}
+# Principals that act on the staff/admin surface with catalogue keys (an API key is that surface, overview 3.15).
+STAFF_SURFACE = frozenset({"staff", "api_key"})
 
 
 def register(*permissions: Permission) -> None:
@@ -78,7 +80,7 @@ def authorize(principal: Principal, key: str, *, location_id: UUID | None = None
     """
     if principal.kind == "system":
         return
-    if principal.kind != "staff" or key not in principal.permissions:
+    if principal.kind not in STAFF_SURFACE or key not in principal.permissions:
         raise PermissionDenied(f"Requires {key}", required=key)
     if location_id is not None and principal.location_ids is not None and location_id not in principal.location_ids:
         raise NotFound()

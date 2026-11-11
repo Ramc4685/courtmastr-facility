@@ -21,6 +21,7 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Scheduling setup', to: '/scheduling/setup', icon: 'list' },
   { label: 'Rentals', to: '/rentals', permission: 'scheduling.booking.read', icon: 'ticket' },
   { label: 'Rental setup', to: '/rentals/setup', icon: 'list' },
+  { label: 'Integrations', to: '/integrations', permission: 'integrations.connection.manage', icon: 'plug' },
 ]
 
 // Build modules 2-17 (docs/architecture/overview.md section 6).
@@ -32,6 +33,5 @@ export const UPCOMING_NAV: NavItem[] = [
   { label: 'Engagement', icon: 'mail' },
   { label: 'Fitness assessments', icon: 'pulse' },
   { label: 'Reports', icon: 'chart' },
-  { label: 'Integrations', icon: 'plug' },
   { label: 'Mobile app', icon: 'phone' },
 ]
