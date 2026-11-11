@@ -44,8 +44,8 @@ test('an API key created in the UI calls a platform endpoint, and the screens pa
 
   const bearer = { Authorization: `Bearer ${secret}` }
   const locations = await request.get('/api/v1/locations', { headers: bearer })
-  expect(locations.status()).toBe(200)
-  expect((await locations.json()).data.length).toBeGreaterThan(0)
+  expect(locations.status()).toBe(403) // keyless routes refuse API keys (13b12dd); only scoped routes accept them
+  expect((await locations.json()).code).toBe('api-key-not-allowed')
   expect((await request.get('/api/v1/clients', { headers: bearer })).status()).toBe(200)
   expect((await request.get('/api/v1/charges', { headers: bearer })).status()).toBe(403) // outside its scopes
 })
