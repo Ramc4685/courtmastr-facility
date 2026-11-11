@@ -9,6 +9,7 @@ from calendar import monthrange
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
+from uuid import UUID
 
 from app.core.dates import add_interval
 
@@ -43,7 +44,7 @@ class Terms:
 
 @dataclass(frozen=True)
 class Period:
-    kind: str  # dues | initiation
+    kind: str  # dues | initiation | addon_item
     sequence_number: int
     starts_on: date | None
     ends_on: date | None  # exclusive
@@ -51,6 +52,9 @@ class Period:
     list_amount_minor: int
     amount_minor: int
     is_prorated: bool = False
+    catalog_item_id: UUID | None = None  # addon_item rows: the billing pre-defined item (MEM-04)
+    description: str | None = None
+    revenue_category_id: UUID | None = None
 
 
 def due_date(starts_on: date, payment_due_day: int | None) -> date:

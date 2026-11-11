@@ -19,6 +19,7 @@ from app.core.jobs import broker
 log = logging.getLogger(__name__)
 EVERY_MINUTE = ("expire_checkout_holds", "expire_registration_holds", "send_due_messages")
 EVERY_HOUR = ("billing_daily", "run_membership_day", "run_package_day", "sweep_documents", "auto_archive_programs")
+EVERY_HOUR += ("renew_catalog_item_sales",)  # billing pre-defined items (BIL-14)
 
 
 def active_tenants() -> list[str]:
