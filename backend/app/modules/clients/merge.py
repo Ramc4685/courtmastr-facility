@@ -127,7 +127,7 @@ def _blockers(session: Session, survivor: Client, losers: list[Client]) -> list[
             blockers.append({"context": "clients", "client_id": loser.id, "code": "survivor-portal-created",
                              "detail": "A record created in the portal cannot absorb one created by staff; "
                                        "keep the staff record as the survivor."})  # fmt: skip
-        loser_holders = _holders(session, loser.id)
+        loser_holders = _holders(session, loser.id) | _own_login(session, loser.id)
         if loser_holders and _holders(session, survivor.id) - loser_holders:
             # the loser is someone else's dependent: its guardian loses it, the survivor's gains it (backlog 29).
             # A loser nobody acts for is a desk duplicate of the same person, and merges as before.
@@ -142,6 +142,14 @@ def _blockers(session: Session, survivor: Client, losers: list[Client]) -> list[
 
 def _backfill_fields(survivor: Client, losers: list[Client]) -> list[str]:
     return [f for f in BACKFILL if getattr(survivor, f) is None and any(getattr(x, f) is not None for x in losers)]
+
+
+def _own_login(session: Session, client_id: UUID) -> set[tuple[str, UUID]]:
+    """The client's own live portal sign-in: a record someone signs in to is held, even with no managers."""
+    rows = session.scalars(select(ClientPortalAccess.identity_id).where(
+        ClientPortalAccess.client_id == client_id, ClientPortalAccess.is_primary.is_(True),
+        ClientPortalAccess.status != "revoked"))  # fmt: skip
+    return {("identity", i) for i in rows}
 
 
 def _carried_rights(session: Session, loser_id: UUID) -> tuple[list[ClientPortalAccess], list[ClientRelationship]]:

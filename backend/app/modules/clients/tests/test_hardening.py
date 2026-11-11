@@ -197,6 +197,25 @@ def test_merge_of_two_portal_records_keeps_guardians_apart(client, tenant, owner
     assert (refused.status_code, refused.json()["code"]) == (409, "merge-blocked")
 
 
+def test_merge_never_hands_a_signed_in_record_to_another_guardian(client, tenant, owner, location_id, mailbox):
+    """A loser with its own portal login and no managers is still held: a guardian of the survivor may not gain it."""
+    types = _types(client, owner)
+    mum = new_client(client, owner, location_id, first_name="Mo", primary_email="mo@example.com")
+    kid = new_client(client, owner, location_id, first_name="Jo", last_name="Fox")
+    linked = client.post(f"{API}/clients/{mum['id']}/relationships", headers=owner,
+                         json={"other_client_id": kid["id"], "relationship_type_id": types["parent_of"]["id"]})  # fmt: skip
+    assert linked.status_code == 201, linked.text
+    adult = new_client(client, owner, location_id, first_name="Jo", last_name="Fox", primary_email="jo@example.com")
+    _portal(client, tenant, owner, adult, mailbox)
+    body = {"merged_client_ids": [adult["id"]]}
+    refused = client.post(f"{API}/clients/{kid['id']}/merge", headers=owner, json=body)
+    assert (refused.status_code, refused.json()["code"]) == (409, "merge-blocked"), refused.text
+    # a desk duplicate nobody signs in to or acts for still merges
+    desk = new_client(client, owner, location_id, first_name="Jo", last_name="Fox")
+    merged = client.post(f"{API}/clients/{kid['id']}/merge", headers=owner, json={"merged_client_ids": [desk["id"]]})
+    assert merged.status_code == 200, merged.text
+
+
 def test_merge_log_holds_no_personal_values(client, tenant, owner, location_id):
     keep = new_client(client, owner, location_id, first_name="Lee", last_name="Ray")
     lose = new_client(client, owner, location_id, first_name="Lee", last_name="Ray", birth_on="1980-02-02",
