@@ -40,6 +40,8 @@ def _quiet_endpoints(tenant):
     yield
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
         session.execute(update(WebhookEndpoint).values(status="paused"))
+    # A delivery retry is a delayed message minutes out in the shared stub broker; any later drain would wait for it.
+    broker.flush_all()
 
 
 def _location(client, headers, name: str = "Main") -> str:
