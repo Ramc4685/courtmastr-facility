@@ -240,6 +240,18 @@ _BODIES = {
     "confirmPortalRental": {"provider_payment_token": "tok_card_ok"},
     "updateRentalPlan": {"name": "Renamed"},
     "cancelRentalPlanPurchase": {"cancel_mode": "keep_billing", "reason": "Mistake"},
+    # staff (build module 12)
+    "updateStaffPayee": {"display_name": "Renamed"},
+    "putDefaultPayRate": {"pay_basis": "per_session"},
+    "putCommissionRules": {"rules": []},
+    "updateJobClassification": {"name": "Renamed"},
+    "addStaffHourlyRate": lambda ids: {"job_classification_id": ids.job_classification_id, "rate_minor": 1,
+                                       "effective_from_on": "2031-01-01"},
+    "updateTimeEntry": {"edit_reason": "Fix"},
+    "voidTimeEntry": {"edit_reason": "Mistake"},
+    "updateShift": {"note": "Renamed"},
+    "updatePayStatement": {"additional_income_minor": 0},
+    "assignSessionInstructor": {"staff_payee_id": None},
 }
 _ACCEPTANCE = {"content_sha256": "0" * 64, "signers": [
     {"decision": "accepted", "signer_role": "client", "signer_name": "X", "method": "checkbox"}]}  # fmt: skip

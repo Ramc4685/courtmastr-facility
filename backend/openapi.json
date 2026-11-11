@@ -7140,6 +7140,219 @@
         "title": "ClientUpdate",
         "type": "object"
       },
+      "ClockIn": {
+        "additionalProperties": false,
+        "properties": {
+          "job_classification_id": {
+            "format": "uuid",
+            "title": "Job Classification Id",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location_id",
+          "job_classification_id",
+          "password"
+        ],
+        "title": "ClockIn",
+        "type": "object"
+      },
+      "ClockOut": {
+        "additionalProperties": false,
+        "properties": {
+          "password": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "password"
+        ],
+        "title": "ClockOut",
+        "type": "object"
+      },
+      "CommissionRuleIn": {
+        "additionalProperties": false,
+        "properties": {
+          "applies_to": {
+            "enum": [
+              "package_sale",
+              "session_completion",
+              "membership_sale"
+            ],
+            "title": "Applies To",
+            "type": "string"
+          },
+          "commission_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "default": "0",
+            "title": "Commission Pct"
+          },
+          "flat_minor": {
+            "default": 0,
+            "maximum": 10000000000.0,
+            "minimum": 0.0,
+            "title": "Flat Minor",
+            "type": "integer"
+          },
+          "is_first_invoice_only": {
+            "default": false,
+            "title": "Is First Invoice Only",
+            "type": "boolean"
+          },
+          "membership_type_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Membership Type Id"
+          },
+          "reservation_type_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reservation Type Id"
+          }
+        },
+        "required": [
+          "applies_to"
+        ],
+        "title": "CommissionRuleIn",
+        "type": "object"
+      },
+      "CommissionRuleOut": {
+        "properties": {
+          "applies_to": {
+            "title": "Applies To",
+            "type": "string"
+          },
+          "commission_pct": {
+            "title": "Commission Pct",
+            "type": "string"
+          },
+          "flat_minor": {
+            "title": "Flat Minor",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_first_invoice_only": {
+            "title": "Is First Invoice Only",
+            "type": "boolean"
+          },
+          "membership_type_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Membership Type Id"
+          },
+          "reservation_type_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reservation Type Id"
+          }
+        },
+        "required": [
+          "id",
+          "applies_to",
+          "reservation_type_id",
+          "membership_type_id",
+          "commission_pct",
+          "flat_minor",
+          "is_first_invoice_only"
+        ],
+        "title": "CommissionRuleOut",
+        "type": "object"
+      },
+      "CommissionRuleSet": {
+        "properties": {
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/CommissionRuleOut"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "staff_payee_id": {
+            "format": "uuid",
+            "title": "Staff Payee Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "staff_payee_id",
+          "rules"
+        ],
+        "title": "CommissionRuleSet",
+        "type": "object"
+      },
+      "CommissionRulesPut": {
+        "additionalProperties": false,
+        "properties": {
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/CommissionRuleIn"
+            },
+            "maxItems": 200,
+            "title": "Rules",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rules"
+        ],
+        "title": "CommissionRulesPut",
+        "type": "object"
+      },
       "ContractHistoryOut": {
         "properties": {
           "action": {
@@ -13938,6 +14151,26 @@
         "title": "InstalmentOut",
         "type": "object"
       },
+      "InstructorAssign": {
+        "additionalProperties": false,
+        "properties": {
+          "staff_payee_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The trainer to teach the session; null removes them",
+            "title": "Staff Payee Id"
+          }
+        },
+        "title": "InstructorAssign",
+        "type": "object"
+      },
       "InvoiceChargeMove": {
         "additionalProperties": false,
         "properties": {
@@ -14740,6 +14973,77 @@
           "reason"
         ],
         "title": "InvoiceVoidRequest",
+        "type": "object"
+      },
+      "JobClassificationCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "JobClassificationCreate",
+        "type": "object"
+      },
+      "JobClassificationOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "is_active"
+        ],
+        "title": "JobClassificationOut",
+        "type": "object"
+      },
+      "JobClassificationUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "JobClassificationUpdate",
         "type": "object"
       },
       "LedgerEntryOut": {
@@ -17512,6 +17816,52 @@
           "detail"
         ],
         "title": "MergeReviewItem",
+        "type": "object"
+      },
+      "MyShiftOut": {
+        "description": "A published shift as its assignee sees it: no manager note.",
+        "properties": {
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_classification_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Classification Id"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "job_classification_id",
+          "starts_at",
+          "ends_at"
+        ],
+        "title": "MyShiftOut",
         "type": "object"
       },
       "NoSaleRequest": {
@@ -21612,6 +21962,26 @@
         "title": "Page[InvoiceOut]",
         "type": "object"
       },
+      "Page_JobClassificationOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/JobClassificationOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[JobClassificationOut]",
+        "type": "object"
+      },
       "Page_LedgerEntryOut_": {
         "properties": {
           "data": {
@@ -21690,6 +22060,26 @@
           "page"
         ],
         "title": "Page[MembershipTypeOut]",
+        "type": "object"
+      },
+      "Page_MyShiftOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/MyShiftOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[MyShiftOut]",
         "type": "object"
       },
       "Page_NoteOut_": {
@@ -21792,6 +22182,46 @@
         "title": "Page[PackageSeriesOut]",
         "type": "object"
       },
+      "Page_PayStatementLineOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PayStatementLineOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[PayStatementLineOut]",
+        "type": "object"
+      },
+      "Page_PayStatementOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PayStatementOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[PayStatementOut]",
+        "type": "object"
+      },
       "Page_PaymentMethodOut_": {
         "properties": {
           "data": {
@@ -21830,6 +22260,26 @@
           "page"
         ],
         "title": "Page[PaymentOut]",
+        "type": "object"
+      },
+      "Page_PayrollRunOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PayrollRunOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[PayrollRunOut]",
         "type": "object"
       },
       "Page_PermissionDefinition_": {
@@ -22372,6 +22822,46 @@
         "title": "Page[SessionOut]",
         "type": "object"
       },
+      "Page_ShiftOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ShiftOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[ShiftOut]",
+        "type": "object"
+      },
+      "Page_StaffPayeeOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/StaffPayeeOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[StaffPayeeOut]",
+        "type": "object"
+      },
       "Page_StaffUserOut_": {
         "properties": {
           "data": {
@@ -22470,6 +22960,26 @@
           "page"
         ],
         "title": "Page[TaxOut]",
+        "type": "object"
+      },
+      "Page_TimeEntryOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TimeEntryOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[TimeEntryOut]",
         "type": "object"
       },
       "Page_TypeOut_": {
@@ -22630,6 +23140,434 @@
           "new_password"
         ],
         "title": "PasswordChange",
+        "type": "object"
+      },
+      "PayRateOut": {
+        "properties": {
+          "comp_session_rate_minor": {
+            "title": "Comp Session Rate Minor",
+            "type": "integer"
+          },
+          "floor_rate_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Rate Minor"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "non_training_rate_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Non Training Rate Minor"
+          },
+          "pay_basis": {
+            "enum": [
+              "per_attendee",
+              "per_session"
+            ],
+            "title": "Pay Basis",
+            "type": "string"
+          },
+          "program_instruction_rate_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Program Instruction Rate Minor"
+          },
+          "rate_30_minor": {
+            "title": "Rate 30 Minor",
+            "type": "integer"
+          },
+          "rate_45_minor": {
+            "title": "Rate 45 Minor",
+            "type": "integer"
+          },
+          "rate_60_minor": {
+            "title": "Rate 60 Minor",
+            "type": "integer"
+          },
+          "reservation_type_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reservation Type Id"
+          },
+          "session_commission_pct": {
+            "title": "Session Commission Pct",
+            "type": "string"
+          },
+          "staff_payee_id": {
+            "format": "uuid",
+            "title": "Staff Payee Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "staff_payee_id",
+          "reservation_type_id",
+          "pay_basis",
+          "rate_60_minor",
+          "rate_45_minor",
+          "rate_30_minor",
+          "comp_session_rate_minor",
+          "session_commission_pct",
+          "program_instruction_rate_minor",
+          "non_training_rate_minor",
+          "floor_rate_minor"
+        ],
+        "title": "PayRateOut",
+        "type": "object"
+      },
+      "PayRateWrite": {
+        "additionalProperties": false,
+        "properties": {
+          "comp_session_rate_minor": {
+            "default": 0,
+            "maximum": 10000000000.0,
+            "minimum": 0.0,
+            "title": "Comp Session Rate Minor",
+            "type": "integer"
+          },
+          "floor_rate_minor": {
+            "anyOf": [
+              {
+                "maximum": 10000000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Rate Minor"
+          },
+          "non_training_rate_minor": {
+            "anyOf": [
+              {
+                "maximum": 10000000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Non Training Rate Minor"
+          },
+          "pay_basis": {
+            "enum": [
+              "per_attendee",
+              "per_session"
+            ],
+            "title": "Pay Basis",
+            "type": "string"
+          },
+          "program_instruction_rate_minor": {
+            "anyOf": [
+              {
+                "maximum": 10000000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Program Instruction Rate Minor"
+          },
+          "rate_30_minor": {
+            "default": 0,
+            "maximum": 10000000000.0,
+            "minimum": 0.0,
+            "title": "Rate 30 Minor",
+            "type": "integer"
+          },
+          "rate_45_minor": {
+            "default": 0,
+            "maximum": 10000000000.0,
+            "minimum": 0.0,
+            "title": "Rate 45 Minor",
+            "type": "integer"
+          },
+          "rate_60_minor": {
+            "default": 0,
+            "maximum": 10000000000.0,
+            "minimum": 0.0,
+            "title": "Rate 60 Minor",
+            "type": "integer"
+          },
+          "session_commission_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "default": "0",
+            "title": "Session Commission Pct"
+          }
+        },
+        "required": [
+          "pay_basis"
+        ],
+        "title": "PayRateWrite",
+        "type": "object"
+      },
+      "PayStatementLineOut": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "base_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Minor"
+          },
+          "commission_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commission Pct"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "occurred_on": {
+            "format": "date",
+            "title": "Occurred On",
+            "type": "string"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "string"
+          },
+          "rate_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate Minor"
+          },
+          "reservation_type_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reservation Type Id"
+          },
+          "source_id": {
+            "format": "uuid",
+            "title": "Source Id",
+            "type": "string"
+          },
+          "source_type": {
+            "title": "Source Type",
+            "type": "string"
+          },
+          "was_paid_before": {
+            "title": "Was Paid Before",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "occurred_on",
+          "source_type",
+          "source_id",
+          "reservation_type_id",
+          "description",
+          "quantity",
+          "rate_minor",
+          "commission_pct",
+          "base_minor",
+          "amount_minor",
+          "was_paid_before"
+        ],
+        "title": "PayStatementLineOut",
+        "type": "object"
+      },
+      "PayStatementOut": {
+        "properties": {
+          "additional_income_minor": {
+            "title": "Additional Income Minor",
+            "type": "integer"
+          },
+          "additional_income_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Additional Income Note"
+          },
+          "bonus_minor": {
+            "title": "Bonus Minor",
+            "type": "integer"
+          },
+          "commission_minor": {
+            "title": "Commission Minor",
+            "type": "integer"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "hourly_pay_minor": {
+            "title": "Hourly Pay Minor",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "payroll_run_id": {
+            "format": "uuid",
+            "title": "Payroll Run Id",
+            "type": "string"
+          },
+          "session_pay_minor": {
+            "title": "Session Pay Minor",
+            "type": "integer"
+          },
+          "staff_payee_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Payee Id"
+          },
+          "staff_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff User Id"
+          },
+          "total_minor": {
+            "title": "Total Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "payroll_run_id",
+          "staff_payee_id",
+          "staff_user_id",
+          "display_name",
+          "session_pay_minor",
+          "commission_minor",
+          "bonus_minor",
+          "hourly_pay_minor",
+          "additional_income_minor",
+          "additional_income_note",
+          "total_minor"
+        ],
+        "title": "PayStatementOut",
+        "type": "object"
+      },
+      "PayStatementUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "additional_income_minor": {
+            "maximum": 10000000000.0,
+            "minimum": -10000000000.0,
+            "title": "Additional Income Minor",
+            "type": "integer"
+          },
+          "additional_income_note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Additional Income Note"
+          }
+        },
+        "required": [
+          "additional_income_minor"
+        ],
+        "title": "PayStatementUpdate",
         "type": "object"
       },
       "PaymentDetail": {
@@ -23287,6 +24225,250 @@
           "tender_kind"
         ],
         "title": "PaymentTake",
+        "type": "object"
+      },
+      "PayrollExport": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          }
+        },
+        "required": [
+          "filename",
+          "content_type",
+          "content"
+        ],
+        "title": "PayrollExport",
+        "type": "object"
+      },
+      "PayrollRunCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "commission_basis": {
+            "anyOf": [
+              {
+                "enum": [
+                  "invoiced",
+                  "paid"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commission Basis"
+          },
+          "includes": {
+            "default": [
+              "sessions",
+              "commissions",
+              "hourly"
+            ],
+            "items": {
+              "enum": [
+                "sessions",
+                "commissions",
+                "hourly"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Includes",
+            "type": "array"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "period_ends_on": {
+            "format": "date",
+            "title": "Period Ends On",
+            "type": "string"
+          },
+          "period_starts_on": {
+            "format": "date",
+            "title": "Period Starts On",
+            "type": "string"
+          },
+          "scope_staff_payee_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Staff Payee Id"
+          }
+        },
+        "required": [
+          "period_starts_on",
+          "period_ends_on"
+        ],
+        "title": "PayrollRunCreate",
+        "type": "object"
+      },
+      "PayrollRunOut": {
+        "properties": {
+          "calculated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calculated At"
+          },
+          "commission_basis": {
+            "enum": [
+              "invoiced",
+              "paid"
+            ],
+            "title": "Commission Basis",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "finalized_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finalized At"
+          },
+          "finalized_by_staff_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finalized By Staff User Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "includes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Includes",
+            "type": "array"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "period_ends_on": {
+            "format": "date",
+            "title": "Period Ends On",
+            "type": "string"
+          },
+          "period_starts_on": {
+            "format": "date",
+            "title": "Period Starts On",
+            "type": "string"
+          },
+          "requested_by_staff_user_id": {
+            "format": "uuid",
+            "title": "Requested By Staff User Id",
+            "type": "string"
+          },
+          "scope_staff_payee_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Staff Payee Id"
+          },
+          "statement_count": {
+            "title": "Statement Count",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "calculating",
+              "calculated",
+              "finalized",
+              "voided"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "total_minor": {
+            "title": "Total Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "period_starts_on",
+          "period_ends_on",
+          "commission_basis",
+          "includes",
+          "scope_staff_payee_id",
+          "status",
+          "calculated_at",
+          "finalized_at",
+          "finalized_by_staff_user_id",
+          "requested_by_staff_user_id",
+          "total_minor",
+          "statement_count",
+          "created_at"
+        ],
+        "title": "PayrollRunOut",
         "type": "object"
       },
       "PeriodLock": {
@@ -37355,6 +38537,48 @@
         "title": "SessionInput",
         "type": "object"
       },
+      "SessionInstructorOut": {
+        "properties": {
+          "booking_id": {
+            "format": "uuid",
+            "title": "Booking Id",
+            "type": "string"
+          },
+          "resource_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Resource Ids",
+            "type": "array"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "staff_payee_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Payee Id"
+          }
+        },
+        "required": [
+          "session_id",
+          "booking_id",
+          "staff_payee_id",
+          "resource_ids"
+        ],
+        "title": "SessionInstructorOut",
+        "type": "object"
+      },
       "SessionOut": {
         "properties": {
           "allows_free_booking": {
@@ -37708,6 +38932,269 @@
         "title": "ShareIn",
         "type": "object"
       },
+      "ShiftCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "job_classification_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Classification Id"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "staff_user_id": {
+            "format": "uuid",
+            "title": "Staff User Id",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "staff_user_id",
+          "location_id",
+          "starts_at",
+          "ends_at"
+        ],
+        "title": "ShiftCreate",
+        "type": "object"
+      },
+      "ShiftOut": {
+        "properties": {
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_classification_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Classification Id"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "staff_user_id": {
+            "format": "uuid",
+            "title": "Staff User Id",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "published",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "staff_user_id",
+          "location_id",
+          "job_classification_id",
+          "starts_at",
+          "ends_at",
+          "status",
+          "note"
+        ],
+        "title": "ShiftOut",
+        "type": "object"
+      },
+      "ShiftPublish": {
+        "additionalProperties": false,
+        "properties": {
+          "location_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "shift_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 500,
+            "title": "Shift Ids",
+            "type": "array"
+          },
+          "starts_from": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts From"
+          },
+          "starts_to": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts To"
+          }
+        },
+        "title": "ShiftPublish",
+        "type": "object"
+      },
+      "ShiftPublishResult": {
+        "properties": {
+          "published_count": {
+            "title": "Published Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "published_count"
+        ],
+        "title": "ShiftPublishResult",
+        "type": "object"
+      },
+      "ShiftUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "ends_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends At"
+          },
+          "job_classification_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Classification Id"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "staff_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff User Id"
+          },
+          "starts_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts At"
+          }
+        },
+        "title": "ShiftUpdate",
+        "type": "object"
+      },
       "SignInRequest": {
         "additionalProperties": false,
         "properties": {
@@ -37829,6 +39316,424 @@
           }
         },
         "title": "SpanUpdate",
+        "type": "object"
+      },
+      "StaffHourlyRateCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "effective_from_on": {
+            "format": "date",
+            "title": "Effective From On",
+            "type": "string"
+          },
+          "job_classification_id": {
+            "format": "uuid",
+            "title": "Job Classification Id",
+            "type": "string"
+          },
+          "rate_minor": {
+            "maximum": 10000000000.0,
+            "minimum": 0.0,
+            "title": "Rate Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "job_classification_id",
+          "rate_minor",
+          "effective_from_on"
+        ],
+        "title": "StaffHourlyRateCreate",
+        "type": "object"
+      },
+      "StaffHourlyRateOut": {
+        "properties": {
+          "effective_from_on": {
+            "format": "date",
+            "title": "Effective From On",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_classification_id": {
+            "format": "uuid",
+            "title": "Job Classification Id",
+            "type": "string"
+          },
+          "rate_minor": {
+            "title": "Rate Minor",
+            "type": "integer"
+          },
+          "staff_user_id": {
+            "format": "uuid",
+            "title": "Staff User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "staff_user_id",
+          "job_classification_id",
+          "rate_minor",
+          "effective_from_on"
+        ],
+        "title": "StaffHourlyRateOut",
+        "type": "object"
+      },
+      "StaffPayeeCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "is_booking_alert_enabled": {
+            "default": false,
+            "title": "Is Booking Alert Enabled",
+            "type": "boolean"
+          },
+          "is_reminder_copy_enabled": {
+            "default": false,
+            "title": "Is Reminder Copy Enabled",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "trainer",
+              "salesperson"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "resource_group_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Schedule group for a new trainer column",
+            "title": "Resource Group Id"
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Adopt an existing trainer resource instead of creating one",
+            "title": "Resource Id"
+          },
+          "staff_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff User Id"
+          }
+        },
+        "required": [
+          "kind",
+          "display_name",
+          "location_id"
+        ],
+        "title": "StaffPayeeCreate",
+        "type": "object"
+      },
+      "StaffPayeeOut": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_booking_alert_enabled": {
+            "title": "Is Booking Alert Enabled",
+            "type": "boolean"
+          },
+          "is_reminder_copy_enabled": {
+            "title": "Is Reminder Copy Enabled",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "trainer",
+              "salesperson"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id"
+          },
+          "staff_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff User Id"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "display_name",
+          "location_id",
+          "resource_id",
+          "staff_user_id",
+          "is_booking_alert_enabled",
+          "is_reminder_copy_enabled",
+          "is_active"
+        ],
+        "title": "StaffPayeeOut",
+        "type": "object"
+      },
+      "StaffPayeeUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "is_booking_alert_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Booking Alert Enabled"
+          },
+          "is_reminder_copy_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Reminder Copy Enabled"
+          },
+          "staff_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff User Id"
+          }
+        },
+        "title": "StaffPayeeUpdate",
+        "type": "object"
+      },
+      "StaffSettingsOut": {
+        "properties": {
+          "default_commission_basis": {
+            "enum": [
+              "invoiced",
+              "paid"
+            ],
+            "title": "Default Commission Basis",
+            "type": "string"
+          },
+          "is_override": {
+            "title": "Is Override",
+            "type": "boolean"
+          },
+          "is_time_clock_network_restricted": {
+            "title": "Is Time Clock Network Restricted",
+            "type": "boolean"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "pay_period": {
+            "enum": [
+              "weekly",
+              "biweekly",
+              "semi_monthly",
+              "monthly"
+            ],
+            "title": "Pay Period",
+            "type": "string"
+          },
+          "pay_period_anchor_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pay Period Anchor On"
+          },
+          "time_clock_networks": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Time Clock Networks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "location_id",
+          "is_override",
+          "is_time_clock_network_restricted",
+          "time_clock_networks",
+          "default_commission_basis",
+          "pay_period",
+          "pay_period_anchor_on"
+        ],
+        "title": "StaffSettingsOut",
+        "type": "object"
+      },
+      "StaffSettingsWrite": {
+        "additionalProperties": false,
+        "properties": {
+          "default_commission_basis": {
+            "default": "paid",
+            "enum": [
+              "invoiced",
+              "paid"
+            ],
+            "title": "Default Commission Basis",
+            "type": "string"
+          },
+          "is_time_clock_network_restricted": {
+            "default": false,
+            "title": "Is Time Clock Network Restricted",
+            "type": "boolean"
+          },
+          "pay_period": {
+            "default": "biweekly",
+            "enum": [
+              "weekly",
+              "biweekly",
+              "semi_monthly",
+              "monthly"
+            ],
+            "title": "Pay Period",
+            "type": "string"
+          },
+          "pay_period_anchor_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pay Period Anchor On"
+          },
+          "time_clock_networks": {
+            "default": [],
+            "items": {
+              "anyOf": [
+                {
+                  "format": "ipv4network",
+                  "type": "string"
+                },
+                {
+                  "format": "ipv6network",
+                  "type": "string"
+                }
+              ]
+            },
+            "maxItems": 50,
+            "title": "Time Clock Networks",
+            "type": "array"
+          }
+        },
+        "title": "StaffSettingsWrite",
         "type": "object"
       },
       "StaffSigner": {
@@ -40473,6 +42378,315 @@
         "title": "TenderTypeUpdate",
         "type": "object"
       },
+      "TimeClockState": {
+        "properties": {
+          "is_network_allowed": {
+            "title": "Is Network Allowed",
+            "type": "boolean"
+          },
+          "job_classifications": {
+            "items": {
+              "$ref": "#/components/schemas/JobClassificationOut"
+            },
+            "title": "Job Classifications",
+            "type": "array"
+          },
+          "open_entry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeEntryOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "open_entry",
+          "job_classifications",
+          "is_network_allowed"
+        ],
+        "title": "TimeClockState",
+        "type": "object"
+      },
+      "TimeEntryCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "clock_in_at": {
+            "format": "date-time",
+            "title": "Clock In At",
+            "type": "string"
+          },
+          "clock_out_at": {
+            "format": "date-time",
+            "title": "Clock Out At",
+            "type": "string"
+          },
+          "edit_reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Edit Reason",
+            "type": "string"
+          },
+          "job_classification_id": {
+            "format": "uuid",
+            "title": "Job Classification Id",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "staff_user_id": {
+            "format": "uuid",
+            "title": "Staff User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "staff_user_id",
+          "location_id",
+          "job_classification_id",
+          "clock_in_at",
+          "clock_out_at",
+          "edit_reason"
+        ],
+        "title": "TimeEntryCreate",
+        "type": "object"
+      },
+      "TimeEntryOut": {
+        "properties": {
+          "clock_in_at": {
+            "format": "date-time",
+            "title": "Clock In At",
+            "type": "string"
+          },
+          "clock_out_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clock Out At"
+          },
+          "duration_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Minutes"
+          },
+          "edit_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edit Reason"
+          },
+          "edited_by_staff_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edited By Staff User Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_classification_id": {
+            "format": "uuid",
+            "title": "Job Classification Id",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "self",
+              "manager"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "staff_user_id": {
+            "format": "uuid",
+            "title": "Staff User Id",
+            "type": "string"
+          },
+          "voided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voided At"
+          }
+        },
+        "required": [
+          "id",
+          "staff_user_id",
+          "location_id",
+          "job_classification_id",
+          "clock_in_at",
+          "clock_out_at",
+          "duration_minutes",
+          "source",
+          "edited_by_staff_user_id",
+          "edit_reason",
+          "voided_at"
+        ],
+        "title": "TimeEntryOut",
+        "type": "object"
+      },
+      "TimeEntryUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "clock_in_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clock In At"
+          },
+          "clock_out_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clock Out At"
+          },
+          "edit_reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Edit Reason",
+            "type": "string"
+          },
+          "job_classification_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Classification Id"
+          }
+        },
+        "required": [
+          "edit_reason"
+        ],
+        "title": "TimeEntryUpdate",
+        "type": "object"
+      },
+      "TimeEntryVoid": {
+        "additionalProperties": false,
+        "properties": {
+          "edit_reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Edit Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "edit_reason"
+        ],
+        "title": "TimeEntryVoid",
+        "type": "object"
+      },
+      "TimeSummaryRow": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "entry_count": {
+            "title": "Entry Count",
+            "type": "integer"
+          },
+          "job_classification_id": {
+            "format": "uuid",
+            "title": "Job Classification Id",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "minutes": {
+            "title": "Minutes",
+            "type": "integer"
+          },
+          "pay_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pay Minor"
+          },
+          "staff_user_id": {
+            "format": "uuid",
+            "title": "Staff User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "staff_user_id",
+          "display_name",
+          "job_classification_id",
+          "location_id",
+          "entry_count",
+          "minutes",
+          "pay_minor"
+        ],
+        "title": "TimeSummaryRow",
+        "type": "object"
+      },
       "Timeline": {
         "properties": {
           "data": {
@@ -40611,6 +42825,77 @@
           "token"
         ],
         "title": "TokenIn",
+        "type": "object"
+      },
+      "TrainerSessionOut": {
+        "properties": {
+          "booked_count": {
+            "title": "Booked Count",
+            "type": "integer"
+          },
+          "booking_id": {
+            "format": "uuid",
+            "title": "Booking Id",
+            "type": "string"
+          },
+          "capacity": {
+            "title": "Capacity",
+            "type": "integer"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "reservation_type_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reservation Type Id"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "booking_id",
+          "session_id",
+          "location_id",
+          "reservation_type_id",
+          "title",
+          "starts_at",
+          "ends_at",
+          "status",
+          "capacity",
+          "booked_count"
+        ],
+        "title": "TrainerSessionOut",
         "type": "object"
       },
       "TypeCreate": {
@@ -57250,6 +59535,276 @@
         ]
       }
     },
+    "/api/v1/job-classifications": {
+      "get": {
+        "operationId": "listJobClassifications",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_JobClassificationOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Job Classifications",
+        "tags": [
+          "staff"
+        ]
+      },
+      "post": {
+        "operationId": "createJobClassification",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobClassificationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobClassificationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Job Classification",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/job-classifications/{job_classification_id}": {
+      "patch": {
+        "operationId": "updateJobClassification",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_classification_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Job Classification Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobClassificationUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobClassificationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Job Classification",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
     "/api/v1/ledger-entries": {
       "get": {
         "description": "Raw double-entry rows. Filters: account, client_id, charge_id, payment_id, location_id, effective_on.",
@@ -61010,6 +63565,144 @@
         ]
       }
     },
+    "/api/v1/my-shifts": {
+      "get": {
+        "operationId": "listMyShifts",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_MyShiftOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List My Shifts",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
     "/api/v1/note-subjects": {
       "get": {
         "operationId": "listNoteSubjects",
@@ -62010,6 +64703,288 @@
         "summary": "Update Package Settings",
         "tags": [
           "packages"
+        ]
+      }
+    },
+    "/api/v1/pay-statements/{pay_statement_id}": {
+      "get": {
+        "operationId": "getPayStatement",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pay_statement_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pay Statement Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayStatementOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Pay Statement",
+        "tags": [
+          "staff"
+        ]
+      },
+      "patch": {
+        "description": "Errors: invalid-state-transition once the run is finalized or voided.",
+        "operationId": "updatePayStatement",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pay_statement_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pay Statement Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayStatementUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayStatementOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Pay Statement",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/pay-statements/{pay_statement_id}/lines": {
+      "get": {
+        "description": "Filters: kind. Sort: occurred_on.",
+        "operationId": "listPayStatementLines",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pay_statement_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pay Statement Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PayStatementLineOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Pay Statement Lines",
+        "tags": [
+          "staff"
         ]
       }
     },
@@ -63147,6 +66122,665 @@
         "summary": "Void Payment",
         "tags": [
           "billing"
+        ]
+      }
+    },
+    "/api/v1/payroll-runs": {
+      "get": {
+        "operationId": "listPayrollRuns",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PayrollRunOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Payroll Runs",
+        "tags": [
+          "staff"
+        ]
+      },
+      "post": {
+        "description": "Calculated synchronously. A run without location_id covers every location and needs reach to all.",
+        "operationId": "createPayrollRun",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayrollRunCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollRunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Payroll Run",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/payroll-runs/{payroll_run_id}": {
+      "get": {
+        "operationId": "getPayrollRun",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "payroll_run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Payroll Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollRunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Payroll Run",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/payroll-runs/{payroll_run_id}/export": {
+      "post": {
+        "description": "The CSV as data, built synchronously; the browser saves it (JSON so idempotent replay works).",
+        "operationId": "exportPayrollRun",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "payroll_run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Payroll Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollExport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Payroll Run",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/payroll-runs/{payroll_run_id}/finalize": {
+      "post": {
+        "operationId": "finalizePayrollRun",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "payroll_run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Payroll Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollRunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Finalize Payroll Run",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/payroll-runs/{payroll_run_id}/recalculate": {
+      "post": {
+        "operationId": "recalculatePayrollRun",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "payroll_run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Payroll Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollRunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Recalculate Payroll Run",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/payroll-runs/{payroll_run_id}/statements": {
+      "get": {
+        "description": "Own reach sees only your own statement of a finalized run.",
+        "operationId": "listPayStatements",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "payroll_run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Payroll Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PayStatementOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Pay Statements",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/payroll-runs/{payroll_run_id}/void": {
+      "post": {
+        "operationId": "voidPayrollRun",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "payroll_run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Payroll Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayrollRunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Void Payroll Run",
+        "tags": [
+          "staff"
         ]
       }
     },
@@ -76853,6 +80487,79 @@
         ]
       }
     },
+    "/api/v1/sessions/{schedule_session_id}/instructor": {
+      "put": {
+        "description": "Errors: booking-conflict when the trainer is busy, session-needs-resource when removing the last one.",
+        "operationId": "assignSessionInstructor",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstructorAssign"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionInstructorOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Assign Session Instructor",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
     "/api/v1/sessions/{schedule_session_id}/roster": {
       "get": {
         "operationId": "getSessionRoster",
@@ -76912,6 +80619,1252 @@
         "summary": "Get Session Roster",
         "tags": [
           "programs"
+        ]
+      }
+    },
+    "/api/v1/shifts": {
+      "get": {
+        "description": "Filters: staff_user_id, location_id, status. Sort: starts_at.",
+        "operationId": "listShifts",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ShiftOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Shifts",
+        "tags": [
+          "staff"
+        ]
+      },
+      "post": {
+        "description": "Created as a draft. Errors: shift-conflict when the employee already has a shift then.",
+        "operationId": "createShift",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShiftCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShiftOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Shift",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/shifts/publish": {
+      "post": {
+        "operationId": "publishShifts",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShiftPublish"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShiftPublishResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publish Shifts",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/shifts/{shift_id}": {
+      "patch": {
+        "operationId": "updateShift",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "shift_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Shift Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShiftUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShiftOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Shift",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/shifts/{shift_id}/cancel": {
+      "post": {
+        "operationId": "cancelShift",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "shift_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Shift Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShiftOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Shift",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/staff-payees": {
+      "get": {
+        "description": "Filters: kind, location_id, is_active, staff_user_id; q searches the display name.",
+        "operationId": "listStaffPayees",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_StaffPayeeOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Staff Payees",
+        "tags": [
+          "staff"
+        ]
+      },
+      "post": {
+        "description": "A trainer gets a calendar column (a trainer resource) unless resource_id adopts an existing one.",
+        "operationId": "createStaffPayee",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffPayeeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffPayeeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Staff Payee",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/staff-payees/{staff_payee_id}": {
+      "get": {
+        "operationId": "getStaffPayee",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_payee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff Payee Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffPayeeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Staff Payee",
+        "tags": [
+          "staff"
+        ]
+      },
+      "patch": {
+        "operationId": "updateStaffPayee",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_payee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff Payee Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffPayeeUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffPayeeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Staff Payee",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/staff-payees/{staff_payee_id}/commission-rules": {
+      "get": {
+        "operationId": "getCommissionRules",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_payee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff Payee Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommissionRuleSet"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Commission Rules",
+        "tags": [
+          "staff"
+        ]
+      },
+      "put": {
+        "operationId": "putCommissionRules",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_payee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff Payee Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommissionRulesPut"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommissionRuleSet"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Commission Rules",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/staff-payees/{staff_payee_id}/pay-rates": {
+      "get": {
+        "operationId": "listPayRates",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_payee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff Payee Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PayRateOut"
+                  },
+                  "title": "Response Listpayrates",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Pay Rates",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/staff-payees/{staff_payee_id}/pay-rates/default": {
+      "put": {
+        "operationId": "putDefaultPayRate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_payee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff Payee Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayRateWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayRateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Default Pay Rate",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/staff-payees/{staff_payee_id}/sessions": {
+      "get": {
+        "description": "The trainer's sessions between two local dates (at most 62 days); by default the coming week.",
+        "operationId": "listStaffPayeeSessions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_payee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff Payee Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TrainerSessionOut"
+                  },
+                  "title": "Response Liststaffpayeesessions",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Staff Payee Sessions",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/staff-settings": {
+      "get": {
+        "description": "The location's effective settings (its override, else the tenant row); no location_id is the tenant row.",
+        "operationId": "getStaffSettings",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Location Id"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Staff Settings",
+        "tags": [
+          "staff"
+        ]
+      },
+      "put": {
+        "operationId": "putStaffSettings",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Location Id"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffSettingsWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Staff Settings",
+        "tags": [
+          "staff"
         ]
       }
     },
@@ -77368,6 +82321,208 @@
         "summary": "Deactivate Staff User",
         "tags": [
           "platform"
+        ]
+      }
+    },
+    "/api/v1/staff-users/{staff_user_id}/hourly-rates": {
+      "get": {
+        "operationId": "listStaffHourlyRates",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff User Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StaffHourlyRateOut"
+                  },
+                  "title": "Response Liststaffhourlyrates",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Staff Hourly Rates",
+        "tags": [
+          "staff"
+        ]
+      },
+      "post": {
+        "operationId": "addStaffHourlyRate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff User Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffHourlyRateCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffHourlyRateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Staff Hourly Rate",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/staff-users/{staff_user_id}/hourly-rates/{staff_hourly_rate_id}": {
+      "delete": {
+        "description": "Errors: rate-in-use once a time entry has been paid at it.",
+        "operationId": "deleteStaffHourlyRate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "staff_hourly_rate_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff Hourly Rate Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Staff Hourly Rate",
+        "tags": [
+          "staff"
         ]
       }
     },
@@ -79138,6 +84293,639 @@
         "summary": "Update Tender Type",
         "tags": [
           "billing"
+        ]
+      }
+    },
+    "/api/v1/time-entries": {
+      "get": {
+        "description": "Filters: staff_user_id, location_id, job_classification_id. Own reach lists only your own entries.",
+        "operationId": "listTimeEntries",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_TimeEntryOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Time Entries",
+        "tags": [
+          "staff"
+        ]
+      },
+      "post": {
+        "description": "A manager's entry for someone who forgot to punch. Errors: own-time-entry, time-entry-overlap.",
+        "operationId": "createTimeEntry",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimeEntryCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeEntryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Time Entry",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/time-entries/clock-in": {
+      "post": {
+        "description": "Re-enter your password. Errors: reauthentication-failed, already-clocked-in, network-not-allowed.",
+        "operationId": "clockIn",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClockIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeEntryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clock In",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/time-entries/clock-out": {
+      "post": {
+        "description": "Errors: reauthentication-failed, not-clocked-in, network-not-allowed.",
+        "operationId": "clockOut",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClockOut"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeEntryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clock Out",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/time-entries/current": {
+      "get": {
+        "operationId": "getTimeClockState",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Location Id"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeClockState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Time Clock State",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/time-entries/summary": {
+      "get": {
+        "description": "Hours by employee, job and location for local dates [from, to]; pay_minor only with staff.pay_rate.read.",
+        "operationId": "getTimeSummary",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Location Id"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TimeSummaryRow"
+                  },
+                  "title": "Response Gettimesummary",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Time Summary",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/time-entries/{time_entry_id}": {
+      "patch": {
+        "operationId": "updateTimeEntry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "time_entry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Time Entry Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimeEntryUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeEntryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Time Entry",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/time-entries/{time_entry_id}/void": {
+      "post": {
+        "operationId": "voidTimeEntry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "time_entry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Time Entry Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimeEntryVoid"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeEntryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Void Time Entry",
+        "tags": [
+          "staff"
         ]
       }
     },

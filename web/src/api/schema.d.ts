@@ -3086,6 +3086,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/job-classifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Job Classifications */
+        get: operations["listJobClassifications"];
+        put?: never;
+        /** Create Job Classification */
+        post: operations["createJobClassification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/job-classifications/{job_classification_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Job Classification */
+        patch: operations["updateJobClassification"];
+        trace?: never;
+    };
     "/api/v1/ledger-entries": {
         parameters: {
             query?: never;
@@ -3811,6 +3846,23 @@ export interface paths {
         patch: operations["updateMembershipType"];
         trace?: never;
     };
+    "/api/v1/my-shifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List My Shifts */
+        get: operations["listMyShifts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/note-subjects": {
         parameters: {
             query?: never;
@@ -3983,6 +4035,47 @@ export interface paths {
         head?: never;
         /** Update Package Settings */
         patch: operations["updatePackageSettings"];
+        trace?: never;
+    };
+    "/api/v1/pay-statements/{pay_statement_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Pay Statement */
+        get: operations["getPayStatement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Pay Statement
+         * @description Errors: invalid-state-transition once the run is finalized or voided.
+         */
+        patch: operations["updatePayStatement"];
+        trace?: never;
+    };
+    "/api/v1/pay-statements/{pay_statement_id}/lines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Pay Statement Lines
+         * @description Filters: kind. Sort: occurred_on.
+         */
+        get: operations["listPayStatementLines"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/payment-methods": {
@@ -4238,6 +4331,135 @@ export interface paths {
          * @description Record-only payments only. Errors: use-refund, payment-not-voidable.
          */
         post: operations["voidPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payroll-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Payroll Runs */
+        get: operations["listPayrollRuns"];
+        put?: never;
+        /**
+         * Create Payroll Run
+         * @description Calculated synchronously. A run without location_id covers every location and needs reach to all.
+         */
+        post: operations["createPayrollRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payroll-runs/{payroll_run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Payroll Run */
+        get: operations["getPayrollRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payroll-runs/{payroll_run_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Payroll Run
+         * @description The CSV as data, built synchronously; the browser saves it (JSON so idempotent replay works).
+         */
+        post: operations["exportPayrollRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payroll-runs/{payroll_run_id}/finalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Finalize Payroll Run */
+        post: operations["finalizePayrollRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payroll-runs/{payroll_run_id}/recalculate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Recalculate Payroll Run */
+        post: operations["recalculatePayrollRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payroll-runs/{payroll_run_id}/statements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Pay Statements
+         * @description Own reach sees only your own statement of a finalized run.
+         */
+        get: operations["listPayStatements"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payroll-runs/{payroll_run_id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Void Payroll Run */
+        post: operations["voidPayrollRun"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6784,6 +7006,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{schedule_session_id}/instructor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Assign Session Instructor
+         * @description Errors: booking-conflict when the trainer is busy, session-needs-resource when removing the last one.
+         */
+        put: operations["assignSessionInstructor"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions/{schedule_session_id}/roster": {
         parameters: {
             query?: never;
@@ -6794,6 +7036,216 @@ export interface paths {
         /** Get Session Roster */
         get: operations["getSessionRoster"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shifts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Shifts
+         * @description Filters: staff_user_id, location_id, status. Sort: starts_at.
+         */
+        get: operations["listShifts"];
+        put?: never;
+        /**
+         * Create Shift
+         * @description Created as a draft. Errors: shift-conflict when the employee already has a shift then.
+         */
+        post: operations["createShift"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shifts/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish Shifts */
+        post: operations["publishShifts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shifts/{shift_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Shift */
+        patch: operations["updateShift"];
+        trace?: never;
+    };
+    "/api/v1/shifts/{shift_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Shift */
+        post: operations["cancelShift"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff-payees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Staff Payees
+         * @description Filters: kind, location_id, is_active, staff_user_id; q searches the display name.
+         */
+        get: operations["listStaffPayees"];
+        put?: never;
+        /**
+         * Create Staff Payee
+         * @description A trainer gets a calendar column (a trainer resource) unless resource_id adopts an existing one.
+         */
+        post: operations["createStaffPayee"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff-payees/{staff_payee_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Staff Payee */
+        get: operations["getStaffPayee"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Staff Payee */
+        patch: operations["updateStaffPayee"];
+        trace?: never;
+    };
+    "/api/v1/staff-payees/{staff_payee_id}/commission-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Commission Rules */
+        get: operations["getCommissionRules"];
+        /** Put Commission Rules */
+        put: operations["putCommissionRules"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff-payees/{staff_payee_id}/pay-rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Pay Rates */
+        get: operations["listPayRates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff-payees/{staff_payee_id}/pay-rates/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Default Pay Rate */
+        put: operations["putDefaultPayRate"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff-payees/{staff_payee_id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Staff Payee Sessions
+         * @description The trainer's sessions between two local dates (at most 62 days); by default the coming week.
+         */
+        get: operations["listStaffPayeeSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Staff Settings
+         * @description The location's effective settings (its override, else the tenant row); no location_id is the tenant row.
+         */
+        get: operations["getStaffSettings"];
+        /** Put Staff Settings */
+        put: operations["putStaffSettings"];
         post?: never;
         delete?: never;
         options?: never;
@@ -6879,6 +7331,44 @@ export interface paths {
          */
         post: operations["deactivateStaffUser"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff-users/{staff_user_id}/hourly-rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Staff Hourly Rates */
+        get: operations["listStaffHourlyRates"];
+        put?: never;
+        /** Add Staff Hourly Rate */
+        post: operations["addStaffHourlyRate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff-users/{staff_user_id}/hourly-rates/{staff_hourly_rate_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Staff Hourly Rate
+         * @description Errors: rate-in-use once a time entry has been paid at it.
+         */
+        delete: operations["deleteStaffHourlyRate"];
         options?: never;
         head?: never;
         patch?: never;
@@ -7223,6 +7713,141 @@ export interface paths {
         head?: never;
         /** Update Tender Type */
         patch: operations["updateTenderType"];
+        trace?: never;
+    };
+    "/api/v1/time-entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Time Entries
+         * @description Filters: staff_user_id, location_id, job_classification_id. Own reach lists only your own entries.
+         */
+        get: operations["listTimeEntries"];
+        put?: never;
+        /**
+         * Create Time Entry
+         * @description A manager's entry for someone who forgot to punch. Errors: own-time-entry, time-entry-overlap.
+         */
+        post: operations["createTimeEntry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/time-entries/clock-in": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clock In
+         * @description Re-enter your password. Errors: reauthentication-failed, already-clocked-in, network-not-allowed.
+         */
+        post: operations["clockIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/time-entries/clock-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clock Out
+         * @description Errors: reauthentication-failed, not-clocked-in, network-not-allowed.
+         */
+        post: operations["clockOut"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/time-entries/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Time Clock State */
+        get: operations["getTimeClockState"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/time-entries/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Time Summary
+         * @description Hours by employee, job and location for local dates [from, to]; pay_minor only with staff.pay_rate.read.
+         */
+        get: operations["getTimeSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/time-entries/{time_entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Time Entry */
+        patch: operations["updateTimeEntry"];
+        trace?: never;
+    };
+    "/api/v1/time-entries/{time_entry_id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Void Time Entry */
+        post: operations["voidTimeEntry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/waitlist-entries": {
@@ -9627,6 +10252,88 @@ export interface components {
             /** Version */
             version?: number | null;
         };
+        /** ClockIn */
+        ClockIn: {
+            /**
+             * Job Classification Id
+             * Format: uuid
+             */
+            job_classification_id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Password */
+            password: string;
+        };
+        /** ClockOut */
+        ClockOut: {
+            /** Password */
+            password: string;
+        };
+        /** CommissionRuleIn */
+        CommissionRuleIn: {
+            /**
+             * Applies To
+             * @enum {string}
+             */
+            applies_to: "package_sale" | "session_completion" | "membership_sale";
+            /**
+             * Commission Pct
+             * @default 0
+             */
+            commission_pct: number | string;
+            /**
+             * Flat Minor
+             * @default 0
+             */
+            flat_minor: number;
+            /**
+             * Is First Invoice Only
+             * @default false
+             */
+            is_first_invoice_only: boolean;
+            /** Membership Type Id */
+            membership_type_id?: string | null;
+            /** Reservation Type Id */
+            reservation_type_id?: string | null;
+        };
+        /** CommissionRuleOut */
+        CommissionRuleOut: {
+            /** Applies To */
+            applies_to: string;
+            /** Commission Pct */
+            commission_pct: string;
+            /** Flat Minor */
+            flat_minor: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is First Invoice Only */
+            is_first_invoice_only: boolean;
+            /** Membership Type Id */
+            membership_type_id: string | null;
+            /** Reservation Type Id */
+            reservation_type_id: string | null;
+        };
+        /** CommissionRuleSet */
+        CommissionRuleSet: {
+            /** Rules */
+            rules: components["schemas"]["CommissionRuleOut"][];
+            /**
+             * Staff Payee Id
+             * Format: uuid
+             */
+            staff_payee_id: string;
+        };
+        /** CommissionRulesPut */
+        CommissionRulesPut: {
+            /** Rules */
+            rules: components["schemas"]["CommissionRuleIn"][];
+        };
         /** ContractHistoryOut */
         ContractHistoryOut: {
             /** Action */
@@ -11818,6 +12525,14 @@ export interface components {
             /** Seq */
             seq: number;
         };
+        /** InstructorAssign */
+        InstructorAssign: {
+            /**
+             * Staff Payee Id
+             * @description The trainer to teach the session; null removes them
+             */
+            staff_payee_id?: string | null;
+        };
         /** InvoiceChargeMove */
         InvoiceChargeMove: {
             /**
@@ -12083,6 +12798,30 @@ export interface components {
              * @default false
              */
             release_allocations: boolean;
+        };
+        /** JobClassificationCreate */
+        JobClassificationCreate: {
+            /** Name */
+            name: string;
+        };
+        /** JobClassificationOut */
+        JobClassificationOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+        };
+        /** JobClassificationUpdate */
+        JobClassificationUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
         };
         /** LedgerEntryOut */
         LedgerEntryOut: {
@@ -12865,6 +13604,34 @@ export interface components {
              * @enum {string}
              */
             kind: "portal_access" | "relationship";
+        };
+        /**
+         * MyShiftOut
+         * @description A published shift as its assignee sees it: no manager note.
+         */
+        MyShiftOut: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Job Classification Id */
+            job_classification_id: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
         };
         /** NoSaleRequest */
         NoSaleRequest: {
@@ -14064,6 +14831,12 @@ export interface components {
             data: components["schemas"]["InvoiceOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[JobClassificationOut] */
+        Page_JobClassificationOut_: {
+            /** Data */
+            data: components["schemas"]["JobClassificationOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[LedgerEntryOut] */
         Page_LedgerEntryOut_: {
             /** Data */
@@ -14086,6 +14859,12 @@ export interface components {
         Page_MembershipTypeOut_: {
             /** Data */
             data: components["schemas"]["MembershipTypeOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[MyShiftOut] */
+        Page_MyShiftOut_: {
+            /** Data */
+            data: components["schemas"]["MyShiftOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[NoteOut] */
@@ -14118,6 +14897,18 @@ export interface components {
             data: components["schemas"]["PackageSeriesOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[PayStatementLineOut] */
+        Page_PayStatementLineOut_: {
+            /** Data */
+            data: components["schemas"]["PayStatementLineOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PayStatementOut] */
+        Page_PayStatementOut_: {
+            /** Data */
+            data: components["schemas"]["PayStatementOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[PaymentMethodOut] */
         Page_PaymentMethodOut_: {
             /** Data */
@@ -14128,6 +14919,12 @@ export interface components {
         Page_PaymentOut_: {
             /** Data */
             data: components["schemas"]["PaymentOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PayrollRunOut] */
+        Page_PayrollRunOut_: {
+            /** Data */
+            data: components["schemas"]["PayrollRunOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[PermissionDefinition] */
@@ -14292,6 +15089,18 @@ export interface components {
             data: components["schemas"]["SessionOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[ShiftOut] */
+        Page_ShiftOut_: {
+            /** Data */
+            data: components["schemas"]["ShiftOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[StaffPayeeOut] */
+        Page_StaffPayeeOut_: {
+            /** Data */
+            data: components["schemas"]["StaffPayeeOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[StaffUserOut] */
         Page_StaffUserOut_: {
             /** Data */
@@ -14320,6 +15129,12 @@ export interface components {
         Page_TaxOut_: {
             /** Data */
             data: components["schemas"]["TaxOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[TimeEntryOut] */
+        Page_TimeEntryOut_: {
+            /** Data */
+            data: components["schemas"]["TimeEntryOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[TypeOut] */
@@ -14387,6 +15202,159 @@ export interface components {
             current_password?: string | null;
             /** New Password */
             new_password: string;
+        };
+        /** PayRateOut */
+        PayRateOut: {
+            /** Comp Session Rate Minor */
+            comp_session_rate_minor: number;
+            /** Floor Rate Minor */
+            floor_rate_minor: number | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Non Training Rate Minor */
+            non_training_rate_minor: number | null;
+            /**
+             * Pay Basis
+             * @enum {string}
+             */
+            pay_basis: "per_attendee" | "per_session";
+            /** Program Instruction Rate Minor */
+            program_instruction_rate_minor: number | null;
+            /** Rate 30 Minor */
+            rate_30_minor: number;
+            /** Rate 45 Minor */
+            rate_45_minor: number;
+            /** Rate 60 Minor */
+            rate_60_minor: number;
+            /** Reservation Type Id */
+            reservation_type_id: string | null;
+            /** Session Commission Pct */
+            session_commission_pct: string;
+            /**
+             * Staff Payee Id
+             * Format: uuid
+             */
+            staff_payee_id: string;
+        };
+        /** PayRateWrite */
+        PayRateWrite: {
+            /**
+             * Comp Session Rate Minor
+             * @default 0
+             */
+            comp_session_rate_minor: number;
+            /** Floor Rate Minor */
+            floor_rate_minor?: number | null;
+            /** Non Training Rate Minor */
+            non_training_rate_minor?: number | null;
+            /**
+             * Pay Basis
+             * @enum {string}
+             */
+            pay_basis: "per_attendee" | "per_session";
+            /** Program Instruction Rate Minor */
+            program_instruction_rate_minor?: number | null;
+            /**
+             * Rate 30 Minor
+             * @default 0
+             */
+            rate_30_minor: number;
+            /**
+             * Rate 45 Minor
+             * @default 0
+             */
+            rate_45_minor: number;
+            /**
+             * Rate 60 Minor
+             * @default 0
+             */
+            rate_60_minor: number;
+            /**
+             * Session Commission Pct
+             * @default 0
+             */
+            session_commission_pct: number | string;
+        };
+        /** PayStatementLineOut */
+        PayStatementLineOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Base Minor */
+            base_minor: number | null;
+            /** Commission Pct */
+            commission_pct: string | null;
+            /** Description */
+            description: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Occurred On
+             * Format: date
+             */
+            occurred_on: string;
+            /** Quantity */
+            quantity: string;
+            /** Rate Minor */
+            rate_minor: number | null;
+            /** Reservation Type Id */
+            reservation_type_id: string | null;
+            /**
+             * Source Id
+             * Format: uuid
+             */
+            source_id: string;
+            /** Source Type */
+            source_type: string;
+            /** Was Paid Before */
+            was_paid_before: boolean;
+        };
+        /** PayStatementOut */
+        PayStatementOut: {
+            /** Additional Income Minor */
+            additional_income_minor: number;
+            /** Additional Income Note */
+            additional_income_note: string | null;
+            /** Bonus Minor */
+            bonus_minor: number;
+            /** Commission Minor */
+            commission_minor: number;
+            /** Display Name */
+            display_name: string;
+            /** Hourly Pay Minor */
+            hourly_pay_minor: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Payroll Run Id
+             * Format: uuid
+             */
+            payroll_run_id: string;
+            /** Session Pay Minor */
+            session_pay_minor: number;
+            /** Staff Payee Id */
+            staff_payee_id: string | null;
+            /** Staff User Id */
+            staff_user_id: string | null;
+            /** Total Minor */
+            total_minor: number;
+        };
+        /** PayStatementUpdate */
+        PayStatementUpdate: {
+            /** Additional Income Minor */
+            additional_income_minor: number;
+            /** Additional Income Note */
+            additional_income_note?: string | null;
         };
         /** PaymentDetail */
         PaymentDetail: {
@@ -14594,6 +15562,97 @@ export interface components {
             tender_kind: "card" | "bank_debit" | "cash" | "cheque" | "bank_transfer" | "gift_card" | "external" | "other";
             /** Tender Type Id */
             tender_type_id?: string | null;
+        };
+        /** PayrollExport */
+        PayrollExport: {
+            /** Content */
+            content: string;
+            /** Content Type */
+            content_type: string;
+            /** Filename */
+            filename: string;
+        };
+        /** PayrollRunCreate */
+        PayrollRunCreate: {
+            /** Commission Basis */
+            commission_basis?: ("invoiced" | "paid") | null;
+            /**
+             * Includes
+             * @default [
+             *       "sessions",
+             *       "commissions",
+             *       "hourly"
+             *     ]
+             */
+            includes: ("sessions" | "commissions" | "hourly")[];
+            /** Location Id */
+            location_id?: string | null;
+            /**
+             * Period Ends On
+             * Format: date
+             */
+            period_ends_on: string;
+            /**
+             * Period Starts On
+             * Format: date
+             */
+            period_starts_on: string;
+            /** Scope Staff Payee Id */
+            scope_staff_payee_id?: string | null;
+        };
+        /** PayrollRunOut */
+        PayrollRunOut: {
+            /** Calculated At */
+            calculated_at: string | null;
+            /**
+             * Commission Basis
+             * @enum {string}
+             */
+            commission_basis: "invoiced" | "paid";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Finalized At */
+            finalized_at: string | null;
+            /** Finalized By Staff User Id */
+            finalized_by_staff_user_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Includes */
+            includes: string[];
+            /** Location Id */
+            location_id: string | null;
+            /**
+             * Period Ends On
+             * Format: date
+             */
+            period_ends_on: string;
+            /**
+             * Period Starts On
+             * Format: date
+             */
+            period_starts_on: string;
+            /**
+             * Requested By Staff User Id
+             * Format: uuid
+             */
+            requested_by_staff_user_id: string;
+            /** Scope Staff Payee Id */
+            scope_staff_payee_id: string | null;
+            /** Statement Count */
+            statement_count: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "calculating" | "calculated" | "finalized" | "voided";
+            /** Total Minor */
+            total_minor: number;
         };
         /** PeriodLock */
         PeriodLock: {
@@ -19101,6 +20160,23 @@ export interface components {
             /** Is Self Bookable */
             is_self_bookable?: boolean | null;
         };
+        /** SessionInstructorOut */
+        SessionInstructorOut: {
+            /**
+             * Booking Id
+             * Format: uuid
+             */
+            booking_id: string;
+            /** Resource Ids */
+            resource_ids: string[];
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /** Staff Payee Id */
+            staff_payee_id: string | null;
+        };
         /** SessionOut */
         SessionOut: {
             /** Allows Free Booking */
@@ -19219,6 +20295,102 @@ export interface components {
              */
             client_id: string;
         };
+        /** ShiftCreate */
+        ShiftCreate: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Job Classification Id */
+            job_classification_id?: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Note */
+            note?: string | null;
+            /**
+             * Staff User Id
+             * Format: uuid
+             */
+            staff_user_id: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
+        /** ShiftOut */
+        ShiftOut: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Job Classification Id */
+            job_classification_id: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Note */
+            note: string | null;
+            /**
+             * Staff User Id
+             * Format: uuid
+             */
+            staff_user_id: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "published" | "cancelled";
+        };
+        /** ShiftPublish */
+        ShiftPublish: {
+            /** Location Id */
+            location_id?: string | null;
+            /**
+             * Shift Ids
+             * @default []
+             */
+            shift_ids: string[];
+            /** Starts From */
+            starts_from?: string | null;
+            /** Starts To */
+            starts_to?: string | null;
+        };
+        /** ShiftPublishResult */
+        ShiftPublishResult: {
+            /** Published Count */
+            published_count: number;
+        };
+        /** ShiftUpdate */
+        ShiftUpdate: {
+            /** Ends At */
+            ends_at?: string | null;
+            /** Job Classification Id */
+            job_classification_id?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Staff User Id */
+            staff_user_id?: string | null;
+            /** Starts At */
+            starts_at?: string | null;
+        };
         /** SignInRequest */
         SignInRequest: {
             /**
@@ -19262,6 +20434,176 @@ export interface components {
             end_on?: string | null;
             /** Remarks */
             remarks?: string | null;
+        };
+        /** StaffHourlyRateCreate */
+        StaffHourlyRateCreate: {
+            /**
+             * Effective From On
+             * Format: date
+             */
+            effective_from_on: string;
+            /**
+             * Job Classification Id
+             * Format: uuid
+             */
+            job_classification_id: string;
+            /** Rate Minor */
+            rate_minor: number;
+        };
+        /** StaffHourlyRateOut */
+        StaffHourlyRateOut: {
+            /**
+             * Effective From On
+             * Format: date
+             */
+            effective_from_on: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Job Classification Id
+             * Format: uuid
+             */
+            job_classification_id: string;
+            /** Rate Minor */
+            rate_minor: number;
+            /**
+             * Staff User Id
+             * Format: uuid
+             */
+            staff_user_id: string;
+        };
+        /** StaffPayeeCreate */
+        StaffPayeeCreate: {
+            /** Display Name */
+            display_name: string;
+            /**
+             * Is Booking Alert Enabled
+             * @default false
+             */
+            is_booking_alert_enabled: boolean;
+            /**
+             * Is Reminder Copy Enabled
+             * @default false
+             */
+            is_reminder_copy_enabled: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "trainer" | "salesperson";
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Resource Group Id
+             * @description Schedule group for a new trainer column
+             */
+            resource_group_id?: string | null;
+            /**
+             * Resource Id
+             * @description Adopt an existing trainer resource instead of creating one
+             */
+            resource_id?: string | null;
+            /** Staff User Id */
+            staff_user_id?: string | null;
+        };
+        /** StaffPayeeOut */
+        StaffPayeeOut: {
+            /** Display Name */
+            display_name: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Booking Alert Enabled */
+            is_booking_alert_enabled: boolean;
+            /** Is Reminder Copy Enabled */
+            is_reminder_copy_enabled: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "trainer" | "salesperson";
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Resource Id */
+            resource_id: string | null;
+            /** Staff User Id */
+            staff_user_id: string | null;
+        };
+        /** StaffPayeeUpdate */
+        StaffPayeeUpdate: {
+            /** Display Name */
+            display_name?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Is Booking Alert Enabled */
+            is_booking_alert_enabled?: boolean | null;
+            /** Is Reminder Copy Enabled */
+            is_reminder_copy_enabled?: boolean | null;
+            /** Staff User Id */
+            staff_user_id?: string | null;
+        };
+        /** StaffSettingsOut */
+        StaffSettingsOut: {
+            /**
+             * Default Commission Basis
+             * @enum {string}
+             */
+            default_commission_basis: "invoiced" | "paid";
+            /** Is Override */
+            is_override: boolean;
+            /** Is Time Clock Network Restricted */
+            is_time_clock_network_restricted: boolean;
+            /** Location Id */
+            location_id: string | null;
+            /**
+             * Pay Period
+             * @enum {string}
+             */
+            pay_period: "weekly" | "biweekly" | "semi_monthly" | "monthly";
+            /** Pay Period Anchor On */
+            pay_period_anchor_on: string | null;
+            /** Time Clock Networks */
+            time_clock_networks: string[];
+        };
+        /** StaffSettingsWrite */
+        StaffSettingsWrite: {
+            /**
+             * Default Commission Basis
+             * @default paid
+             * @enum {string}
+             */
+            default_commission_basis: "invoiced" | "paid";
+            /**
+             * Is Time Clock Network Restricted
+             * @default false
+             */
+            is_time_clock_network_restricted: boolean;
+            /**
+             * Pay Period
+             * @default biweekly
+             * @enum {string}
+             */
+            pay_period: "weekly" | "biweekly" | "semi_monthly" | "monthly";
+            /** Pay Period Anchor On */
+            pay_period_anchor_on?: string | null;
+            /**
+             * Time Clock Networks
+             * @default []
+             */
+            time_clock_networks: (string)[];
         };
         /** StaffSigner */
         StaffSigner: {
@@ -20107,6 +21449,129 @@ export interface components {
             /** Sort Order */
             sort_order?: number | null;
         };
+        /** TimeClockState */
+        TimeClockState: {
+            /** Is Network Allowed */
+            is_network_allowed: boolean;
+            /** Job Classifications */
+            job_classifications: components["schemas"]["JobClassificationOut"][];
+            open_entry: components["schemas"]["TimeEntryOut"] | null;
+        };
+        /** TimeEntryCreate */
+        TimeEntryCreate: {
+            /**
+             * Clock In At
+             * Format: date-time
+             */
+            clock_in_at: string;
+            /**
+             * Clock Out At
+             * Format: date-time
+             */
+            clock_out_at: string;
+            /** Edit Reason */
+            edit_reason: string;
+            /**
+             * Job Classification Id
+             * Format: uuid
+             */
+            job_classification_id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Staff User Id
+             * Format: uuid
+             */
+            staff_user_id: string;
+        };
+        /** TimeEntryOut */
+        TimeEntryOut: {
+            /**
+             * Clock In At
+             * Format: date-time
+             */
+            clock_in_at: string;
+            /** Clock Out At */
+            clock_out_at: string | null;
+            /** Duration Minutes */
+            duration_minutes: number | null;
+            /** Edit Reason */
+            edit_reason: string | null;
+            /** Edited By Staff User Id */
+            edited_by_staff_user_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Job Classification Id
+             * Format: uuid
+             */
+            job_classification_id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "self" | "manager";
+            /**
+             * Staff User Id
+             * Format: uuid
+             */
+            staff_user_id: string;
+            /** Voided At */
+            voided_at: string | null;
+        };
+        /** TimeEntryUpdate */
+        TimeEntryUpdate: {
+            /** Clock In At */
+            clock_in_at?: string | null;
+            /** Clock Out At */
+            clock_out_at?: string | null;
+            /** Edit Reason */
+            edit_reason: string;
+            /** Job Classification Id */
+            job_classification_id?: string | null;
+        };
+        /** TimeEntryVoid */
+        TimeEntryVoid: {
+            /** Edit Reason */
+            edit_reason: string;
+        };
+        /** TimeSummaryRow */
+        TimeSummaryRow: {
+            /** Display Name */
+            display_name: string;
+            /** Entry Count */
+            entry_count: number;
+            /**
+             * Job Classification Id
+             * Format: uuid
+             */
+            job_classification_id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Minutes */
+            minutes: number;
+            /** Pay Minor */
+            pay_minor: number | null;
+            /**
+             * Staff User Id
+             * Format: uuid
+             */
+            staff_user_id: string;
+        };
         /** Timeline */
         Timeline: {
             /** Data */
@@ -20155,6 +21620,44 @@ export interface components {
         TokenIn: {
             /** Token */
             token: string;
+        };
+        /** TrainerSessionOut */
+        TrainerSessionOut: {
+            /** Booked Count */
+            booked_count: number;
+            /**
+             * Booking Id
+             * Format: uuid
+             */
+            booking_id: string;
+            /** Capacity */
+            capacity: number;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Reservation Type Id */
+            reservation_type_id: string | null;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
         };
         /** TypeCreate */
         TypeCreate: {
@@ -28111,6 +29614,123 @@ export interface operations {
             };
         };
     };
+    listJobClassifications: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_JobClassificationOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createJobClassification: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobClassificationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobClassificationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateJobClassification: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                job_classification_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobClassificationUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobClassificationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listLedgerEntries: {
         parameters: {
             query?: {
@@ -29909,6 +31529,49 @@ export interface operations {
             };
         };
     };
+    listMyShifts: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_MyShiftOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listNoteSubjects: {
         parameters: {
             query?: never;
@@ -30399,6 +32062,123 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PackageSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPayStatement: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                pay_statement_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayStatementOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updatePayStatement: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                pay_statement_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayStatementUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayStatementOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPayStatementLines: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                pay_statement_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PayStatementLineOut_"];
                 };
             };
             /** @description Validation Error */
@@ -30952,6 +32732,300 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaymentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPayrollRuns: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PayrollRunOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createPayrollRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayrollRunCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPayrollRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payroll_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    exportPayrollRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payroll_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollExport"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    finalizePayrollRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payroll_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recalculatePayrollRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payroll_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPayStatements: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payroll_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PayStatementOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    voidPayrollRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payroll_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayrollRunOut"];
                 };
             };
             /** @description Validation Error */
@@ -37452,6 +39526,44 @@ export interface operations {
             };
         };
     };
+    assignSessionInstructor: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InstructorAssign"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionInstructorOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getSessionRoster: {
         parameters: {
             query?: never;
@@ -37473,6 +39585,597 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Roster"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listShifts: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ShiftOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createShift: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShiftCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShiftOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publishShifts: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShiftPublish"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShiftPublishResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateShift: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                shift_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShiftUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShiftOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancelShift: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                shift_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShiftOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listStaffPayees: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_StaffPayeeOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createStaffPayee: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffPayeeCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffPayeeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getStaffPayee: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_payee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffPayeeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateStaffPayee: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_payee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffPayeeUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffPayeeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getCommissionRules: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_payee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionRuleSet"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putCommissionRules: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_payee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommissionRulesPut"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionRuleSet"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPayRates: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_payee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayRateOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putDefaultPayRate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_payee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayRateWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayRateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listStaffPayeeSessions: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_payee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainerSessionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getStaffSettings: {
+        parameters: {
+            query?: {
+                location_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putStaffSettings: {
+        parameters: {
+            query?: {
+                location_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffSettingsWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffSettingsOut"];
                 };
             };
             /** @description Validation Error */
@@ -37693,6 +40396,111 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["StaffUserOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listStaffHourlyRates: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffHourlyRateOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    addStaffHourlyRate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffHourlyRateCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffHourlyRateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteStaffHourlyRate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_user_id: string;
+                staff_hourly_rate_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -38598,6 +41406,303 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TenderTypeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listTimeEntries: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_TimeEntryOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createTimeEntry: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TimeEntryCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clockIn: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClockIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clockOut: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClockOut"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getTimeClockState: {
+        parameters: {
+            query?: {
+                location_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeClockState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getTimeSummary: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                location_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeSummaryRow"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateTimeEntry: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                time_entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TimeEntryUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    voidTimeEntry: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                time_entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TimeEntryVoid"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimeEntryOut"];
                 };
             };
             /** @description Validation Error */

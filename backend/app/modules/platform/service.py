@@ -388,6 +388,15 @@ def staff_user_exists(session: Session, staff_user_id: UUID) -> bool:
     return session.get(StaffUser, staff_user_id) is not None
 
 
+def staff_user_works_at(session: Session, staff_user_id: UUID, location_id: UUID) -> bool:
+    """Whether an active staff user may work at a location (all-location access or an access row). Internal:
+    staff checks a shift's or time entry's employee against the record's location."""
+    user = session.get(StaffUser, staff_user_id)
+    if user is None or not user.is_active:
+        return False
+    return user.has_all_location_access or location_id in user.location_ids
+
+
 def disable_client_identity(session: Session, identity_id: UUID, status: str = "disabled") -> None:
     """A client identity with no active access row left is disabled (or marked merged) and signed out."""
     from app.modules.platform import auth
@@ -443,6 +452,15 @@ def set_linked_resource(session: Session, staff_user_id: UUID, resource_id: UUID
         raise ValidationFailed("Unknown staff user.", pointer="/staff_user_id")
     user.linked_resource_id = resource_id
     session.flush()
+
+
+def staff_user_names(session: Session, staff_user_ids) -> dict[UUID, str]:
+    """Display names of staff users by id, for another context's read model (payroll, shifts). Internal."""
+    ids = list(staff_user_ids)
+    rows = session.execute(
+        select(StaffUser.id, StaffUser.first_name, StaffUser.last_name).where(StaffUser.id.in_(ids))
+    ).all() if ids else []  # fmt: skip
+    return {row[0]: f"{row[1]} {row[2]}" for row in rows}
 
 
 def location_time_zone(session: Session, location_id: UUID) -> str:

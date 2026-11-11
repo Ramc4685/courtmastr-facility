@@ -1400,3 +1400,21 @@ def _erase(session: Session, client_id: UUID) -> dict:
 _TABLES = ("client_package", "package_series", "package_share", "credit_ledger_entry")
 clients.merge.register_merge_handler("packages", tables=_TABLES, repoint=_repoint)
 platform.privacy.register_subject_handler("packages", tables=_TABLES, export=_export, erase=_erase)
+
+
+# --- internal: payroll facts (staff, STF-10) ---------------------------------------------------------------------
+
+
+def sales_by_seller(session: Session, staff_user_id: UUID, starts_at, ends_at, location_ids=None) -> list[dict]:
+    """Packages a staff user sold in [starts_at, ends_at): the facts a package-sale commission needs."""
+    stmt = select(ClientPackage).where(
+        ClientPackage.sold_by_staff_user_id == staff_user_id, ClientPackage.created_at >= starts_at,
+        ClientPackage.created_at < ends_at, ClientPackage.is_complimentary.is_(False),
+    )  # fmt: skip
+    if location_ids is not None:
+        stmt = stmt.where(ClientPackage.location_id.in_(list(location_ids)))
+    return [
+        {"id": p.id, "location_id": p.location_id, "sold_at": p.created_at, "name": p.name,
+         "reservation_type_id": p.reservation_type_id, "price_minor": p.price_minor}
+        for p in session.scalars(stmt.order_by(ClientPackage.created_at, ClientPackage.id))
+    ]  # fmt: skip

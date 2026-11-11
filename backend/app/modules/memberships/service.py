@@ -17,7 +17,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.core import audit, clock, events
 from app.core.api import CONSTRAINT_CODES
@@ -1963,3 +1963,28 @@ def addon_grants(session: Session, contract_id: UUID) -> dict:
         "is_live": contract.status in ("active", "frozen", "suspended"),
         "addons": [{"id": a.id, "package_plan_id": a.package_plan_id, "quantity": a.quantity} for a in addons],
     }  # fmt: skip
+
+
+# --- internal: payroll facts (staff, STF-10) ---------------------------------------------------------------------
+
+
+def seller_periods(session: Session, staff_user_id: UUID, starts_on: date, ends_on: date, location_ids=None) -> list:
+    """Billed periods, with a bill date in [starts_on, ends_on], of contracts a staff user sold: the facts a
+    membership-sale commission needs. `is_first` marks the first bill of a contract that is not a renewal."""
+    p, c = BillingSchedulePeriod, MembershipContract
+    inner = aliased(BillingSchedulePeriod)
+    first = select(func.min(inner.sequence_number)).where(inner.membership_contract_id == c.id).scalar_subquery()
+    stmt = (
+        select(p.id, p.bill_on, p.sequence_number == first, c.id, c.location_id, c.membership_type_id, c.name,
+               c.previous_contract_id)
+        .join(c, c.id == p.membership_contract_id)
+        .where(c.sold_by_staff_user_id == staff_user_id, p.charge_id.is_not(None), p.bill_on >= starts_on,
+               p.bill_on <= ends_on)
+    )  # fmt: skip
+    if location_ids is not None:
+        stmt = stmt.where(c.location_id.in_(list(location_ids)))
+    return [
+        {"period_id": r[0], "bill_on": r[1], "is_first": bool(r[2]) and r[7] is None, "contract_id": r[3],
+         "location_id": r[4], "membership_type_id": r[5], "name": r[6]}
+        for r in session.execute(stmt.order_by(p.bill_on, p.id))
+    ]  # fmt: skip

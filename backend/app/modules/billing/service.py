@@ -1855,3 +1855,18 @@ def charge_payments(session: Session, charge_id: UUID) -> list[tuple[UUID, int]]
     reverses, so the released money can be re-applied or refunded payment by payment. Internal."""
     rows = session.scalars(_live_allocations(PaymentAllocation.charge_id == charge_id))
     return [(row.payment_id, row.amount_minor) for row in rows]
+
+
+def source_totals(session: Session, source_context: str, source_type: str, source_ids: Iterable[UUID]) -> dict:
+    """Internal read for payroll commission (STF-09, STF-10): per source id, the invoiced and the paid amount
+    of its live charges (adjustments and reversals included, voided charges left out)."""
+    ids = list(source_ids)
+    rows = session.execute(
+        select(Charge.source_id, func.sum(Charge.total_minor), func.sum(Charge.applied_minor))
+        .where(
+            Charge.source_context == source_context, Charge.source_type == source_type,
+            Charge.source_id.in_(ids), Charge.status != "voided",
+        )
+        .group_by(Charge.source_id)
+    ).all() if ids else []  # fmt: skip
+    return {row[0]: {"invoiced_minor": int(row[1]), "paid_minor": int(row[2])} for row in rows}

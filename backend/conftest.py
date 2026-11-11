@@ -202,6 +202,7 @@ def populate(client, tenant) -> SimpleNamespace:
     space |= _populate_rentals(
         client, headers, post, location["id"], person["id"], space["resource_id"], category_id, tax_id
     )
+    space |= _populate_staff(client, headers, post, location["id"], invited["id"], space["trainer_resource_id"])
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
         session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
@@ -542,6 +543,46 @@ def _populate_rentals(client, headers, post, location_id, client_id, court_id, c
         "rental_plan_id": plan["id"],
         "purchase_id": purchase["id"],
     }
+
+
+def _populate_staff(client, headers, post, location_id, staff_user_id, trainer_resource_id) -> dict:
+    """Build module 12: a row in every staff table. The invited user works an hourly job; the seeded trainer
+    resource gets a payee with session pay; the same user sells on commission. A run then pays the hours."""
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+
+    def put(path: str, body: dict) -> dict:
+        response = client.put(f"/api/v1{path}", json=body, headers=headers)
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    today = clock.now().astimezone(ZoneInfo("America/Chicago")).date()
+    job = post("/job-classifications", {"name": "Front desk"})
+    rate = post(f"/staff-users/{staff_user_id}/hourly-rates", {
+        "job_classification_id": job["id"], "rate_minor": 1500, "effective_from_on": "2020-01-01"})  # fmt: skip
+    put("/staff-settings", {"pay_period": "biweekly"})
+    worked = clock.now() - timedelta(days=3)
+    entry = post("/time-entries", {
+        "staff_user_id": staff_user_id, "location_id": location_id, "job_classification_id": job["id"],
+        "clock_in_at": worked.isoformat(), "clock_out_at": (worked + timedelta(hours=2)).isoformat(),
+        "edit_reason": "Forgot to punch",
+    })  # fmt: skip
+    shift = post("/shifts", {"staff_user_id": staff_user_id, "location_id": location_id, "job_classification_id": job["id"],
+                             "starts_at": "2030-03-04T14:00:00Z", "ends_at": "2030-03-04T22:00:00Z"})  # fmt: skip
+    trainer = post("/staff-payees", {"kind": "trainer", "display_name": "Coach Kim", "location_id": location_id,
+                                     "resource_id": trainer_resource_id})  # fmt: skip
+    put(f"/staff-payees/{trainer['id']}/pay-rates/default", {"pay_basis": "per_session", "rate_60_minor": 3000})
+    seller = post("/staff-payees", {"kind": "salesperson", "display_name": "New Person", "location_id": location_id,
+                                    "staff_user_id": staff_user_id})  # fmt: skip
+    put(f"/staff-payees/{seller['id']}/commission-rules", {"rules": [{"applies_to": "package_sale", "commission_pct": "10"}]})
+    run = post("/payroll-runs", {"location_id": location_id, "period_starts_on": (today - timedelta(days=13)).isoformat(),
+                                 "period_ends_on": today.isoformat()})  # fmt: skip
+    statement = client.get(f"/api/v1/payroll-runs/{run['id']}/statements", headers=headers).json()["data"][0]
+    return {
+        "job_classification_id": job["id"], "staff_hourly_rate_id": rate["id"], "time_entry_id": entry["id"],
+        "shift_id": shift["id"], "staff_payee_id": trainer["id"], "salesperson_payee_id": seller["id"],
+        "payroll_run_id": run["id"], "pay_statement_id": statement["id"],
+    }  # fmt: skip
 
 
 @pytest.fixture(scope="session")

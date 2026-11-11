@@ -70,6 +70,8 @@ CLIENT_OR_TENANT_ROUTES = {
         updateProductCategory updateProductSupplier updateReferralCategory updateRelationshipType
         updateRentalPlan updateRentalRate updateRentalType updateReservationCategory updateReservationType
         updateRevenueCategory updateRole updateStaffUser updateTag updateTax updateTaxRate updateTenderType
+        addStaffHourlyRate deleteStaffHourlyRate getCommissionRules listPayRates listStaffHourlyRates
+        putCommissionRules putDefaultPayRate
     """.split()),
 }  # fmt: skip
 

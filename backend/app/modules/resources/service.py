@@ -371,3 +371,21 @@ def windows_for(session: Session, resource_ids: Iterable[UUID]) -> dict[UUID, li
     for row in rows:
         grouped.setdefault(row.resource_id, []).append(row)
     return grouped
+
+
+def trainer_group(session: Session, location_id: UUID) -> UUID:
+    """The schedule group a new trainer column joins when none is named: the first active group at the
+    location, else a new "Trainers" group (staff creates trainer payees through this). Internal."""
+    found = session.scalar(
+        select(ResourceGroup.id)
+        .where(ResourceGroup.location_id == location_id, ResourceGroup.is_active)
+        .order_by(ResourceGroup.sort_order, ResourceGroup.name, ResourceGroup.id)
+        .limit(1)
+    )
+    if found is None:
+        group = ResourceGroup(location_id=location_id, name="Trainers")
+        session.add(group)
+        session.flush()
+        audit.record(session, MANAGE, group, location_id=location_id, changes={"name": True})
+        found = group.id
+    return found

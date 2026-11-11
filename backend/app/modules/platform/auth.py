@@ -119,6 +119,26 @@ def sign_in(session: Session, *, email: str, password: str, audience: str = "sta
     return grant
 
 
+def reauthenticate(session: Session, principal: Principal, password: str) -> None:
+    """Re-check the signed-in staff user's own password before a time-clock punch (STF-07). Failures count
+    toward the same lockout as sign-in, so a punch screen cannot be used to guess. Raise before any write."""
+    cfg = get_settings().auth
+    now = clock.now()
+    identity = session.get(Identity, principal.identity_id)
+    if identity is None or identity.password_hash is None or (identity.locked_until_at or now) > now:
+        passwords.burn(password)
+        raise PermissionDenied("Password is incorrect.", code="reauthentication-failed")
+    if not passwords.verify_password(identity.password_hash, password):
+        identity.failed_attempt_count += 1
+        if identity.failed_attempt_count >= cfg.lockout_threshold:
+            identity.failed_attempt_count = 0
+            identity.locked_until_at = now + timedelta(minutes=cfg.lockout_min)
+            events.publish(session, IdentityLocked(identity_id=identity.id), identity.id)
+        audit.record(session, "platform.identity.reauthentication_failed", identity)
+        raise PermissionDenied("Password is incorrect.", code="reauthentication-failed", persist=True)
+    identity.failed_attempt_count = 0
+
+
 _FRESH_PROOF = timedelta(minutes=15)  # the step-up window of rbac-matrix.md section 2
 
 

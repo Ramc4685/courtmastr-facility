@@ -382,3 +382,16 @@ def on_session_cancelled(session: Db, session_id: UUID) -> None:
     ):
         entry.status, entry.removed_reason = "expired", "session_cancelled"
     session.flush()
+
+
+# --- internal: payroll facts (staff, STF-09) ---------------------------------------------------------------------
+
+
+def attended_counts(session: Db, session_ids) -> dict[UUID, int]:
+    """Clients marked attended per session: the attendee count a per-attendee trainer is paid on."""
+    ids = list(session_ids)
+    rows = session.execute(
+        select(Attendance.session_id, func.count()).where(Attendance.session_id.in_(ids), Attendance.status == "attended")
+        .group_by(Attendance.session_id)
+    ).all() if ids else []  # fmt: skip
+    return {row[0]: int(row[1]) for row in rows}

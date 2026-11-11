@@ -44,6 +44,13 @@ import { ProductsPage } from '../features/pos/ProductsPage'
 import { RegisterPage, RegisterPickerPage } from '../features/pos/RegisterPage'
 import { PosReceiptPage, SaleDetailPage, SalesPage } from '../features/pos/SalesPage'
 import { PosSetupPage } from '../features/pos/SetupPage'
+import { ClockPage } from '../features/staff/ClockPage'
+import { PayeesPage } from '../features/staff/PayeesPage'
+import { PayrollPage } from '../features/staff/PayrollPage'
+import { ShiftsPage } from '../features/staff/ShiftsPage'
+import { StaffSetupPage } from '../features/staff/StaffSetupPage'
+import { StaffTimeLayout } from '../features/staff/shared'
+import { TimeEntriesPage } from '../features/staff/TimeEntriesPage'
 import { PosLayout } from '../features/pos/shared'
 import { AppFrame } from './AppFrame'
 import { RequireClient, RequirePermission, RequireStaff } from './guards'
@@ -104,6 +111,14 @@ export function AppRoutes() {
           <Route path="drawers" element={<RequirePermission permission="pos.drawer.operate"><DrawersPage /></RequirePermission>} />
           <Route path="reports" element={<PosReportsPage />} />
           <Route path="setup" element={<RequirePermission permission="pos.register.manage"><PosSetupPage /></RequirePermission>} />
+        </Route>
+        <Route path="staff-time" element={<StaffTimeLayout />}>
+          <Route index element={<RequirePermission permission="staff.time_entry.punch"><ClockPage /></RequirePermission>} />
+          <Route path="entries" element={<RequirePermission permission="staff.time_entry.read"><TimeEntriesPage /></RequirePermission>} />
+          <Route path="shifts" element={<RequirePermission permission="staff.shift.manage"><ShiftsPage /></RequirePermission>} />
+          <Route path="payees" element={<RequirePermission permission="resources.resource.manage"><PayeesPage /></RequirePermission>} />
+          <Route path="payroll" element={<RequirePermission permission="staff.payroll_run.create"><PayrollPage /></RequirePermission>} />
+          <Route path="setup" element={<RequirePermission permission="staff.time_entry.manage"><StaffSetupPage /></RequirePermission>} />
         </Route>
         <Route path="clients" element={<RequirePermission permission="clients.client.read"><ClientsPage /></RequirePermission>} />
         <Route path="clients/merge" element={<RequirePermission permission="clients.client.merge"><MergePage /></RequirePermission>} />
