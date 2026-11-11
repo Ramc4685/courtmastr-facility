@@ -6648,8 +6648,8 @@ export interface paths {
         };
         /**
          * List Portal Inbox
-         * @description Announcements and notices for the clients this login holds, newest first; recalled and expired items
-         *     are hidden.
+         * @description Announcements and notices for one client the login acts for (default: its own record), newest first;
+         *     recalled and expired items are hidden. Errors: 404 when the login may not act for client_id.
          */
         get: operations["listPortalInbox"];
         put?: never;
@@ -47699,6 +47699,7 @@ export interface operations {
     listPortalInbox: {
         parameters: {
             query?: {
+                client_id?: string | null;
                 /** @description Page size */
                 limit?: number;
                 /** @description Opaque keyset cursor from page.next_cursor */
@@ -47741,7 +47742,9 @@ export interface operations {
     };
     getPortalInboxUnreadCount: {
         parameters: {
-            query?: never;
+            query?: {
+                client_id?: string | null;
+            };
             header?: {
                 /** @description Optional; keys live 24 hours. */
                 "idempotency-key"?: string | null;

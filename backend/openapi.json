@@ -96231,9 +96231,26 @@
     },
     "/api/v1/portal/inbox": {
       "get": {
-        "description": "Announcements and notices for the clients this login holds, newest first; recalled and expired items\nare hidden.",
+        "description": "Announcements and notices for one client the login acts for (default: its own record), newest first;\nrecalled and expired items are hidden. Errors: 404 when the login may not act for client_id.",
         "operationId": "listPortalInbox",
         "parameters": [
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
+            }
+          },
           {
             "description": "Page size",
             "in": "query",
@@ -96372,6 +96389,23 @@
       "get": {
         "operationId": "getPortalInboxUnreadCount",
         "parameters": [
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
+            }
+          },
           {
             "description": "Optional; keys live 24 hours.",
             "in": "header",
