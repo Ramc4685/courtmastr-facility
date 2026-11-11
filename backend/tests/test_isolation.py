@@ -223,6 +223,31 @@ _BODIES = {
     "cancelBookingSeries": {"scope": {"mode": "all"}},
     "updateSession": {"is_self_bookable": False},
     "cancelEnrollment": {},
+    "rebookEnrollment": lambda ids: {"session_id": ids.schedule_session_id},
+    "sendSessionRosterMessage": {"subject": "Hi", "body_html": "Hello"},
+    "updateProgramGroup": {"name": "Renamed"},
+    "addProgramSessions": lambda ids: {"session_ids": [ids.schedule_session_id]},
+    "createProgramGroupFee": {"description": "X", "amount_minor": 100},
+    "updateProgramFee": {"description": "Renamed"},
+    "putRegistrationConfig": {"is_enabled": True},
+    "addRegistrationCheckoutItem": lambda ids: {"program_group_id": ids.program_group_id, "client_id": ids.client_id},
+    "addPortalRegistrationCheckoutItem": lambda ids: {
+        "program_group_id": ids.program_group_id,
+        "client_id": ids.client_id,
+    },
+    "confirmPortalRegistrationCheckout": {},
+    "claimPortalWaitlistOffer": {},
+    "putDefaultSessionBookingPolicy": {
+        "listing_mode": "bookable",
+        "requires_active_membership": False,
+        "visible_range_days": 30,
+        "hides_full_sessions": False,
+        "booking_cutoff_minutes": 0,
+        "allows_self_cancel": True,
+        "cancel_notice_minutes": 0,
+        "waitlist_mode": "auto_promote",
+    },
+    "putSessionBookingPolicyOverride": {},
     "putSessionAttendance": {
         "marks": [{"enrollment_id": "00000000-0000-7000-8000-000000000000", "status": "attended"}]
     },
@@ -277,7 +302,10 @@ def test_api_foreign_tenant_id_is_404(client, two_tenants, method, path, name):
     a, b = two_tenants
     url = re.sub(r"\{(\w+)_id\}", lambda m: str(getattr(b, f"{m[1]}_id")), path)
     body = body_for(name, a)  # A's own ids in the body, so only the path id is foreign
-    response = client.request(method, url, headers=a.headers | {"Idempotency-Key": f"iso-{name}-key"}, json=body)
+    headers = a.headers | {"Idempotency-Key": f"iso-{name}-key"}
+    if "/public/" in path:  # anonymous routes take the tenant from the host or X-Tenant-Slug, not the token
+        headers |= {"X-Tenant-Slug": a.tenant.slug}
+    response = client.request(method, url, headers=headers, json=body)
     assert response.status_code == 404, response.text
     assert response.json()["code"] == "not-found"
 

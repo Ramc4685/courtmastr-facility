@@ -202,6 +202,7 @@ def populate(client, tenant) -> SimpleNamespace:
     space |= _populate_rentals(
         client, headers, post, location["id"], person["id"], space["resource_id"], category_id, tax_id
     )
+    space |= _populate_programs(client, headers, post, location["id"], person["id"], space, category_id)
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
         session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
@@ -499,6 +500,55 @@ def _populate_space(client, tenant, headers, post, location_id, client_id) -> di
         "booking_series_id": created["booking_series_id"], "rule_id": series["rules"][0]["id"],
         "run_id": long_pass["status_url"].rsplit("/", 1)[1], "schedule_session_id": seat,
         "enrollment_id": enrollment["id"], "waitlist_entry_id": waiting["id"],
+    }  # fmt: skip
+
+
+def _populate_programs(client, headers, post, location_id, client_id, space, category_id) -> dict:
+    """Build module 6: a program with a subgroup, a fee, online registration (published), a linked session, a
+    registration (charged and invoiced), a group waitlist entry, a basket holding a place, and booking policies."""
+    program = post("/program-groups", {
+        "location_id": location_id, "name": "Summer Camp", "kind": "camp", "capacity": 1, "waitlist_mode": "manual",
+        "revenue_category_id": category_id,
+    })  # fmt: skip
+    post("/program-groups", {"parent_id": program["id"], "name": "Week 1"})
+    fee = post(f"/program-groups/{program['id']}/fees", {"description": "Camp fee", "amount_minor": 15000})
+    post("/program-fees", {"location_id": location_id, "description": "Late pickup", "amount_minor": 1000})
+    config = client.put(
+        f"/api/v1/program-groups/{program['id']}/registration-config", headers=headers,
+        json={"is_enabled": True, "payment_requirement": "pay_later_allowed"},
+    )  # fmt: skip
+    assert config.status_code == 200, config.text
+    post(f"/program-groups/{program['id']}/publish", {})
+    bookings = client.get(f"/api/v1/bookings?booking_series_id={space['booking_series_id']}", headers=headers).json()
+    linked = next(b["session"]["id"] for b in bookings["data"] if b["session"]["id"] != space["schedule_session_id"])
+    post(f"/program-groups/{program['id']}/sessions", {"session_ids": [linked]})
+    gone = post("/program-groups", {"location_id": location_id, "name": "Old Camp"})
+    assert client.delete(f"/api/v1/program-groups/{gone['id']}", headers=headers).status_code == 204
+    post("/enrollments", {"program_group_id": program["id"], "client_id": client_id, "program_fee_ids": [fee["id"]]})
+    post(
+        "/waitlist-entries",
+        {"program_group_id": program["id"], "client_id": new_client(client, headers, location_id)["id"],
+         "program_fee_id": fee["id"]},
+    )  # fmt: skip
+    open_program = post("/program-groups", {"location_id": location_id, "name": "Clinic Series"})
+    basket = post("/registration-checkouts", {"location_id": location_id})
+    basket = post(f"/registration-checkouts/{basket['id']}/items", {
+        "program_group_id": open_program["id"], "client_id": new_client(client, headers, location_id)["id"],
+    })  # fmt: skip
+    policy = {
+        "listing_mode": "bookable", "requires_active_membership": False, "visible_range_days": 60,
+        "hides_full_sessions": False, "booking_cutoff_minutes": 60, "allows_self_cancel": True,
+        "cancel_notice_minutes": 720, "waitlist_mode": "open_offer",
+    }  # fmt: skip
+    for path, body in (
+        (f"/locations/{location_id}/session-booking-policy", policy),
+        (f"/reservation-types/{space['reservation_type_id']}/session-booking-policy", {"booking_cutoff_minutes": 0}),
+    ):
+        put = client.put(f"/api/v1{path}", headers=headers, json=body)
+        assert put.status_code == 200, put.text
+    return {
+        "program_group_id": program["id"], "program_fee_id": fee["id"], "checkout_id": basket["id"],
+        "item_id": basket["items"][0]["id"], "linked_session_id": linked, "deleted_program_group_id": gone["id"],
     }  # fmt: skip
 
 

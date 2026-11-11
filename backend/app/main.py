@@ -24,6 +24,7 @@ def create_app() -> FastAPI:
     from app.modules.platform.privacy_router import router as privacy_router
     from app.modules.platform.router import API_PREFIX, router
     from app.modules.pos.router import router as pos_router
+    from app.modules.programs.router import public as programs_public
     from app.modules.programs.router import router as programs_router
     from app.modules.rentals.router import router as rentals_router
     from app.modules.resources.router import router as resources_router
@@ -43,7 +44,7 @@ def create_app() -> FastAPI:
         app.include_router(each, prefix=API_PREFIX)
     for each in (memberships_router, packages_router, memberships_public, packages_public):
         app.include_router(each, prefix=API_PREFIX)
-    for each in (resources_router, scheduling_router, programs_router):
+    for each in (resources_router, scheduling_router, programs_router, programs_public):
         app.include_router(each, prefix=API_PREFIX)
     app.include_router(rentals_router, prefix=API_PREFIX)
     return app

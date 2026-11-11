@@ -110,7 +110,7 @@ per location, WCAG 2.1 AA, docs updated).
 | 3 | Rentals and events | staff screens; P0 8 done, 1 partial (no portal screen); no lockers, plan sharing |
 | 4 | Clients and households | P0 15 done, 1 partial; no photo, attachments, preference centre |
 | 5 | Memberships and packages | staff screens; P0 10 done, 5 partial; no portal pages, post-billed, reports |
-| 6 | Programs and registration | session slice only: staff enrol (free or by package), attendance, waitlist |
+| 6 | Programs and registration | staff and portal screens; P0 13 done, 2 partial; no deposits, instalments, guest checkout, coupons |
 | 7 | Waivers and documents (`documents`) | all P0 done; P1 all but DOC-07 bulk send |
 | 8 | Billing and payments | staff screens; P0 13 done, 13 partial; no pre-defined items, disputes, PDFs |
 | 9 | Point of sale and inventory | all P0 done bar 2 partial; packages sell at the till |

@@ -2594,15 +2594,36 @@ export interface paths {
         };
         /**
          * List Enrollments
-         * @description Filters: location_id, session_id, client_id, status. Sort: enrolled_at.
+         * @description Filters: location_id, session_id, program_group_id, client_id, status, batch_id. Sort: enrolled_at.
          */
         get: operations["listEnrollments"];
         put?: never;
         /**
          * Create Enrollment
-         * @description Seat taken under the session row lock. Errors: capacity-full, already-enrolled, session-not-bookable.
+         * @description A session seat (row lock on the session) or a place in a group node with its fees charged on one invoice.
+         *     Errors: capacity-full, already-enrolled, session-not-bookable, program-not-active, fee-required.
          */
         post: operations["createEnrollment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/enrollments/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Enrollment Batch
+         * @description One savepoint per occurrence; full or ineligible occurrences come back in `skipped` with their code.
+         */
+        post: operations["createEnrollmentBatch"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2637,9 +2658,27 @@ export interface paths {
         put?: never;
         /**
          * Cancel Enrollment
-         * @description Releases the seat and promotes the head of the waitlist in the same transaction.
+         * @description Releases the seat or place and promotes the waitlist in the same transaction. `billing_disposition:
+         *     reversed` needs billing.charge.reverse.
          */
         post: operations["cancelEnrollment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/enrollments/{enrollment_id}/rebook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rebook Enrollment */
+        post: operations["rebookEnrollment"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3182,6 +3221,23 @@ export interface paths {
          * @description Replace the whole week (one entry per ISO weekday). closes_time 24:00 is a midnight close.
          */
         put: operations["replaceFacilityHours"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/locations/{location_id}/session-booking-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Default Session Booking Policy */
+        put: operations["putDefaultSessionBookingPolicy"];
         post?: never;
         delete?: never;
         options?: never;
@@ -4550,6 +4606,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/enrollments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Enrollments
+         * @description Filters: status, target_kind, client_id.
+         */
+        get: operations["listPortalEnrollments"];
+        put?: never;
+        /**
+         * Create Portal Enrollment
+         * @description Errors: policy-violation (with reason), capacity-full, already-enrolled, entitlement-not-eligible.
+         */
+        post: operations["createPortalEnrollment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/enrollments/{enrollment_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Portal Enrollment
+         * @description Early or late per the policy notice period. Errors: policy-violation.
+         */
+        post: operations["cancelPortalEnrollment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/invoices": {
         parameters: {
             query?: never;
@@ -4785,6 +4885,115 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/registration-checkouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Portal Registration Checkout */
+        post: operations["createPortalRegistrationCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/registration-checkouts/{checkout_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Registration Checkout */
+        get: operations["getPortalRegistrationCheckout"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/registration-checkouts/{checkout_id}/abandon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Abandon Portal Registration Checkout */
+        post: operations["abandonPortalRegistrationCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/registration-checkouts/{checkout_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Portal Registration Checkout
+         * @description Pays through secure_online_checkout as the strictest program asks. Errors: payment-failed,
+         *     payment-method-required, pay-now-required, document-required.
+         */
+        post: operations["confirmPortalRegistrationCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/registration-checkouts/{checkout_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Portal Registration Checkout Item
+         * @description Errors: capacity-full, registration-closed, already-enrolled, checkout-expired.
+         */
+        post: operations["addPortalRegistrationCheckoutItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/registration-checkouts/{checkout_id}/items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Portal Registration Checkout Item */
+        delete: operations["removePortalRegistrationCheckoutItem"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/relationship-types": {
         parameters: {
             query?: never;
@@ -4909,6 +5118,84 @@ export interface paths {
          * @description Errors: hold-expired, payment-declined.
          */
         post: operations["confirmPortalRental"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/session-listings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Session Listings
+         * @description Sessions with whether the acting client may book or queue now, and why not.
+         */
+        get: operations["listPortalSessionListings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/waitlist-entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Portal Waitlist Entries */
+        get: operations["listPortalWaitlistEntries"];
+        put?: never;
+        /**
+         * Join Portal Waitlist
+         * @description Errors: session-has-space, waitlist-disabled, already-enrolled, already-waitlisted.
+         */
+        post: operations["joinPortalWaitlist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/waitlist-entries/{waitlist_entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Leave Portal Waitlist */
+        delete: operations["leavePortalWaitlist"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/waitlist-entries/{waitlist_entry_id}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Claim Portal Waitlist Offer
+         * @description First valid claim wins. Errors: capacity-full (back to waiting), invalid-state-transition.
+         */
+        post: operations["claimPortalWaitlistOffer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5480,6 +5767,318 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/program-fees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Program Fees
+         * @description Catalogue fees (no group): staff-side only. Filters: location_id, is_active.
+         */
+        get: operations["listProgramFees"];
+        put?: never;
+        /** Create Catalogue Fee */
+        post: operations["createCatalogueFee"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-fees/{program_fee_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Program Fee
+         * @description A fee already used is retired (inactive) instead.
+         */
+        delete: operations["deleteProgramFee"];
+        options?: never;
+        head?: never;
+        /** Update Program Fee */
+        patch: operations["updateProgramFee"];
+        trace?: never;
+    };
+    "/api/v1/program-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Program Groups
+         * @description Roots unless `parent_id` is given; `deleted=true` lists deleted nodes. Filters: location_id, status, kind,
+         *     parent_id. Sort: name, starts_on, created_at. q searches the name.
+         */
+        get: operations["listProgramGroups"];
+        put?: never;
+        /**
+         * Create Program Group
+         * @description A root needs location_id; a subgroup (parent_id) lives at its parent's location. Errors:
+         *     max-children-reached, program-not-active.
+         */
+        post: operations["createProgramGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Program Group */
+        get: operations["getProgramGroup"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Program Group
+         * @description Soft delete of the node and its subtree. Errors: has-registrations.
+         */
+        delete: operations["deleteProgramGroup"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Program Group
+         * @description Errors: capacity-below-enrolled, max-children-below-count.
+         */
+        patch: operations["updateProgramGroup"];
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive Program Group */
+        post: operations["archiveProgramGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete Program Group */
+        post: operations["completeProgramGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/fees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Program Group Fees */
+        get: operations["listProgramGroupFees"];
+        put?: never;
+        /** Create Program Group Fee */
+        post: operations["createProgramGroupFee"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish Program Group
+         * @description Errors: registration-disabled.
+         */
+        post: operations["publishProgramGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/registration-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Registration Config */
+        get: operations["getRegistrationConfig"];
+        /**
+         * Put Registration Config
+         * @description Errors: slug-taken.
+         */
+        put: operations["putRegistrationConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reopen Program Group */
+        post: operations["reopenProgramGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Program Group */
+        post: operations["restoreProgramGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/roster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Program Group Roster
+         * @description Everyone registered in the node and its subgroups.
+         */
+        get: operations["getProgramGroupRoster"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Program Sessions */
+        get: operations["listProgramSessions"];
+        put?: never;
+        /**
+         * Add Program Sessions
+         * @description Everyone registered takes a seat in each new session. Errors: capacity-full, session-already-linked.
+         */
+        post: operations["addProgramSessions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/sessions/{schedule_session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Program Session */
+        delete: operations["removeProgramSession"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Program Group Tree */
+        get: operations["getProgramGroupTree"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/unpublish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unpublish Program Group */
+        post: operations["unpublishProgramGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/provider-accounts": {
         parameters: {
             query?: never;
@@ -5711,6 +6310,40 @@ export interface paths {
          * @description The terms a new portal account accepts (DOC-14). Tenant from the host or X-Tenant-Slug.
          */
         get: operations["getPublicPortalTerms"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/program-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Public Program Groups */
+        get: operations["listPublicProgramGroups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/program-groups/{program_group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Public Program Group */
+        get: operations["getPublicProgramGroup"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5965,6 +6598,114 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/registration-checkouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Registration Checkout */
+        post: operations["createRegistrationCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/registration-checkouts/{checkout_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Registration Checkout */
+        get: operations["getRegistrationCheckout"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/registration-checkouts/{checkout_id}/abandon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Abandon Registration Checkout */
+        post: operations["abandonRegistrationCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/registration-checkouts/{checkout_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Registration Checkout
+         * @description One invoice to the payer; payment is taken against it from billing. Errors: document-required.
+         */
+        post: operations["confirmRegistrationCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/registration-checkouts/{checkout_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Registration Checkout Item
+         * @description Holds the place for 15 minutes. Errors: capacity-full, already-enrolled, checkout-expired.
+         */
+        post: operations["addRegistrationCheckoutItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/registration-checkouts/{checkout_id}/items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Registration Checkout Item */
+        delete: operations["removeRegistrationCheckoutItem"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6415,6 +7156,24 @@ export interface paths {
         patch: operations["updateReservationType"];
         trace?: never;
     };
+    "/api/v1/reservation-types/{reservation_type_id}/session-booking-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Session Booking Policy Override */
+        put: operations["putSessionBookingPolicyOverride"];
+        post?: never;
+        /** Delete Session Booking Policy Override */
+        delete: operations["deleteSessionBookingPolicyOverride"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/resource-groups": {
         parameters: {
             query?: never;
@@ -6706,6 +7465,23 @@ export interface paths {
         patch: operations["updateSchedulingSettings"];
         trace?: never;
     };
+    "/api/v1/session-booking-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Session Booking Policies */
+        get: operations["listSessionBookingPolicies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions": {
         parameters: {
             query?: never;
@@ -6795,6 +7571,27 @@ export interface paths {
         get: operations["getSessionRoster"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{schedule_session_id}/roster/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Session Roster Message
+         * @description Emails everyone registered. Gated by scheduling.enrollment.create until engagement registers
+         *     engagement.message.send_direct (module README).
+         */
+        post: operations["sendSessionRosterMessage"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7234,7 +8031,7 @@ export interface paths {
         };
         /**
          * List Waitlist Entries
-         * @description The waiting queue of one session in FIFO order, with positions.
+         * @description The waiting queue of one session or one group node in FIFO order, with positions.
          */
         get: operations["listWaitlistEntries"];
         put?: never;
@@ -7272,7 +8069,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Promote Waitlist Entry */
+        /**
+         * Promote Waitlist Entry
+         * @description A group entry is billed on promotion (its fee on a new invoice), which also needs programs.registration.create.
+         */
         post: operations["promoteWaitlistEntry"];
         delete?: never;
         options?: never;
@@ -7312,6 +8112,21 @@ export interface components {
             content_sha256: string;
             /** Signers */
             signers: components["schemas"]["StaffSigner"][];
+        };
+        /** Accepted */
+        Accepted: {
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+            /** Resource Url */
+            resource_url: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "succeeded" | "failed";
         };
         /** AccountCredit */
         AccountCredit: {
@@ -8303,6 +9118,84 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** BookingPolicyDefault */
+        BookingPolicyDefault: {
+            /** Allows Self Cancel */
+            allows_self_cancel: boolean;
+            /** Booking Cutoff Minutes */
+            booking_cutoff_minutes: number;
+            /** Cancel Notice Minutes */
+            cancel_notice_minutes: number;
+            /** Hides Full Sessions */
+            hides_full_sessions: boolean;
+            /**
+             * Listing Mode
+             * @enum {string}
+             */
+            listing_mode: "bookable" | "list_only" | "unlisted" | "hidden";
+            /** Requires Active Membership */
+            requires_active_membership: boolean;
+            /** Visible Range Days */
+            visible_range_days: number;
+            /**
+             * Waitlist Mode
+             * @enum {string}
+             */
+            waitlist_mode: "disabled" | "auto_promote" | "open_offer";
+        };
+        /** BookingPolicyOut */
+        BookingPolicyOut: {
+            /** Allows Self Cancel */
+            allows_self_cancel: boolean | null;
+            /** Booking Cutoff Minutes */
+            booking_cutoff_minutes: number | null;
+            /** Cancel Notice Minutes */
+            cancel_notice_minutes: number | null;
+            /** Hides Full Sessions */
+            hides_full_sessions: boolean | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Listing Mode */
+            listing_mode: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Requires Active Membership */
+            requires_active_membership: boolean | null;
+            /** Reservation Type Id */
+            reservation_type_id: string | null;
+            /** Visible Range Days */
+            visible_range_days: number | null;
+            /** Waitlist Mode */
+            waitlist_mode: string | null;
+        };
+        /**
+         * BookingPolicyOverride
+         * @description Per reservation type, at the type's location; a null field inherits the location default.
+         */
+        BookingPolicyOverride: {
+            /** Allows Self Cancel */
+            allows_self_cancel?: boolean | null;
+            /** Booking Cutoff Minutes */
+            booking_cutoff_minutes?: number | null;
+            /** Cancel Notice Minutes */
+            cancel_notice_minutes?: number | null;
+            /** Hides Full Sessions */
+            hides_full_sessions?: boolean | null;
+            /** Listing Mode */
+            listing_mode?: ("bookable" | "list_only" | "unlisted" | "hidden") | null;
+            /** Requires Active Membership */
+            requires_active_membership?: boolean | null;
+            /** Visible Range Days */
+            visible_range_days?: number | null;
+            /** Waitlist Mode */
+            waitlist_mode?: ("disabled" | "auto_promote" | "open_offer") | null;
+        };
         /** BookingReschedule */
         BookingReschedule: {
             /**
@@ -9199,6 +10092,99 @@ export interface components {
             service_starts_on?: string | null;
             /** Unit Price Minor */
             unit_price_minor?: number | null;
+        };
+        /** CheckoutCreate */
+        CheckoutCreate: {
+            /** Comment */
+            comment?: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Payer Client Id */
+            payer_client_id?: string | null;
+        };
+        /** CheckoutItem */
+        CheckoutItem: {
+            /** Amount Minor */
+            amount_minor: number;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Name */
+            client_name: string;
+            /** Hold Expires At */
+            hold_expires_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Program Fee Id */
+            program_fee_id: string | null;
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
+            /** Program Group Name */
+            program_group_name: string;
+            /** Status */
+            status: string;
+        };
+        /** CheckoutItemAdd */
+        CheckoutItemAdd: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Comment */
+            comment?: string | null;
+            /** Program Fee Id */
+            program_fee_id?: string | null;
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
+        };
+        /** CheckoutOut */
+        CheckoutOut: {
+            /** Channel */
+            channel: string;
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /** Items */
+            items: components["schemas"]["CheckoutItem"][];
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Missing Documents */
+            missing_documents: components["schemas"]["MissingDocument"][];
+            /** Payer Client Id */
+            payer_client_id: string | null;
+            /** Status */
+            status: string;
+            /** Total Minor */
+            total_minor: number;
         };
         /** ClientCreate */
         ClientCreate: {
@@ -11193,19 +12179,13 @@ export interface components {
             /** Contacts */
             contacts: components["schemas"]["EmergencyContactOut"][];
         };
-        /** EnrollmentCancel */
-        EnrollmentCancel: {
+        /** EnrollmentBatchCreate */
+        EnrollmentBatchCreate: {
             /**
-             * Cancel Kind
-             * @default staff_removed
+             * Booked Scope
              * @enum {string}
              */
-            cancel_kind: "early" | "late" | "staff_removed";
-            /** Reason */
-            reason?: string | null;
-        };
-        /** EnrollmentCreate */
-        EnrollmentCreate: {
+            booked_scope: "all_linked" | "custom";
             /**
              * Client Id
              * Format: uuid
@@ -11218,15 +12198,89 @@ export interface components {
              * Format: uuid
              */
             session_id: string;
+            /**
+             * Session Ids
+             * @default []
+             */
+            session_ids: string[];
+        };
+        /** EnrollmentBatchResult */
+        EnrollmentBatchResult: {
+            /**
+             * Batch Id
+             * Format: uuid
+             */
+            batch_id: string;
+            /** Enrolled */
+            enrolled: components["schemas"]["EnrollmentOut"][];
+            /** Skipped */
+            skipped: components["schemas"]["Skipped"][];
+        };
+        /** EnrollmentCancel */
+        EnrollmentCancel: {
+            /**
+             * Add To Waitlist
+             * @default false
+             */
+            add_to_waitlist: boolean;
+            /** Billing Disposition */
+            billing_disposition?: ("reversed" | "kept" | "none") | null;
+            /**
+             * Cancel Kind
+             * @default staff_removed
+             * @enum {string}
+             */
+            cancel_kind: "early" | "late" | "staff_removed";
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Scope
+             * @default single
+             * @enum {string}
+             */
+            scope: "single" | "batch";
+        };
+        /** EnrollmentCreate */
+        EnrollmentCreate: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Package Id */
+            client_package_id?: string | null;
+            /** Payer Client Id */
+            payer_client_id?: string | null;
+            /**
+             * Program Fee Ids
+             * @default []
+             */
+            program_fee_ids: string[];
+            /** Program Group Id */
+            program_group_id?: string | null;
+            /** Registrant Comment */
+            registrant_comment?: string | null;
+            /** Session Id */
+            session_id?: string | null;
         };
         /** EnrollmentOut */
         EnrollmentOut: {
+            /** Batch Id */
+            batch_id: string | null;
+            /** Billing Disposition */
+            billing_disposition: string | null;
+            /** Booked Scope */
+            booked_scope: string | null;
             /** Cancel Kind */
             cancel_kind: string | null;
             /** Cancelled At */
             cancelled_at: string | null;
             /** Channel */
             channel: string;
+            /** Charge Id */
+            charge_id: string | null;
+            /** Checkout Id */
+            checkout_id: string | null;
             /**
              * Client Id
              * Format: uuid
@@ -11234,6 +12288,8 @@ export interface components {
             client_id: string;
             /** Enrolled At */
             enrolled_at: string | null;
+            /** Hold Expires At */
+            hold_expires_at: string | null;
             /**
              * Id
              * Format: uuid
@@ -11244,8 +12300,14 @@ export interface components {
              * Format: uuid
              */
             location_id: string;
+            /** Payer Client Id */
+            payer_client_id: string | null;
             /** Pricing */
             pricing: string;
+            /** Program Fee Id */
+            program_fee_id: string | null;
+            /** Program Group Id */
+            program_group_id: string | null;
             /** Session Id */
             session_id: string | null;
             /**
@@ -11255,6 +12317,16 @@ export interface components {
             status: "pending" | "enrolled" | "cancelled";
             /** Target Kind */
             target_kind: string;
+        };
+        /** EnrollmentRebook */
+        EnrollmentRebook: {
+            /** Client Package Id */
+            client_package_id?: string | null;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
         };
         /** EquipmentCategoryCreate */
         EquipmentCategoryCreate: {
@@ -11726,6 +12798,54 @@ export interface components {
              * Format: date
              */
             start_on: string;
+        };
+        /** GroupParticipant */
+        GroupParticipant: {
+            /** Channel */
+            channel: string;
+            /** Charge Id */
+            charge_id: string | null;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Name */
+            client_name: string;
+            /** Enrolled At */
+            enrolled_at: string | null;
+            /**
+             * Enrollment Id
+             * Format: uuid
+             */
+            enrollment_id: string;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /** Payer Client Id */
+            payer_client_id: string | null;
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
+            /** Program Group Name */
+            program_group_name: string;
+        };
+        /** GroupRoster */
+        GroupRoster: {
+            /** Capacity */
+            capacity: number | null;
+            /** Enrolled Count */
+            enrolled_count: number;
+            /** Participants */
+            participants: components["schemas"]["GroupParticipant"][];
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
+            /** Waiting Count */
+            waiting_count: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -12865,6 +13985,26 @@ export interface components {
              * @enum {string}
              */
             kind: "portal_access" | "relationship";
+        };
+        /** MissingDocument */
+        MissingDocument: {
+            /**
+             * Binding Id
+             * Format: uuid
+             */
+            binding_id: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Document Id */
+            document_id: string | null;
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
         };
         /** NoSaleRequest */
         NoSaleRequest: {
@@ -14148,6 +15288,12 @@ export interface components {
             data: components["schemas"]["PortalCreditLedgerEntryOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[PortalEnrollmentOut] */
+        Page_PortalEnrollmentOut_: {
+            /** Data */
+            data: components["schemas"]["PortalEnrollmentOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[PortalInvoiceOut] */
         Page_PortalInvoiceOut_: {
             /** Data */
@@ -14200,6 +15346,18 @@ export interface components {
         Page_ProductStockOut_: {
             /** Data */
             data: components["schemas"]["ProductStockOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[ProgramFeeOut] */
+        Page_ProgramFeeOut_: {
+            /** Data */
+            data: components["schemas"]["ProgramFeeOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[ProgramGroupOut] */
+        Page_ProgramGroupOut_: {
+            /** Data */
+            data: components["schemas"]["ProgramGroupOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[PublicLocation] */
@@ -14828,6 +15986,108 @@ export interface components {
              */
             status: "provisional" | "applied" | "released";
         };
+        /** PortalCheckoutConfirm */
+        PortalCheckoutConfirm: {
+            /** Method Token */
+            method_token?: string | null;
+            /**
+             * Pay Later
+             * @default false
+             */
+            pay_later: boolean;
+            /** Payment Method Id */
+            payment_method_id?: string | null;
+        };
+        /** PortalCheckoutCreate */
+        PortalCheckoutCreate: {
+            /** Comment */
+            comment?: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+        };
+        /** PortalCheckoutItem */
+        PortalCheckoutItem: {
+            /** Amount Minor */
+            amount_minor: number;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Name */
+            client_name: string;
+            /** Hold Expires At */
+            hold_expires_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
+            /** Program Group Name */
+            program_group_name: string;
+            /** Status */
+            status: string;
+        };
+        /** PortalCheckoutItemAdd */
+        PortalCheckoutItemAdd: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Comment */
+            comment?: string | null;
+            /** Program Fee Id */
+            program_fee_id?: string | null;
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
+        };
+        /** PortalCheckoutOut */
+        PortalCheckoutOut: {
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /** Items */
+            items: components["schemas"]["PortalCheckoutItem"][];
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Missing Documents */
+            missing_documents: components["schemas"]["PortalMissingDocument"][];
+            /** Status */
+            status: string;
+            /** Total Minor */
+            total_minor: number;
+        };
+        /** PortalClaim */
+        PortalClaim: {
+            /** Client Package Id */
+            client_package_id?: string | null;
+        };
         /**
          * PortalClientDocumentOut
          * @description The portal view: no source, binding, deletion or stored-file references (P-11).
@@ -15227,6 +16487,48 @@ export interface components {
             /** Signer Role */
             signer_role: string;
         };
+        /** PortalEnrollmentCreate */
+        PortalEnrollmentCreate: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Package Id */
+            client_package_id?: string | null;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+        };
+        /** PortalEnrollmentOut */
+        PortalEnrollmentOut: {
+            /** Cancel Kind */
+            cancel_kind: string | null;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Enrolled At */
+            enrolled_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Program Group Id */
+            program_group_id: string | null;
+            /** Session Id */
+            session_id: string | null;
+            /** Status */
+            status: string;
+            /** Target Kind */
+            target_kind: string;
+        };
         /** PortalInvite */
         PortalInvite: {
             /**
@@ -15285,6 +16587,21 @@ export interface components {
             status: "open" | "payment_pending" | "partially_paid" | "paid" | "voided";
             /** Total Minor */
             total_minor: number;
+        };
+        /** PortalMissingDocument */
+        PortalMissingDocument: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Document Id */
+            document_id: string | null;
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
         };
         /** PortalPackageBuy */
         PortalPackageBuy: {
@@ -15862,6 +17179,39 @@ export interface components {
             /** Role */
             role: string;
         };
+        /** PortalSessionListing */
+        PortalSessionListing: {
+            /** Can Join Waitlist */
+            can_join_waitlist: boolean;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Is Bookable */
+            is_bookable: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Reason */
+            reason: string | null;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /** Spots Left */
+            spots_left: number | null;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Title */
+            title: string | null;
+        };
         /** PortalSigner */
         PortalSigner: {
             /**
@@ -15894,6 +17244,50 @@ export interface components {
             body_html: string;
             /** Title */
             title: string;
+        };
+        /** PortalWaitlistJoin */
+        PortalWaitlistJoin: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Program Fee Id */
+            program_fee_id?: string | null;
+            /** Program Group Id */
+            program_group_id?: string | null;
+            /** Session Id */
+            session_id?: string | null;
+        };
+        /** PortalWaitlistOut */
+        PortalWaitlistOut: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Offer Expires At */
+            offer_expires_at: string | null;
+            /** Position */
+            position?: number | null;
+            /** Program Group Id */
+            program_group_id: string | null;
+            /**
+             * Queued At
+             * Format: date-time
+             */
+            queued_at: string;
+            /** Session Id */
+            session_id: string | null;
+            /** Status */
+            status: string;
+            /** Target Kind */
+            target_kind: string;
         };
         /** PosReasonRequest */
         PosReasonRequest: {
@@ -16777,6 +18171,316 @@ export interface components {
             /** Units Per Sale */
             units_per_sale?: number | null;
         };
+        /** ProgramFeeCreate */
+        ProgramFeeCreate: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Deposit Minor */
+            deposit_minor?: number | null;
+            /** Description */
+            description: string;
+            /** Fee Kind */
+            fee_kind?: ("individual" | "join_subgroup" | "new_subgroup") | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Is Online */
+            is_online?: boolean | null;
+            /** Location Id */
+            location_id?: string | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+        };
+        /** ProgramFeeOut */
+        ProgramFeeOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Deposit Minor */
+            deposit_minor: number | null;
+            /** Description */
+            description: string;
+            /** Fee Kind */
+            fee_kind: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Online */
+            is_online: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Program Group Id */
+            program_group_id: string | null;
+            /** Revenue Category Id */
+            revenue_category_id: string | null;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /** ProgramFeeUpdate */
+        ProgramFeeUpdate: {
+            /** Amount Minor */
+            amount_minor?: number | null;
+            /** Deposit Minor */
+            deposit_minor?: number | null;
+            /** Description */
+            description?: string | null;
+            /** Fee Kind */
+            fee_kind?: ("individual" | "join_subgroup" | "new_subgroup") | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Is Online */
+            is_online?: boolean | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+        };
+        /** ProgramGroupCreate */
+        ProgramGroupCreate: {
+            /** Auto Archive On */
+            auto_archive_on?: string | null;
+            /** Capacity */
+            capacity?: number | null;
+            /** Child Label */
+            child_label?: string | null;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Name */
+            contact_name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Ends On */
+            ends_on?: string | null;
+            /** Kind */
+            kind?: ("program" | "camp" | "clinic" | "class_series" | "competition" | "team" | "other") | null;
+            /** Location Id */
+            location_id?: string | null;
+            /** Max Children */
+            max_children?: number | null;
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Price Minor */
+            price_minor?: number | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Starts On */
+            starts_on?: string | null;
+            /** Waitlist Mode */
+            waitlist_mode?: ("disabled" | "manual" | "auto_promote") | null;
+        };
+        /** ProgramGroupNode */
+        ProgramGroupNode: {
+            /** Auto Archive On */
+            auto_archive_on: string | null;
+            /** Capacity */
+            capacity: number | null;
+            /** Child Count */
+            child_count: number;
+            /** Child Label */
+            child_label: string;
+            /** Children */
+            children: components["schemas"]["ProgramGroupNode"][];
+            /** Completed At */
+            completed_at: string | null;
+            /** Contact Email */
+            contact_email: string | null;
+            /** Contact Name */
+            contact_name: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Deleted At */
+            deleted_at: string | null;
+            /** Depth */
+            depth: number;
+            /** Description */
+            description: string | null;
+            /** Ends On */
+            ends_on: string | null;
+            /** Enrolled Count */
+            enrolled_count: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Max Children */
+            max_children: number | null;
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id: string | null;
+            /** Price Minor */
+            price_minor: number | null;
+            /** Revenue Category Id */
+            revenue_category_id: string | null;
+            /** Spots Left */
+            spots_left: number | null;
+            /** Starts On */
+            starts_on: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Waiting Count */
+            waiting_count: number;
+            /** Waitlist Mode */
+            waitlist_mode: string | null;
+        };
+        /** ProgramGroupOut */
+        ProgramGroupOut: {
+            /** Auto Archive On */
+            auto_archive_on: string | null;
+            /** Capacity */
+            capacity: number | null;
+            /** Child Count */
+            child_count: number;
+            /** Child Label */
+            child_label: string;
+            /** Completed At */
+            completed_at: string | null;
+            /** Contact Email */
+            contact_email: string | null;
+            /** Contact Name */
+            contact_name: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Deleted At */
+            deleted_at: string | null;
+            /** Depth */
+            depth: number;
+            /** Description */
+            description: string | null;
+            /** Ends On */
+            ends_on: string | null;
+            /** Enrolled Count */
+            enrolled_count: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Max Children */
+            max_children: number | null;
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id: string | null;
+            /** Price Minor */
+            price_minor: number | null;
+            /** Revenue Category Id */
+            revenue_category_id: string | null;
+            /** Spots Left */
+            spots_left: number | null;
+            /** Starts On */
+            starts_on: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Waiting Count */
+            waiting_count: number;
+            /** Waitlist Mode */
+            waitlist_mode: string | null;
+        };
+        /** ProgramGroupUpdate */
+        ProgramGroupUpdate: {
+            /** Auto Archive On */
+            auto_archive_on?: string | null;
+            /** Capacity */
+            capacity?: number | null;
+            /** Child Label */
+            child_label?: string | null;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Name */
+            contact_name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Ends On */
+            ends_on?: string | null;
+            /** Kind */
+            kind?: ("program" | "camp" | "clinic" | "class_series" | "competition" | "team" | "other") | null;
+            /** Max Children */
+            max_children?: number | null;
+            /** Name */
+            name?: string | null;
+            /** Price Minor */
+            price_minor?: number | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Starts On */
+            starts_on?: string | null;
+            /** Waitlist Mode */
+            waitlist_mode?: ("disabled" | "manual" | "auto_promote") | null;
+        };
+        /** ProgramSessionOut */
+        ProgramSessionOut: {
+            /** Booked Count */
+            booked_count: number;
+            /** Capacity */
+            capacity: number;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Sequence No */
+            sequence_no: number;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string | null;
+        };
+        /** ProgramSessionsAdd */
+        ProgramSessionsAdd: {
+            /** Session Ids */
+            session_ids: string[];
+        };
         /** ProviderAccountOut */
         ProviderAccountOut: {
             /** Connected At */
@@ -16863,6 +18567,20 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** PublicFee */
+        PublicFee: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Description */
+            description: string;
+            /** Fee Kind */
+            fee_kind: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
         /** PublicLocation */
         PublicLocation: {
             /** City */
@@ -16925,6 +18643,44 @@ export interface components {
             proration_mode: string;
             /** Term Fee Minor */
             term_fee_minor: number;
+        };
+        /** PublicProgramGroup */
+        PublicProgramGroup: {
+            /** Children */
+            children: components["schemas"]["PublicProgramGroup"][];
+            /** Closed Message */
+            closed_message: string | null;
+            /** Confirmation Message */
+            confirmation_message: string | null;
+            /** Description */
+            description: string | null;
+            /** Ends On */
+            ends_on: string | null;
+            /** Fees */
+            fees: components["schemas"]["PublicFee"][];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Payment Requirement */
+            payment_requirement: string;
+            /**
+             * Registration State
+             * @enum {string}
+             */
+            registration_state: "open" | "not_yet_open" | "closed" | "full_waitlist" | "full";
+            /** Spots Left */
+            spots_left: number | null;
+            /** Starts On */
+            starts_on: string | null;
         };
         /** PublicRentalType */
         PublicRentalType: {
@@ -17418,6 +19174,61 @@ export interface components {
             location_id?: string | null;
             /** Name */
             name?: string | null;
+        };
+        /** RegistrationConfigOut */
+        RegistrationConfigOut: {
+            /** Closed Message */
+            closed_message: string | null;
+            /** Closes On */
+            closes_on: string | null;
+            /** Confirmation Message */
+            confirmation_message: string | null;
+            /** Displays Openings */
+            displays_openings: boolean;
+            /** Is Enabled */
+            is_enabled: boolean;
+            /** Is Portal Visible */
+            is_portal_visible: boolean;
+            /** Online Description */
+            online_description: string | null;
+            /** Opens On */
+            opens_on: string | null;
+            /** Payment Requirement */
+            payment_requirement: string;
+            /** Portal Publish Name */
+            portal_publish_name: string | null;
+            /** Portal Published At */
+            portal_published_at: string | null;
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
+            /** Public Slug */
+            public_slug: string | null;
+        };
+        /** RegistrationConfigPut */
+        RegistrationConfigPut: {
+            /** Closed Message */
+            closed_message?: string | null;
+            /** Closes On */
+            closes_on?: string | null;
+            /** Confirmation Message */
+            confirmation_message?: string | null;
+            /** Displays Openings */
+            displays_openings?: boolean | null;
+            /** Is Enabled */
+            is_enabled?: boolean | null;
+            /** Online Description */
+            online_description?: string | null;
+            /** Opens On */
+            opens_on?: string | null;
+            /** Payment Requirement */
+            payment_requirement?: ("pay_later_allowed" | "immediate_card_payment" | "card_required_charge_optional" | "card_required_no_charge") | null;
+            /** Portal Publish Name */
+            portal_publish_name?: string | null;
+            /** Public Slug */
+            public_slug?: string | null;
         };
         /**
          * RelationshipCreate
@@ -18717,6 +20528,20 @@ export interface components {
             /** Waiting Count */
             waiting_count: number;
         };
+        /** RosterMessage */
+        RosterMessage: {
+            /** Body Html */
+            body_html: string;
+            /**
+             * Statuses
+             * @default [
+             *       "enrolled"
+             *     ]
+             */
+            statuses: ("enrolled" | "pending" | "cancelled")[];
+            /** Subject */
+            subject: string;
+        };
         /** SalePayment */
         SalePayment: {
             /** Amount Minor */
@@ -19250,6 +21075,16 @@ export interface components {
              * @enum {string}
              */
             role: "client" | "guardian" | "co_signer";
+        };
+        /** Skipped */
+        Skipped: {
+            /** Code */
+            code: string | null;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
         };
         /** SoldByIn */
         SoldByIn: {
@@ -20386,11 +22221,14 @@ export interface components {
              * @enum {string}
              */
             mode: "manual" | "auto_promote";
-            /**
-             * Session Id
-             * Format: uuid
-             */
-            session_id: string;
+            /** Payer Client Id */
+            payer_client_id?: string | null;
+            /** Program Fee Id */
+            program_fee_id?: string | null;
+            /** Program Group Id */
+            program_group_id?: string | null;
+            /** Session Id */
+            session_id?: string | null;
         };
         /** WaitlistOut */
         WaitlistOut: {
@@ -20411,8 +22249,12 @@ export interface components {
             location_id: string;
             /** Mode */
             mode: string;
+            /** Offer Expires At */
+            offer_expires_at: string | null;
             /** Position */
             position: number | null;
+            /** Program Group Id */
+            program_group_id: string | null;
             /** Promoted Enrollment Id */
             promoted_enrollment_id: string | null;
             /**
@@ -20427,6 +22269,8 @@ export interface components {
              * @enum {string}
              */
             status: "waiting" | "offered" | "promoted" | "expired" | "removed";
+            /** Target Kind */
+            target_kind: string;
         };
         /** WaiverOverrideIn */
         WaiverOverrideIn: {
@@ -26976,6 +28820,42 @@ export interface operations {
             };
         };
     };
+    createEnrollmentBatch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrollmentBatchCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrollmentBatchResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getEnrollment: {
         parameters: {
             query?: never;
@@ -27025,6 +28905,44 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["EnrollmentCancel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrollmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rebookEnrollment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                enrollment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrollmentRebook"];
             };
         };
         responses: {
@@ -28398,6 +30316,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FacilityHoursOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putDefaultSessionBookingPolicy: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                location_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingPolicyDefault"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingPolicyOut"];
                 };
             };
             /** @description Validation Error */
@@ -31698,6 +33654,119 @@ export interface operations {
             };
         };
     };
+    listPortalEnrollments: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PortalEnrollmentOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createPortalEnrollment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalEnrollmentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalEnrollmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancelPortalEnrollment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                enrollment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalEnrollmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPortalInvoices: {
         parameters: {
             query?: {
@@ -32280,6 +34349,221 @@ export interface operations {
             };
         };
     };
+    createPortalRegistrationCheckout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalCheckoutCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalCheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalRegistrationCheckout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                checkout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalCheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    abandonPortalRegistrationCheckout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                checkout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalCheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirmPortalRegistrationCheckout: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path: {
+                checkout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalCheckoutConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalCheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    addPortalRegistrationCheckoutItem: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                checkout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalCheckoutItemAdd"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalCheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    removePortalRegistrationCheckoutItem: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                checkout_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalCheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPortalRelationshipTypes: {
         parameters: {
             query?: never;
@@ -32584,6 +34868,183 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortalRentalCheckout"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalSessionListings: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+                location_id?: string | null;
+                reservation_type_id?: string | null;
+                resource_id?: string | null;
+                "starts_at[gte]"?: string | null;
+                "starts_at[lt]"?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalSessionListing"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalWaitlistEntries: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalWaitlistOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    joinPortalWaitlist: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalWaitlistJoin"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalWaitlistOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    leavePortalWaitlist: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                waitlist_entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    claimPortalWaitlistOffer: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                waitlist_entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalClaim"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalWaitlistOut"];
                 };
             };
             /** @description Validation Error */
@@ -34015,6 +36476,859 @@ export interface operations {
             };
         };
     };
+    listProgramFees: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ProgramFeeOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createCatalogueFee: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramFeeCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramFeeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteProgramFee: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_fee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateProgramFee: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_fee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramFeeUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramFeeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listProgramGroups: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ProgramGroupOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramGroupCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramGroupUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    archiveProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    completeProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listProgramGroupFees: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramFeeOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createProgramGroupFee: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramFeeCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramFeeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publishProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getRegistrationConfig: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putRegistrationConfig: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegistrationConfigPut"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reopenProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restoreProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getProgramGroupRoster: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupRoster"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listProgramSessions: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramSessionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    addProgramSessions: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramSessionsAdd"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramSessionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    removeProgramSession: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+                schedule_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getProgramGroupTree: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramGroupNode"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unpublishProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listProviderAccounts: {
         parameters: {
             query?: never;
@@ -34455,6 +37769,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortalTermsOut"];
+                };
+            };
+        };
+    };
+    listPublicProgramGroups: {
+        parameters: {
+            query?: {
+                location_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicProgramGroup"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPublicProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicProgramGroup"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -35013,6 +38389,217 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RegisterSession"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createRegistrationCheckout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckoutCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getRegistrationCheckout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                checkout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    abandonRegistrationCheckout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                checkout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirmRegistrationCheckout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                checkout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    addRegistrationCheckoutItem: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                checkout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckoutItemAdd"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    removeRegistrationCheckoutItem: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                checkout_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutOut"];
                 };
             };
             /** @description Validation Error */
@@ -36373,6 +39960,76 @@ export interface operations {
             };
         };
     };
+    putSessionBookingPolicyOverride: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                reservation_type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingPolicyOverride"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingPolicyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteSessionBookingPolicyOverride: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                reservation_type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listResourceGroups: {
         parameters: {
             query?: {
@@ -37263,6 +40920,40 @@ export interface operations {
             };
         };
     };
+    listSessionBookingPolicies: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingPolicyOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listSessions: {
         parameters: {
             query?: {
@@ -37473,6 +41164,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Roster"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sendSessionRosterMessage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RosterMessage"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Accepted"];
                 };
             };
             /** @description Validation Error */
@@ -38613,8 +42342,9 @@ export interface operations {
     };
     listWaitlistEntries: {
         parameters: {
-            query: {
-                session_id: string;
+            query?: {
+                session_id?: string | null;
+                program_group_id?: string | null;
             };
             header?: {
                 /** @description Optional; keys live 24 hours. */

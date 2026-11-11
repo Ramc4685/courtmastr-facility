@@ -26,6 +26,10 @@ import { StaffUsersPage } from '../features/platform/StaffUsersPage'
 import { TenantSettingsPage } from '../features/platform/TenantSettingsPage'
 import { RentalSetupPage } from '../features/rentals/RentalSetupPage'
 import { RentalsPage } from '../features/rentals/RentalsPage'
+import { BasketPage } from '../features/programs/BasketPage'
+import { BookingPolicyPage } from '../features/programs/BookingPolicyPage'
+import { ProgramPage } from '../features/programs/ProgramPage'
+import { ProgramsPage } from '../features/programs/ProgramsPage'
 import { ResourcesPage } from '../features/resources/ResourcesPage'
 import { CalendarPage } from '../features/scheduling/CalendarPage'
 import { SetupPage } from '../features/scheduling/SetupPage'
@@ -117,6 +121,10 @@ export function AppRoutes() {
         <Route path="scheduling/setup" element={<SetupPage />} />
         <Route path="rentals" element={<RequirePermission permission="scheduling.booking.read"><RentalsPage /></RequirePermission>} />
         <Route path="rentals/setup" element={<RentalSetupPage />} />
+        <Route path="programs" element={<RequirePermission permission="programs.registration.read"><ProgramsPage /></RequirePermission>} />
+        <Route path="programs/register" element={<RequirePermission permission="programs.registration.create"><BasketPage /></RequirePermission>} />
+        <Route path="programs/booking-policies" element={<RequirePermission permission="programs.registration_config.manage"><BookingPolicyPage /></RequirePermission>} />
+        <Route path="programs/:id" element={<RequirePermission permission="programs.registration.read"><ProgramPage /></RequirePermission>} />
         {import.meta.env.DEV && (
           <Route path="dev/client-picker" element={<RequirePermission permission="clients.client.read"><ClientPickerDemo /></RequirePermission>} />
         )}

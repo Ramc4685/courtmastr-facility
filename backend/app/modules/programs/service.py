@@ -1,11 +1,12 @@
-"""programs service, session slice: enrolment into a single session, attendance and the session waitlist.
+"""programs service, session targets: enrolment into one or several sessions, attendance, the session waitlist
+and the roster message. Group targets live in `groups`; the shared endpoints dispatch on the row's target.
 
 Seats are counted by `scheduling.reserve_seat` under the session row lock; this context owns who sits in
-them. Only `pricing = free` exists until packages (build module 5) and fees (build module 6) arrive: a
-session that does not allow free booking needs `scheduling.enrollment.free_book`.
+them. A session that does not allow free booking needs a package or `scheduling.enrollment.free_book`.
 """
 
 from datetime import timedelta
+from types import SimpleNamespace
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -16,9 +17,11 @@ from app.core import audit, clock, events
 from app.core.api import CONSTRAINT_CODES
 from app.core.auth import Principal, authorize, scope_query
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
+from app.core.ids import new_id
 from app.core.pagination import ListQuery, paginate
 from app.modules import clients, packages, platform, scheduling
 from app.modules.programs import events as ev
+from app.modules.programs import groups
 from app.modules.programs.models import Attendance, Enrollment, WaitlistEntry
 from app.ports import notifications
 
@@ -30,7 +33,14 @@ MARK, MARK_EXCEPTION, WAITLIST = (
     "scheduling.waitlist.manage",
 )
 PROMOTION_CUTOFF = timedelta(minutes=60)  # no auto-promotion this close to the start (ADR 0004 section 8)
+OFFER_WINDOW = timedelta(hours=2)  # an open offer lapses back to waiting after this, or at the start
 CONSTRAINT_CODES["uq_enrollment_session_client"] = "already-enrolled"
+notifications.register_template("programs.roster_message", subject="$subject", body="$body")
+notifications.register_template(
+    "programs.waitlist_offer",
+    subject="A place is free: $title",
+    body="$first_name, a place opened up in $title on $starts_at. The first to claim it in the portal gets it.",
+)
 notifications.register_template(
     "programs.waitlist_promoted",
     subject="A place opened up: $title",
@@ -45,12 +55,27 @@ def _seat(session: Db, principal: Principal, session_id: UUID, key: str) -> dict
     return seat
 
 
+GROUP_KEY = {READ: groups.READ, ENROLL: groups.ENROLL, CANCEL: groups.CANCEL, WAITLIST: groups.WAITLIST}
+
+
 def _load(session: Db, principal: Principal, model, row_id: UUID, key: str):
+    """An enrolment or waitlist entry, gated by its target: the session's reach or the group's."""
     row = session.get(model, row_id)
     if row is None:
         raise NotFound()
-    _seat(session, principal, row.session_id, key)
+    if row.program_group_id is not None:
+        groups.load(session, principal, row.program_group_id, GROUP_KEY[key])
+    else:
+        _seat(session, principal, row.session_id, key)
     return row
+
+
+def _authorize_any(principal: Principal, *keys: str) -> None:
+    """List reads span both targets: either key suffices (each row's reach is checked again on detail)."""
+    for key in keys[:-1]:
+        if principal.has(key):
+            return authorize(principal, key)
+    authorize(principal, keys[-1])
 
 
 # --- enrolment ---------------------------------------------------------------------------------------------
@@ -108,7 +133,10 @@ def _enroll(
 
 
 def create_enrollment(session: Db, principal: Principal, data: dict) -> Enrollment:
-    """Register a client into a single session (CLS-01, CLS-05). Errors: capacity-full, already-enrolled."""
+    """Register a client into a single session (CLS-01, CLS-05) or a group node (REG-07).
+    Errors: capacity-full, already-enrolled."""
+    if data.get("program_group_id"):
+        return groups.create_enrollment(session, principal, data)["enrollment"]
     seat = _seat(session, principal, data["session_id"], ENROLL)
     clients.service.require_active(session, data["client_id"])
     row = _enroll(session, seat, data["client_id"], "staff", data.get("client_package_id"), principal=principal)
@@ -117,13 +145,14 @@ def create_enrollment(session: Db, principal: Principal, data: dict) -> Enrollme
 
 
 def list_enrollments(session: Db, principal: Principal, query: ListQuery) -> dict:
-    authorize(principal, READ)
+    _authorize_any(principal, READ, groups.READ)
     return paginate(
         session, scope_query(select(Enrollment), principal, Enrollment.location_id), query, id_column=Enrollment.id,
         sort_fields={"enrolled_at": Enrollment.created_at}, default_sort="enrolled_at",
         filter_fields={
             "location_id": Enrollment.location_id, "session_id": Enrollment.session_id,
             "client_id": Enrollment.client_id, "status": Enrollment.status,
+            "program_group_id": Enrollment.program_group_id, "batch_id": Enrollment.batch_id,
         },
     )  # fmt: skip
 
@@ -148,19 +177,80 @@ def _cancel(session: Db, row: Enrollment, kind: str, reason: str | None = None) 
 
 
 def cancel_enrollment(session: Db, principal: Principal, enrollment_id: UUID, data: dict) -> Enrollment:
-    """Remove a participant (CLS-03). The freed seat goes to the head of the waitlist in this transaction."""
+    """Remove a participant (CLS-03, REG-07). A freed seat goes to the head of the waitlist in this transaction.
+    `scope: batch` cancels every live enrolment booked with this one (CLS-02)."""
     row = _load(session, principal, Enrollment, enrollment_id, CANCEL)
-    if row.status != "cancelled":
-        _cancel(session, row, data.get("cancel_kind") or "staff_removed", data.get("reason"))
+    if row.program_group_id is not None:
+        return groups.cancel_enrollment(session, principal, row, data)
+    rows = [row]
+    if data.get("scope") == "batch" and row.batch_id is not None:
+        rows = session.scalars(
+            select(Enrollment).where(Enrollment.batch_id == row.batch_id, Enrollment.status == "enrolled")
+        ).all()
+    for each in rows:
+        if each is not row:
+            _seat(session, principal, each.session_id, CANCEL)
+        if each.status == "cancelled":
+            continue
+        _cancel(session, each, data.get("cancel_kind") or "staff_removed", data.get("reason"))
+        each.cancelled_by_actor_type = "staff"
         audit.record(
-            session,
-            CANCEL,
-            row,
-            location_id=row.location_id,
-            changes={"status": ["enrolled", "cancelled"], "cancel_kind": [None, row.cancel_kind]},
-        )
-        promote_waitlist(session, row.session_id)
+            session, CANCEL, each, location_id=each.location_id,
+            changes={"status": ["enrolled", "cancelled"], "cancel_kind": [None, each.cancel_kind]},
+        )  # fmt: skip
+        promote_waitlist(session, each.session_id)
     return row
+
+
+def create_enrollment_batch(session: Db, principal: Principal, data: dict) -> dict:
+    """Register a client into several occurrences of a series in one transaction (CLS-02): `all_linked` takes the
+    anchor and every later confirmed occurrence, `custom` the listed ones. A full or ineligible occurrence is
+    skipped with its problem code; a forbidden or malformed request still fails as a whole."""
+    anchor = _seat(session, principal, data["session_id"], ENROLL)
+    clients.service.require_active(session, data["client_id"])
+    linked = [anchor["id"]]
+    if anchor["booking_series_id"] is not None:
+        linked = scheduling.service.series_sessions(session, anchor["booking_series_id"], anchor["starts_at"])
+    targets = linked
+    if data["booked_scope"] == "custom":
+        targets = data.get("session_ids") or []
+        if not targets:
+            raise ValidationFailed("Choose the sessions to book.", pointer="/session_ids")
+        for index, session_id in enumerate(targets):
+            if session_id not in linked:
+                raise ValidationFailed("Not a later session of this series.", pointer=f"/session_ids/{index}")
+    package_id = data.get("client_package_id")
+    batch_id, enrolled, skipped = new_id(), [], []
+    for session_id in dict.fromkeys(targets):
+        seat = _seat(session, principal, session_id, ENROLL)
+        try:
+            with session.begin_nested():
+                row = _enroll(session, seat, data["client_id"], "staff", package_id, principal=principal)
+        except Conflict as exc:
+            skipped.append({"session_id": session_id, "code": exc.code})
+            continue
+        row.batch_id, row.booked_scope = batch_id, data["booked_scope"]
+        audit.record(session, ENROLL, row, location_id=row.location_id, changes={"session_id": [None, str(session_id)]})
+        enrolled.append(row)
+    session.flush()
+    return {"batch_id": batch_id, "enrolled": enrolled, "skipped": skipped}
+
+
+def rebook_enrollment(session: Db, principal: Principal, enrollment_id: UUID, data: dict) -> Enrollment:
+    """Early-cancel a session place and register the same client into another session in one transaction (CLS-03).
+    The credit returns and is held again, on the same package unless another is named."""
+    row = _load(session, principal, Enrollment, enrollment_id, CANCEL)
+    if row.session_id is None or row.status != "enrolled":
+        raise Conflict("Only a live session place can be rebooked.", code="invalid-state-transition")
+    target = _seat(session, principal, data["session_id"], ENROLL)
+    package_id = data.get("client_package_id") or packages.service.package_for(session, **_credit(row))
+    _cancel(session, row, "early", "rebooked")
+    row.cancelled_by_actor_type = "staff"
+    audit.record(session, CANCEL, row, location_id=row.location_id, changes={"status": ["enrolled", "cancelled"]})
+    new = _enroll(session, target, row.client_id, "staff", package_id, principal=principal)
+    audit.record(session, ENROLL, new, location_id=new.location_id, changes={"session_id": [None, str(new.session_id)]})
+    promote_waitlist(session, row.session_id)
+    return new
 
 
 # --- roster and attendance ---------------------------------------------------------------------------------
@@ -256,7 +346,15 @@ def put_attendance(session: Db, principal: Principal, session_id: UUID, marks: l
 # --- waitlist ----------------------------------------------------------------------------------------------
 
 
-def list_waitlist(session: Db, principal: Principal, session_id: UUID) -> list[dict]:
+def list_waitlist(
+    session: Db, principal: Principal, session_id: UUID | None = None, program_group_id: UUID | None = None
+) -> list[dict]:
+    """The waiting queue of one session or one group node, FIFO, with positions."""
+    if program_group_id is not None:
+        rows = groups.list_waitlist(session, principal, program_group_id)
+        return [_entry_view(row, position) for position, row in enumerate(rows, start=1)]
+    if session_id is None:
+        raise ValidationFailed("Name a session or a program group.", pointer="/session_id")
     _seat(session, principal, session_id, WAITLIST)
     rows = session.scalars(
         select(WaitlistEntry)
@@ -271,7 +369,11 @@ def _entry_view(row: WaitlistEntry, position: int | None = None) -> dict:
 
 
 def create_waitlist_entry(session: Db, principal: Principal, data: dict) -> dict:
-    """Queue a client for a full session (CLS-06). Errors: session-has-space, already-enrolled, already-exists."""
+    """Queue a client for a full session (CLS-06) or group node (REG-09).
+    Errors: session-has-space, already-enrolled, already-waitlisted."""
+    if data.get("program_group_id"):
+        entry = groups.create_waitlist_entry(session, principal, data)
+        return _entry_view(entry, len(groups.queue(session, entry.program_group_id)))
     seat = _seat(session, principal, data["session_id"], WAITLIST)
     clients.service.require_active(session, data["client_id"])
     if seat["booked_count"] < seat["capacity"]:
@@ -326,9 +428,15 @@ def promote_waitlist(session: Db, session_id: UUID) -> int:
     seat = scheduling.service.get_session(session, session_id)
     if seat["status"] != "confirmed" or seat["starts_at"] - clock.now() < PROMOTION_CUTOFF:
         return 0
-    if not seat["allows_free_booking"]:
-        return 0  # a waitlist entry carries no package: it waits for staff with free_book (S-01)
     promoted = 0
+    if seat["allows_free_booking"]:  # an auto entry carries no package: it waits for staff with free_book (S-01)
+        promoted = _auto_promote(session, seat)
+    offer_open_seats(session, session_id)
+    return promoted
+
+
+def _auto_promote(session: Db, seat: dict) -> int:
+    promoted, session_id = 0, seat["id"]
     queue = session.scalars(
         select(WaitlistEntry)
         .where(
@@ -354,7 +462,9 @@ def promote_waitlist(session: Db, session_id: UUID) -> int:
 def promote_waitlist_entry(session: Db, principal: Principal, entry_id: UUID) -> dict:
     """Staff promotion of one entry, any mode, any time before the start. Errors: capacity-full."""
     entry = _load(session, principal, WaitlistEntry, entry_id, WAITLIST)
-    if entry.status != "waiting":
+    if entry.program_group_id is not None:
+        return _entry_view(groups.promote_entry(session, principal, entry))
+    if entry.status not in ("waiting", "offered"):
         raise Conflict("This entry is no longer waiting.")
     _promote(session, scheduling.service.get_session(session, entry.session_id), entry, principal)
     audit.record(session, WAITLIST, entry, location_id=entry.location_id, changes={"status": ["waiting", "promoted"]})
@@ -363,11 +473,11 @@ def promote_waitlist_entry(session: Db, principal: Principal, entry_id: UUID) ->
 
 def remove_waitlist_entry(session: Db, principal: Principal, entry_id: UUID) -> None:
     entry = _load(session, principal, WaitlistEntry, entry_id, WAITLIST)
-    if entry.status == "waiting":
-        entry.status, entry.removed_reason = "removed", "staff"
-        audit.record(
-            session, WAITLIST, entry, location_id=entry.location_id, changes={"status": ["waiting", "removed"]}
-        )
+    if entry.program_group_id is not None:
+        return groups.remove_entry(session, principal, entry)
+    if entry.status in ("waiting", "offered"):
+        was, entry.status, entry.removed_reason = entry.status, "removed", "staff"
+        audit.record(session, WAITLIST, entry, location_id=entry.location_id, changes={"status": [was, "removed"]})
         session.flush()
 
 
@@ -382,3 +492,113 @@ def on_session_cancelled(session: Db, session_id: UUID) -> None:
     ):
         entry.status, entry.removed_reason = "expired", "session_cancelled"
     session.flush()
+
+
+# --- roster message (CLS-03) -------------------------------------------------------------------------------
+
+
+def send_roster_message(session: Db, principal: Principal, session_id: UUID, data: dict) -> dict:
+    """Email everyone registered in a session. Goes out through the notification port after commit; clients with
+    no email address are skipped. Returns an already-finished job handle (the engagement module will queue)."""
+    seat = _seat(session, principal, session_id, ENROLL)
+    statuses = data.get("statuses") or ["enrolled"]
+    client_ids = session.scalars(
+        select(Enrollment.client_id).where(Enrollment.session_id == session_id, Enrollment.status.in_(statuses))
+    ).all()
+    sent = 0
+    for client_id in client_ids:
+        client = clients.service.get(session, client_id)
+        if client.primary_email:
+            notifications.send(
+                session, "programs.roster_message", client.primary_email,
+                {"subject": data["subject"], "body": data["body_html"]},
+            )  # fmt: skip
+            sent += 1
+    job_id = new_id()
+    target = SimpleNamespace(__tablename__="session", id=session_id)  # the audited aggregate is scheduling's row
+    audit.record(
+        session,
+        "programs.roster_message.send",
+        target,
+        location_id=seat["location_id"],
+        changes={"recipients": [None, sent]},
+    )
+    return {"job_id": job_id, "status": "succeeded", "resource_url": None}
+
+
+# --- open offers (CLS-06 open_offer mode) -----------------------------------------------------------------------
+
+
+def offer_open_seats(session: Db, session_id: UUID) -> int:
+    """Internal. While a session has free seats, every waiting `open_offer` entry is offered at once; the first
+    valid claim under the seat lock wins and the others go back to waiting (claim_offer)."""
+    seat = scheduling.service.get_session(session, session_id)
+    if seat["status"] != "confirmed" or seat["booked_count"] >= seat["capacity"]:
+        return 0
+    now = clock.now()
+    expires = min(now + OFFER_WINDOW, seat["starts_at"])
+    if expires <= now:
+        return 0
+    entries = session.scalars(
+        select(WaitlistEntry)
+        .where(
+            WaitlistEntry.session_id == session_id, WaitlistEntry.status == "waiting",
+            WaitlistEntry.mode == "open_offer",
+        )
+        .order_by(WaitlistEntry.queued_at, WaitlistEntry.id)
+        .with_for_update(skip_locked=True)
+    ).all()  # fmt: skip
+    for entry in entries:
+        entry.status, entry.offered_at, entry.offer_expires_at = "offered", now, expires
+        client = clients.service.get(session, entry.client_id)
+        if client.primary_email:
+            notifications.send(
+                session, "programs.waitlist_offer", client.primary_email,
+                {"first_name": client.first_name, "title": seat["title"] or "your session",
+                 "starts_at": seat["starts_at"].isoformat()},
+            )  # fmt: skip
+    session.flush()
+    return len(entries)
+
+
+def claim_offer(session: Db, entry: WaitlistEntry, client_package_id: UUID | None) -> Enrollment:
+    """Internal (portal claim): take the offered seat under the session lock. A seat already gone is 409
+    capacity-full and the entry goes back to waiting (the refusal commits that)."""
+    if entry.status != "offered" or entry.offer_expires_at is None or entry.offer_expires_at <= clock.now():
+        raise Conflict("There is no open offer to claim.", code="invalid-state-transition")
+    seat = scheduling.service.get_session(session, entry.session_id)
+    if client_package_id is None and not seat["allows_free_booking"]:
+        raise Conflict("Choose a package to book this session with.", code="entitlement-not-eligible")
+    try:
+        with session.begin_nested():
+            row = _enroll(session, seat, entry.client_id, "waitlist", client_package_id)
+    except Conflict as exc:
+        if exc.code != "capacity-full":
+            raise
+        entry.status, entry.offered_at, entry.offer_expires_at = "waiting", None, None
+        session.flush()
+        # persist: the entry going back to waiting must survive the refusal
+        raise Conflict("Someone else claimed the place first.", code="capacity-full", persist=True) from None
+    entry.status, entry.promoted_enrollment_id = "promoted", row.id
+    events.publish(
+        session,
+        ev.WaitlistPromoted(
+            enrollment_id=row.id, session_id=seat["id"], client_id=entry.client_id, waitlist_entry_id=entry.id
+        ),
+        entry.id,
+    )
+    session.flush()
+    return row
+
+
+def lapse_offers(session: Db) -> int:
+    """Internal (every minute): offers nobody claimed in time go back to waiting."""
+    rows = session.scalars(
+        select(WaitlistEntry)
+        .where(WaitlistEntry.status == "offered", WaitlistEntry.offer_expires_at <= clock.now())
+        .with_for_update(skip_locked=True)
+    ).all()
+    for entry in rows:
+        entry.status, entry.offered_at, entry.offer_expires_at = "waiting", None, None
+    session.flush()
+    return len(rows)
