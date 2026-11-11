@@ -161,3 +161,26 @@ def test_idempotency_keys_are_plain_tokens(client, owner, key):
     """The key reaches provider queries (Stripe Search) and logs: only [A-Za-z0-9_.:-]{1,255} is accepted."""
     response = client.post(f"{API}/locations", headers=owner | {"Idempotency-Key": key}, json={})
     assert response.status_code == 422 and "idempotency-key" in response.text.lower(), response.text
+
+
+def _keyless(calls) -> bool:
+    """Signed-in routes whose only gates are a bare require() or current_ctx: they name no permission key."""
+    gates = [c for c in calls if hasattr(c, "keys") and hasattr(c, "accepts_api_key")]
+    return current_ctx in calls and not any(gate.keys for gate in gates)
+
+
+KEYLESS = [(p, r) for p, r, calls in ROUTES if _keyless(calls)]
+
+
+@pytest.mark.parametrize(("path", "route"), KEYLESS, ids=[f"{sorted(r.methods)[0]} {p}" for p, r in KEYLESS])
+def test_api_keys_cannot_call_keyless_routes(client, path, route):
+    """W2-02: an API key's scopes are permission keys, so a route that names none is outside every key. The
+    refusal comes from current_ctx before the token is even looked up, so a well-formed fake secret proves it."""
+    url = path.replace("{", "").replace("}", "")  # path parameters never parse: the gate runs first
+    response = client.request(sorted(route.methods)[0], url, headers={"Authorization": "Bearer fhk_" + "0" * 32 + "_x"})
+    assert (response.status_code, response.json()["code"]) == (403, "api-key-not-allowed")
+
+
+def test_keyless_guard_sees_the_known_configuration_reads():
+    paths = {p.removeprefix(API) for p, _ in KEYLESS}
+    assert {"/locations", "/me", "/taxes", "/coupons"} <= paths

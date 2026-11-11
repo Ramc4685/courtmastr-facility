@@ -30,8 +30,11 @@ through `service.adapter_for`.
   locations inside their own and sees only keys within them. The key's principal is recomputed from the
   creator on every request, so it shrinks with them. Rotating re-binds the key to the person who rotated it,
   so a new secret never carries someone else's wider reach; a rotation by someone else ends the old secret at once.
-- **Keys reach only `require()`-gated routes.** `Authenticated`-only routes such as `/me` answer
-  `403 api-key-not-allowed`.
+- **Keys reach only routes gated by `require(<key>)`.** Keyless routes answer `403 api-key-not-allowed`: the
+  self-service routes such as `/me`, and the staff routes gated by a bare `require()` (configuration reads such
+  as locations, taxes, coupons, payees and registers, many with no service `authorize`). A key's scopes are
+  permission keys, so a route that names none is outside every key (W2-02). `tests/test_security.py` checks
+  every such route.
 - **Webhook subscriptions are bounded by the creator.** A type needs its read permission at `all` reach, or a
   location-limited creator needs a location locator for that type. `*` expands at save time. A creator who is
   deactivated or loses the permission disables the endpoint on the next fan-out or on the deactivation event.

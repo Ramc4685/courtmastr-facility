@@ -95,7 +95,8 @@ def test_key_calls_staff_routes_within_its_scopes(client, tenant, owner):
     new_client(client, owner, location)
     h = _bearer(_key(client, owner, scopes=["clients.client.read"])["secret"])
     assert client.get(f"{API}/clients", headers=h).json()["data"]
-    assert client.get(f"{API}/locations", headers=h).status_code == 200  # authenticated staff route
+    locations = client.get(f"{API}/locations", headers=h)  # keyless staff route: outside every scope (W2-02)
+    assert (locations.status_code, locations.json()["code"]) == (403, "api-key-not-allowed")
     assert client.get(f"{API}/charges", headers=h).status_code == 403  # not in its scopes
     me = client.get(f"{API}/me", headers=h)
     assert (me.status_code, me.json()["code"]) == (403, "api-key-not-allowed")

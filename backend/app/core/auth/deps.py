@@ -31,7 +31,7 @@ class Ctx:
 
 
 # Modules register how a bearer token becomes a Principal, by token prefix; core stays below the modules.
-# fhs: staff/client session (platform); fhk: API key (integrations), accepted only on require() routes.
+# fhs: staff/client session (platform); fhk: API key (integrations), accepted only on require(<key>) routes.
 _authenticators: dict[str, Callable[[Session, str], Principal]] = {}
 _API_KEY_PREFIX = "fhk"
 
@@ -41,7 +41,7 @@ def set_authenticator(fn: Callable[[Session, str], Principal], prefix: str = "fh
 
 
 def _accepts_api_key(route) -> bool:
-    """True when the route is gated by require(): API keys reach the staff surface only, never the self-service
+    """True when the route is gated by require() with at least one key: API keys reach the staff surface only, never the self-service
     routes (/me, /auth/*) or the portal, which assume a person behind the principal."""
 
     def walk(dependant) -> bool:
@@ -111,7 +111,9 @@ def current_ctx(request: Request) -> Ctx:
 
 def require(*keys: str) -> Callable[..., Ctx]:
     """Router gate: an active staff or API-key principal holding at least one of the keys anywhere.
-    With no keys it means `authenticated` staff. The service-layer authorize() remains the real gate."""
+    With no keys it means `authenticated` staff, and API keys are refused: a key's scopes name keys, so a keyless
+    route (configuration reads with no authorize()) is outside every key (W2-02). The service-layer authorize()
+    remains the real gate."""
 
     def dependency(ctx: Ctx = Depends(current_ctx)) -> Ctx:
         principal = ctx.principal
@@ -121,6 +123,6 @@ def require(*keys: str) -> Callable[..., Ctx]:
             raise PermissionDenied(f"Requires {keys[0]}", required=keys[0])
         return ctx
 
-    dependency.accepts_api_key = True
+    dependency.accepts_api_key = bool(keys)
     dependency.keys = keys  # read by the generated location-scope tests
     return dependency
