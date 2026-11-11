@@ -1,0 +1,86 @@
+# Reverse proxy and static host for the web app. Caddy over nginx: automatic TLS (ACME, or an internal CA for
+# localhost) with renewal, HTTP/2 and 3, and one small file that needs no certbot or cron. Provider-neutral.
+#
+# Environment (all optional):
+#   SITE_ADDRESS  public host name; default localhost (a local CA certificate). ":8080" serves plain HTTP,
+#                 for a platform edge (Fly, an AWS load balancer) that terminates TLS in front of this proxy.
+#   HTTP_PORT, HTTPS_PORT  listen ports; default 8080 and 8443 so the container needs no root or capabilities.
+#   API_UPSTREAM  default api:8100
+{
+	admin off
+	http_port {$HTTP_PORT:8080}
+	https_port {$HTTPS_PORT:8443}
+	servers {
+		# Slow-client limits (security-baseline 6): header 10 s, body 60 s (a 20 MiB upload on a slow line),
+		# write 60 s, idle keep-alive 2 min.
+		timeouts {
+			read_header 10s
+			read_body 60s
+			write 60s
+			idle 2m
+		}
+	}
+}
+
+{$SITE_ADDRESS:localhost} {
+	encode zstd gzip
+
+	header {
+		# HSTS also comes from the API once cookies are Secure; set here too so static pages carry it.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Cross-Origin-Opener-Policy "same-origin"
+		Permissions-Policy "camera=(self), microphone=(), geolocation=(), payment=(self)"
+		-Server
+	}
+
+	# The API sends its own deny-all CSP and no-store; everything else is the SPA (security-baseline 9.6).
+	@spa not path /api/*
+	header @spa Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+
+	handle /api/* {
+		# Upload exception, mirrored from core/api.py BodyLimitMiddleware.UPLOAD_PATHS: file bytes up to 20 MiB
+		# (storage.max_upload_bytes) plus slack. Every other API body is capped at 1 MiB (api.max_body_bytes).
+		@upload path_regexp ^/api/v1/client-documents/[^/]+/paper-scan$
+		handle @upload {
+			request_body {
+				max_size 21MiB
+			}
+			reverse_proxy {$API_UPSTREAM:api:8100} {
+				header_up X-Forwarded-For {remote_host}
+				transport http {
+					dial_timeout 5s
+					response_header_timeout 120s
+				}
+			}
+		}
+		handle {
+			request_body {
+				max_size 1MiB
+			}
+			reverse_proxy {$API_UPSTREAM:api:8100} {
+				# One hop, set by us from the socket peer. The app trusts this proxy's address only
+				# (api.trusted_proxies) and reads the right-most hop, so a client-sent value is never believed.
+				header_up X-Forwarded-For {remote_host}
+				health_uri /api/v1/health/live
+				health_interval 10s
+				transport http {
+					dial_timeout 5s
+					response_header_timeout 60s
+				}
+			}
+		}
+	}
+
+	handle {
+		root * /srv/web
+		@hashed path /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		@shell not path /assets/*
+		header @shell Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}
