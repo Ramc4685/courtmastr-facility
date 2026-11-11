@@ -73,7 +73,7 @@ A wrong passphrase makes the drill fail cleanly (`FAIL restore`, `DRILL FAIL`).
 (CVE-2026-78661, `golang.org/x/net/html`, fixed in 0.62.0); no patched `caddy:2-alpine` existed on 2026-11-11 and Caddy does
 not parse untrusted HTML, so it is a dated, reviewed exception in `.trivyignore` (revisit by 2026-12-11).
 
-**Gates in the lane**: see the final report for the `make lint test web-check web-test` result.
+**Gates in the lane**: `make lint` clean. `make test`: 4,189 passed, 2 failed, 2 skipped. The Stripe test failed only because the `.env` copied from the main checkout carried Stripe test keys; with those lines removed from the lane `.env` it passes. The other failure is `test_fifteen_hundred_linked_occurrences_commit_through_the_worker` (K3's known timing flake: 124 s in the full run, 190 s on its own, on a machine shared with a dozen lanes); O1 changes nothing in scheduling. `make web-check` clean; `make web-test` 140 passed (32 files).
 
 ## Review findings fixed
 
