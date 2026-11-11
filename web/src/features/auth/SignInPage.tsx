@@ -6,6 +6,7 @@ import { Input } from '../../components/Field'
 import { Tabs } from '../../components/Tabs'
 import { useAuth } from '../../lib/auth'
 import { AuthLayout, safeNext } from './AuthLayout'
+import { MfaStep, type Challenge } from './mfa'
 
 function messageFor(error: unknown): string {
   if (!(error instanceof ApiError)) return 'We could not reach the server. Check your connection and try again.'
@@ -18,8 +19,10 @@ function messageFor(error: unknown): string {
 type Audience = 'staff' | 'client'
 
 function PasswordForm({ next, audience }: { next: string; audience: Audience }) {
-  const { signIn } = useAuth()
+  const { signIn, sessionStarted } = useAuth()
   const navigate = useNavigate()
+  const [challenge, setChallenge] = useState<Challenge | null>(null)
+  const destination = audience === 'client' ? '/portal' : next
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -30,13 +33,24 @@ function PasswordForm({ next, audience }: { next: string; audience: Audience }) 
     setBusy(true)
     setError(null)
     try {
-      await signIn(email, password, audience)
-      navigate(audience === 'client' ? '/portal' : next, { replace: true })
+      const pending = await signIn(email, password, audience)
+      if (pending) return setChallenge(pending)
+      navigate(destination, { replace: true })
     } catch (err) {
       setError(messageFor(err))
       setBusy(false)
     }
   }
+  if (challenge)
+    return (
+      <MfaStep
+        challenge={challenge}
+        onSignedIn={async (csrf) => {
+          await sessionStarted(csrf)
+          navigate(destination, { replace: true })
+        }}
+      />
+    )
   return (
     <form onSubmit={submit} className="space-y-4" noValidate>
       {error && (

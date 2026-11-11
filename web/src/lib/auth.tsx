@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { api, ApiError, setCsrfToken, setUnauthenticatedHandler, type Schemas } from '../api/client'
 
 export type Me = Schemas['Me']
+type Challenge = Schemas['MfaChallengeOut']
 const SESSION_KEY = ['session'] as const
 // Drop every cached tenant query except the session itself (qc.clear() would detach the session observer).
 const notSession = { predicate: (q: { queryKey: readonly unknown[] }) => q.queryKey[0] !== SESSION_KEY[0] }
@@ -23,7 +24,8 @@ type AuthValue = {
   me: Me | null | undefined
   isLoading: boolean
   error: unknown
-  signIn: (email: string, password: string, audience?: 'staff' | 'client') => Promise<void>
+  /** Resolves null once signed in, or with the pending MFA challenge when a second step is due. */
+  signIn: (email: string, password: string, audience?: 'staff' | 'client') => Promise<Challenge | null>
   sessionStarted: (csrf: string | null | undefined) => Promise<void>
   signOut: () => Promise<void>
   can: (key: string) => boolean
@@ -54,7 +56,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(
     async (email: string, password: string, audience: 'staff' | 'client' = 'staff') => {
       const out = await api.post('/api/v1/auth/sign-in', { body: { email, password, audience, client_kind: 'web' } })
+      if ('mfa_token' in out) return out
       await sessionStarted(out.csrf_token)
+      return null
     },
     [sessionStarted],
   )

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Badge } from '../components/Badge'
 import { BrandMark, Icon } from '../components/Icon'
 import { useAuth, useCurrentLocation, useMe } from '../lib/auth'
@@ -159,6 +159,9 @@ function UserMenu() {
               ))}
             </div>
           </fieldset>
+          <Link to="/account/security" onClick={() => setOpen(false)} className="block w-full rounded px-2 py-2 text-left text-sm hover:bg-surface-2">
+            Sign-in security
+          </Link>
           <button type="button" onClick={() => void signOut()} className="w-full rounded px-2 py-2 text-left text-sm hover:bg-surface-2">
             Sign out
           </button>
