@@ -11,6 +11,7 @@ run it against a Stripe test account. Requests pin `payments.stripe.api_version`
 The HTTP layer is one injectable function, so tests need no network and no Stripe SDK.
 """
 
+import hashlib
 import json
 import os
 import urllib.error
@@ -173,7 +174,9 @@ class StripeConnectProvider:
             },
             "metadata": {"fh_tenant": tenant_ref},
         }  # fmt: skip
-        return self._account(self._ok("POST", "/v1/accounts", params, idempotency_key=f"{tenant_ref}:account"))
+        # The key carries a hash of the request: Stripe refuses a reused key with different parameters for 24 hours.
+        digest = hashlib.sha256(json.dumps(params, sort_keys=True).encode()).hexdigest()[:16]
+        return self._account(self._ok("POST", "/v1/accounts", params, idempotency_key=f"{tenant_ref}:account:{digest}"))
 
     def get_account(self, *, account_ref: str) -> AccountState:
         return self._account(self._ok("GET", f"/v1/accounts/{account_ref}"))
