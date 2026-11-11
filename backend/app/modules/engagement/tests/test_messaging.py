@@ -197,6 +197,9 @@ def test_templates_segments_and_campaign_lifecycle(client, tenant, owner, site, 
     later = {"scheduled_at": (clock.now() + timedelta(hours=1)).isoformat()}
     scheduled = ok(client.post(f"{API}/campaigns/{campaign['id']}/schedule", headers=owner, json=later))
     assert scheduled["status"] == "scheduled"
+    edited = ok(client.patch(f"{API}/campaigns/{campaign['id']}", headers=owner, json={"name": "Edited"}))
+    assert (edited["status"], edited["scheduled_at"]) == ("draft", None)  # an edit needs a fresh schedule
+    ok(client.post(f"{API}/campaigns/{campaign['id']}/schedule", headers=owner, json=later))
     with tenant_session(tenant.id, actor=SYSTEM) as session:
         assert svc.send_due_campaigns(session) == 0
     with clock.freeze(clock.now() + timedelta(hours=2)), tenant_session(tenant.id, actor=SYSTEM) as session:
@@ -307,6 +310,13 @@ def test_automation_sends_on_its_trigger_and_stops_on_an_exit_event(client, tena
         assert svc.on_trigger(session, "programs.waitlist.promoted", payload) == 0  # the same event twice
         assert svc.on_trigger(session, "clients.client.created", {"client_id": person["id"]}) == 1
     assert [m.subject for m in mailbox] == ["You are in"]
+    opted_out = _person(client, owner, site, "noauto@example.com", tenant=tenant, opted_in=False)
+    mailbox.clear()
+    with tenant_session(tenant.id, actor=SYSTEM) as session:
+        svc.on_trigger(session, "programs.waitlist.promoted", payload | {"client_id": opted_out["id"]})
+        sent = session.scalar(select(Message).where(Message.client_id == opted_out["id"]))
+        assert (sent.category, sent.skip_reason) == ("marketing", "unsubscribed")  # automations honour consent
+    assert not mailbox
     activated = {"client_id": person["id"], "contract_id": str(uuid4())}
     with tenant_session(tenant.id, actor=SYSTEM) as session:
         svc.on_trigger(session, "memberships.contract.activated", activated)
@@ -372,6 +382,11 @@ def test_portal_settings_public_config_and_videos(client, tenant, owner, site):
 def test_merge_moves_the_log_and_erasure_clears_it(client, tenant, owner, site):
     person = _person(client, owner, site, "gone@example.com", tenant=tenant)
     survivor = _person(client, owner, site, "keep@example.com", tenant=tenant)
+    _member(client, tenant, survivor)
+    with tenant_session(tenant.id, actor=SYSTEM) as session:
+        identity_id = session.scalar(select(Identity.id).where(Identity.email == "keep@example.com"))
+        session.add(DeviceRegistration(identity_id=identity_id, client_id=survivor["id"], location_id=site,
+                                       platform="ios", push_token="tok-erase"))  # fmt: skip
     notice = _campaign(
         client, owner, site, [person["id"], survivor["id"]], channel="push", subject="Hi", body_text="Hi"
     )
@@ -386,4 +401,5 @@ def test_merge_moves_the_log_and_erasure_clears_it(client, tenant, owner, site):
         assert not session.scalar(select(func.count()).select_from(Message).where(Message.client_id == person["id"]))
         result = subject._erase(session, survivor["id"])
         assert result["inbox_deleted"] == 1 and result["messages_cleared"] >= 1
+        assert result["devices_deleted"] == 1  # the device's message rows are detached first
         assert session.scalar(select(Message.to_address).where(Message.client_id == survivor["id"]).limit(1)) is None

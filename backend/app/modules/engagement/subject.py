@@ -38,6 +38,7 @@ def _erase(session: Session, client_id: UUID) -> dict:
     session.execute(update(ScheduledNotification).where(ScheduledNotification.client_id == client_id,
                     ScheduledNotification.status == "scheduled").values(status="cancelled", payload={}))  # fmt: skip
     inbox = session.execute(delete(InboxItem).where(InboxItem.client_id == client_id))
+    session.execute(update(Message).where(Message.client_id == client_id).values(device_registration_id=None))
     devices = session.execute(delete(DeviceRegistration).where(DeviceRegistration.client_id == client_id))
     return {"messages_cleared": cleared.rowcount, "inbox_deleted": inbox.rowcount, "devices_deleted": devices.rowcount}
 

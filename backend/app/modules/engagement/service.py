@@ -11,7 +11,7 @@ from datetime import timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, or_, select, text, true, update
+from sqlalchemy import any_, func, literal, or_, select, text, true, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -705,6 +705,8 @@ def update_campaign(session: Session, principal: Principal, campaign_id: UUID, d
     data.pop("location_id", None)
     for field, value in data.items():
         setattr(row, field, value)
+    if row.status == "scheduled":  # an edit needs a fresh schedule by someone holding the send key
+        row.status, row.scheduled_at = "draft", None
     _check_campaign(session, row)
     audit.record(session, "engagement.campaign.create", row, location_id=row.location_id, changes=audit.diff(row))
     session.flush()
@@ -893,7 +895,8 @@ def list_campaign_recipients(session: Session, principal: Principal, campaign_id
 def _visible(principal: Principal):
     if principal.kind == "system" or principal.location_ids is None:
         return true()
-    return or_(Message.location_id.is_(None), Message.location_id.in_(principal.location_ids))
+    # location-less rows (password resets, receipts from other contexts) are for tenant-wide staff only
+    return Message.location_id.in_(principal.location_ids)
 
 
 def list_messages(session: Session, principal: Principal, query: ListQuery) -> dict:
@@ -1276,12 +1279,16 @@ def _send_one(session: Session, row: ScheduledNotification) -> None:
             row.status = "cancelled"
             return
         template, topic, channel = system_template(session, "session_reminder"), "session_reminders", "email"
+        category = "transactional"
     else:
         rule = session.get(AutomationRule, row.automation_rule_id)
         if rule is None or not rule.is_enabled:
             row.status = "cancelled"
             return
         template, topic, channel = session.get(MessageTemplate, rule.message_template_id), rule.topic, rule.channel
+        # automations are marketing unless the template says otherwise, so consent and verification apply
+        category = template.category or "marketing"
+        topic = topic or ("email_campaigns" if category == "marketing" else None)
     data = _merge_data(session, client, row.location_id, title=row.payload.get("title"),
                        starts_at=_local(session, row.location_id, row.subject_starts_at))  # fmt: skip
     subject, body = rules.render(template.subject, data), rules.render(template.body_text, data)
@@ -1293,7 +1300,7 @@ def _send_one(session: Session, row: ScheduledNotification) -> None:
         row.status = "sent"
         return
     message = _deliver(
-        session, category="transactional", topic=topic, subject=subject, body=body, client=client,
+        session, category=category, topic=topic, subject=subject, body=body, client=client,
         location_id=row.location_id, template_id=template.id, source_event_type=row.payload.get("event_type"),
         dedupe_key=row.dedupe_key,
     )  # fmt: skip
@@ -1418,7 +1425,9 @@ def on_trigger(session: Session, event_type: str, payload: dict) -> int:
     if not payload.get(client_field):
         return 0
     client_id = UUID(str(payload[client_field]))
-    exiting = session.scalars(select(AutomationRule.id).where(AutomationRule.exit_event_types.any(event_type)))
+    exiting = session.scalars(
+        select(AutomationRule.id).where(literal(event_type) == any_(AutomationRule.exit_event_types))
+    )
     cancel_notifications(session, client_id=client_id, rule_ids=list(exiting))
     details = _subject_details(session, event_type, payload)
     location_id = details.get("location_id") or (UUID(payload["location_id"]) if payload.get("location_id") else None)

@@ -38,7 +38,10 @@ routes, the portal inbox and push devices, portal settings and videos. Feature s
 - **Reminders** are materialised as `scheduled_notification` rows (two offsets at most, unique per subject,
   offset and client) and re-checked at send time; a cancelled booking or enrollment cancels them.
 - **Automations** fire on a fixed catalogue of events (`service.TRIGGERS`); delay 0 sends in the handler's
-  transaction, otherwise a row is queued. An exit event cancels the client's queued sends for that rule.
+  transaction, otherwise a row is queued. An exit event cancels the client's queued sends for that rule. They
+  are marketing (topic `email_campaigns`, verified address, footer) unless the template's category says otherwise.
+- **Editing a scheduled campaign** returns it to draft, so someone holding the send key schedules it again.
+- **The message log** shows location-less rows (transactional mail from other contexts) to tenant-wide staff only.
 
 ## Assumptions and deviations (written down, not guessed)
 
