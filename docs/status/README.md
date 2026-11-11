@@ -390,8 +390,9 @@ Cross-cutting:
    a location in another zone.
 7. **Portal and mobile:** the member portal (`/portal`, member sign-in at `/sign-in?as=member`) has Home,
    Bookings, Memberships, Packages, Invoices and Profile with a household "acting for" switch, and an Inbox for announcements (module 14). Not built:
-   portal documents and waivers, dependents and relationships, stored-method management. The inbox lists one
-   item per client the login acts for, so a household sees an announcement once per member.
+   portal documents and waivers, dependents and relationships, stored-method management. The inbox shows the
+   acting-for member's items only (each item belongs to one recipient), so a household announcement appears
+   once per view; a delegate (book and buy only) gets 404 on another member's inbox.
 8. **Databases created before revision `0401`** hold package plans with placeholder reservation types and
    cannot take the new foreign key: recreate them.
 9. **Stripe has never been called.** The adapter is tested against a mocked HTTP layer and is off by default.
