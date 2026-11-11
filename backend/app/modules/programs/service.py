@@ -74,10 +74,24 @@ def _hold_credit(session: Db, seat: dict, row: Enrollment, client_package_id: UU
 
 
 def _enroll(
-    session: Db, seat: dict, client_id: UUID, channel: str, client_package_id: UUID | None = None
+    session: Db,
+    seat: dict,
+    client_id: UUID,
+    channel: str,
+    client_package_id: UUID | None = None,
+    *,
+    principal: Principal | None = None,
 ) -> Enrollment:
     """Internal: seat first (row lock, capacity-full), then the roster row and, when a package pays, its held
-    credit, all in the caller's transaction."""
+    credit, all in the caller's transaction. Every path into a seat meets the free-booking gate here: no
+    package on a session that does not allow free booking needs `free_book` at its location, and the
+    automatic path (`principal` None) never has it."""
+    if client_package_id is None and not seat["allows_free_booking"]:
+        if principal is None:
+            raise PermissionDenied(
+                "This session needs a package; registering without one requires an override.", required=FREE
+            )
+        authorize(principal, FREE, location_id=seat["location_id"])
     scheduling.service.reserve_seat(session, seat["id"])
     row = Enrollment(
         location_id=seat["location_id"], client_id=client_id, session_id=seat["id"], status="enrolled",
@@ -96,13 +110,8 @@ def _enroll(
 def create_enrollment(session: Db, principal: Principal, data: dict) -> Enrollment:
     """Register a client into a single session (CLS-01, CLS-05). Errors: capacity-full, already-enrolled."""
     seat = _seat(session, principal, data["session_id"], ENROLL)
-    package_id = data.get("client_package_id")
-    if package_id is None and not seat["allows_free_booking"] and not principal.has(FREE):
-        raise PermissionDenied(
-            "This session needs a package; registering without one requires an override.", required=FREE
-        )
     clients.service.require_active(session, data["client_id"])
-    row = _enroll(session, seat, data["client_id"], "staff", package_id)
+    row = _enroll(session, seat, data["client_id"], "staff", data.get("client_package_id"), principal=principal)
     audit.record(session, ENROLL, row, location_id=row.location_id, changes={"session_id": [None, str(row.session_id)]})
     return row
 
@@ -290,8 +299,8 @@ def create_waitlist_entry(session: Db, principal: Principal, data: dict) -> dict
     return _entry_view(row, position)
 
 
-def _promote(session: Db, seat: dict, entry: WaitlistEntry) -> Enrollment:
-    row = _enroll(session, seat, entry.client_id, "waitlist")
+def _promote(session: Db, seat: dict, entry: WaitlistEntry, principal: Principal | None = None) -> Enrollment:
+    row = _enroll(session, seat, entry.client_id, "waitlist", principal=principal)
     entry.status, entry.promoted_enrollment_id = "promoted", row.id
     events.publish(
         session,
@@ -317,6 +326,8 @@ def promote_waitlist(session: Db, session_id: UUID) -> int:
     seat = scheduling.service.get_session(session, session_id)
     if seat["status"] != "confirmed" or seat["starts_at"] - clock.now() < PROMOTION_CUTOFF:
         return 0
+    if not seat["allows_free_booking"]:
+        return 0  # a waitlist entry carries no package: it waits for staff with free_book (S-01)
     promoted = 0
     queue = session.scalars(
         select(WaitlistEntry)
@@ -345,7 +356,7 @@ def promote_waitlist_entry(session: Db, principal: Principal, entry_id: UUID) ->
     entry = _load(session, principal, WaitlistEntry, entry_id, WAITLIST)
     if entry.status != "waiting":
         raise Conflict("This entry is no longer waiting.")
-    _promote(session, scheduling.service.get_session(session, entry.session_id), entry)
+    _promote(session, scheduling.service.get_session(session, entry.session_id), entry, principal)
     audit.record(session, WAITLIST, entry, location_id=entry.location_id, changes={"status": ["waiting", "promoted"]})
     return _entry_view(entry)
 

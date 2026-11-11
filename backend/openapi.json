@@ -13286,6 +13286,11 @@
             "title": "On Conflict",
             "type": "string"
           },
+          "override_policy": {
+            "default": false,
+            "title": "Override Policy",
+            "type": "boolean"
+          },
           "preview": {
             "default": false,
             "title": "Preview",
@@ -21967,6 +21972,26 @@
         "title": "Page[PortalPaymentOut]",
         "type": "object"
       },
+      "Page_PortalRentalOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PortalRentalOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[PortalRentalOut]",
+        "type": "object"
+      },
       "Page_PosSaleOut_": {
         "properties": {
           "data": {
@@ -26508,6 +26533,110 @@
         "title": "PortalRelationshipRequest",
         "type": "object"
       },
+      "PortalRentalCancelResult": {
+        "properties": {
+          "cancelled_count": {
+            "title": "Cancelled Count",
+            "type": "integer"
+          },
+          "late_fee_minor": {
+            "title": "Late Fee Minor",
+            "type": "integer"
+          },
+          "plan_quantity_returned": {
+            "title": "Plan Quantity Returned",
+            "type": "string"
+          },
+          "rentals": {
+            "items": {
+              "$ref": "#/components/schemas/PortalRentalOut"
+            },
+            "title": "Rentals",
+            "type": "array"
+          },
+          "reposted_minor": {
+            "title": "Reposted Minor",
+            "type": "integer"
+          },
+          "reversed_minor": {
+            "title": "Reversed Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cancelled_count",
+          "reversed_minor",
+          "reposted_minor",
+          "late_fee_minor",
+          "plan_quantity_returned",
+          "rentals"
+        ],
+        "title": "PortalRentalCancelResult",
+        "type": "object"
+      },
+      "PortalRentalCheckout": {
+        "properties": {
+          "amount_due_minor": {
+            "title": "Amount Due Minor",
+            "type": "integer"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "invoice_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Id"
+          },
+          "payment_required": {
+            "title": "Payment Required",
+            "type": "boolean"
+          },
+          "payment_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Status"
+          },
+          "quote": {
+            "$ref": "#/components/schemas/Quote"
+          },
+          "rental": {
+            "$ref": "#/components/schemas/PortalRentalOut"
+          }
+        },
+        "required": [
+          "rental",
+          "quote",
+          "expires_at",
+          "invoice_id",
+          "payment_required",
+          "amount_due_minor"
+        ],
+        "title": "PortalRentalCheckout",
+        "type": "object"
+      },
       "PortalRentalConfirm": {
         "additionalProperties": false,
         "description": "A PaymentProvider client token; never raw card data. Stored methods arrive with build module 8.",
@@ -26574,6 +26703,155 @@
           "ends_at"
         ],
         "title": "PortalRentalCreate",
+        "type": "object"
+      },
+      "PortalRentalOut": {
+        "description": "The client's view of a rental: no co-party ids, no charge or invoice ids (S-06).",
+        "properties": {
+          "amount_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Minor"
+          },
+          "booking_id": {
+            "format": "uuid",
+            "title": "Booking Id",
+            "type": "string"
+          },
+          "booking_number": {
+            "title": "Booking Number",
+            "type": "integer"
+          },
+          "booking_series_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booking Series Id"
+          },
+          "cancelled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelled At"
+          },
+          "charge_state": {
+            "title": "Charge State",
+            "type": "string"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "rental_type_id": {
+            "format": "uuid",
+            "title": "Rental Type Id",
+            "type": "string"
+          },
+          "resources": {
+            "items": {
+              "$ref": "#/components/schemas/PortalRentalResourceOut"
+            },
+            "title": "Resources",
+            "type": "array"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "booking_id",
+          "booking_number",
+          "booking_series_id",
+          "rental_type_id",
+          "client_id",
+          "resources",
+          "starts_at",
+          "ends_at",
+          "status",
+          "expires_at",
+          "charge_state",
+          "cancelled_at",
+          "amount_minor",
+          "title"
+        ],
+        "title": "PortalRentalOut",
+        "type": "object"
+      },
+      "PortalRentalResourceOut": {
+        "properties": {
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_id",
+          "role"
+        ],
+        "title": "PortalRentalResourceOut",
         "type": "object"
       },
       "PortalSigner": {
@@ -32169,69 +32447,6 @@
         "title": "RentalCancelResult",
         "type": "object"
       },
-      "RentalCheckout": {
-        "properties": {
-          "amount_due_minor": {
-            "title": "Amount Due Minor",
-            "type": "integer"
-          },
-          "expires_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expires At"
-          },
-          "invoice_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Invoice Id"
-          },
-          "payment_required": {
-            "title": "Payment Required",
-            "type": "boolean"
-          },
-          "payment_status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Payment Status"
-          },
-          "quote": {
-            "$ref": "#/components/schemas/Quote"
-          },
-          "rental": {
-            "$ref": "#/components/schemas/RentalOut"
-          }
-        },
-        "required": [
-          "rental",
-          "quote",
-          "expires_at",
-          "invoice_id",
-          "payment_required",
-          "amount_due_minor"
-        ],
-        "title": "RentalCheckout",
-        "type": "object"
-      },
       "RentalCreate": {
         "additionalProperties": false,
         "properties": {
@@ -36656,6 +36871,11 @@
             ],
             "title": "On Conflict",
             "type": "string"
+          },
+          "override_policy": {
+            "default": false,
+            "title": "Override Policy",
+            "type": "boolean"
           },
           "preview": {
             "default": false,
@@ -66140,7 +66360,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Page_RentalOut_"
+                  "$ref": "#/components/schemas/Page_PortalRentalOut_"
                 }
               }
             },
@@ -66201,7 +66421,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RentalCheckout"
+                  "$ref": "#/components/schemas/PortalRentalCheckout"
                 }
               }
             },
@@ -66318,7 +66538,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RentalCancelResult"
+                  "$ref": "#/components/schemas/PortalRentalCancelResult"
                 }
               }
             },
@@ -66385,7 +66605,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RentalCheckout"
+                  "$ref": "#/components/schemas/PortalRentalCheckout"
                 }
               }
             },

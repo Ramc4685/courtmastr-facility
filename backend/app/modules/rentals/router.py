@@ -151,18 +151,18 @@ def search_rental_availability(
     return {"data": slots[:limit], "page": {"next_cursor": None, "has_more": len(slots) > limit}}
 
 
-@staff.get("/portal/rentals", response_model=s.Page[s.RentalOut])
+@staff.get("/portal/rentals", response_model=s.Page[s.PortalRentalOut])
 def list_portal_rentals(query: Lists, ctx: Client):
     return service.list_portal_rentals(ctx.session, ctx.principal, query)
 
 
-@staff.post("/portal/rentals", response_model=s.RentalCheckout, status_code=201)
+@staff.post("/portal/rentals", response_model=s.PortalRentalCheckout, status_code=201)
 def create_portal_rental(body: s.PortalRentalCreate, ctx: Client):
     """Holds the time for the location's checkout window (scheduling settings) while the client pays."""
     return service.create_portal_rental(ctx.session, ctx.principal, body.model_dump())
 
 
-@staff.post("/portal/rentals/{rental_id}/confirm", response_model=s.RentalCheckout)
+@staff.post("/portal/rentals/{rental_id}/confirm", response_model=s.PortalRentalCheckout)
 def confirm_portal_rental(rental_id: UUID, body: s.PortalRentalConfirm, idempotency_key: RequiredKey, ctx: Client):
     """Errors: hold-expired, payment-declined."""
     return service.confirm_portal_rental(ctx.session, ctx.principal, rental_id, body.model_dump(), idempotency_key)
@@ -173,7 +173,7 @@ def abandon_portal_rental(rental_id: UUID, ctx: Client):
     service.abandon_portal_rental(ctx.session, ctx.principal, rental_id)
 
 
-@staff.post("/portal/rentals/{rental_id}/cancel", response_model=s.RentalCancelResult)
+@staff.post("/portal/rentals/{rental_id}/cancel", response_model=s.PortalRentalCancelResult)
 def cancel_portal_rental(rental_id: UUID, ctx: Client):
     return service.cancel_portal_rental(ctx.session, ctx.principal, rental_id)
 

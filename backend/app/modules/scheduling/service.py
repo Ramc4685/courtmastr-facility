@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session as Db
 
 from app.core import audit, clock, events
 from app.core.api import CONSTRAINT_CODES
-from app.core.auth import Principal, authorize, scope_query, system_principal
+from app.core.auth import Principal, authorize, authorize_tenant_wide, scope_query, system_principal
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.ids import new_id
 from app.core.pagination import ListQuery, paginate
@@ -44,6 +44,7 @@ READ, CREATE, UPDATE, DELETE = (f"scheduling.booking.{verb}" for verb in ("read"
 UPDATE_SERIES, DELETE_SERIES = "scheduling.booking.update_series", "scheduling.booking.delete_series"
 OVERRIDE, BLOCK = "scheduling.booking.override_policy", "scheduling.block.manage"
 SESSION, CAPACITY = "scheduling.session.manage", "scheduling.session.change_capacity"
+FREE_BOOK = "scheduling.enrollment.free_book"
 TYPES, LOCATION = "scheduling.reservation_type.manage", "platform.location.update"
 SYNC_LIMIT = 50  # occurrences per transaction: stays under Postgres's 64 cached subtransactions (ADR 0004)
 MAX_CALENDAR_DAYS = 42
@@ -141,7 +142,9 @@ def get_settings(session: Db, principal: Principal, location_id: UUID | None) ->
 def update_settings(session: Db, principal: Principal, location_id: UUID | None, data: dict) -> SchedulingSettings:
     if location_id:
         _location(session, principal, location_id)
-    authorize(principal, LOCATION, location_id=location_id)
+        authorize(principal, LOCATION, location_id=location_id)
+    else:
+        authorize_tenant_wide(principal, LOCATION)  # the tenant default governs every location (S-04)
     row = settings_for(session, location_id)
     if row.location_id != location_id:  # first override for this location: start from the tenant default
         inherited = {
@@ -935,6 +938,13 @@ def get_booking_view(session: Db, principal: Principal, booking_id: UUID) -> dic
     return _view(session, booking)
 
 
+def _check_free_flag(principal: Principal, location_id: UUID, wanted: bool | None, current: bool) -> None:
+    """`allows_free_booking` lets anyone register without a package, so turning it on is a `free_book`
+    decision wherever it is set (S-02)."""
+    if wanted and not current:
+        authorize(principal, FREE_BOOK, location_id=location_id)
+
+
 def _template(session: Db, principal: Principal, data: dict) -> dict:
     """Validate a staff create and resolve everything an occurrence copies, once."""
     location_id = _location(session, principal, data["location_id"])
@@ -944,6 +954,7 @@ def _template(session: Db, principal: Principal, data: dict) -> dict:
     )
     if data.get("override_policy"):
         authorize(principal, OVERRIDE, location_id=location_id)
+    _check_free_flag(principal, location_id, (data.get("session") or {}).get("allows_free_booking"), False)
     return template
 
 
@@ -1339,10 +1350,11 @@ def add_series_rule(session: Db, principal: Principal, series_id: UUID, data: di
 
 def add_rule(
     session: Db, series_id: UUID, data: dict, staff_user_id: UUID | None, *, principal: Principal | None = None,
-    audit_key: str = UPDATE_SERIES,
+    key: str = UPDATE_SERIES,
 ) -> dict:  # fmt: skip
-    """Internal (no gate unless `principal` is given): add a pass to a series, copying its first template, so
-    an owner's source hook runs for the new occurrences too (rentals RNT-04 "add more")."""
+    """Internal (no gate unless `principal` is given; `key` gates and audits): add a pass to a series, copying
+    its first template, so an owner's source hook runs for the new occurrences too (rentals RNT-04 "add
+    more"). The copy never carries the policy override or the original creator over (S-03)."""
     series = session.execute(select(BookingSeries).where(BookingSeries.id == series_id).with_for_update()).scalar_one()
     rules = session.scalars(
         select(BookingSeriesRule)
@@ -1355,7 +1367,12 @@ def add_rule(
         rows = _resolve_resources(session, series.location_id, [r["resource_id"] for r in ordered], False)
         template["resources"] = [[str(resource_id), role] for resource_id, role in rows]
     if principal is not None:
-        _authorize(session, principal, UPDATE_SERIES, series.location_id, [UUID(r) for r, _ in template["resources"]])
+        _authorize(session, principal, key, series.location_id, [UUID(r) for r, _ in template["resources"]])
+    override = bool(data.get("override_policy")) and principal is not None
+    if override:
+        authorize(principal, OVERRIDE, location_id=series.location_id)
+    template["override_policy"] = override
+    template["created_by_staff_user_id"] = str(staff_user_id) if staff_user_id else None
     rule = data["rule"]
     row = BookingSeriesRule(
         booking_series_id=series.id, sequence=rules[-1].sequence + 1, pattern=rule["pattern"],
@@ -1372,9 +1389,7 @@ def add_rule(
     row.requested_count = len(occurrences)
     session.add(row)
     session.flush()
-    audit.record(
-        session, audit_key, series, location_id=series.location_id, changes={"rule_added": [None, row.sequence]}
-    )
+    audit.record(session, key, series, location_id=series.location_id, changes={"rule_added": [None, row.sequence]})
     return _start_pass(session, staff_user_id, series, row, occurrences, data.get("on_conflict") or "abort")
 
 
@@ -1457,6 +1472,10 @@ def _apply_patch(
     seats = {
         s.booking_id: s for s in session.scalars(select(Session).where(Session.booking_id.in_([b.id for b in targets])))
     }
+    _check_free_flag(
+        principal, series.location_id, seats_patch.get("allows_free_booking"),
+        all(seat.allows_free_booking for seat in seats.values()),
+    )  # fmt: skip
     results = []
     for booking in targets:
         status, found = "ok", []
@@ -1654,6 +1673,7 @@ def update_session(session: Db, principal: Principal, session_id: UUID, data: di
     seat = _load(session, principal, Session, session_id, lock=True)
     booking = session.get(Booking, seat.booking_id)
     _authorize(session, principal, SESSION, seat.location_id, _resource_ids(session, booking))
+    _check_free_flag(principal, seat.location_id, data.get("allows_free_booking"), seat.allows_free_booking)
     _apply(seat, data)
     audit.record(session, SESSION, seat, location_id=seat.location_id, changes=audit.diff(seat))
     session.flush()

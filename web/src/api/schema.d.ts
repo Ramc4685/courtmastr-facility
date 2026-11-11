@@ -11575,6 +11575,11 @@ export interface components {
              */
             on_conflict: "skip" | "abort";
             /**
+             * Override Policy
+             * @default false
+             */
+            override_policy: boolean;
+            /**
              * Preview
              * @default false
              */
@@ -14167,6 +14172,12 @@ export interface components {
             data: components["schemas"]["PortalPaymentOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[PortalRentalOut] */
+        Page_PortalRentalOut_: {
+            /** Data */
+            data: components["schemas"]["PortalRentalOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[PosSaleOut] */
         Page_PosSaleOut_: {
             /** Data */
@@ -15714,6 +15725,36 @@ export interface components {
              */
             relationship_type_id: string;
         };
+        /** PortalRentalCancelResult */
+        PortalRentalCancelResult: {
+            /** Cancelled Count */
+            cancelled_count: number;
+            /** Late Fee Minor */
+            late_fee_minor: number;
+            /** Plan Quantity Returned */
+            plan_quantity_returned: string;
+            /** Rentals */
+            rentals: components["schemas"]["PortalRentalOut"][];
+            /** Reposted Minor */
+            reposted_minor: number;
+            /** Reversed Minor */
+            reversed_minor: number;
+        };
+        /** PortalRentalCheckout */
+        PortalRentalCheckout: {
+            /** Amount Due Minor */
+            amount_due_minor: number;
+            /** Expires At */
+            expires_at: string | null;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /** Payment Required */
+            payment_required: boolean;
+            /** Payment Status */
+            payment_status?: string | null;
+            quote: components["schemas"]["Quote"];
+            rental: components["schemas"]["PortalRentalOut"];
+        };
         /**
          * PortalRentalConfirm
          * @description A PaymentProvider client token; never raw card data. Stored methods arrive with build module 8.
@@ -15751,6 +15792,75 @@ export interface components {
              * Format: date-time
              */
             starts_at: string;
+        };
+        /**
+         * PortalRentalOut
+         * @description The client's view of a rental: no co-party ids, no charge or invoice ids (S-06).
+         */
+        PortalRentalOut: {
+            /** Amount Minor */
+            amount_minor: number | null;
+            /**
+             * Booking Id
+             * Format: uuid
+             */
+            booking_id: string;
+            /** Booking Number */
+            booking_number: number;
+            /** Booking Series Id */
+            booking_series_id: string | null;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Charge State */
+            charge_state: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Expires At */
+            expires_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Rental Type Id
+             * Format: uuid
+             */
+            rental_type_id: string;
+            /** Resources */
+            resources: components["schemas"]["PortalRentalResourceOut"][];
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
+        };
+        /** PortalRentalResourceOut */
+        PortalRentalResourceOut: {
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /** Role */
+            role: string;
         };
         /** PortalSigner */
         PortalSigner: {
@@ -17526,21 +17636,6 @@ export interface components {
             /** Reversed Minor */
             reversed_minor: number;
         };
-        /** RentalCheckout */
-        RentalCheckout: {
-            /** Amount Due Minor */
-            amount_due_minor: number;
-            /** Expires At */
-            expires_at: string | null;
-            /** Invoice Id */
-            invoice_id: string | null;
-            /** Payment Required */
-            payment_required: boolean;
-            /** Payment Status */
-            payment_status?: string | null;
-            quote: components["schemas"]["Quote"];
-            rental: components["schemas"]["RentalOut"];
-        };
         /** RentalCreate */
         RentalCreate: {
             /** Buffer After Min */
@@ -18839,6 +18934,11 @@ export interface components {
              * @enum {string}
              */
             on_conflict: "skip" | "abort";
+            /**
+             * Override Policy
+             * @default false
+             */
+            override_policy: boolean;
             /**
              * Preview
              * @default false
@@ -32343,7 +32443,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Page_RentalOut_"];
+                    "application/json": components["schemas"]["Page_PortalRentalOut_"];
                 };
             };
             /** @description Validation Error */
@@ -32379,7 +32479,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RentalCheckout"];
+                    "application/json": components["schemas"]["PortalRentalCheckout"];
                 };
             };
             /** @description Validation Error */
@@ -32445,7 +32545,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RentalCancelResult"];
+                    "application/json": components["schemas"]["PortalRentalCancelResult"];
                 };
             };
             /** @description Validation Error */
@@ -32483,7 +32583,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RentalCheckout"];
+                    "application/json": components["schemas"]["PortalRentalCheckout"];
                 };
             };
             /** @description Validation Error */

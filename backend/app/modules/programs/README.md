@@ -26,6 +26,8 @@ fees, packages, checkout, forms, portal). Tables follow `docs/architecture/data-
 
 - **Only `pricing = free` exists.** Packages (module 5) and fees (module 6) are not built, so a session that
   does not allow free booking can be enrolled into only by a holder of `scheduling.enrollment.free_book`.
+  The check sits in `_enroll`, so it covers staff waitlist promotion too (at the session's location); the
+  automatic promotion never has the key and leaves such a queue waiting for staff (S-01).
 - Reads (roster, enrolment list) are gated by `scheduling.booking.read`, not `programs.registration.read`,
   which is registered with module 6.
 - `ck_enrollment_target` and `ck_waitlist_entry_target` allow the session target only; module 6 replaces

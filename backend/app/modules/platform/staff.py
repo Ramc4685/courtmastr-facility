@@ -160,22 +160,31 @@ def _set_locations(
     location_ids: list[UUID],
     primary_location_id: UUID | None,
 ) -> None:
-    """Location containment: an editor limited to a location set can only assign locations inside it."""
+    """Location containment: an editor limited to a location set can only assign locations inside it, and
+    leaves the target's other locations as they are (S-07): it has no say over them."""
     wanted = set(location_ids)
     if primary_location_id:
         wanted.add(primary_location_id)
-    if principal.location_ids is not None and (has_all or not wanted <= principal.location_ids):
-        raise _self_escalation("You can only assign locations you have access to yourself.")
+    foreign: dict[UUID, bool] = {}  # location -> is_primary, outside the editor's set
+    if principal.location_ids is not None:
+        if has_all or not wanted <= principal.location_ids:
+            raise _self_escalation("You can only assign locations you have access to yourself.")
+        if staff_user.has_all_location_access:
+            raise _self_escalation("Only someone with access to every location can change this user's locations.")
+        foreign = {
+            a.location_id: a.is_primary and primary_location_id is None
+            for a in staff_user.location_access
+            if a.location_id not in principal.location_ids
+        }
     known = set(session.scalars(select(Location.id).where(Location.id.in_(wanted)))) if wanted else set()
     if wanted - known:
         raise ValidationFailed("Unknown location.", pointer="/location_ids")
     staff_user.has_all_location_access = has_all
     session.execute(delete(UserLocationAccess).where(UserLocationAccess.staff_user_id == staff_user.id))
-    for location_id in sorted(wanted):
+    rows = {location_id: location_id == primary_location_id for location_id in wanted} | foreign
+    for location_id in sorted(rows):
         session.add(
-            UserLocationAccess(
-                staff_user_id=staff_user.id, location_id=location_id, is_primary=location_id == primary_location_id
-            )
+            UserLocationAccess(staff_user_id=staff_user.id, location_id=location_id, is_primary=rows[location_id])
         )
 
 
