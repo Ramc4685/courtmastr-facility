@@ -1043,6 +1043,26 @@ def email_is_verified(session: Session, client_id: UUID, address: str) -> bool:
     )
 
 
+def audience(
+    session: Session, *, client_ids=None, tag_ids=None, home_location_ids=None, everyone: bool = False
+) -> list[Client]:
+    """Internal (engagement segments): live clients from the union of the sources (everyone, these ids,
+    these tags), narrowed to a home location when given. Disabled, merged and erased records are left out."""
+    stmt = select(Client).where(Client.status == "active", Client.erased_at.is_(None))
+    if not everyone:
+        picks = []
+        if client_ids:
+            picks.append(Client.id.in_(list(client_ids)))
+        if tag_ids:
+            picks.append(Client.id.in_(select(ClientTag.client_id).where(ClientTag.tag_id.in_(list(tag_ids)))))
+        if not picks:
+            return []
+        stmt = stmt.where(or_(*picks))
+    if home_location_ids is not None:
+        stmt = stmt.where(Client.home_location_id.in_(list(home_location_ids)))
+    return list(session.scalars(stmt.order_by(Client.id)))
+
+
 def client_addresses(session: Session, client_id: UUID) -> list[str]:
     return list(
         session.scalars(select(ClientEmail.email).where(ClientEmail.client_id == client_id).order_by(ClientEmail.email))
@@ -1149,3 +1169,29 @@ def activate_access_for_identity(session: Session, identity_id: UUID) -> None:
         .where(ClientPortalAccess.identity_id == identity_id, ClientPortalAccess.status == "invited")
         .values(status="active", activated_at=clock.now())
     )
+
+
+# --- check-in lookups (access, build module 10) -------------------------------------------------------------
+
+
+def find_by_member_number(session: Session, value: str) -> Client | None:
+    """Internal (access): the live client holding this member number, compared without case (scanned values)."""
+    return session.scalar(
+        select(Client).where(func.upper(Client.member_number) == value.upper(), Client.merged_into_id.is_(None))
+    )
+
+
+def find_by_last_name_prefix(session: Session, prefix: str, limit: int) -> list[Client]:
+    """Internal (kiosk name search): active, live clients whose last name starts with `prefix` (taken literally)."""
+    prefix = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return list(
+        session.scalars(
+            select(Client)
+            .where(
+                Client.last_name.ilike(f"{prefix}%", escape="\\"), Client.status == "active",
+                Client.merged_into_id.is_(None), Client.erased_at.is_(None),
+            )
+            .order_by(Client.last_name, Client.first_name, Client.id)
+            .limit(limit)
+        )
+    )  # fmt: skip

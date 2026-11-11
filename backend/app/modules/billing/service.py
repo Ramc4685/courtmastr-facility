@@ -1469,6 +1469,21 @@ def invoice_charge_ids(session: Session, invoice_id: UUID) -> list[UUID]:
     return list(session.scalars(select(Charge.id).where(Charge.invoice_id == invoice_id, Charge.status == "active")))
 
 
+def charge_ids_for_source(session: Session, source_context: str, source_type: str, source_id: UUID) -> list[UUID]:
+    """Internal: the charges a selling context raised for one of its records, in line order."""
+    return list(
+        session.scalars(
+            select(Charge.id)
+            .where(
+                Charge.source_context == source_context,
+                Charge.source_type == source_type,
+                Charge.source_id == source_id,
+            )
+            .order_by(Charge.source_line_no)
+        )
+    )
+
+
 def category_taxes(session: Session, revenue_category_id: UUID, on: date) -> list[tuple[UUID, Decimal]]:
     """(tax_id, rate) of the taxes post_charge would apply to a line of this category on that date; callers
     quote with it and pass the unticked ones to post_charge as exclude_tax_ids (rentals)."""

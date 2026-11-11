@@ -1,0 +1,154 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState, type FormEvent } from 'react'
+import { api, fieldErrors, type Schemas } from '../../api/client'
+import { Badge } from '../../components/Badge'
+import { Button } from '../../components/Button'
+import { ConfirmDialog } from '../../components/Dialog'
+import { Checkbox, Input } from '../../components/Field'
+import { PageHeader, Card } from '../../components/PageHeader'
+import { EmptyState, ErrorState, LoadingState } from '../../components/States'
+import { Table, useKeysetQuery } from '../../components/Table'
+import { useToast } from '../../components/Toast'
+import { useAuth, useMe } from '../../lib/auth'
+import { FormDialog, FormError, LocationSelect, TextArea } from '../billing/shared'
+
+type Settings = Schemas['PortalSettingsOut']
+type Video = Schemas['VideoOut']
+
+function SettingsForm({ settings }: { settings: Settings }) {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const [form, setForm] = useState({
+    is_enabled: settings.is_enabled, is_public: settings.is_public, slug: settings.slug, welcome_text: settings.welcome_text ?? '', terms_text: settings.terms_text ?? '',
+    allows_online_rentals: settings.allows_online_rentals, allows_online_purchases: settings.allows_online_purchases,
+  })
+  const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }))
+  const save = useMutation({
+    mutationFn: () => api.put('/api/v1/locations/{location_id}/portal-settings', { path: { location_id: settings.location_id }, body: form }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['engagement', 'portal-settings'] })
+      toast('success', 'Portal settings saved.')
+    },
+  })
+  const errors = fieldErrors(save.error)
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    save.mutate()
+  }
+  return (
+    <form onSubmit={submit} className="max-w-2xl space-y-4">
+      <FormError error={save.error} />
+      <Checkbox label="Member portal is on for this location" checked={form.is_enabled} onChange={(e) => set({ is_enabled: e.target.checked })} />
+      <Checkbox label="Show this location on the public landing page" checked={form.is_public} onChange={(e) => set({ is_public: e.target.checked })} />
+      <Input label="Portal address (slug)" hint="Lower-case letters, numbers and dashes." value={form.slug} error={errors.slug} onChange={(e) => set({ slug: e.target.value })} />
+      <TextArea label="Welcome text" value={form.welcome_text} error={errors.welcome_text} onChange={(v) => set({ welcome_text: v })} />
+      <TextArea label="Terms and conditions" hint={`Changing this text raises the terms version (now ${settings.terms_version ?? 1}).`} value={form.terms_text} error={errors.terms_text} onChange={(v) => set({ terms_text: v })} />
+      <Checkbox label="Allow online rentals" checked={form.allows_online_rentals} onChange={(e) => set({ allows_online_rentals: e.target.checked })} />
+      <Checkbox label="Allow online purchases" checked={form.allows_online_purchases} onChange={(e) => set({ allows_online_purchases: e.target.checked })} />
+      <Button type="submit" loading={save.isPending}>Save portal settings</Button>
+    </form>
+  )
+}
+
+function VideoDialog({ video, locationId, onClose }: { video?: Video; locationId: string; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [form, setForm] = useState({ title: video?.title ?? '', description: video?.description ?? '', url: video?.url ?? '', is_published: video?.is_published ?? false, sort_order: String(video?.sort_order ?? 0) })
+  const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }))
+  const save = useMutation({
+    mutationFn: () => {
+      const body = { title: form.title, description: form.description || undefined, url: form.url, is_published: form.is_published, sort_order: Number(form.sort_order) }
+      return video ? api.patch('/api/v1/videos/{video_id}', { path: { video_id: video.id }, body }) : api.post('/api/v1/videos', { body: { ...body, location_id: locationId } })
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['engagement', 'videos'] })
+      onClose()
+    },
+  })
+  const errors = fieldErrors(save.error)
+  return (
+    <FormDialog title={video ? 'Edit video' : 'Add a video'} submitLabel={video ? 'Save changes' : 'Add video'} busy={save.isPending} error={save.error} onSubmit={() => save.mutate()} onClose={onClose}>
+      <Input label="Title" required autoFocus value={form.title} error={errors.title} onChange={(e) => set({ title: e.target.value })} />
+      <Input label="Link" hint="An https YouTube or Vimeo link." type="url" required value={form.url} error={errors.url} onChange={(e) => set({ url: e.target.value })} />
+      <TextArea label="Description" value={form.description} error={errors.description} onChange={(v) => set({ description: v })} />
+      <Input label="Sort order" type="number" min={0} max={10000} value={form.sort_order} error={errors.sort_order} onChange={(e) => set({ sort_order: e.target.value })} />
+      <Checkbox label="Published in the member portal and app" checked={form.is_published} onChange={(e) => set({ is_published: e.target.checked })} />
+    </FormDialog>
+  )
+}
+
+function Videos({ locationId }: { locationId: string }) {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const [editing, setEditing] = useState<Video | 'new' | null>(null)
+  const [deleting, setDeleting] = useState<Video | null>(null)
+  const paging = useKeysetQuery(['engagement', 'videos', locationId], (cursor) => api.get('/api/v1/videos', { query: { cursor, location_id: locationId, sort: 'sort_order' } }))
+  const remove = useMutation({
+    mutationFn: (v: Video) => api.delete('/api/v1/videos/{video_id}', { path: { video_id: v.id } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['engagement', 'videos'] })
+      toast('success', 'Video deleted.')
+      setDeleting(null)
+    },
+    onError: (e) => {
+      toast('error', e.message)
+      setDeleting(null)
+    },
+  })
+  return (
+    <section aria-labelledby="videos-h">
+      <div className="mb-3 flex items-center justify-between gap-4">
+        <h2 id="videos-h">Videos</h2>
+        <Button onClick={() => setEditing('new')}>Add a video</Button>
+      </div>
+      <Table
+        caption="Videos"
+        paging={paging}
+        rowKey={(v) => v.id}
+        empty={<EmptyState title="No videos yet">Add a YouTube or Vimeo link for members to watch.</EmptyState>}
+        columns={[
+          { header: 'Title', cell: (v) => <span className="font-medium">{v.title}</span> },
+          { header: 'Link', cell: (v) => <a className="text-primary underline-offset-2 hover:underline" href={v.url} target="_blank" rel="noopener noreferrer">{v.url}</a> },
+          { header: 'State', cell: (v) => (v.is_published ? <Badge tone="success">Published</Badge> : <Badge>Draft</Badge>) },
+          {
+            header: 'Actions',
+            className: 'text-right',
+            cell: (v) => (
+              <div className="flex justify-end gap-2">
+                <Button size="sm" variant="secondary" aria-label={`Edit ${v.title}`} onClick={() => setEditing(v)}>Edit</Button>
+                <Button size="sm" variant="danger" aria-label={`Delete ${v.title}`} onClick={() => setDeleting(v)}>Delete</Button>
+              </div>
+            ),
+          },
+        ]}
+      />
+      {editing && <VideoDialog video={editing === 'new' ? undefined : editing} locationId={locationId} onClose={() => setEditing(null)} />}
+      <ConfirmDialog open={Boolean(deleting)} title="Delete this video?" confirmLabel="Delete" danger busy={remove.isPending} onConfirm={() => deleting && remove.mutate(deleting)} onClose={() => setDeleting(null)}>
+        {deleting?.title}
+      </ConfirmDialog>
+    </section>
+  )
+}
+
+export function PortalSettingsPage() {
+  const me = useMe()
+  const { can } = useAuth()
+  const [locationId, setLocationId] = useState(me.primary_location_id ?? me.locations?.[0]?.id ?? '')
+  const manageSettings = can('engagement.portal_settings.manage')
+  const settings = useQuery({ queryKey: ['engagement', 'portal-settings', locationId], enabled: manageSettings && Boolean(locationId), queryFn: () => api.get('/api/v1/locations/{location_id}/portal-settings', { path: { location_id: locationId } }) })
+  return (
+    <>
+      <PageHeader title="Portal and videos" description="What members see in the member portal and mobile app, per location." />
+      <div className="mb-6 max-w-xs">
+        <LocationSelect value={locationId} onChange={setLocationId} />
+      </div>
+      <div className="space-y-8">
+        {manageSettings && (
+          <Card title="Portal settings">
+            {settings.isPending ? <LoadingState /> : settings.isError ? <ErrorState error={settings.error} onRetry={() => settings.refetch()} /> : <SettingsForm key={locationId} settings={settings.data} />}
+          </Card>
+        )}
+        {can('engagement.app_content.manage') && locationId && <Videos locationId={locationId} />}
+      </div>
+    </>
+  )
+}

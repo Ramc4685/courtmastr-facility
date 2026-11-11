@@ -1,11 +1,11 @@
-"""programs context (L3). Thin slice shipped with build module 2: enrolment into a single session, attendance
-marks and the session waitlist (CLS-01, CLS-03, CLS-06), so capacity sessions are usable end to end. Build
-module 6 completes the context (groups, fees, packages, portal); no table here is renamed.
+"""programs context (L3): one enrolment engine for sessions and program groups (camps, clinics, leagues'
+registrations), fees, waitlists, online registration and its checkout, and client self-booking of sessions.
 
-Public interface: `service`.
+Public interface: `service` (session targets, shared enrolment endpoints), `groups` (program groups),
+`checkout` (registration baskets), `selfservice` (booking policy and portal booking).
 """
 
-from app.modules.programs import handlers, models, service
+from app.modules.programs import checkout, groups, handlers, jobs, models, permissions, selfservice, service
 
-__all__ = ["handlers", "models", "service"]
+__all__ = ["checkout", "groups", "handlers", "jobs", "models", "permissions", "selfservice", "service"]
 from app.modules.programs import subject  # noqa: E402, F401  (registers the merge and data-subject handlers)

@@ -11,12 +11,22 @@ import { MergePage } from '../features/clients/MergePage'
 import { TokenLinkPage } from '../features/auth/TokenLinkPage'
 import { IntegrationsPage } from '../features/integrations/IntegrationsPage'
 import { PayLinkPage } from '../features/billing/PayLinkPage'
+import { AutomationsPage, RemindersPage } from '../features/engagement/AutomationPages'
+import { CampaignDetailPage } from '../features/engagement/CampaignDetailPage'
+import { CampaignsPage } from '../features/engagement/CampaignsPage'
+import { EngagementLayout } from '../features/engagement/EngagementLayout'
+import { SegmentsPage, TemplatesPage as MessageTemplatesPage } from '../features/engagement/LibraryPages'
+import { MessageLogPage, SuppressionsPage } from '../features/engagement/MessagesPages'
+import { PortalSettingsPage } from '../features/engagement/PortalPage'
+import { UnsubscribePage } from '../features/engagement/UnsubscribePage'
 import { PublicSignPage } from '../features/documents/PublicSignPage'
 import { TemplateEditorPage } from '../features/documents/TemplateEditorPage'
 import { TemplatesPage } from '../features/documents/TemplatesPage'
+import { LeaguePage, LeaguesPage } from '../features/leagues/LeaguesPage'
+import { PublicLeaguesPage } from '../features/leagues/PublicLeaguesPage'
 import { MembershipsPage } from '../features/memberships/MembershipsPage'
 import { PackagesPage } from '../features/packages/PackagesPage'
-import { PortalHome } from '../features/portal/PortalHome'
+import { PortalApp } from '../features/portal/PortalApp'
 import { AuditLogPage } from '../features/platform/AuditLogPage'
 import { DashboardPage } from '../features/platform/DashboardPage'
 import { LocationsPage } from '../features/platform/LocationsPage'
@@ -27,6 +37,10 @@ import { StaffUsersPage } from '../features/platform/StaffUsersPage'
 import { TenantSettingsPage } from '../features/platform/TenantSettingsPage'
 import { RentalSetupPage } from '../features/rentals/RentalSetupPage'
 import { RentalsPage } from '../features/rentals/RentalsPage'
+import { BasketPage } from '../features/programs/BasketPage'
+import { BookingPolicyPage } from '../features/programs/BookingPolicyPage'
+import { ProgramPage } from '../features/programs/ProgramPage'
+import { ProgramsPage } from '../features/programs/ProgramsPage'
 import { ResourcesPage } from '../features/resources/ResourcesPage'
 import { CalendarPage } from '../features/scheduling/CalendarPage'
 import { SetupPage } from '../features/scheduling/SetupPage'
@@ -54,6 +68,10 @@ import { StaffSetupPage } from '../features/staff/StaffSetupPage'
 import { StaffTimeLayout } from '../features/staff/shared'
 import { TimeEntriesPage } from '../features/staff/TimeEntriesPage'
 import { PosLayout } from '../features/pos/shared'
+import { CheckInPage } from '../features/access/CheckInPage'
+import { HistoryPage as CheckInHistoryPage } from '../features/access/HistoryPage'
+import { KioskPage } from '../features/access/KioskPage'
+import { KioskSetupPage } from '../features/access/KioskSetupPage'
 import { AppFrame } from './AppFrame'
 import { RequireClient, RequirePermission, RequireStaff } from './guards'
 
@@ -78,7 +96,11 @@ export function AppRoutes() {
       <Route path="/auth/accept-invite" element={<TokenLinkPage purpose="accept-invite" />} />
       <Route path="/pay" element={<PayLinkPage />} />
       <Route path="/sign" element={<PublicSignPage />} />
-      <Route path="/portal/*" element={<RequireClient><PortalHome /></RequireClient>} />
+      <Route path="/unsubscribe" element={<UnsubscribePage />} />
+      <Route path="/leagues/public" element={<PublicLeaguesPage />} />
+      <Route path="/leagues/public/:id" element={<PublicLeaguesPage />} />
+      <Route path="/portal/*" element={<RequireClient><PortalApp /></RequireClient>} />
+      <Route path="/kiosk" element={<KioskPage />} />
       <Route path="/billing/invoices/:id/document" element={<RequireStaff><RequirePermission permission="billing.invoice.read"><InvoiceDocumentPage /></RequirePermission></RequireStaff>} />
       <Route path="/billing/payments/:id/receipt" element={<RequireStaff><RequirePermission permission="billing.payment.read"><ReceiptPage /></RequirePermission></RequireStaff>} />
       <Route path="/pos/sales/:id/receipt" element={<RequireStaff><RequirePermission permission="pos.sale.read"><PosReceiptPage /></RequirePermission></RequireStaff>} />
@@ -124,6 +146,17 @@ export function AppRoutes() {
           <Route path="setup" element={<RequirePermission permission="staff.time_entry.manage"><StaffSetupPage /></RequirePermission>} />
         </Route>
         <Route path="assessments/setup" element={<RequirePermission permission="assessments.definition.manage"><AssessmentSetupPage /></RequirePermission>} />
+        <Route path="engagement" element={<RequirePermission permission="engagement.campaign.read"><EngagementLayout /></RequirePermission>}>
+          <Route index element={<CampaignsPage />} />
+          <Route path="campaigns/:id" element={<CampaignDetailPage />} />
+          <Route path="templates" element={<MessageTemplatesPage />} />
+          <Route path="segments" element={<SegmentsPage />} />
+          <Route path="messages" element={<MessageLogPage />} />
+          <Route path="suppressions" element={<RequirePermission permission="engagement.suppression.manage"><SuppressionsPage /></RequirePermission>} />
+          <Route path="automations" element={<RequirePermission permission="engagement.automation.manage"><AutomationsPage /></RequirePermission>} />
+          <Route path="reminders" element={<RequirePermission permission="engagement.notification_rule.manage"><RemindersPage /></RequirePermission>} />
+          <Route path="portal" element={<PortalSettingsPage />} />
+        </Route>
         <Route path="clients" element={<RequirePermission permission="clients.client.read"><ClientsPage /></RequirePermission>} />
         <Route path="clients/merge" element={<RequirePermission permission="clients.client.merge"><MergePage /></RequirePermission>} />
         <Route path="clients/:id" element={<RequirePermission permission="clients.client.read"><ClientProfilePage /></RequirePermission>} />
@@ -136,6 +169,15 @@ export function AppRoutes() {
         <Route path="scheduling/setup" element={<SetupPage />} />
         <Route path="rentals" element={<RequirePermission permission="scheduling.booking.read"><RentalsPage /></RequirePermission>} />
         <Route path="rentals/setup" element={<RentalSetupPage />} />
+        <Route path="programs" element={<RequirePermission permission="programs.registration.read"><ProgramsPage /></RequirePermission>} />
+        <Route path="programs/register" element={<RequirePermission permission="programs.registration.create"><BasketPage /></RequirePermission>} />
+        <Route path="programs/booking-policies" element={<RequirePermission permission="programs.registration_config.manage"><BookingPolicyPage /></RequirePermission>} />
+        <Route path="programs/:id" element={<RequirePermission permission="programs.registration.read"><ProgramPage /></RequirePermission>} />
+        <Route path="check-in" element={<RequirePermission permission="access.checkin.create"><CheckInPage /></RequirePermission>} />
+        <Route path="check-in/history" element={<RequirePermission permission="access.checkin.read"><CheckInHistoryPage /></RequirePermission>} />
+        <Route path="check-in/kiosks" element={<KioskSetupPage />} />
+        <Route path="leagues" element={<RequirePermission permission="leagues.competition.manage"><LeaguesPage /></RequirePermission>} />
+        <Route path="leagues/:id" element={<RequirePermission permission="leagues.competition.manage"><LeaguePage /></RequirePermission>} />
         {import.meta.env.DEV && (
           <Route path="dev/client-picker" element={<RequirePermission permission="clients.client.read"><ClientPickerDemo /></RequirePermission>} />
         )}

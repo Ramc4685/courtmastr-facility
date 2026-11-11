@@ -23,7 +23,7 @@ from tests.test_security import ROUTES
 
 # Path id name -> table, where the table is not simply named after the id.
 _TABLES = {
-    "alert": "client_alert", "binding": "document_binding", "contract": "membership_contract",
+    "alert": "client_alert", "binding": "document_binding", "checkout": "registration_checkout", "contract": "membership_contract",
     "document": "client_document", "freeze": "membership_freeze",
     "note": "client_note", "package": "client_package", "period": "billing_schedule_period",
     "purchase": "rental_plan_purchase", "relationship": "client_relationship", "rental": "rental_booking",
@@ -48,9 +48,10 @@ CLIENT_OR_TENANT_ROUTES = {
         sendClientDocument sendInvoice sendReceipt setWaiverOverride submitClientDocumentAcceptance
         updatePaymentMethod uploadClientDocumentPaperScan verifyBankAccount
         getAssessmentResult updateAssessmentResult
+        assignCredential revokeClientAppCards revokeCredential
     """.split()),
     "tenant": set("""
-        addTaxRate approveClientRelationship archiveDocumentTemplate archiveLocation assignClientMemberNumber
+        addTaxRate releaseSuppression approveClientRelationship archiveDocumentTemplate archiveLocation assignClientMemberNumber
         assignClientOwners assignStaffLocations assignStaffRole confirmDataSubjectRequest createClientAlert
         createClientNote createClientRelationship createOnboardingLink createRentalRate
         deactivateDocumentBinding deactivateStaffUser deleteClientCategory deleteClientNote deleteCoupon
@@ -85,7 +86,11 @@ CLIENT_OR_TENANT_ROUTES = {
 }  # fmt: skip
 
 # The voidClientDocument case runs first and voids populate()'s signed document, which then cannot be deleted.
-_PATH_IDS = {"deleteClientDocument": {"document_id": "pending_document_id"}}
+_PATH_IDS = {
+    "deleteClientDocument": {"document_id": "pending_document_id"},
+    "restoreProgramGroup": {"program_group_id": "deleted_program_group_id"},
+    "removeProgramSession": {"schedule_session_id": "linked_session_id"},
+}
 _OPERATION = {(method, path): name for method, path, name in _ID_ROUTES}
 
 

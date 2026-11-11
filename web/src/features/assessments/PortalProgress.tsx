@@ -7,9 +7,10 @@ import { measure } from './queries'
 
 /** The member's own progress (FIT-05 view): personal bests and recent results, client-visible fields only.
  * Renders nothing while the club has not switched sharing on (the API answers 404). */
-export function PortalProgress() {
-  const bests = useQuery({ queryKey: ['portal', 'assessment-bests'], queryFn: () => api.get('/api/v1/portal/assessment-bests'), retry: false })
-  const results = useQuery({ queryKey: ['portal', 'assessment-results'], queryFn: () => api.get('/api/v1/portal/assessment-results', { query: { limit: 10 } }), retry: false })
+export function PortalProgress({ clientId }: { clientId?: string }) {
+  const query = clientId ? { client_id: clientId } : {}
+  const bests = useQuery({ queryKey: ['portal', 'assessment-bests', clientId], queryFn: () => api.get('/api/v1/portal/assessment-bests', { query }), retry: false })
+  const results = useQuery({ queryKey: ['portal', 'assessment-results', clientId], queryFn: () => api.get('/api/v1/portal/assessment-results', { query: { ...query, limit: 10 } }), retry: false })
   if (bests.error instanceof ApiError && bests.error.status === 404) return null
   if (!bests.data) return null
   return (

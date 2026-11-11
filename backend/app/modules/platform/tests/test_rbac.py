@@ -47,7 +47,8 @@ def _matrix_rows(context: str = "platform") -> dict[str, dict]:
     ("context", "count"),
     [
         ("platform", 28), ("clients", 16), ("billing", 39), ("pos", 15), ("documents", 6), ("memberships", 13),
-        ("packages", 9), ("resources", 5), ("scheduling", 20), ("rentals", 11), ("staff", 10), ("assessments", 5), ("integrations", 6),
+        ("packages", 9), ("resources", 5), ("scheduling", 20), ("rentals", 11), ("programs", 12),
+        ("access", 12), ("integrations", 6), ("engagement", 13), ("leagues", 16), ("staff", 10), ("assessments", 5),
     ],
 )  # fmt: skip
 def test_catalogue_matches_the_rbac_matrix_document(context, count):
@@ -66,7 +67,8 @@ def test_catalogue_matches_the_rbac_matrix_document(context, count):
 def test_every_registered_context_is_checked_against_the_matrix():
     assert {p.context for p in CATALOGUE.values()} == {
         "platform", "clients", "billing", "pos", "documents", "memberships", "packages", "resources", "scheduling",
-        "rentals", "staff", "assessments", "integrations",
+        "rentals", "programs",
+        "access", "integrations", "engagement", "leagues", "staff", "assessments",
     }  # fmt: skip
 
 
@@ -82,7 +84,9 @@ def test_system_role_grants_resolve_from_code():
     for role in ("front_desk", "coach", "league_admin", "scorekeeper", "view_only"):
         assert platform_grants(role) == set()
     assert system_role_grants("coach")["clients.client.read"] == "own"
-    assert system_role_grants("scorekeeper") == {}
+    assert system_role_grants("scorekeeper") == {  # leagues only
+        "leagues.result.enter": "all", "leagues.game_card.print": "all",
+    }  # fmt: skip
     assert system_role_grants("view_only") == {"scheduling.booking.read": "all"}  # reads the schedule only
 
 

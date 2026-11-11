@@ -107,6 +107,8 @@ def test_the_scheduler_starts_every_periodic_job_for_a_tenant_and_they_all_run(c
     from app import scheduler
 
     w = world(client, owner, tenant)
+    # autopay starts at the location's local run time: midnight, so the test passes at any hour
+    ok(client.patch(f"{API}/locations/{w.location_id}", headers=owner, json={"autopay_run_time": "00:00"}))
     ok(client.post(f"{API}/clients/{w.person['id']}/payment-methods", headers=owner,
                    json={"method_token": "tok_card_ok", "is_autopay": True}), 201)  # fmt: skip
     sold = ok(client.post(f"{API}/membership-contracts", headers=owner, json=sale(w, is_autopay=True)), 201)

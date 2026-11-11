@@ -13,6 +13,7 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Billing & payments', to: '/billing', permission: 'billing.charge.read', icon: 'cash' },
   { label: 'Point of sale', to: '/pos', permission: 'pos.sale.read', icon: 'cart' },
   { label: 'Clients', to: '/clients', permission: 'clients.client.read', icon: 'person' },
+  { label: 'Engagement', to: '/engagement', permission: 'engagement.campaign.read', icon: 'mail' },
   { label: 'Documents', to: '/documents', permission: 'documents.template.manage', icon: 'pen' },
   { label: 'Memberships', to: '/memberships', permission: 'memberships.contract.read', icon: 'card' },
   { label: 'Packages', to: '/packages', permission: 'packages.package.read', icon: 'ticket' },
@@ -21,6 +22,10 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Scheduling setup', to: '/scheduling/setup', icon: 'list' },
   { label: 'Rentals', to: '/rentals', permission: 'scheduling.booking.read', icon: 'ticket' },
   { label: 'Rental setup', to: '/rentals/setup', icon: 'list' },
+  { label: 'Programs & registration', to: '/programs', permission: 'programs.registration.read', icon: 'clipboard' },
+  { label: 'Booking policies', to: '/programs/booking-policies', permission: 'programs.registration_config.manage', icon: 'gear' },
+  { label: 'Check-in', to: '/check-in', permission: 'access.checkin.create', icon: 'door' },
+  { label: 'Leagues & tournaments', to: '/leagues', permission: 'leagues.competition.manage', icon: 'trophy' },
   { label: 'Staff time & pay', to: '/staff-time', permission: 'staff.time_entry.punch', icon: 'clock' },
   { label: 'Assessment setup', to: '/assessments/setup', permission: 'assessments.definition.manage', icon: 'pulse' },
   { label: 'Integrations', to: '/integrations', permission: 'integrations.connection.manage', icon: 'plug' },
@@ -28,10 +33,6 @@ export const PLATFORM_NAV: NavItem[] = [
 
 // Build modules 2-17 (docs/architecture/overview.md section 6).
 export const UPCOMING_NAV: NavItem[] = [
-  { label: 'Programs & registration', icon: 'clipboard' },
-  { label: 'Check-in & access', icon: 'door' },
-  { label: 'Leagues & tournaments', icon: 'trophy' },
-  { label: 'Engagement', icon: 'mail' },
   { label: 'Reports', icon: 'chart' },
   { label: 'Mobile app', icon: 'phone' },
 ]

@@ -5,7 +5,7 @@ Generated from the models, then completed by hand: enable_rls() per table. Numbe
 engagement lane holds 0801.
 
 Revision ID: 0951
-Revises: 0401
+Revises: 1101
 """
 import sqlalchemy as sa
 from alembic import op
@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 from app.core.db.rls import enable_rls
 
 revision = "0951"
-down_revision = "0501"
+down_revision = "1101"
 
 TENANT_TABLES = (
     "job_classification", "staff_settings", "shift", "staff_hourly_rate", "staff_payee", "time_entry",

@@ -17,8 +17,9 @@ isolation and audit, and has a staff screen. **Partial** names what is missing. 
 | v2-adapter | 7 | 0 | 1 | 6 |
 | **All** | 204 | 107 | 56 | 41 |
 Module 1 (platform core) is done apart from OIDC, MFA and step-up (`backend/app/modules/platform/README.md`).
-Modules 12 (staff time and pay) and 13 (assessments) are built on lane w2c: `12-staff.md`, `13-assessments.md`.
-Modules 10, 11 and 14 to 17 and the rest of module 6 are reported by their own lanes. The five P0 features not built are CLS-02, CLS-09, CLS-10
+Module 14 (engagement) is built to P0 (5 done, 9 partial: `14-engagement.md`). Modules 16 and 17 are partial (`16-integrations.md`, `17-mobile.md`).
+Modules 12 (staff time and pay) and 13 (assessments) are built to P0 (`12-staff.md`, `13-assessments.md`). Modules 10, 11 and 15 (check-in,
+leagues, reporting) and the rest of module 6 are reported by their own lanes or not started. The five P0 features not built are CLS-02, CLS-09, CLS-10
 (module 6 and the portal), CLI-12 (client photo) and BIL-14 (pre-defined items).
 
 ## Checks on `main`
@@ -112,7 +113,7 @@ Lane detail: `03-rentals.md`.
 | RNT-03 Staff-booked rental, single or recurring, one or many resources | P0 | done |  |
 | RNT-04 Extend a rental and bill selected occurrences | P1 | done |  |
 | RNT-05 Online rental policy per rental type | P0 | done |  |
-| RNT-06 Client online rental search and booking | P0 | partial | Backend complete, including hold expiry and the paid-invoice handler. **No portal screen** (the portal shell belongs to module 4/17); the data it needs is served. Stored payment methods arrive with module 8. |
+| RNT-06 Client online rental search and booking | P0 | partial | Backend complete, including hold expiry and the paid-invoice handler. Portal Bookings screen: search by type, date and length, hold, pay by new card (test processor only; Stripe Elements not mounted), abandon, cancel. Confirm takes a new card token only, not a stored method. |
 | RNT-07 Buffer times on rentals | P1 | done |  |
 | RNT-08 Remove a rental or recurring rental | P0 | done |  |
 | RNT-09 Rental plans | P1 | partial | Append-only ledger, full-coverage debit under lock, credit back on cancel. Not built: auto-renew and autopay, portal plan purchase, members-only sales (no memberships yet). |
@@ -152,7 +153,7 @@ Lane detail: `04-clients-households.md`.
 | CLI-13 Duplicate detection and merge | P1 | done |  |
 | CLI-14 Disable a client | P0 | done |  |
 | CLI-15 Self-service portal access provisioning | P0 | done |  |
-| CLI-16 Communication subscriptions | P0 | partial | Opting in an email address needs that address confirmed. A staff change needs a note and a basis. **Not built**: the public signed-link preference centre and one-click unsubscribe (engagement module). |
+| CLI-16 Communication subscriptions | P0 | partial | Opting in an email address needs that address confirmed. A staff change needs a note and a basis. The public signed-link preference centre and one-click unsubscribe are built in module 14 (`14-engagement.md`); no RFC 8058 header. |
 | CLI-17 Default trainer / salesperson ownership | P1 | done |  |
 | CLI-18 Emergency contacts | P0 | done |  |
 | CLI-19 Cross-location shared client record | P0 | done |  |
@@ -185,7 +186,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | MEM-06 Simple (record-only) membership | P2 | done |  |
 | MEM-07 Staff sale of a membership contract | P0 | done |  |
 | MEM-08 Contract document acceptance at sale | P1 | done |  |
-| MEM-09 Online membership sales | P1 | partial | No portal web page. |
+| MEM-09 Online membership sales | P1 | partial | Portal Memberships screen quotes and buys with a new card (test processor only; Stripe Elements not mounted). No stored-method option: the buy endpoint takes a token only. |
 | MEM-10 Contract list, status views and edit | P0 | done |  |
 | MEM-11 Contract renewal | P0 | done |  |
 | MEM-12 Freeze a contract | P0 | done |  |
@@ -194,7 +195,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | MEM-15 Cancel a contract | P0 | done |  |
 | MEM-16 Cancel with full or partial refund | P1 | done |  |
 | MEM-17 Shared membership | P1 | done |  |
-| MEM-18 Member auto-renew opt-out | P1 | partial | No portal page for the member's own opt-out. |
+| MEM-18 Member auto-renew opt-out | P1 | done | Portal Memberships screen, "Stop renewal". |
 | MEM-19 Membership number and member card | P0 | partial | No card, QR code or RFID (check-in module). |
 | MEM-20 Visit limits and visit counting | P0 | partial | No check-in calls `record_visit`. Listing and adjusting visits are API only. |
 | MEM-21 Revenue and lifecycle reports | P1 | not built |  |
@@ -208,7 +209,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | PKG-06 Package sharing | P1 | done |  |
 | PKG-07 Staff sale of a package | P0 | partial | No ad-hoc package, per-sale pricing, coupons or account-credit pre-apply. |
 | PKG-08 Sale through point of sale | P1 | done | Integration: sold as a POS cart line (POS-19), `sales_channel = pos`. Priced one-off plans only; no discounts on the line; removed from the client profile, not returned at the till. |
-| PKG-09 Online package sales | P1 | partial | No portal web page. |
+| PKG-09 Online package sales | P1 | partial | Portal Packages screen buys with a new card (test processor only; Stripe Elements not mounted); history and auto-renew opt-out. |
 | PKG-10 Member-only plans | P1 | done |  |
 | PKG-11 Post-billed packages | P2 | not built | No tables, rate table or batch close. Not built here either. |
 | PKG-12 Session registration, roster and attendance | P0 | partial | Integration: staff register a client into a session and pick the package that pays; the credit follows attendance marks and cancellation. Not built: book all linked sessions, speed register, selling a package inline,... |
@@ -323,7 +324,7 @@ Lane detail: `08-billing-payments.md`, `08-billing-payments-web.md`.
 | PAY-15 Digital wallets and tap-to-pay | P1 | not built |  |
 | PAY-16 Processor disbursement reconciliation | P1 | not built |  |
 | PAY-17 Chargeback and transaction sync | P1 | not built |  |
-| PAY-18 Self-service payment of open invoices | P0 | partial | No portal billing screen. The portal app does not exist yet. |
+| PAY-18 Self-service payment of open invoices | P0 | partial | Portal Invoices screen: list, document, pay one invoice with a stored or new card and optional account credit, payment history. A payment that needs 3-D Secure shows as pending: no in-page confirmation (Stripe Elements not mounted). |
 | PAY-19 Magnetic card swipe entry | P2 | not built | Excluded by the no-raw-card-data rule. |
 
 ## Module 9: Point of sale and inventory
@@ -361,6 +362,13 @@ Lane detail: `09-pos-inventory.md`.
 | POS-21 card-present terminals | v2-adapter | not built | `pos.terminal.*` keys registered only |
 | POS-22 reorder and reporting hooks | P1 | partial | Built: reorder, sales by employee, category, coupon, supplier, brand, product or register, daily register, and returns. Not built: the daily low-stock email and the `rpt_*` read models for the reporting module |
 | POS-23 partner POS lines | v2-adapter | not built |  |
+## Module 11: Leagues and tournaments
+
+Built to P0 on its own lane (`11-leagues.md` has the feature table). P0 11: 8 done, 3 partial (LGE-08 runs in
+the request and the screen offers one weekly window; LGE-09 has two of four bye modes; LGE-12 is single
+elimination only). Courts are booked only through `scheduling.service`; team fees bill through
+`billing.service`; the public schedule and standings have their own schemas.
+
 ## Known defects and gaps
 
 Cross-cutting:
@@ -379,8 +387,10 @@ Cross-cutting:
    they are detached and must be added again.
 6. **Web date defaults use the browser's time zone**, not the selected location's. Wrong only for staff working
    a location in another zone.
-7. **Portal and mobile:** no client-facing screens beyond sign-in, the public pay page and the public signing
-   page. Portal APIs exist for clients, documents, memberships, packages, billing and rentals.
+7. **Portal and mobile:** the member portal (`/portal`, member sign-in at `/sign-in?as=member`) has Home,
+   Bookings, Memberships, Packages, Invoices and Profile with a household "acting for" switch, and an Inbox for announcements (module 14). Not built:
+   portal documents and waivers, dependents and relationships, stored-method management. The inbox lists one
+   item per client the login acts for, so a household sees an announcement once per member.
 8. **Databases created before revision `0401`** hold package plans with placeholder reservation types and
    cannot take the new foreign key: recreate them.
 9. **Stripe has never been called.** The adapter is tested against a mocked HTTP layer and is off by default.
@@ -434,12 +444,14 @@ By module (the tables above carry the per-feature gaps; these are the ones that 
   fixtures.
 - **Staff time and pay (12):** trainer resources link to staff users (`platform.service.linked_resource_id`);
   floor-shift blocks are bookings with `block_kind = floor_shift`; POS drawers and sales carry the cashier.
-- **Engagement and portal (13):** replace the notification adapter; honour
-  `engagement.service.is_subscribed`; portal routes must call `households.can_act_for`; the portal APIs listed
-  above have no screens.
+- **Engagement (14), built:** every email goes through `engagement.service._deliver` (installed as the
+  notification port's adapter); new senders should too. Portal routes must call `households.can_act_for`.
+  Not built: provider webhooks, push provider, HTML builder, SMS, daily staff summary.
 - **Reporting (15):** reporting views exist for rentals only; MEM-21, PKG-15, BIL-19 and POS reports are
   per-module endpoints today.
 - **Integrations (16):** reuse `provider_account_lookup` and `inbound_webhook_event`
   (`app/core/inbound_webhooks.py`); API keys and scopes are not built (CLI-21, MEM-22, PKG-16, BIL-23).
 - **Mobile (17):** the staff API is complete in `backend/openapi.json`; tokens must not be kept in browser
   storage (web rule), and client-facing endpoints live under `/portal/` and `/public/`.
+
+Module 10 (check-in and kiosk) is reported in `10-checkin.md`: P0 8 done, 1 partial.

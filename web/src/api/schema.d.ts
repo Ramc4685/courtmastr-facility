@@ -48,6 +48,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/age-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Age Groups
+         * @description Filters: is_active. Sort: name, sort_order.
+         */
+        get: operations["listAgeGroups"];
+        put?: never;
+        /** Create Age Group */
+        post: operations["createAgeGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/age-groups/{age_group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Age Group */
+        get: operations["getAgeGroup"];
+        put?: never;
+        post?: never;
+        /** Delete Age Group */
+        delete: operations["deleteAgeGroup"];
+        options?: never;
+        head?: never;
+        /** Update Age Group */
+        patch: operations["updateAgeGroup"];
+        trace?: never;
+    };
     "/api/v1/api-keys": {
         parameters: {
             query?: never;
@@ -515,6 +555,56 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/automation-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Automation Rules
+         * @description Includes the built-in waitlist promotion notice.
+         */
+        get: operations["listAutomationRules"];
+        put?: never;
+        /**
+         * Create Automation Rule
+         * @description Triggers: programs.waitlist.promoted, programs.enrollment.created, clients.client.created,
+         *     memberships.contract.activated, memberships.contract.renewed, billing.payment.failed. Errors:
+         *     unknown-trigger.
+         */
+        post: operations["createAutomationRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/automation-rules/{automation_rule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Automation Rule
+         * @description Errors: automation-system.
+         */
+        delete: operations["deleteAutomationRule"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Automation Rule
+         * @description A built-in rule changes only is_enabled, delay_minutes and message_template_id.
+         */
+        patch: operations["updateAutomationRule"];
         trace?: never;
     };
     "/api/v1/autopay-attempts": {
@@ -1034,6 +1124,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bracket-slots/{bracket_slot_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Bracket Slot */
+        patch: operations["updateBracketSlot"];
+        trace?: never;
+    };
+    "/api/v1/brackets/{bracket_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Bracket */
+        get: operations["getBracket"];
+        put?: never;
+        post?: never;
+        /** Delete Bracket */
+        delete: operations["deleteBracket"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/brackets/{bracket_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish Bracket */
+        post: operations["publishBracket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/calendar": {
         parameters: {
             query?: never;
@@ -1049,6 +1191,185 @@ export interface paths {
         get: operations["getCalendar"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Campaigns
+         * @description Filters: channel (email, push), status, location_id.
+         */
+        get: operations["listCampaigns"];
+        put?: never;
+        /**
+         * Create Campaign
+         * @description A draft. Channel push is an announcement: an inbox item for each recipient plus a push per device.
+         */
+        post: operations["createCampaign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Campaign */
+        get: operations["getCampaign"];
+        put?: never;
+        post?: never;
+        /** Delete Campaign */
+        delete: operations["deleteCampaign"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Campaign
+         * @description Errors: campaign-not-editable.
+         */
+        patch: operations["updateCampaign"];
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Campaign */
+        post: operations["cancelCampaign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/recall": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recall Campaign
+         * @description Take a sent announcement out of every inbox. Errors: campaign-not-recallable.
+         */
+        post: operations["recallCampaign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/recipients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Campaign Recipients
+         * @description Filters: status, skip_reason.
+         */
+        get: operations["listCampaignRecipients"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Schedule Campaign */
+        post: operations["scheduleCampaign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Campaign
+         * @description Send now (needs campaign.send, or push.send for an announcement). Consent, suppression and verified
+         *     addresses are checked per recipient; skipped recipients are counted. Errors: campaign-not-editable,
+         *     audience-required.
+         */
+        post: operations["sendCampaign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Campaign Stats */
+        get: operations["getCampaignStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campaign_id}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Campaign
+         * @description Send the campaign to yourself, marked [TEST].
+         */
+        post: operations["testCampaign"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1155,6 +1476,68 @@ export interface paths {
          * @description Only an uninvoiced item with no payments. Errors: charge-not-voidable, period-locked.
          */
         post: operations["voidCharge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/check-ins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Check Ins
+         * @description Recent check-ins (CHK-18) and a client's history (CHK-19). Filters: location_id, client_id, result,
+         *     channel, local_on, checked_in_at[gte|lte].
+         */
+        get: operations["listCheckIns"];
+        put?: never;
+        /**
+         * Create Check In
+         * @description Check a client in from the front desk or their profile (CHK-01, CHK-03). A denial is returned, not raised.
+         */
+        post: operations["createCheckIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/check-ins/evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Evaluate Check In
+         * @description What a check-in would decide, without writing anything.
+         */
+        post: operations["evaluateCheckIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/check-ins/{check_in_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Check In */
+        get: operations["getCheckIn"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1994,6 +2377,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/clients/{client_id}/credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Client Credentials */
+        get: operations["listClientCredentials"];
+        put?: never;
+        /**
+         * Assign Credential
+         * @description Scan, type or generate a barcode or RFID value (CHK-11).
+         */
+        post: operations["assignCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/credentials/revoke-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke Client App Cards
+         * @description Clear every digital card of a client (CHK-13).
+         */
+        post: operations["revokeClientAppCards"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/clients/{client_id}/disable": {
         parameters: {
             query?: never;
@@ -2334,6 +2758,319 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/competition-teams/{competition_team_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Competition Team */
+        delete: operations["removeCompetitionTeam"];
+        options?: never;
+        head?: never;
+        /** Update Competition Team */
+        patch: operations["updateCompetitionTeam"];
+        trace?: never;
+    };
+    "/api/v1/competition-teams/{competition_team_id}/bill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bill Competition Team
+         * @description Charge and invoice the team fee to a client (once per entry).
+         */
+        post: operations["billCompetitionTeam"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competition-teams/{competition_team_id}/roster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Team Roster */
+        get: operations["listTeamRoster"];
+        put?: never;
+        /** Add Roster Entry */
+        post: operations["addRosterEntry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Competitions
+         * @description Filters: location_id, kind, status, sport_id, season_id, age_group_id. Sort: name, starts_on, created_at.
+         */
+        get: operations["listCompetitions"];
+        put?: never;
+        /**
+         * Create Competition
+         * @description Scoring, game length and team fee default from the sport. A 'Main' division is created.
+         */
+        post: operations["createCompetition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Competition */
+        get: operations["getCompetition"];
+        put?: never;
+        post?: never;
+        /** Delete Competition */
+        delete: operations["deleteCompetition"];
+        options?: never;
+        head?: never;
+        /** Update Competition */
+        patch: operations["updateCompetition"];
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Activate Competition */
+        post: operations["activateCompetition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive Competition */
+        post: operations["archiveCompetition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/brackets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Brackets */
+        get: operations["listBrackets"];
+        put?: never;
+        /**
+         * Generate Bracket
+         * @description Single elimination only; other types answer 422 not-supported.
+         */
+        post: operations["generateBracket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete Competition */
+        post: operations["completeCompetition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/divisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Divisions */
+        get: operations["listDivisions"];
+        put?: never;
+        /** Create Division */
+        post: operations["createDivision"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reopen Competition */
+        post: operations["reopenCompetition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/seeding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Competition Seeding */
+        put: operations["putCompetitionSeeding"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/standings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Standings */
+        get: operations["listStandings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/standings/recompute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Recompute Standings */
+        post: operations["recomputeStandings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/teams": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Competition Teams */
+        get: operations["listCompetitionTeams"];
+        put?: never;
+        /**
+         * Add Competition Team
+         * @description An existing team (`team_id`) or a new one (`team`). With `bill_to_client_id` the team fee is charged
+         *     and invoiced at once; otherwise the entry stays 'unbilled' until billCompetitionTeam.
+         */
+        post: operations["addCompetitionTeam"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/teams/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Copy Competition Teams */
+        post: operations["copyCompetitionTeams"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/competitions/{competition_id}/teams/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate Competition Teams */
+        post: operations["generateCompetitionTeams"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/coupons": {
         parameters: {
             query?: never;
@@ -2405,6 +3142,43 @@ export interface paths {
         get: operations["listCouponRedemptions"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/credentials/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Credential
+         * @description The client behind a scanned or typed value (CHK-14).
+         */
+        post: operations["resolveCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/credentials/{credential_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke Credential */
+        post: operations["revokeCredential"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2540,6 +3314,24 @@ export interface paths {
         head?: never;
         /** Update Discount Preset */
         patch: operations["updateDiscountPreset"];
+        trace?: never;
+    };
+    "/api/v1/divisions/{division_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Division */
+        delete: operations["deleteDivision"];
+        options?: never;
+        head?: never;
+        /** Update Division */
+        patch: operations["updateDivision"];
         trace?: never;
     };
     "/api/v1/document-bindings": {
@@ -2844,15 +3636,36 @@ export interface paths {
         };
         /**
          * List Enrollments
-         * @description Filters: location_id, session_id, client_id, status. Sort: enrolled_at.
+         * @description Filters: location_id, session_id, program_group_id, client_id, status, batch_id. Sort: enrolled_at.
          */
         get: operations["listEnrollments"];
         put?: never;
         /**
          * Create Enrollment
-         * @description Seat taken under the session row lock. Errors: capacity-full, already-enrolled, session-not-bookable.
+         * @description A session seat (row lock on the session) or a place in a group node with its fees charged on one invoice.
+         *     Errors: capacity-full, already-enrolled, session-not-bookable, program-not-active, fee-required.
          */
         post: operations["createEnrollment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/enrollments/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Enrollment Batch
+         * @description One savepoint per occurrence; full or ineligible occurrences come back in `skipped` with their code.
+         */
+        post: operations["createEnrollmentBatch"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2887,9 +3700,27 @@ export interface paths {
         put?: never;
         /**
          * Cancel Enrollment
-         * @description Releases the seat and promotes the head of the waitlist in the same transaction.
+         * @description Releases the seat or place and promotes the waitlist in the same transaction. `billing_disposition:
+         *     reversed` needs billing.charge.reverse.
          */
         post: operations["cancelEnrollment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/enrollments/{enrollment_id}/rebook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rebook Enrollment */
+        post: operations["rebookEnrollment"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3087,6 +3918,136 @@ export interface paths {
         /** Disconnect External Connection */
         post: operations["disconnectExternalConnection"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/games": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Games
+         * @description Filters: location_id, competition_id, division_id, status, resource_id, schedule_run_id, game_type.
+         */
+        get: operations["listGames"];
+        put?: never;
+        /** Create Game */
+        post: operations["createGame"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/games/{game_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Game */
+        get: operations["getGame"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Game */
+        patch: operations["updateGame"];
+        trace?: never;
+    };
+    "/api/v1/games/{game_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Game */
+        post: operations["cancelGame"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/games/{game_id}/officials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Game Officials */
+        get: operations["listGameOfficials"];
+        /**
+         * Put Game Officials
+         * @description Replaces the game's officials. 409 official-conflict when one is already on an overlapping game.
+         */
+        put: operations["putGameOfficials"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/games/{game_id}/postpone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Postpone Game */
+        post: operations["postponeGame"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/games/{game_id}/reschedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reschedule Game */
+        post: operations["rescheduleGame"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/games/{game_id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Game Result */
+        get: operations["getGameResult"];
+        /** Put Game Result */
+        put: operations["putGameResult"];
+        post?: never;
+        /** Delete Game Result */
+        delete: operations["deleteGameResult"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3432,6 +4393,179 @@ export interface paths {
         patch: operations["updateJobClassification"];
         trace?: never;
     };
+    "/api/v1/kiosk-devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Kiosk Devices */
+        get: operations["listKioskDevices"];
+        put?: never;
+        /**
+         * Create Kiosk Device
+         * @description Register a kiosk device; the pairing code is shown once.
+         */
+        post: operations["createKioskDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk-devices/{kiosk_device_id}/pairing-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Kiosk Pairing Code
+         * @description Launch kiosk mode on a registered device (CHK-05).
+         */
+        post: operations["createKioskPairingCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk-devices/{kiosk_device_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke Kiosk Device */
+        post: operations["revokeKioskDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Kiosk Settings */
+        get: operations["getKioskSettings"];
+        /** Put Kiosk Settings */
+        put: operations["putKioskSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk/check-ins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Kiosk Check In
+         * @description Self check-in (CHK-05): admitted or see staff, never amounts or reasons.
+         */
+        post: operations["createKioskCheckIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Kiosk Config */
+        get: operations["getKioskConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk/exit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exit Kiosk
+         * @description Leave kiosk mode: the device token stops working until staff pair it again.
+         */
+        post: operations["exitKiosk"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk/lookups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Kiosk Lookup
+         * @description Find yourself by card or the first letters of your last name: first name and last initial only.
+         */
+        post: operations["kioskLookup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk/pair": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pair Kiosk
+         * @description Exchange a pairing code for this device's kiosk cookie.
+         */
+        post: operations["pairKiosk"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ledger-entries": {
         parameters: {
             query?: never;
@@ -3528,6 +4662,44 @@ export interface paths {
          * @description Replace the whole week (one entry per ISO weekday). closes_time 24:00 is a midnight close.
          */
         put: operations["replaceFacilityHours"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/locations/{location_id}/portal-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Settings */
+        get: operations["getPortalSettings"];
+        /**
+         * Put Portal Settings
+         * @description Changing the terms text raises terms_version. Errors: portal-slug-taken.
+         */
+        put: operations["putPortalSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/locations/{location_id}/session-booking-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Default Session Booking Policy */
+        put: operations["putDefaultSessionBookingPolicy"];
         post?: never;
         delete?: never;
         options?: never;
@@ -4157,6 +5329,99 @@ export interface paths {
         patch: operations["updateMembershipType"];
         trace?: never;
     };
+    "/api/v1/message-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Message Templates
+         * @description Filters: channel, origin, category, is_active. q searches name and subject.
+         */
+        get: operations["listMessageTemplates"];
+        put?: never;
+        /**
+         * Create Message Template
+         * @description Merge fields: $first_name, $last_name, $full_name, $facility_name, $location_name, $title, $starts_at.
+         *     `copied_from_id` copies a preset or another template. Errors: unknown-merge-field, push-too-long.
+         */
+        post: operations["createMessageTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/message-templates/{message_template_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Message Template */
+        get: operations["getMessageTemplate"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Message Template
+         * @description A template still in use is retired (is_active false) instead. Errors: template-read-only.
+         */
+        delete: operations["deleteMessageTemplate"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Message Template
+         * @description Errors: template-read-only (presets), unknown-merge-field.
+         */
+        patch: operations["updateMessageTemplate"];
+        trace?: never;
+    };
+    "/api/v1/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Messages
+         * @description The delivery log. Filters: client_id (that client's communication history), status, channel, category,
+         *     campaign_id.
+         */
+        get: operations["listMessages"];
+        put?: never;
+        /**
+         * Send Direct Message
+         * @description Email one client now. A service message: a campaign opt-out does not block it; a suppressed or missing
+         *     address records a skipped message.
+         */
+        post: operations["sendDirectMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/messages/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Message */
+        get: operations["getMessage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/my-shifts": {
         parameters: {
             query?: never;
@@ -4211,6 +5476,86 @@ export interface paths {
         head?: never;
         /** Update Note Subject */
         patch: operations["updateNoteSubject"];
+        trace?: never;
+    };
+    "/api/v1/notification-routes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Notification Routes */
+        get: operations["listNotificationRoutes"];
+        put?: never;
+        /**
+         * Create Notification Route
+         * @description Who hears about an operational event at a location. Errors: notification-route-exists.
+         */
+        post: operations["createNotificationRoute"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notification-routes/{notification_route_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Notification Route */
+        get: operations["getNotificationRoute"];
+        put?: never;
+        post?: never;
+        /** Delete Notification Route */
+        delete: operations["deleteNotificationRoute"];
+        options?: never;
+        head?: never;
+        /** Update Notification Route */
+        patch: operations["updateNotificationRoute"];
+        trace?: never;
+    };
+    "/api/v1/officials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Officials
+         * @description Filters: location_id, is_active. Sort: last_name.
+         */
+        get: operations["listOfficials"];
+        put?: never;
+        /** Create Official */
+        post: operations["createOfficial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/officials/{official_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Official */
+        get: operations["getOfficial"];
+        put?: never;
+        post?: never;
+        /** Delete Official */
+        delete: operations["deleteOfficial"];
+        options?: never;
+        head?: never;
+        /** Update Official */
+        patch: operations["updateOfficial"];
         trace?: never;
     };
     "/api/v1/operator/tenants": {
@@ -4797,6 +6142,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/app-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List App Cards */
+        get: operations["listAppCards"];
+        put?: never;
+        /**
+         * Issue App Card
+         * @description A digital member card for this device; the payload is shown once and drives rotating QR codes offline.
+         */
+        post: operations["issueAppCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/app-cards/{credential_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke App Card */
+        delete: operations["revokeAppCard"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/assessment-bests": {
         parameters: {
             query?: never;
@@ -5103,6 +6486,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Portal Device
+         * @description Register or refresh this device's push token. Re-registering the same token moves it to this login.
+         */
+        post: operations["registerPortalDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/devices/{device_registration_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Unregister Portal Device */
+        delete: operations["unregisterPortalDevice"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/document-requirements": {
         parameters: {
             query?: never;
@@ -5117,6 +6537,105 @@ export interface paths {
         get: operations["getPortalDocumentRequirements"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/enrollments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Enrollments
+         * @description Filters: status, target_kind, client_id.
+         */
+        get: operations["listPortalEnrollments"];
+        put?: never;
+        /**
+         * Create Portal Enrollment
+         * @description Errors: policy-violation (with reason), capacity-full, already-enrolled, entitlement-not-eligible.
+         */
+        post: operations["createPortalEnrollment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/enrollments/{enrollment_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Portal Enrollment
+         * @description Early or late per the policy notice period. Errors: policy-violation.
+         */
+        post: operations["cancelPortalEnrollment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Inbox
+         * @description Announcements and notices for the clients this login holds, newest first; recalled and expired items
+         *     are hidden.
+         */
+        get: operations["listPortalInbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/inbox/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Inbox Unread Count */
+        get: operations["getPortalInboxUnreadCount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/inbox/{inbox_item_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark Portal Inbox Read */
+        post: operations["markPortalInboxRead"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5358,6 +6877,115 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/registration-checkouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Portal Registration Checkout */
+        post: operations["createPortalRegistrationCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/registration-checkouts/{checkout_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Registration Checkout */
+        get: operations["getPortalRegistrationCheckout"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/registration-checkouts/{checkout_id}/abandon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Abandon Portal Registration Checkout */
+        post: operations["abandonPortalRegistrationCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/registration-checkouts/{checkout_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Portal Registration Checkout
+         * @description Pays through secure_online_checkout as the strictest program asks. Errors: payment-failed,
+         *     payment-method-required, pay-now-required, document-required.
+         */
+        post: operations["confirmPortalRegistrationCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/registration-checkouts/{checkout_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Portal Registration Checkout Item
+         * @description Errors: capacity-full, registration-closed, already-enrolled, checkout-expired.
+         */
+        post: operations["addPortalRegistrationCheckoutItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/registration-checkouts/{checkout_id}/items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Portal Registration Checkout Item */
+        delete: operations["removePortalRegistrationCheckoutItem"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/relationship-types": {
         parameters: {
             query?: never;
@@ -5482,6 +7110,104 @@ export interface paths {
          * @description Errors: hold-expired, payment-declined.
          */
         post: operations["confirmPortalRental"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/session-listings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Session Listings
+         * @description Sessions with whether the acting client may book or queue now, and why not.
+         */
+        get: operations["listPortalSessionListings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/videos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Videos
+         * @description Published videos. Filter: location_id.
+         */
+        get: operations["listPortalVideos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/waitlist-entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Portal Waitlist Entries */
+        get: operations["listPortalWaitlistEntries"];
+        put?: never;
+        /**
+         * Join Portal Waitlist
+         * @description Errors: session-has-space, waitlist-disabled, already-enrolled, already-waitlisted.
+         */
+        post: operations["joinPortalWaitlist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/waitlist-entries/{waitlist_entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Leave Portal Waitlist */
+        delete: operations["leavePortalWaitlist"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/waitlist-entries/{waitlist_entry_id}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Claim Portal Waitlist Offer
+         * @description First valid claim wins. Errors: capacity-full (back to waiting), invalid-state-transition.
+         */
+        post: operations["claimPortalWaitlistOffer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6053,6 +7779,318 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/program-fees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Program Fees
+         * @description Catalogue fees (no group): staff-side only. Filters: location_id, is_active.
+         */
+        get: operations["listProgramFees"];
+        put?: never;
+        /** Create Catalogue Fee */
+        post: operations["createCatalogueFee"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-fees/{program_fee_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Program Fee
+         * @description A fee already used is retired (inactive) instead.
+         */
+        delete: operations["deleteProgramFee"];
+        options?: never;
+        head?: never;
+        /** Update Program Fee */
+        patch: operations["updateProgramFee"];
+        trace?: never;
+    };
+    "/api/v1/program-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Program Groups
+         * @description Roots unless `parent_id` is given; `deleted=true` lists deleted nodes. Filters: location_id, status, kind,
+         *     parent_id. Sort: name, starts_on, created_at. q searches the name.
+         */
+        get: operations["listProgramGroups"];
+        put?: never;
+        /**
+         * Create Program Group
+         * @description A root needs location_id; a subgroup (parent_id) lives at its parent's location. Errors:
+         *     max-children-reached, program-not-active.
+         */
+        post: operations["createProgramGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Program Group */
+        get: operations["getProgramGroup"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Program Group
+         * @description Soft delete of the node and its subtree. Errors: has-registrations.
+         */
+        delete: operations["deleteProgramGroup"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Program Group
+         * @description Errors: capacity-below-enrolled, max-children-below-count.
+         */
+        patch: operations["updateProgramGroup"];
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive Program Group */
+        post: operations["archiveProgramGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete Program Group */
+        post: operations["completeProgramGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/fees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Program Group Fees */
+        get: operations["listProgramGroupFees"];
+        put?: never;
+        /** Create Program Group Fee */
+        post: operations["createProgramGroupFee"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish Program Group
+         * @description Errors: registration-disabled.
+         */
+        post: operations["publishProgramGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/registration-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Registration Config */
+        get: operations["getRegistrationConfig"];
+        /**
+         * Put Registration Config
+         * @description Errors: slug-taken.
+         */
+        put: operations["putRegistrationConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reopen Program Group */
+        post: operations["reopenProgramGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Program Group */
+        post: operations["restoreProgramGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/roster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Program Group Roster
+         * @description Everyone registered in the node and its subgroups.
+         */
+        get: operations["getProgramGroupRoster"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Program Sessions */
+        get: operations["listProgramSessions"];
+        put?: never;
+        /**
+         * Add Program Sessions
+         * @description Everyone registered takes a seat in each new session. Errors: capacity-full, session-already-linked.
+         */
+        post: operations["addProgramSessions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/sessions/{schedule_session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Program Session */
+        delete: operations["removeProgramSession"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Program Group Tree */
+        get: operations["getProgramGroupTree"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/program-groups/{program_group_id}/unpublish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unpublish Program Group */
+        post: operations["unpublishProgramGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/provider-accounts": {
         parameters: {
             query?: never;
@@ -6102,6 +8140,114 @@ export interface paths {
         put?: never;
         /** Create Onboarding Link */
         post: operations["createOnboardingLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/communication-preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Public Communication Preferences
+         * @description Errors: token-invalid, email-unverified.
+         */
+        put: operations["putPublicCommunicationPreferences"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/communication-preferences/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lookup Public Communication Preferences
+         * @description The preferences of the one address the email went to. Errors: token-invalid.
+         */
+        post: operations["lookupPublicCommunicationPreferences"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/competitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Public Competitions */
+        get: operations["listPublicCompetitions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/competitions/{competition_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Public Competition */
+        get: operations["getPublicCompetition"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/competitions/{competition_id}/games": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Public Games */
+        get: operations["listPublicGames"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/competitions/{competition_id}/standings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Public Standings */
+        get: operations["listPublicStandings"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6272,6 +8418,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/portal-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Portal Config
+         * @description Enabled, public locations and their landing text. Tenant from the host or X-Tenant-Slug.
+         */
+        get: operations["getPublicPortalConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/portal-terms": {
         parameters: {
             query?: never;
@@ -6284,6 +8450,40 @@ export interface paths {
          * @description The terms a new portal account accepts (DOC-14). Tenant from the host or X-Tenant-Slug.
          */
         get: operations["getPublicPortalTerms"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/program-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Public Program Groups */
+        get: operations["listPublicProgramGroups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/program-groups/{program_group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Public Program Group */
+        get: operations["getPublicProgramGroup"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6343,6 +8543,26 @@ export interface paths {
         get: operations["listPublicRentalTypes"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/unsubscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Public Unsubscribe
+         * @description One click from the campaign footer: the token travels in the body, never the URL. Errors: token-invalid.
+         */
+        post: operations["publicUnsubscribe"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6543,6 +8763,114 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/registration-checkouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Registration Checkout */
+        post: operations["createRegistrationCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/registration-checkouts/{checkout_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Registration Checkout */
+        get: operations["getRegistrationCheckout"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/registration-checkouts/{checkout_id}/abandon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Abandon Registration Checkout */
+        post: operations["abandonRegistrationCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/registration-checkouts/{checkout_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Registration Checkout
+         * @description One invoice to the payer; payment is taken against it from billing. Errors: document-required.
+         */
+        post: operations["confirmRegistrationCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/registration-checkouts/{checkout_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Registration Checkout Item
+         * @description Holds the place for 15 minutes. Errors: capacity-full, already-enrolled, checkout-expired.
+         */
+        post: operations["addRegistrationCheckoutItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/registration-checkouts/{checkout_id}/items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Registration Checkout Item */
+        delete: operations["removeRegistrationCheckoutItem"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/relationship-types": {
         parameters: {
             query?: never;
@@ -6576,6 +8904,46 @@ export interface paths {
         head?: never;
         /** Update Relationship Type */
         patch: operations["updateRelationshipType"];
+        trace?: never;
+    };
+    "/api/v1/reminder-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Reminder Rules */
+        get: operations["listReminderRules"];
+        put?: never;
+        /**
+         * Create Reminder Rule
+         * @description One per location. Errors: reminder-rule-exists.
+         */
+        post: operations["createReminderRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reminder-rules/{reminder_rule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Reminder Rule */
+        get: operations["getReminderRule"];
+        put?: never;
+        post?: never;
+        /** Delete Reminder Rule */
+        delete: operations["deleteReminderRule"];
+        options?: never;
+        head?: never;
+        /** Update Reminder Rule */
+        patch: operations["updateReminderRule"];
         trace?: never;
     };
     "/api/v1/rental-plan-purchases": {
@@ -6988,6 +9356,24 @@ export interface paths {
         patch: operations["updateReservationType"];
         trace?: never;
     };
+    "/api/v1/reservation-types/{reservation_type_id}/session-booking-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Session Booking Policy Override */
+        put: operations["putSessionBookingPolicyOverride"];
+        post?: never;
+        /** Delete Session Booking Policy Override */
+        delete: operations["deleteSessionBookingPolicyOverride"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/resource-groups": {
         parameters: {
             query?: never;
@@ -7258,6 +9644,157 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/roster-entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Roster Entries
+         * @description Filters: client_id, competition_team_id, competition_id, status. q searches names and jersey numbers.
+         */
+        get: operations["searchRosterEntries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/roster-entries/{roster_entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Roster Entry */
+        delete: operations["removeRosterEntry"];
+        options?: never;
+        head?: never;
+        /** Update Roster Entry */
+        patch: operations["updateRosterEntry"];
+        trace?: never;
+    };
+    "/api/v1/schedule-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Schedule Runs
+         * @description Filters: location_id, state. Sort: created_at.
+         */
+        get: operations["listScheduleRuns"];
+        put?: never;
+        /** Create Schedule Run */
+        post: operations["createScheduleRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/schedule-runs/{schedule_run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Schedule Run */
+        get: operations["getScheduleRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Schedule Run */
+        patch: operations["updateScheduleRun"];
+        trace?: never;
+    };
+    "/api/v1/schedule-runs/{schedule_run_id}/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Commit Schedule
+         * @description Books every proposed game through scheduling; clashes leave games 'unschedulable' with the reason.
+         */
+        post: operations["commitSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/schedule-runs/{schedule_run_id}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Discard Schedule Run */
+        post: operations["discardScheduleRun"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/schedule-runs/{schedule_run_id}/games": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Schedule Run Games */
+        get: operations["listScheduleRunGames"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/schedule-runs/{schedule_run_id}/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Schedule
+         * @description Writes a preview of proposed games (no bookings). Re-running replaces the preview.
+         */
+        post: operations["generateSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/scheduling-settings": {
         parameters: {
             query?: never;
@@ -7277,6 +9814,129 @@ export interface paths {
         head?: never;
         /** Update Scheduling Settings */
         patch: operations["updateSchedulingSettings"];
+        trace?: never;
+    };
+    "/api/v1/seasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Seasons
+         * @description Filters: is_active. Sort: name.
+         */
+        get: operations["listSeasons"];
+        put?: never;
+        /** Create Season */
+        post: operations["createSeason"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seasons/{season_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Season */
+        get: operations["getSeason"];
+        put?: never;
+        post?: never;
+        /** Delete Season */
+        delete: operations["deleteSeason"];
+        options?: never;
+        head?: never;
+        /** Update Season */
+        patch: operations["updateSeason"];
+        trace?: never;
+    };
+    "/api/v1/segments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Segments */
+        get: operations["listSegments"];
+        put?: never;
+        /**
+         * Create Segment
+         * @description Errors: invalid-audience.
+         */
+        post: operations["createSegment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/segments/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Segment
+         * @description Audience size at a location for a saved segment or an unsaved definition.
+         */
+        post: operations["previewSegment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/segments/{segment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Segment */
+        get: operations["getSegment"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Segment
+         * @description Errors: segment-read-only, segment-in-use.
+         */
+        delete: operations["deleteSegment"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Segment
+         * @description Errors: segment-read-only, invalid-audience.
+         */
+        patch: operations["updateSegment"];
+        trace?: never;
+    };
+    "/api/v1/session-booking-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Session Booking Policies */
+        get: operations["listSessionBookingPolicies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/sessions": {
@@ -7394,6 +10054,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sessions/{schedule_session_id}/roster/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Session Roster Message
+         * @description Emails everyone registered. Gated by scheduling.enrollment.create until engagement registers
+         *     engagement.message.send_direct (module README).
+         */
+        post: operations["sendSessionRosterMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/shifts": {
         parameters: {
             query?: never;
@@ -7467,6 +10148,46 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Sports
+         * @description Filters: is_active. Sort: name. q searches the name.
+         */
+        get: operations["listSports"];
+        put?: never;
+        /** Create Sport */
+        post: operations["createSport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sports/{sport_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Sport */
+        get: operations["getSport"];
+        put?: never;
+        post?: never;
+        /** Delete Sport */
+        delete: operations["deleteSport"];
+        options?: never;
+        head?: never;
+        /** Update Sport */
+        patch: operations["updateSport"];
         trace?: never;
     };
     "/api/v1/staff-payees": {
@@ -7856,6 +10577,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/standings/{standing_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Adjust Standing */
+        patch: operations["adjustStanding"];
+        trace?: never;
+    };
     "/api/v1/stock-movements": {
         parameters: {
             query?: never;
@@ -7895,6 +10633,45 @@ export interface paths {
          * @description Ours: move stock between two locations as a transfer_out and a transfer_in sharing a transfer_id.
          */
         post: operations["createStockTransfer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/suppressions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Suppressions */
+        get: operations["listSuppressions"];
+        put?: never;
+        /** Create Suppression */
+        post: operations["createSuppression"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/suppressions/{suppression_id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release Suppression
+         * @description Allow the address again. A second failure after a release blocks it for good. Errors:
+         *     suppression-permanent.
+         */
+        post: operations["releaseSuppression"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8011,6 +10788,46 @@ export interface paths {
          * @description Only a rate no item has used yet. Errors: tax-rate-in-use.
          */
         patch: operations["updateTaxRate"];
+        trace?: never;
+    };
+    "/api/v1/teams": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Teams
+         * @description Filters: location_id, is_active. Sort: name. q searches the name.
+         */
+        get: operations["listTeams"];
+        put?: never;
+        /** Create Team */
+        post: operations["createTeam"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/teams/{team_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Team */
+        get: operations["getTeam"];
+        put?: never;
+        post?: never;
+        /** Delete Team */
+        delete: operations["deleteTeam"];
+        options?: never;
+        head?: never;
+        /** Update Team */
+        patch: operations["updateTeam"];
         trace?: never;
     };
     "/api/v1/tenant": {
@@ -8201,6 +11018,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/videos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Videos */
+        get: operations["listVideos"];
+        put?: never;
+        /**
+         * Create Video
+         * @description https YouTube or Vimeo links only. Errors: video-host-not-allowed.
+         */
+        post: operations["createVideo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/videos/{video_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Video */
+        get: operations["getVideo"];
+        put?: never;
+        post?: never;
+        /** Delete Video */
+        delete: operations["deleteVideo"];
+        options?: never;
+        head?: never;
+        /** Update Video */
+        patch: operations["updateVideo"];
+        trace?: never;
+    };
     "/api/v1/waitlist-entries": {
         parameters: {
             query?: never;
@@ -8210,7 +11067,7 @@ export interface paths {
         };
         /**
          * List Waitlist Entries
-         * @description The waiting queue of one session in FIFO order, with positions.
+         * @description The waiting queue of one session or one group node in FIFO order, with positions.
          */
         get: operations["listWaitlistEntries"];
         put?: never;
@@ -8248,7 +11105,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Promote Waitlist Entry */
+        /**
+         * Promote Waitlist Entry
+         * @description A group entry is billed on promotion (its fee on a new invoice), which also needs programs.registration.create.
+         */
         post: operations["promoteWaitlistEntry"];
         delete?: never;
         options?: never;
@@ -8453,6 +11313,57 @@ export interface components {
             /** Signers */
             signers: components["schemas"]["StaffSigner"][];
         };
+        /** Accepted */
+        Accepted: {
+            /**
+             * Job Id
+             * Format: uuid
+             */
+            job_id: string;
+            /** Resource Url */
+            resource_url: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "succeeded" | "failed";
+        };
+        /** AccessDecision */
+        AccessDecision: {
+            /** Alerts */
+            alerts: components["schemas"]["CheckInAlertOut"][];
+            client: components["schemas"]["CheckInClientOut"];
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Denial Reason */
+            denial_reason: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Membership Contract Id */
+            membership_contract_id: string | null;
+            /** Would Consume Visit */
+            would_consume_visit: boolean;
+            /** Would Grant */
+            would_grant: boolean;
+        };
+        /** AccessEvaluateRequest */
+        AccessEvaluateRequest: {
+            /** Client Id */
+            client_id?: string | null;
+            /** Credential Value */
+            credential_value?: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+        };
         /** AccountCredit */
         AccountCredit: {
             /**
@@ -8569,6 +11480,37 @@ export interface components {
              * @enum {string}
              */
             status: "connected" | "simulated" | "not_configured";
+        };
+        /** AgeGroupOut */
+        AgeGroupOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Max Age */
+            max_age: number | null;
+            /** Min Age */
+            min_age: number | null;
+            /** Name */
+            name: string;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /** AgeGroupWrite */
+        AgeGroupWrite: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Max Age */
+            max_age?: number | null;
+            /** Min Age */
+            min_age?: number | null;
+            /** Name */
+            name?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
         };
         /** AgeingReport */
         AgeingReport: {
@@ -9114,10 +12056,95 @@ export interface components {
             /** Value */
             value: string;
         };
+        /** Assignment */
+        Assignment: {
+            /**
+             * Official Id
+             * Format: uuid
+             */
+            official_id: string;
+            /**
+             * Role
+             * @default referee
+             * @enum {string}
+             */
+            role: "referee" | "assistant" | "scorekeeper" | "other";
+        };
         /** AttendancePut */
         AttendancePut: {
             /** Marks */
             marks: components["schemas"]["Mark"][];
+        };
+        /** AttendedOut */
+        AttendedOut: {
+            /** Session Id */
+            session_id: string | null;
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+            /** Target Type */
+            target_type: string;
+            /** Was Auto Booked */
+            was_auto_booked: boolean;
+        };
+        /** AudienceDefinition */
+        AudienceDefinition: {
+            /**
+             * Filters
+             * @default []
+             */
+            filters: components["schemas"]["AudienceFilter"][];
+            /** Sources */
+            sources: components["schemas"]["AudienceSource"][];
+        };
+        /** AudienceFilter */
+        AudienceFilter: {
+            /** Ids */
+            ids?: string[] | null;
+            /** Include Unknown */
+            include_unknown?: boolean | null;
+            /** Is Member */
+            is_member?: boolean | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "member" | "birth_month" | "gender" | "age_range" | "home_location";
+            /** Max */
+            max?: number | null;
+            /** Min */
+            min?: number | null;
+            /** Months */
+            months?: number[] | null;
+            /**
+             * Negate
+             * @default false
+             */
+            negate: boolean;
+            /** Values */
+            values?: string[] | null;
+        };
+        /** AudienceSampleItem */
+        AudienceSampleItem: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Name */
+            name: string;
+        };
+        /** AudienceSource */
+        AudienceSource: {
+            /** Ids */
+            ids?: string[] | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "all_clients" | "client_ids" | "tag";
         };
         /** AuditEventOut */
         AuditEventOut: {
@@ -9201,6 +12228,101 @@ export interface components {
             principal: components["schemas"]["PrincipalOut"];
             /** Refresh Token */
             refresh_token?: string | null;
+        };
+        /** AutomationRuleCreate */
+        AutomationRuleCreate: {
+            /**
+             * Channel
+             * @default email
+             * @enum {string}
+             */
+            channel: "email" | "push";
+            /** Conditions */
+            conditions?: {
+                [key: string]: string;
+            } | null;
+            /**
+             * Delay Minutes
+             * @default 0
+             */
+            delay_minutes: number;
+            /**
+             * Exit Event Types
+             * @default []
+             */
+            exit_event_types: string[];
+            /**
+             * Is Enabled
+             * @default true
+             */
+            is_enabled: boolean;
+            /** Location Id */
+            location_id?: string | null;
+            /**
+             * Message Template Id
+             * Format: uuid
+             */
+            message_template_id: string;
+            /** Name */
+            name: string;
+            /** Topic */
+            topic?: ("session_reminders" | "card_expiration" | "email_campaigns" | "sms_marketing" | "push_announcements" | "league_alerts") | null;
+            /** Trigger Event Type */
+            trigger_event_type: string;
+        };
+        /** AutomationRuleOut */
+        AutomationRuleOut: {
+            /** Channel */
+            channel: string;
+            /** Conditions */
+            conditions: {
+                [key: string]: unknown;
+            } | null;
+            /** Delay Minutes */
+            delay_minutes: number;
+            /** Exit Event Types */
+            exit_event_types: string[];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Enabled */
+            is_enabled: boolean;
+            /** Is System */
+            is_system: boolean;
+            /** Location Id */
+            location_id: string | null;
+            /**
+             * Message Template Id
+             * Format: uuid
+             */
+            message_template_id: string;
+            /** Name */
+            name: string;
+            /** Topic */
+            topic: string | null;
+            /** Trigger Event Type */
+            trigger_event_type: string;
+        };
+        /** AutomationRuleUpdate */
+        AutomationRuleUpdate: {
+            /** Conditions */
+            conditions?: {
+                [key: string]: string;
+            } | null;
+            /** Delay Minutes */
+            delay_minutes?: number | null;
+            /** Exit Event Types */
+            exit_event_types?: string[] | null;
+            /** Is Enabled */
+            is_enabled?: boolean | null;
+            /** Message Template Id */
+            message_template_id?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Topic */
+            topic?: ("session_reminders" | "card_expiration" | "email_campaigns" | "sms_marketing" | "push_announcements" | "league_alerts") | null;
         };
         /** AutopayAttemptOut */
         AutopayAttemptOut: {
@@ -9901,6 +13023,84 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** BookingPolicyDefault */
+        BookingPolicyDefault: {
+            /** Allows Self Cancel */
+            allows_self_cancel: boolean;
+            /** Booking Cutoff Minutes */
+            booking_cutoff_minutes: number;
+            /** Cancel Notice Minutes */
+            cancel_notice_minutes: number;
+            /** Hides Full Sessions */
+            hides_full_sessions: boolean;
+            /**
+             * Listing Mode
+             * @enum {string}
+             */
+            listing_mode: "bookable" | "list_only" | "unlisted" | "hidden";
+            /** Requires Active Membership */
+            requires_active_membership: boolean;
+            /** Visible Range Days */
+            visible_range_days: number;
+            /**
+             * Waitlist Mode
+             * @enum {string}
+             */
+            waitlist_mode: "disabled" | "auto_promote" | "open_offer";
+        };
+        /** BookingPolicyOut */
+        BookingPolicyOut: {
+            /** Allows Self Cancel */
+            allows_self_cancel: boolean | null;
+            /** Booking Cutoff Minutes */
+            booking_cutoff_minutes: number | null;
+            /** Cancel Notice Minutes */
+            cancel_notice_minutes: number | null;
+            /** Hides Full Sessions */
+            hides_full_sessions: boolean | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Listing Mode */
+            listing_mode: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Requires Active Membership */
+            requires_active_membership: boolean | null;
+            /** Reservation Type Id */
+            reservation_type_id: string | null;
+            /** Visible Range Days */
+            visible_range_days: number | null;
+            /** Waitlist Mode */
+            waitlist_mode: string | null;
+        };
+        /**
+         * BookingPolicyOverride
+         * @description Per reservation type, at the type's location; a null field inherits the location default.
+         */
+        BookingPolicyOverride: {
+            /** Allows Self Cancel */
+            allows_self_cancel?: boolean | null;
+            /** Booking Cutoff Minutes */
+            booking_cutoff_minutes?: number | null;
+            /** Cancel Notice Minutes */
+            cancel_notice_minutes?: number | null;
+            /** Hides Full Sessions */
+            hides_full_sessions?: boolean | null;
+            /** Listing Mode */
+            listing_mode?: ("bookable" | "list_only" | "unlisted" | "hidden") | null;
+            /** Requires Active Membership */
+            requires_active_membership?: boolean | null;
+            /** Visible Range Days */
+            visible_range_days?: number | null;
+            /** Waitlist Mode */
+            waitlist_mode?: ("disabled" | "auto_promote" | "open_offer") | null;
+        };
         /** BookingReschedule */
         BookingReschedule: {
             /**
@@ -9954,6 +13154,109 @@ export interface components {
             title?: string | null;
             /** Version */
             version: number;
+        };
+        /** BracketGenerate */
+        BracketGenerate: {
+            /**
+             * Bracket Type
+             * @enum {string}
+             */
+            bracket_type: "single_elimination" | "double_elimination" | "three_games_guaranteed";
+            /** Competition Team Ids */
+            competition_team_ids?: string[] | null;
+            /** Division Id */
+            division_id?: string | null;
+            /**
+             * Has Third Place Game
+             * @default false
+             */
+            has_third_place_game: boolean;
+            /**
+             * Name
+             * @default Playoffs
+             */
+            name: string;
+            /**
+             * Seed Source
+             * @enum {string}
+             */
+            seed_source: "seeds" | "standings" | "manual";
+        };
+        /** BracketOut */
+        BracketOut: {
+            /** Bracket Type */
+            bracket_type: string;
+            /**
+             * Competition Id
+             * Format: uuid
+             */
+            competition_id: string;
+            /** Division Id */
+            division_id: string | null;
+            /** Has Third Place Game */
+            has_third_place_game: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Size */
+            size: number;
+            /** Slots */
+            slots: components["schemas"]["BracketSlotOut"][];
+            /** Status */
+            status: string;
+        };
+        /** BracketSlotOut */
+        BracketSlotOut: {
+            /** Away Seed */
+            away_seed: number | null;
+            /** Away Source Outcome */
+            away_source_outcome: string | null;
+            /** Away Source Slot Id */
+            away_source_slot_id: string | null;
+            /** Away Team Id */
+            away_team_id: string | null;
+            /** Game Id */
+            game_id: string | null;
+            /** Home Seed */
+            home_seed: number | null;
+            /** Home Source Outcome */
+            home_source_outcome: string | null;
+            /** Home Source Slot Id */
+            home_source_slot_id: string | null;
+            /** Home Team Id */
+            home_team_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Bye */
+            is_bye: boolean;
+            /** Position */
+            position: number;
+            /** Round Name */
+            round_name: string;
+            /** Round No */
+            round_no: number;
+            /** Side */
+            side: string;
+            /** Winner Competition Team Id */
+            winner_competition_team_id: string | null;
+        };
+        /** BracketSlotUpdate */
+        BracketSlotUpdate: {
+            /** Away Team Id */
+            away_team_id?: string | null;
+            /** Home Team Id */
+            home_team_id?: string | null;
+            /** Resource Id */
+            resource_id?: string | null;
+            /** Starts At */
+            starts_at?: string | null;
         };
         /** BrandOut */
         BrandOut: {
@@ -10140,6 +13443,147 @@ export interface components {
              * Format: date-time
              */
             to: string;
+        };
+        /** CampaignCreate */
+        CampaignCreate: {
+            audience?: components["schemas"]["AudienceDefinition"] | null;
+            /** Body Text */
+            body_text?: string | null;
+            /**
+             * Channel
+             * @default email
+             * @enum {string}
+             */
+            channel: "email" | "push";
+            /** Link Url */
+            link_url?: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Message Template Id */
+            message_template_id?: string | null;
+            /** Name */
+            name: string;
+            /** Segment Id */
+            segment_id?: string | null;
+            /** Subject */
+            subject?: string | null;
+        };
+        /** CampaignOut */
+        CampaignOut: {
+            /** Attempted Count */
+            attempted_count: number;
+            /** Audience */
+            audience: {
+                [key: string]: unknown;
+            } | null;
+            /** Body Text */
+            body_text: string | null;
+            /** Channel */
+            channel: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Inbox Count */
+            inbox_count: number;
+            /** Link Url */
+            link_url: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Message Template Id */
+            message_template_id: string | null;
+            /** Name */
+            name: string;
+            /** Recalled At */
+            recalled_at: string | null;
+            /** Scheduled At */
+            scheduled_at: string | null;
+            /** Segment Id */
+            segment_id: string | null;
+            /** Sent At */
+            sent_at: string | null;
+            /** Sent Count */
+            sent_count: number;
+            /** Started At */
+            started_at: string | null;
+            /** Status */
+            status: string;
+            /** Subject */
+            subject: string | null;
+        };
+        /** CampaignSchedule */
+        CampaignSchedule: {
+            /**
+             * Scheduled At
+             * Format: date-time
+             */
+            scheduled_at: string;
+        };
+        /** CampaignStatsOut */
+        CampaignStatsOut: {
+            /** Attempted Count */
+            attempted_count: number;
+            /** Bounced Count */
+            bounced_count: number;
+            /** By Status */
+            by_status: {
+                [key: string]: number;
+            };
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /** Clicked Count */
+            clicked_count: number;
+            /** Complaint Count */
+            complaint_count: number;
+            /** Delivered Count */
+            delivered_count: number;
+            /** Duplicate Count */
+            duplicate_count: number;
+            /** Inbox Count */
+            inbox_count: number;
+            /** Invalid Count */
+            invalid_count: number;
+            /** Opened Count */
+            opened_count: number;
+            /** Sent Count */
+            sent_count: number;
+            /** Suppressed Count */
+            suppressed_count: number;
+            /** Unsubscribed Count */
+            unsubscribed_count: number;
+            /** Unsubscribed Skip Count */
+            unsubscribed_skip_count: number;
+            /** Unverified Count */
+            unverified_count: number;
+        };
+        /** CampaignUpdate */
+        CampaignUpdate: {
+            audience?: components["schemas"]["AudienceDefinition"] | null;
+            /** Body Text */
+            body_text?: string | null;
+            /** Link Url */
+            link_url?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Segment Id */
+            segment_id?: string | null;
+            /** Subject */
+            subject?: string | null;
         };
         /** CancelIn */
         CancelIn: {
@@ -10798,6 +14242,288 @@ export interface components {
             /** Unit Price Minor */
             unit_price_minor?: number | null;
         };
+        /** CheckInAlertOut */
+        CheckInAlertOut: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "client_disabled" | "access_denied" | "membership_suspended" | "membership_frozen" | "membership_expired" | "visits_depleted" | "balance_due" | "waiver_unsigned" | "payment_method_expired" | "staff_note" | "birthday" | "photo_missing" | "over_daily_limit";
+        };
+        /**
+         * CheckInClientOut
+         * @description The status card at the front desk (CHK-01).
+         */
+        CheckInClientOut: {
+            /** Balance Due Minor */
+            balance_due_minor: number | null;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Display Name */
+            display_name: string;
+            /** First Name */
+            first_name: string;
+            /** Is Waiver On File */
+            is_waiver_on_file: boolean;
+            /** Last Name */
+            last_name: string;
+            /** Member Number */
+            member_number: string | null;
+            membership: components["schemas"]["CheckInMembershipOut"] | null;
+            /** Staff Alerts */
+            staff_alerts: components["schemas"]["StaffAlertOut"][];
+            /** Status */
+            status: string;
+        };
+        /** CheckInCreate */
+        CheckInCreate: {
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "staff_window" | "client_profile" | "pos" | "api";
+            /** Client Id */
+            client_id?: string | null;
+            /** Credential Value */
+            credential_value?: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Override
+             * @default false
+             */
+            override: boolean;
+            /** Override Reason */
+            override_reason?: string | null;
+        };
+        /** CheckInMembershipOut */
+        CheckInMembershipOut: {
+            /**
+             * Contract Id
+             * Format: uuid
+             */
+            contract_id: string;
+            /** End On */
+            end_on: string | null;
+            /** Name */
+            name: string | null;
+            /** Status */
+            status: string;
+            /** Visits Remaining Count */
+            visits_remaining_count: number | null;
+        };
+        /** CheckInOut */
+        CheckInOut: {
+            /** Alert Codes */
+            alert_codes: string[];
+            /** Attended */
+            attended: components["schemas"]["AttendedOut"][];
+            /** Channel */
+            channel: string;
+            /**
+             * Checked In At
+             * Format: date-time
+             */
+            checked_in_at: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Credential Id */
+            credential_id: string | null;
+            /** Denial Reason */
+            denial_reason: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Identified By */
+            identified_by: string;
+            /** Is Visit Consumed */
+            is_visit_consumed: boolean;
+            /** Kiosk Device Id */
+            kiosk_device_id: string | null;
+            /**
+             * Local On
+             * Format: date
+             */
+            local_on: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Membership Contract Id */
+            membership_contract_id: string | null;
+            /** Override By Staff User Id */
+            override_by_staff_user_id: string | null;
+            /** Override Reason */
+            override_reason: string | null;
+            /** Result */
+            result: string;
+        };
+        /** CheckInResult */
+        CheckInResult: {
+            /** Alerts */
+            alerts: components["schemas"]["CheckInAlertOut"][];
+            check_in: components["schemas"]["CheckInOut"];
+            client: components["schemas"]["CheckInClientOut"];
+        };
+        /** CheckInRowOut */
+        CheckInRowOut: {
+            /** Alert Codes */
+            alert_codes: string[];
+            /** Attended */
+            attended: components["schemas"]["AttendedOut"][];
+            /** Channel */
+            channel: string;
+            /**
+             * Checked In At
+             * Format: date-time
+             */
+            checked_in_at: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Name */
+            client_name: string;
+            /** Credential Id */
+            credential_id: string | null;
+            /** Denial Reason */
+            denial_reason: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Identified By */
+            identified_by: string;
+            /** Is Visit Consumed */
+            is_visit_consumed: boolean;
+            /** Kiosk Device Id */
+            kiosk_device_id: string | null;
+            /**
+             * Local On
+             * Format: date
+             */
+            local_on: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Membership Contract Id */
+            membership_contract_id: string | null;
+            /** Override By Staff User Id */
+            override_by_staff_user_id: string | null;
+            /** Override Reason */
+            override_reason: string | null;
+            /** Result */
+            result: string;
+        };
+        /** CheckoutCreate */
+        CheckoutCreate: {
+            /** Comment */
+            comment?: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Payer Client Id */
+            payer_client_id?: string | null;
+        };
+        /** CheckoutItem */
+        CheckoutItem: {
+            /** Amount Minor */
+            amount_minor: number;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Name */
+            client_name: string;
+            /** Hold Expires At */
+            hold_expires_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Program Fee Id */
+            program_fee_id: string | null;
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
+            /** Program Group Name */
+            program_group_name: string;
+            /** Status */
+            status: string;
+        };
+        /** CheckoutItemAdd */
+        CheckoutItemAdd: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Comment */
+            comment?: string | null;
+            /** Program Fee Id */
+            program_fee_id?: string | null;
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
+        };
+        /** CheckoutOut */
+        CheckoutOut: {
+            /** Channel */
+            channel: string;
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /** Items */
+            items: components["schemas"]["CheckoutItem"][];
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Missing Documents */
+            missing_documents: components["schemas"]["MissingDocument"][];
+            /** Payer Client Id */
+            payer_client_id: string | null;
+            /** Status */
+            status: string;
+            /** Total Minor */
+            total_minor: number;
+        };
         /** ClientCreate */
         ClientCreate: {
             /** Address Line1 */
@@ -11306,6 +15032,320 @@ export interface components {
         CommissionRulesPut: {
             /** Rules */
             rules: components["schemas"]["CommissionRuleIn"][];
+        };
+        /** CompetitionCreate */
+        CompetitionCreate: {
+            /** Age Group Id */
+            age_group_id?: string | null;
+            /** Color */
+            color?: string | null;
+            /** Division Label */
+            division_label?: string | null;
+            /** Ends On */
+            ends_on?: string | null;
+            /** Forfeit Score For */
+            forfeit_score_for?: number | null;
+            /**
+             * Format
+             * @default round_robin
+             * @enum {string}
+             */
+            format: "round_robin" | "pool_play" | "single_elimination" | "double_elimination" | "three_games_guaranteed";
+            /** Game Length Min */
+            game_length_min?: number | null;
+            /** Is Public */
+            is_public?: boolean | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "league" | "tournament";
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Max Defaults */
+            max_defaults?: number | null;
+            /** Max Forfeits */
+            max_forfeits?: number | null;
+            /** Min Sportsmanship */
+            min_sportsmanship?: number | string | null;
+            /** More Info */
+            more_info?: string | null;
+            /** Name */
+            name: string;
+            /** Points Default Loss */
+            points_default_loss?: number | string | null;
+            /** Points Forfeit Loss */
+            points_forfeit_loss?: number | string | null;
+            /** Points Forfeit Win */
+            points_forfeit_win?: number | string | null;
+            /** Points Loss */
+            points_loss?: number | string | null;
+            /** Points Overtime Loss */
+            points_overtime_loss?: number | string | null;
+            /** Points Tie */
+            points_tie?: number | string | null;
+            /** Points Win */
+            points_win?: number | string | null;
+            /** Registration Url */
+            registration_url?: string | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Rules Text */
+            rules_text?: string | null;
+            /** Season Id */
+            season_id?: string | null;
+            /** Shows Roster Publicly */
+            shows_roster_publicly?: boolean | null;
+            /**
+             * Sport Id
+             * Format: uuid
+             */
+            sport_id: string;
+            /** Standings Columns */
+            standings_columns?: components["schemas"]["StandingsColumn"][] | null;
+            /** Standings Sort */
+            standings_sort?: components["schemas"]["StandingsSort"][] | null;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** Team Fee Minor */
+            team_fee_minor?: number | null;
+            /** Team Fee Text */
+            team_fee_text?: string | null;
+            /** Tracks Sportsmanship */
+            tracks_sportsmanship?: boolean | null;
+        };
+        /** CompetitionOut */
+        CompetitionOut: {
+            /** Age Group Id */
+            age_group_id: string | null;
+            /** Color */
+            color: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Division Label */
+            division_label: string | null;
+            /** Ends On */
+            ends_on: string | null;
+            /** Forfeit Score For */
+            forfeit_score_for: number;
+            /** Format */
+            format: string;
+            /** Game Length Min */
+            game_length_min: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Public */
+            is_public: boolean;
+            /** Kind */
+            kind: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Max Defaults */
+            max_defaults: number | null;
+            /** Max Forfeits */
+            max_forfeits: number | null;
+            /** Min Sportsmanship */
+            min_sportsmanship: string | null;
+            /** More Info */
+            more_info: string | null;
+            /** Name */
+            name: string;
+            /** Points Default Loss */
+            points_default_loss: string;
+            /** Points Forfeit Loss */
+            points_forfeit_loss: string;
+            /** Points Forfeit Win */
+            points_forfeit_win: string;
+            /** Points Loss */
+            points_loss: string;
+            /** Points Overtime Loss */
+            points_overtime_loss: string;
+            /** Points Tie */
+            points_tie: string;
+            /** Points Win */
+            points_win: string;
+            /** Registration Url */
+            registration_url: string | null;
+            /** Revenue Category Id */
+            revenue_category_id: string | null;
+            /** Rules Text */
+            rules_text: string | null;
+            /** Season Id */
+            season_id: string | null;
+            /** Shows Roster Publicly */
+            shows_roster_publicly: boolean;
+            /**
+             * Sport Id
+             * Format: uuid
+             */
+            sport_id: string;
+            /** Standings Columns */
+            standings_columns: {
+                [key: string]: unknown;
+            }[];
+            /** Standings Sort */
+            standings_sort: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** Status */
+            status: string;
+            /** Team Fee Minor */
+            team_fee_minor: number | null;
+            /** Team Fee Text */
+            team_fee_text: string | null;
+            /** Tracks Sportsmanship */
+            tracks_sportsmanship: boolean;
+        };
+        /**
+         * CompetitionTeamCreate
+         * @description Register a team: an existing `team_id` or a new `team`. `bill_to_client_id` charges the competition's
+         *     team fee to that client through billing in the same transaction.
+         */
+        CompetitionTeamCreate: {
+            /** Bill To Client Id */
+            bill_to_client_id?: string | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Division Id */
+            division_id?: string | null;
+            /** Seed */
+            seed?: number | null;
+            team?: components["schemas"]["NewTeam"] | null;
+            /** Team Id */
+            team_id?: string | null;
+        };
+        /** CompetitionTeamOut */
+        CompetitionTeamOut: {
+            /**
+             * Competition Id
+             * Format: uuid
+             */
+            competition_id: string;
+            /** Display Name */
+            display_name: string | null;
+            /**
+             * Division Id
+             * Format: uuid
+             */
+            division_id: string;
+            /** Fee Client Id */
+            fee_client_id: string | null;
+            /** Fee Status */
+            fee_status: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Id */
+            invoice_id?: string | null;
+            /** Name */
+            name: string;
+            /** Seed */
+            seed: number | null;
+            /** Status */
+            status: string;
+            /**
+             * Team Id
+             * Format: uuid
+             */
+            team_id: string;
+        };
+        /** CompetitionTeamUpdate */
+        CompetitionTeamUpdate: {
+            /** Display Name */
+            display_name?: string | null;
+            /** Division Id */
+            division_id?: string | null;
+            /** Seed */
+            seed?: number | null;
+            /** Status */
+            status?: ("active" | "withdrawn") | null;
+        };
+        /** CompetitionUpdate */
+        CompetitionUpdate: {
+            /** Age Group Id */
+            age_group_id?: string | null;
+            /** Color */
+            color?: string | null;
+            /** Division Label */
+            division_label?: string | null;
+            /** Ends On */
+            ends_on?: string | null;
+            /** Forfeit Score For */
+            forfeit_score_for?: number | null;
+            /** Format */
+            format?: ("round_robin" | "pool_play" | "single_elimination" | "double_elimination" | "three_games_guaranteed") | null;
+            /** Game Length Min */
+            game_length_min?: number | null;
+            /** Is Public */
+            is_public?: boolean | null;
+            /** Max Defaults */
+            max_defaults?: number | null;
+            /** Max Forfeits */
+            max_forfeits?: number | null;
+            /** Min Sportsmanship */
+            min_sportsmanship?: number | string | null;
+            /** More Info */
+            more_info?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Points Default Loss */
+            points_default_loss?: number | string | null;
+            /** Points Forfeit Loss */
+            points_forfeit_loss?: number | string | null;
+            /** Points Forfeit Win */
+            points_forfeit_win?: number | string | null;
+            /** Points Loss */
+            points_loss?: number | string | null;
+            /** Points Overtime Loss */
+            points_overtime_loss?: number | string | null;
+            /** Points Tie */
+            points_tie?: number | string | null;
+            /** Points Win */
+            points_win?: number | string | null;
+            /** Registration Url */
+            registration_url?: string | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Rules Text */
+            rules_text?: string | null;
+            /** Season Id */
+            season_id?: string | null;
+            /** Shows Roster Publicly */
+            shows_roster_publicly?: boolean | null;
+            /** Standings Columns */
+            standings_columns?: components["schemas"]["StandingsColumn"][] | null;
+            /** Standings Sort */
+            standings_sort?: components["schemas"]["StandingsSort"][] | null;
+            /** Starts On */
+            starts_on?: string | null;
+            /** Team Fee Minor */
+            team_fee_minor?: number | null;
+            /** Team Fee Text */
+            team_fee_text?: string | null;
+            /** Tracks Sportsmanship */
+            tracks_sportsmanship?: boolean | null;
         };
         /** ContractHistoryOut */
         ContractHistoryOut: {
@@ -11906,6 +15946,81 @@ export interface components {
             /** Subtotal Minor */
             subtotal_minor: number;
         };
+        /** CredentialCreate */
+        CredentialCreate: {
+            /**
+             * Generate
+             * @default false
+             */
+            generate: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "barcode" | "rfid";
+            /** Source */
+            source?: ("scanned" | "typed") | null;
+            /** Value */
+            value?: string | null;
+        };
+        /** CredentialMatch */
+        CredentialMatch: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Credential Id */
+            credential_id: string | null;
+            /** Display Name */
+            display_name: string;
+            /** Is Client Disabled */
+            is_client_disabled: boolean;
+            /** Kind */
+            kind: string;
+        };
+        /** CredentialOut */
+        CredentialOut: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Device Label */
+            device_label: string | null;
+            /** Id */
+            id: string | null;
+            /** Is Primary */
+            is_primary: boolean;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
+            /** Kind */
+            kind: string;
+            /** Revoked At */
+            revoked_at: string | null;
+            /** Source */
+            source: string;
+            /** Status */
+            status: string;
+            /** Value */
+            value: string;
+        };
+        /** CredentialResolveRequest */
+        CredentialResolveRequest: {
+            /** Value */
+            value: string;
+        };
+        /** CredentialRevokeAllRequest */
+        CredentialRevokeAllRequest: {
+            /**
+             * Kind
+             * @constant
+             */
+            kind: "app_card";
+        };
         /** CreditAdjust */
         CreditAdjust: {
             /** Delta */
@@ -12186,6 +16301,22 @@ export interface components {
             /** To Email */
             to_email: string | null;
         };
+        /** DirectMessageCreate */
+        DirectMessageCreate: {
+            /** Body Text */
+            body_text?: string | null;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Location Id */
+            location_id?: string | null;
+            /** Message Template Id */
+            message_template_id?: string | null;
+            /** Subject */
+            subject?: string | null;
+        };
         /** DiscountPresetCreate */
         DiscountPresetCreate: {
             /** Discount Minor */
@@ -12245,6 +16376,34 @@ export interface components {
              * Format: uuid
              */
             pos_sale_line_id: string;
+        };
+        /** DivisionOut */
+        DivisionOut: {
+            /**
+             * Competition Id
+             * Format: uuid
+             */
+            competition_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Name */
+            name: string;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /** DivisionWrite */
+        DivisionWrite: {
+            /** Kind */
+            kind?: ("division" | "pool") | null;
+            /** Name */
+            name?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
         };
         /** DocumentAcceptanceOut */
         DocumentAcceptanceOut: {
@@ -12873,19 +17032,13 @@ export interface components {
             /** Contacts */
             contacts: components["schemas"]["EmergencyContactOut"][];
         };
-        /** EnrollmentCancel */
-        EnrollmentCancel: {
+        /** EnrollmentBatchCreate */
+        EnrollmentBatchCreate: {
             /**
-             * Cancel Kind
-             * @default staff_removed
+             * Booked Scope
              * @enum {string}
              */
-            cancel_kind: "early" | "late" | "staff_removed";
-            /** Reason */
-            reason?: string | null;
-        };
-        /** EnrollmentCreate */
-        EnrollmentCreate: {
+            booked_scope: "all_linked" | "custom";
             /**
              * Client Id
              * Format: uuid
@@ -12898,15 +17051,89 @@ export interface components {
              * Format: uuid
              */
             session_id: string;
+            /**
+             * Session Ids
+             * @default []
+             */
+            session_ids: string[];
+        };
+        /** EnrollmentBatchResult */
+        EnrollmentBatchResult: {
+            /**
+             * Batch Id
+             * Format: uuid
+             */
+            batch_id: string;
+            /** Enrolled */
+            enrolled: components["schemas"]["EnrollmentOut"][];
+            /** Skipped */
+            skipped: components["schemas"]["Skipped"][];
+        };
+        /** EnrollmentCancel */
+        EnrollmentCancel: {
+            /**
+             * Add To Waitlist
+             * @default false
+             */
+            add_to_waitlist: boolean;
+            /** Billing Disposition */
+            billing_disposition?: ("reversed" | "kept" | "none") | null;
+            /**
+             * Cancel Kind
+             * @default staff_removed
+             * @enum {string}
+             */
+            cancel_kind: "early" | "late" | "staff_removed";
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Scope
+             * @default single
+             * @enum {string}
+             */
+            scope: "single" | "batch";
+        };
+        /** EnrollmentCreate */
+        EnrollmentCreate: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Package Id */
+            client_package_id?: string | null;
+            /** Payer Client Id */
+            payer_client_id?: string | null;
+            /**
+             * Program Fee Ids
+             * @default []
+             */
+            program_fee_ids: string[];
+            /** Program Group Id */
+            program_group_id?: string | null;
+            /** Registrant Comment */
+            registrant_comment?: string | null;
+            /** Session Id */
+            session_id?: string | null;
         };
         /** EnrollmentOut */
         EnrollmentOut: {
+            /** Batch Id */
+            batch_id: string | null;
+            /** Billing Disposition */
+            billing_disposition: string | null;
+            /** Booked Scope */
+            booked_scope: string | null;
             /** Cancel Kind */
             cancel_kind: string | null;
             /** Cancelled At */
             cancelled_at: string | null;
             /** Channel */
             channel: string;
+            /** Charge Id */
+            charge_id: string | null;
+            /** Checkout Id */
+            checkout_id: string | null;
             /**
              * Client Id
              * Format: uuid
@@ -12914,6 +17141,8 @@ export interface components {
             client_id: string;
             /** Enrolled At */
             enrolled_at: string | null;
+            /** Hold Expires At */
+            hold_expires_at: string | null;
             /**
              * Id
              * Format: uuid
@@ -12924,8 +17153,14 @@ export interface components {
              * Format: uuid
              */
             location_id: string;
+            /** Payer Client Id */
+            payer_client_id: string | null;
             /** Pricing */
             pricing: string;
+            /** Program Fee Id */
+            program_fee_id: string | null;
+            /** Program Group Id */
+            program_group_id: string | null;
             /** Session Id */
             session_id: string | null;
             /**
@@ -12935,6 +17170,16 @@ export interface components {
             status: "pending" | "enrolled" | "cancelled";
             /** Target Kind */
             target_kind: string;
+        };
+        /** EnrollmentRebook */
+        EnrollmentRebook: {
+            /** Client Package Id */
+            client_package_id?: string | null;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
         };
         /** EquipmentCategoryCreate */
         EquipmentCategoryCreate: {
@@ -13459,6 +17704,284 @@ export interface components {
              */
             start_on: string;
         };
+        /** GameCreate */
+        GameCreate: {
+            /** Away Label */
+            away_label?: string | null;
+            /** Away Team Id */
+            away_team_id?: string | null;
+            /**
+             * Competition Id
+             * Format: uuid
+             */
+            competition_id: string;
+            /** Division Id */
+            division_id?: string | null;
+            /**
+             * Game Type
+             * @default regular
+             * @enum {string}
+             */
+            game_type: "regular" | "post_season";
+            /** Home Label */
+            home_label?: string | null;
+            /** Home Team Id */
+            home_team_id?: string | null;
+            /** Length Min */
+            length_min?: number | null;
+            /** Notes */
+            notes?: string | null;
+            /** Resource Id */
+            resource_id?: string | null;
+            /** Round Label */
+            round_label?: string | null;
+            /** Starts At */
+            starts_at?: string | null;
+        };
+        /** GameOfficialOut */
+        GameOfficialOut: {
+            /**
+             * Game Id
+             * Format: uuid
+             */
+            game_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Official Id
+             * Format: uuid
+             */
+            official_id: string;
+            /** Role */
+            role: string;
+        };
+        /** GameOfficialsPut */
+        GameOfficialsPut: {
+            /** Assignments */
+            assignments: components["schemas"]["Assignment"][];
+        };
+        /** GameOut */
+        GameOut: {
+            /** Away Label */
+            away_label: string | null;
+            /** Away Name */
+            away_name: string | null;
+            /** Away Score */
+            away_score?: number | null;
+            /** Away Team Id */
+            away_team_id: string | null;
+            /** Booking Id */
+            booking_id: string | null;
+            /**
+             * Competition Id
+             * Format: uuid
+             */
+            competition_id: string;
+            /** Conflict Note */
+            conflict_note: {
+                [key: string]: unknown;
+            } | null;
+            /** Division Id */
+            division_id: string | null;
+            /** Ends At */
+            ends_at: string | null;
+            /** Game Type */
+            game_type: string;
+            /** Home Label */
+            home_label: string | null;
+            /** Home Name */
+            home_name: string | null;
+            /** Home Score */
+            home_score?: number | null;
+            /** Home Team Id */
+            home_team_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Bye */
+            is_bye: boolean;
+            /** Length Min */
+            length_min: number;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Notes */
+            notes: string | null;
+            /** Resource Id */
+            resource_id: string | null;
+            /** Round Label */
+            round_label: string | null;
+            /** Round No */
+            round_no: number | null;
+            /** Schedule Run Id */
+            schedule_run_id: string | null;
+            /** Starts At */
+            starts_at: string | null;
+            /** Status */
+            status: string;
+            /** Version */
+            version: number;
+        };
+        /** GamePostpone */
+        GamePostpone: {
+            /** Resource Id */
+            resource_id?: string | null;
+            /** Starts At */
+            starts_at?: string | null;
+        };
+        /** GameReschedule */
+        GameReschedule: {
+            /** Length Min */
+            length_min?: number | null;
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
+        /** GameResultOut */
+        GameResultOut: {
+            away: components["schemas"]["GameSideOut"] | null;
+            /**
+             * Game Id
+             * Format: uuid
+             */
+            game_id: string;
+            home: components["schemas"]["GameSideOut"] | null;
+            /** Recorded At */
+            recorded_at: string | null;
+            /** Status */
+            status: string;
+        };
+        /** GameResultPut */
+        GameResultPut: {
+            away: components["schemas"]["GameSideIn"];
+            home: components["schemas"]["GameSideIn"];
+        };
+        /** GameSideIn */
+        GameSideIn: {
+            /**
+             * Bonus Points
+             * @default 0
+             */
+            bonus_points: number | string;
+            /**
+             * Participation
+             * @default full
+             * @enum {string}
+             */
+            participation: "full" | "default" | "forfeit";
+            /** Score */
+            score?: number | null;
+            /** Sportsmanship */
+            sportsmanship?: number | string | null;
+            /**
+             * Went To Overtime
+             * @default false
+             */
+            went_to_overtime: boolean;
+        };
+        /** GameSideOut */
+        GameSideOut: {
+            /** Bonus Points */
+            bonus_points: string;
+            /**
+             * Competition Team Id
+             * Format: uuid
+             */
+            competition_team_id: string;
+            /** Outcome */
+            outcome: string;
+            /** Participation */
+            participation: string;
+            /** Score */
+            score: number | null;
+            /** Sportsmanship */
+            sportsmanship: string | null;
+            /** Went To Overtime */
+            went_to_overtime: boolean;
+        };
+        /** GameUpdate */
+        GameUpdate: {
+            /** Away Label */
+            away_label?: string | null;
+            /** Away Team Id */
+            away_team_id?: string | null;
+            /** Game Type */
+            game_type?: ("regular" | "post_season") | null;
+            /** Home Label */
+            home_label?: string | null;
+            /** Home Team Id */
+            home_team_id?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Round Label */
+            round_label?: string | null;
+            /** Version */
+            version?: number | null;
+        };
+        /** GroupParticipant */
+        GroupParticipant: {
+            /** Channel */
+            channel: string;
+            /** Charge Id */
+            charge_id: string | null;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Name */
+            client_name: string;
+            /** Enrolled At */
+            enrolled_at: string | null;
+            /**
+             * Enrollment Id
+             * Format: uuid
+             */
+            enrollment_id: string;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /** Payer Client Id */
+            payer_client_id: string | null;
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
+            /** Program Group Name */
+            program_group_name: string;
+        };
+        /** GroupRoster */
+        GroupRoster: {
+            /** Capacity */
+            capacity: number | null;
+            /** Enrolled Count */
+            enrolled_count: number;
+            /** Participants */
+            participants: components["schemas"]["GroupParticipant"][];
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
+            /** Waiting Count */
+            waiting_count: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -13843,6 +18366,305 @@ export interface components {
         };
         /** JobClassificationUpdate */
         JobClassificationUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+        };
+        /** KioskAttendedOut */
+        KioskAttendedOut: {
+            /** Session Id */
+            session_id: string | null;
+            /** Target Type */
+            target_type: string;
+        };
+        /** KioskCheckInCreate */
+        KioskCheckInCreate: {
+            /** Card Payload */
+            card_payload?: string | null;
+            /** Match Token */
+            match_token?: string | null;
+        };
+        /** KioskCheckInResult */
+        KioskCheckInResult: {
+            /** Attended */
+            attended: components["schemas"]["KioskAttendedOut"][];
+            /**
+             * Check In Id
+             * Format: uuid
+             */
+            check_in_id: string;
+            /** Displayed Alert Codes */
+            displayed_alert_codes: string[];
+            /** First Name */
+            first_name: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "admitted" | "see_staff";
+            /** Welcome Message */
+            welcome_message: string | null;
+        };
+        /** KioskConfig */
+        KioskConfig: {
+            /**
+             * Kiosk Device Id
+             * Format: uuid
+             */
+            kiosk_device_id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Location Name */
+            location_name: string;
+            settings: components["schemas"]["KioskSettingsOut"];
+            /** Time Zone */
+            time_zone: string;
+        };
+        /** KioskDeviceCreate */
+        KioskDeviceCreate: {
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+        };
+        /** KioskDeviceOut */
+        KioskDeviceOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Seen At */
+            last_seen_at: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Paired At */
+            paired_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending_pairing" | "active" | "revoked";
+        };
+        /** KioskLookupRequest */
+        KioskLookupRequest: {
+            /** Credential Value */
+            credential_value?: string | null;
+            /** Last Name Prefix */
+            last_name_prefix?: string | null;
+        };
+        /** KioskLookupResult */
+        KioskLookupResult: {
+            /** Matches */
+            matches: components["schemas"]["KioskMatch"][];
+        };
+        /** KioskMatch */
+        KioskMatch: {
+            /** First Name */
+            first_name: string;
+            /** Last Initial */
+            last_initial: string;
+            /** Match Token */
+            match_token: string;
+        };
+        /** KioskPairRequest */
+        KioskPairRequest: {
+            /** Pairing Code */
+            pairing_code: string;
+        };
+        /** KioskPairingCode */
+        KioskPairingCode: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Kiosk Device Id
+             * Format: uuid
+             */
+            kiosk_device_id: string;
+            /** Pairing Code */
+            pairing_code: string;
+        };
+        /** KioskSettingsOut */
+        KioskSettingsOut: {
+            /** Confirmation Timeout Seconds */
+            confirmation_timeout_seconds: number;
+            /** Displayed Alert Codes */
+            displayed_alert_codes: string[];
+            /** Early Window Minutes */
+            early_window_minutes: number;
+            /** Late Window Minutes */
+            late_window_minutes: number;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Lookup Method */
+            lookup_method: string;
+            /** Welcome Message */
+            welcome_message: string | null;
+        };
+        /** KioskSettingsWrite */
+        KioskSettingsWrite: {
+            /** Confirmation Timeout Seconds */
+            confirmation_timeout_seconds?: number | null;
+            /** Displayed Alert Codes */
+            displayed_alert_codes?: ("client_disabled" | "access_denied" | "membership_suspended" | "membership_frozen" | "membership_expired" | "visits_depleted" | "balance_due" | "waiver_unsigned" | "payment_method_expired" | "staff_note" | "birthday" | "photo_missing" | "over_daily_limit")[] | null;
+            /** Early Window Minutes */
+            early_window_minutes?: number | null;
+            /** Late Window Minutes */
+            late_window_minutes?: number | null;
+            /** Lookup Method */
+            lookup_method?: ("name" | "membership_number" | "both") | null;
+            /** Welcome Message */
+            welcome_message?: string | null;
+        };
+        /** LeagueRosterEntryOut */
+        LeagueRosterEntryOut: {
+            /** Client Id */
+            client_id: string | null;
+            /**
+             * Competition Team Id
+             * Format: uuid
+             */
+            competition_team_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Jersey Number */
+            jersey_number: string | null;
+            /** Name */
+            name: string;
+            /** Origin */
+            origin: string;
+            /** Position */
+            position: string | null;
+            /** Role */
+            role: string;
+            /** Status */
+            status: string;
+        };
+        /** LeagueStandingOut */
+        LeagueStandingOut: {
+            /** Adjustment Points */
+            adjustment_points: string;
+            /** Adjustment Reason */
+            adjustment_reason: string | null;
+            /** Bonus Points */
+            bonus_points: string;
+            /**
+             * Competition Team Id
+             * Format: uuid
+             */
+            competition_team_id: string;
+            /** Defaults */
+            defaults: number;
+            /**
+             * Division Id
+             * Format: uuid
+             */
+            division_id: string;
+            /** Forfeits */
+            forfeits: number;
+            /** Games Played */
+            games_played: number;
+            /** Goal Difference */
+            goal_difference: number;
+            /** Goals Against */
+            goals_against: number;
+            /** Goals For */
+            goals_for: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Over Discipline Cap */
+            is_over_discipline_cap: boolean;
+            /** Losses */
+            losses: number;
+            /** Overtime Losses */
+            overtime_losses: number;
+            /** Points */
+            points: string;
+            /** Rank */
+            rank: number;
+            /** Sportsmanship Avg */
+            sportsmanship_avg: string | null;
+            /** Team Name */
+            team_name: string;
+            /** Ties */
+            ties: number;
+            /** Win Pct */
+            win_pct: string;
+            /** Wins */
+            wins: number;
+        };
+        /** LeagueTeamCreate */
+        LeagueTeamCreate: {
+            /** Captain Client Id */
+            captain_client_id?: string | null;
+            /** Color */
+            color?: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+        };
+        /** LeagueTeamOut */
+        LeagueTeamOut: {
+            /** Captain Client Id */
+            captain_client_id: string | null;
+            /** Color */
+            color: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Placeholder */
+            is_placeholder: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+        };
+        /** LeagueTeamUpdate */
+        LeagueTeamUpdate: {
+            /** Captain Client Id */
+            captain_client_id?: string | null;
+            /** Color */
+            color?: string | null;
             /** Is Active */
             is_active?: boolean | null;
             /** Name */
@@ -14631,6 +19453,125 @@ export interface components {
             kind: "portal_access" | "relationship";
         };
         /**
+         * MessageOut
+         * @description The delivery log. Bodies are kept only for direct messages; recipients' addresses are shown to staff.
+         */
+        MessageOut: {
+            /** Body Text */
+            body_text: string | null;
+            /** Campaign Id */
+            campaign_id: string | null;
+            /** Category */
+            category: string;
+            /** Channel */
+            channel: string;
+            /** Client Id */
+            client_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Location Id */
+            location_id: string | null;
+            /**
+             * Queued At
+             * Format: date-time
+             */
+            queued_at: string;
+            /** Sent At */
+            sent_at: string | null;
+            /** Skip Reason */
+            skip_reason: string | null;
+            /** Status */
+            status: string;
+            /** Subject */
+            subject: string | null;
+            /** To Address */
+            to_address: string | null;
+            /** Topic */
+            topic: string | null;
+        };
+        /** MessageTemplateCreate */
+        MessageTemplateCreate: {
+            /** Body Text */
+            body_text?: string | null;
+            /** Category */
+            category?: ("marketing" | "transactional" | "operational") | null;
+            /** Channel */
+            channel?: ("email" | "push") | null;
+            /** Copied From Id */
+            copied_from_id?: string | null;
+            /** Name */
+            name: string;
+            /** Subject */
+            subject?: string | null;
+        };
+        /** MessageTemplateOut */
+        MessageTemplateOut: {
+            /** Body Text */
+            body_text: string;
+            /** Category */
+            category: string | null;
+            /** Channel */
+            channel: string;
+            /** Copied From Id */
+            copied_from_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Origin */
+            origin: string;
+            /** Subject */
+            subject: string | null;
+            /** System Key */
+            system_key: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** MessageTemplateUpdate */
+        MessageTemplateUpdate: {
+            /** Body Text */
+            body_text?: string | null;
+            /** Category */
+            category?: ("marketing" | "transactional" | "operational") | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Subject */
+            subject?: string | null;
+        };
+        /** MissingDocument */
+        MissingDocument: {
+            /**
+             * Binding Id
+             * Format: uuid
+             */
+            binding_id: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Document Id */
+            document_id: string | null;
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
+        };
+        /**
          * MyShiftOut
          * @description A published shift as its assignee sees it: no manager note.
          */
@@ -14657,6 +19598,15 @@ export interface components {
              * Format: date-time
              */
             starts_at: string;
+        };
+        /** NewTeam */
+        NewTeam: {
+            /** Captain Client Id */
+            captain_client_id?: string | null;
+            /** Color */
+            color?: string | null;
+            /** Name */
+            name: string;
         };
         /** NoSaleRequest */
         NoSaleRequest: {
@@ -14791,6 +19741,64 @@ export interface components {
             /** Subject Type */
             subject_type: string;
         };
+        /** NotificationRouteCreate */
+        NotificationRouteCreate: {
+            /**
+             * Alert Kind
+             * @enum {string}
+             */
+            alert_kind: "payment_declined" | "portal_action" | "instant_booking" | "online_registration" | "waitlist_promoted";
+            /**
+             * Emails
+             * @default []
+             */
+            emails: string[];
+            /**
+             * Is Enabled
+             * @default true
+             */
+            is_enabled: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Staff User Ids
+             * @default []
+             */
+            staff_user_ids: string[];
+        };
+        /** NotificationRouteOut */
+        NotificationRouteOut: {
+            /** Alert Kind */
+            alert_kind: string;
+            /** Emails */
+            emails: string[];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Enabled */
+            is_enabled: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Staff User Ids */
+            staff_user_ids: string[];
+        };
+        /** NotificationRouteUpdate */
+        NotificationRouteUpdate: {
+            /** Emails */
+            emails?: string[] | null;
+            /** Is Enabled */
+            is_enabled?: boolean | null;
+            /** Staff User Ids */
+            staff_user_ids?: string[] | null;
+        };
         /** OccurrenceResult */
         OccurrenceResult: {
             /** Booking Id */
@@ -14821,6 +19829,82 @@ export interface components {
              * @enum {string}
              */
             status: "ok" | "conflict" | "blackout" | "outside_hours" | "skipped_by_rule" | "capacity-below-booked";
+        };
+        /** OfficialCreate */
+        OfficialCreate: {
+            /**
+             * Age Group Ids
+             * @default []
+             */
+            age_group_ids: string[];
+            /** Email */
+            email?: string | null;
+            /** First Name */
+            first_name: string;
+            /** Last Name */
+            last_name: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Phone */
+            phone?: string | null;
+            /**
+             * Sport Ids
+             * @default []
+             */
+            sport_ids: string[];
+            /** Staff User Id */
+            staff_user_id?: string | null;
+        };
+        /** OfficialOut */
+        OfficialOut: {
+            /** Age Group Ids */
+            age_group_ids: string[];
+            /** Email */
+            email: string | null;
+            /** First Name */
+            first_name: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Last Name */
+            last_name: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Phone */
+            phone: string | null;
+            /** Sport Ids */
+            sport_ids: string[];
+            /** Staff User Id */
+            staff_user_id: string | null;
+        };
+        /** OfficialUpdate */
+        OfficialUpdate: {
+            /** Age Group Ids */
+            age_group_ids?: string[] | null;
+            /** Email */
+            email?: string | null;
+            /** First Name */
+            first_name?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Last Name */
+            last_name?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Sport Ids */
+            sport_ids?: string[] | null;
+            /** Staff User Id */
+            staff_user_id?: string | null;
         };
         /** OnboardingLink */
         OnboardingLink: {
@@ -15712,6 +20796,12 @@ export interface components {
             data: components["schemas"]["AdapterCommandOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[AgeGroupOut] */
+        Page_AgeGroupOut_: {
+            /** Data */
+            data: components["schemas"]["AgeGroupOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[ApiKeyOut] */
         Page_ApiKeyOut_: {
             /** Data */
@@ -15734,6 +20824,12 @@ export interface components {
         Page_AuditEventOut_: {
             /** Data */
             data: components["schemas"]["AuditEventOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[AutomationRuleOut] */
+        Page_AutomationRuleOut_: {
+            /** Data */
+            data: components["schemas"]["AutomationRuleOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[AutopayAttemptOut] */
@@ -15760,6 +20856,12 @@ export interface components {
             data: components["schemas"]["BrandOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[CampaignOut] */
+        Page_CampaignOut_: {
+            /** Data */
+            data: components["schemas"]["CampaignOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[CategoryOut] */
         Page_CategoryOut_: {
             /** Data */
@@ -15770,6 +20872,12 @@ export interface components {
         Page_ChargeOut_: {
             /** Data */
             data: components["schemas"]["ChargeOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[CheckInRowOut] */
+        Page_CheckInRowOut_: {
+            /** Data */
+            data: components["schemas"]["CheckInRowOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[ClientDocumentOut] */
@@ -15790,6 +20898,12 @@ export interface components {
             data: components["schemas"]["ClientListItem"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[CompetitionOut] */
+        Page_CompetitionOut_: {
+            /** Data */
+            data: components["schemas"]["CompetitionOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[ContractOut] */
         Page_ContractOut_: {
             /** Data */
@@ -15800,6 +20914,12 @@ export interface components {
         Page_CouponOut_: {
             /** Data */
             data: components["schemas"]["CouponOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[CredentialOut] */
+        Page_CredentialOut_: {
+            /** Data */
+            data: components["schemas"]["CredentialOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[CreditLedgerEntryOut] */
@@ -15880,6 +21000,12 @@ export interface components {
             data: components["schemas"]["ExternalConnectionOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[GameOut] */
+        Page_GameOut_: {
+            /** Data */
+            data: components["schemas"]["GameOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[HistoryOut] */
         Page_HistoryOut_: {
             /** Data */
@@ -15896,6 +21022,24 @@ export interface components {
         Page_JobClassificationOut_: {
             /** Data */
             data: components["schemas"]["JobClassificationOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[KioskDeviceOut] */
+        Page_KioskDeviceOut_: {
+            /** Data */
+            data: components["schemas"]["KioskDeviceOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[LeagueRosterEntryOut] */
+        Page_LeagueRosterEntryOut_: {
+            /** Data */
+            data: components["schemas"]["LeagueRosterEntryOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[LeagueTeamOut] */
+        Page_LeagueTeamOut_: {
+            /** Data */
+            data: components["schemas"]["LeagueTeamOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[LedgerEntryOut] */
@@ -15922,6 +21066,18 @@ export interface components {
             data: components["schemas"]["MembershipTypeOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[MessageOut] */
+        Page_MessageOut_: {
+            /** Data */
+            data: components["schemas"]["MessageOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[MessageTemplateOut] */
+        Page_MessageTemplateOut_: {
+            /** Data */
+            data: components["schemas"]["MessageTemplateOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[MyShiftOut] */
         Page_MyShiftOut_: {
             /** Data */
@@ -15938,6 +21094,18 @@ export interface components {
         Page_NoticeOut_: {
             /** Data */
             data: components["schemas"]["NoticeOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[NotificationRouteOut] */
+        Page_NotificationRouteOut_: {
+            /** Data */
+            data: components["schemas"]["NotificationRouteOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[OfficialOut] */
+        Page_OfficialOut_: {
+            /** Data */
+            data: components["schemas"]["OfficialOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[PackageOut] */
@@ -15994,6 +21162,12 @@ export interface components {
             data: components["schemas"]["PermissionDefinition"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[PortalAppCardOut] */
+        Page_PortalAppCardOut_: {
+            /** Data */
+            data: components["schemas"]["PortalAppCardOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[PortalAssessmentResultOut] */
         Page_PortalAssessmentResultOut_: {
             /** Data */
@@ -16010,6 +21184,18 @@ export interface components {
         Page_PortalCreditLedgerEntryOut_: {
             /** Data */
             data: components["schemas"]["PortalCreditLedgerEntryOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PortalEnrollmentOut] */
+        Page_PortalEnrollmentOut_: {
+            /** Data */
+            data: components["schemas"]["PortalEnrollmentOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PortalInboxItem] */
+        Page_PortalInboxItem_: {
+            /** Data */
+            data: components["schemas"]["PortalInboxItem"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[PortalInvoiceOut] */
@@ -16042,6 +21228,12 @@ export interface components {
             data: components["schemas"]["PortalRentalOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[PortalVideo] */
+        Page_PortalVideo_: {
+            /** Data */
+            data: components["schemas"]["PortalVideo"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[PosSaleOut] */
         Page_PosSaleOut_: {
             /** Data */
@@ -16064,6 +21256,18 @@ export interface components {
         Page_ProductStockOut_: {
             /** Data */
             data: components["schemas"]["ProductStockOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[ProgramFeeOut] */
+        Page_ProgramFeeOut_: {
+            /** Data */
+            data: components["schemas"]["ProgramFeeOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[ProgramGroupOut] */
+        Page_ProgramGroupOut_: {
+            /** Data */
+            data: components["schemas"]["ProgramGroupOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[PublicLocation] */
@@ -16094,6 +21298,12 @@ export interface components {
         Page_RegisterOut_: {
             /** Data */
             data: components["schemas"]["RegisterOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[ReminderRuleOut] */
+        Page_ReminderRuleOut_: {
+            /** Data */
+            data: components["schemas"]["ReminderRuleOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[RentalOut] */
@@ -16150,6 +21360,24 @@ export interface components {
             data: components["schemas"]["RoleOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[ScheduleRunOut] */
+        Page_ScheduleRunOut_: {
+            /** Data */
+            data: components["schemas"]["ScheduleRunOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[SeasonOut] */
+        Page_SeasonOut_: {
+            /** Data */
+            data: components["schemas"]["SeasonOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[SegmentOut] */
+        Page_SegmentOut_: {
+            /** Data */
+            data: components["schemas"]["SegmentOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[SessionOut] */
         Page_SessionOut_: {
             /** Data */
@@ -16160,6 +21388,12 @@ export interface components {
         Page_ShiftOut_: {
             /** Data */
             data: components["schemas"]["ShiftOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[SportOut] */
+        Page_SportOut_: {
+            /** Data */
+            data: components["schemas"]["SportOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[StaffPayeeOut] */
@@ -16186,6 +21420,12 @@ export interface components {
             data: components["schemas"]["SupplierOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[SuppressionOut] */
+        Page_SuppressionOut_: {
+            /** Data */
+            data: components["schemas"]["SuppressionOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[TaskOut] */
         Page_TaskOut_: {
             /** Data */
@@ -16208,6 +21448,12 @@ export interface components {
         Page_TypeOut_: {
             /** Data */
             data: components["schemas"]["TypeOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[VideoOut] */
+        Page_VideoOut_: {
+            /** Data */
+            data: components["schemas"]["VideoOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[VisitOut] */
@@ -16966,6 +22212,60 @@ export interface components {
              */
             status: "provisional" | "applied" | "released";
         };
+        /** PortalAppCardCreate */
+        PortalAppCardCreate: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Device Label */
+            device_label?: string | null;
+        };
+        /** PortalAppCardIssued */
+        PortalAppCardIssued: {
+            /** Card Payload */
+            card_payload: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Credential Id
+             * Format: uuid
+             */
+            credential_id: string;
+            /** Device Label */
+            device_label: string | null;
+            /** Expires At */
+            expires_at: string | null;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
+        };
+        /** PortalAppCardOut */
+        PortalAppCardOut: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Credential Id
+             * Format: uuid
+             */
+            credential_id: string;
+            /** Device Label */
+            device_label: string | null;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
+        };
         /** PortalAssessmentBestOut */
         PortalAssessmentBestOut: {
             /**
@@ -17026,6 +22326,108 @@ export interface components {
             unit_label: string | null;
             /** Value */
             value: string;
+        };
+        /** PortalCheckoutConfirm */
+        PortalCheckoutConfirm: {
+            /** Method Token */
+            method_token?: string | null;
+            /**
+             * Pay Later
+             * @default false
+             */
+            pay_later: boolean;
+            /** Payment Method Id */
+            payment_method_id?: string | null;
+        };
+        /** PortalCheckoutCreate */
+        PortalCheckoutCreate: {
+            /** Comment */
+            comment?: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+        };
+        /** PortalCheckoutItem */
+        PortalCheckoutItem: {
+            /** Amount Minor */
+            amount_minor: number;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Name */
+            client_name: string;
+            /** Hold Expires At */
+            hold_expires_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
+            /** Program Group Name */
+            program_group_name: string;
+            /** Status */
+            status: string;
+        };
+        /** PortalCheckoutItemAdd */
+        PortalCheckoutItemAdd: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Comment */
+            comment?: string | null;
+            /** Program Fee Id */
+            program_fee_id?: string | null;
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
+        };
+        /** PortalCheckoutOut */
+        PortalCheckoutOut: {
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /** Items */
+            items: components["schemas"]["PortalCheckoutItem"][];
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Missing Documents */
+            missing_documents: components["schemas"]["PortalMissingDocument"][];
+            /** Status */
+            status: string;
+            /** Total Minor */
+            total_minor: number;
+        };
+        /** PortalClaim */
+        PortalClaim: {
+            /** Client Package Id */
+            client_package_id?: string | null;
         };
         /**
          * PortalClientDocumentOut
@@ -17402,6 +22804,41 @@ export interface components {
              */
             relationship_type_id: string;
         };
+        /** PortalDeviceIn */
+        PortalDeviceIn: {
+            /** App Version */
+            app_version?: string | null;
+            /**
+             * Is Push Enabled
+             * @default true
+             */
+            is_push_enabled: boolean;
+            /** Locale */
+            locale?: string | null;
+            /** Location Id */
+            location_id?: string | null;
+            /**
+             * Platform
+             * @enum {string}
+             */
+            platform: "ios" | "android";
+            /** Push Token */
+            push_token: string;
+        };
+        /** PortalDeviceOut */
+        PortalDeviceOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Push Enabled */
+            is_push_enabled: boolean;
+            /** Last Active At */
+            last_active_at: string | null;
+            /** Platform */
+            platform: string;
+        };
         /**
          * PortalDocumentAcceptanceOut
          * @description No witness, signer client id or signature file (P-11).
@@ -17425,6 +22862,74 @@ export interface components {
             signer_name: string;
             /** Signer Role */
             signer_role: string;
+        };
+        /** PortalEnrollmentCreate */
+        PortalEnrollmentCreate: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Package Id */
+            client_package_id?: string | null;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+        };
+        /** PortalEnrollmentOut */
+        PortalEnrollmentOut: {
+            /** Cancel Kind */
+            cancel_kind: string | null;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Enrolled At */
+            enrolled_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Program Group Id */
+            program_group_id: string | null;
+            /** Session Id */
+            session_id: string | null;
+            /** Status */
+            status: string;
+            /** Target Kind */
+            target_kind: string;
+        };
+        /**
+         * PortalInboxItem
+         * @description Matches the mobile adapter's InboxItem: body and created_at are the published text and time.
+         */
+        PortalInboxItem: {
+            /** Body */
+            body: string;
+            /** Campaign Id */
+            campaign_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Link Url */
+            link_url: string | null;
+            /** Read At */
+            read_at: string | null;
+            /** Title */
+            title: string;
         };
         /** PortalInvite */
         PortalInvite: {
@@ -17484,6 +22989,21 @@ export interface components {
             status: "open" | "payment_pending" | "partially_paid" | "paid" | "voided";
             /** Total Minor */
             total_minor: number;
+        };
+        /** PortalMissingDocument */
+        PortalMissingDocument: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Document Id */
+            document_id: string | null;
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
         };
         /** PortalPackageBuy */
         PortalPackageBuy: {
@@ -18061,6 +23581,80 @@ export interface components {
             /** Role */
             role: string;
         };
+        /** PortalSessionListing */
+        PortalSessionListing: {
+            /** Can Join Waitlist */
+            can_join_waitlist: boolean;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Is Bookable */
+            is_bookable: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Reason */
+            reason: string | null;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /** Spots Left */
+            spots_left: number | null;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Title */
+            title: string | null;
+        };
+        /** PortalSettingsOut */
+        PortalSettingsOut: {
+            /** Allows Online Purchases */
+            allows_online_purchases: boolean;
+            /** Allows Online Rentals */
+            allows_online_rentals: boolean;
+            /** Is Enabled */
+            is_enabled: boolean;
+            /** Is Public */
+            is_public: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Slug */
+            slug: string;
+            /** Terms Text */
+            terms_text: string | null;
+            /** Terms Version */
+            terms_version: number | null;
+            /** Welcome Text */
+            welcome_text: string | null;
+        };
+        /** PortalSettingsUpdate */
+        PortalSettingsUpdate: {
+            /** Allows Online Purchases */
+            allows_online_purchases?: boolean | null;
+            /** Allows Online Rentals */
+            allows_online_rentals?: boolean | null;
+            /** Is Enabled */
+            is_enabled?: boolean | null;
+            /** Is Public */
+            is_public?: boolean | null;
+            /** Slug */
+            slug?: string | null;
+            /** Terms Text */
+            terms_text?: string | null;
+            /** Welcome Text */
+            welcome_text?: string | null;
+        };
         /** PortalSigner */
         PortalSigner: {
             /**
@@ -18093,6 +23687,74 @@ export interface components {
             body_html: string;
             /** Title */
             title: string;
+        };
+        /** PortalUnreadCount */
+        PortalUnreadCount: {
+            /** Unread */
+            unread: number;
+        };
+        /** PortalVideo */
+        PortalVideo: {
+            /** Description */
+            description: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+        };
+        /** PortalWaitlistJoin */
+        PortalWaitlistJoin: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Program Fee Id */
+            program_fee_id?: string | null;
+            /** Program Group Id */
+            program_group_id?: string | null;
+            /** Session Id */
+            session_id?: string | null;
+        };
+        /** PortalWaitlistOut */
+        PortalWaitlistOut: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Offer Expires At */
+            offer_expires_at: string | null;
+            /** Position */
+            position?: number | null;
+            /** Program Group Id */
+            program_group_id: string | null;
+            /**
+             * Queued At
+             * Format: date-time
+             */
+            queued_at: string;
+            /** Session Id */
+            session_id: string | null;
+            /** Status */
+            status: string;
+            /** Target Kind */
+            target_kind: string;
         };
         /** PosReasonRequest */
         PosReasonRequest: {
@@ -18976,6 +24638,316 @@ export interface components {
             /** Units Per Sale */
             units_per_sale?: number | null;
         };
+        /** ProgramFeeCreate */
+        ProgramFeeCreate: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Deposit Minor */
+            deposit_minor?: number | null;
+            /** Description */
+            description: string;
+            /** Fee Kind */
+            fee_kind?: ("individual" | "join_subgroup" | "new_subgroup") | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Is Online */
+            is_online?: boolean | null;
+            /** Location Id */
+            location_id?: string | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+        };
+        /** ProgramFeeOut */
+        ProgramFeeOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Deposit Minor */
+            deposit_minor: number | null;
+            /** Description */
+            description: string;
+            /** Fee Kind */
+            fee_kind: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Online */
+            is_online: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Program Group Id */
+            program_group_id: string | null;
+            /** Revenue Category Id */
+            revenue_category_id: string | null;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /** ProgramFeeUpdate */
+        ProgramFeeUpdate: {
+            /** Amount Minor */
+            amount_minor?: number | null;
+            /** Deposit Minor */
+            deposit_minor?: number | null;
+            /** Description */
+            description?: string | null;
+            /** Fee Kind */
+            fee_kind?: ("individual" | "join_subgroup" | "new_subgroup") | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Is Online */
+            is_online?: boolean | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+        };
+        /** ProgramGroupCreate */
+        ProgramGroupCreate: {
+            /** Auto Archive On */
+            auto_archive_on?: string | null;
+            /** Capacity */
+            capacity?: number | null;
+            /** Child Label */
+            child_label?: string | null;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Name */
+            contact_name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Ends On */
+            ends_on?: string | null;
+            /** Kind */
+            kind?: ("program" | "camp" | "clinic" | "class_series" | "competition" | "team" | "other") | null;
+            /** Location Id */
+            location_id?: string | null;
+            /** Max Children */
+            max_children?: number | null;
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id?: string | null;
+            /** Price Minor */
+            price_minor?: number | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Starts On */
+            starts_on?: string | null;
+            /** Waitlist Mode */
+            waitlist_mode?: ("disabled" | "manual" | "auto_promote") | null;
+        };
+        /** ProgramGroupNode */
+        ProgramGroupNode: {
+            /** Auto Archive On */
+            auto_archive_on: string | null;
+            /** Capacity */
+            capacity: number | null;
+            /** Child Count */
+            child_count: number;
+            /** Child Label */
+            child_label: string;
+            /** Children */
+            children: components["schemas"]["ProgramGroupNode"][];
+            /** Completed At */
+            completed_at: string | null;
+            /** Contact Email */
+            contact_email: string | null;
+            /** Contact Name */
+            contact_name: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Deleted At */
+            deleted_at: string | null;
+            /** Depth */
+            depth: number;
+            /** Description */
+            description: string | null;
+            /** Ends On */
+            ends_on: string | null;
+            /** Enrolled Count */
+            enrolled_count: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Max Children */
+            max_children: number | null;
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id: string | null;
+            /** Price Minor */
+            price_minor: number | null;
+            /** Revenue Category Id */
+            revenue_category_id: string | null;
+            /** Spots Left */
+            spots_left: number | null;
+            /** Starts On */
+            starts_on: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Waiting Count */
+            waiting_count: number;
+            /** Waitlist Mode */
+            waitlist_mode: string | null;
+        };
+        /** ProgramGroupOut */
+        ProgramGroupOut: {
+            /** Auto Archive On */
+            auto_archive_on: string | null;
+            /** Capacity */
+            capacity: number | null;
+            /** Child Count */
+            child_count: number;
+            /** Child Label */
+            child_label: string;
+            /** Completed At */
+            completed_at: string | null;
+            /** Contact Email */
+            contact_email: string | null;
+            /** Contact Name */
+            contact_name: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Deleted At */
+            deleted_at: string | null;
+            /** Depth */
+            depth: number;
+            /** Description */
+            description: string | null;
+            /** Ends On */
+            ends_on: string | null;
+            /** Enrolled Count */
+            enrolled_count: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Max Children */
+            max_children: number | null;
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id: string | null;
+            /** Price Minor */
+            price_minor: number | null;
+            /** Revenue Category Id */
+            revenue_category_id: string | null;
+            /** Spots Left */
+            spots_left: number | null;
+            /** Starts On */
+            starts_on: string | null;
+            /** Status */
+            status: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Waiting Count */
+            waiting_count: number;
+            /** Waitlist Mode */
+            waitlist_mode: string | null;
+        };
+        /** ProgramGroupUpdate */
+        ProgramGroupUpdate: {
+            /** Auto Archive On */
+            auto_archive_on?: string | null;
+            /** Capacity */
+            capacity?: number | null;
+            /** Child Label */
+            child_label?: string | null;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Name */
+            contact_name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Ends On */
+            ends_on?: string | null;
+            /** Kind */
+            kind?: ("program" | "camp" | "clinic" | "class_series" | "competition" | "team" | "other") | null;
+            /** Max Children */
+            max_children?: number | null;
+            /** Name */
+            name?: string | null;
+            /** Price Minor */
+            price_minor?: number | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Starts On */
+            starts_on?: string | null;
+            /** Waitlist Mode */
+            waitlist_mode?: ("disabled" | "manual" | "auto_promote") | null;
+        };
+        /** ProgramSessionOut */
+        ProgramSessionOut: {
+            /** Booked Count */
+            booked_count: number;
+            /** Capacity */
+            capacity: number;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Sequence No */
+            sequence_no: number;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string | null;
+        };
+        /** ProgramSessionsAdd */
+        ProgramSessionsAdd: {
+            /** Session Ids */
+            session_ids: string[];
+        };
         /** ProviderAccountOut */
         ProviderAccountOut: {
             /** Connected At */
@@ -19013,6 +24985,46 @@ export interface components {
              * @enum {string}
              */
             provider: "stripe" | "fake";
+        };
+        /** PublicCompetitionOut */
+        PublicCompetitionOut: {
+            /** Division Label */
+            division_label: string | null;
+            /** Ends On */
+            ends_on: string | null;
+            /** Format */
+            format: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** More Info */
+            more_info: string | null;
+            /** Name */
+            name: string;
+            /** Registration Url */
+            registration_url: string | null;
+            /** Rules Text */
+            rules_text: string | null;
+            /** Sport Name */
+            sport_name: string;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** Status */
+            status: string;
+            /** Team Fee Text */
+            team_fee_text: string | null;
         };
         /** PublicDocumentDecision */
         PublicDocumentDecision: {
@@ -19061,6 +25073,46 @@ export interface components {
             tenant_name: string;
             /** Title */
             title: string;
+        };
+        /** PublicFee */
+        PublicFee: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Description */
+            description: string;
+            /** Fee Kind */
+            fee_kind: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /** PublicGameOut */
+        PublicGameOut: {
+            /** Away Name */
+            away_name: string | null;
+            /** Away Score */
+            away_score: number | null;
+            /** Ends At */
+            ends_at: string | null;
+            /** Home Name */
+            home_name: string | null;
+            /** Home Score */
+            home_score: number | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Round Label */
+            round_label: string | null;
+            /** Starts At */
+            starts_at: string | null;
+            /** Status */
+            status: string;
+            /** Venue */
+            venue: string | null;
         };
         /** PublicLocation */
         PublicLocation: {
@@ -19125,6 +25177,100 @@ export interface components {
             /** Term Fee Minor */
             term_fee_minor: number;
         };
+        /** PublicPortalConfig */
+        PublicPortalConfig: {
+            /** Facility Name */
+            facility_name: string;
+            /** Locations */
+            locations: components["schemas"]["PublicPortalLocation"][];
+        };
+        /** PublicPortalLocation */
+        PublicPortalLocation: {
+            /** Allows Online Purchases */
+            allows_online_purchases: boolean;
+            /** Allows Online Rentals */
+            allows_online_rentals: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Terms Text */
+            terms_text: string | null;
+            /** Terms Version */
+            terms_version: number;
+            /** Welcome Text */
+            welcome_text: string | null;
+        };
+        /** PublicPreferenceItem */
+        PublicPreferenceItem: {
+            /** Address */
+            address: string | null;
+            /** Channel */
+            channel: string;
+            /** Is Subscribed */
+            is_subscribed: boolean;
+            /** Topic */
+            topic: string;
+        };
+        /** PublicPreferencesOut */
+        PublicPreferencesOut: {
+            /** Address */
+            address: string;
+            /** Data */
+            data: components["schemas"]["PublicPreferenceItem"][];
+            /** Facility Name */
+            facility_name: string;
+        };
+        /** PublicPreferencesReplace */
+        PublicPreferencesReplace: {
+            /** Changes */
+            changes: components["schemas"]["PreferenceChange"][];
+            /** Token */
+            token: string;
+        };
+        /** PublicProgramGroup */
+        PublicProgramGroup: {
+            /** Children */
+            children: components["schemas"]["PublicProgramGroup"][];
+            /** Closed Message */
+            closed_message: string | null;
+            /** Confirmation Message */
+            confirmation_message: string | null;
+            /** Description */
+            description: string | null;
+            /** Ends On */
+            ends_on: string | null;
+            /** Fees */
+            fees: components["schemas"]["PublicFee"][];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Payment Requirement */
+            payment_requirement: string;
+            /**
+             * Registration State
+             * @enum {string}
+             */
+            registration_state: "open" | "not_yet_open" | "closed" | "full_waitlist" | "full";
+            /** Spots Left */
+            spots_left: number | null;
+            /** Starts On */
+            starts_on: string | null;
+        };
         /** PublicRentalType */
         PublicRentalType: {
             /** Cancel Cutoff Hours */
@@ -19172,6 +25318,33 @@ export interface components {
         PublicSchedule: {
             /** Is On Public Schedule */
             is_on_public_schedule: boolean;
+        };
+        /** PublicStandingOut */
+        PublicStandingOut: {
+            /** Division Name */
+            division_name: string;
+            /** Games Played */
+            games_played: number;
+            /** Goal Difference */
+            goal_difference: number;
+            /** Goals Against */
+            goals_against: number;
+            /** Goals For */
+            goals_for: number;
+            /** Losses */
+            losses: number;
+            /** Points */
+            points: string;
+            /** Rank */
+            rank: number;
+            /** Team Name */
+            team_name: string;
+            /** Ties */
+            ties: number;
+            /** Win Pct */
+            win_pct: string;
+            /** Wins */
+            wins: number;
         };
         /** PurchaseCancel */
         PurchaseCancel: {
@@ -19618,6 +25791,61 @@ export interface components {
             /** Name */
             name?: string | null;
         };
+        /** RegistrationConfigOut */
+        RegistrationConfigOut: {
+            /** Closed Message */
+            closed_message: string | null;
+            /** Closes On */
+            closes_on: string | null;
+            /** Confirmation Message */
+            confirmation_message: string | null;
+            /** Displays Openings */
+            displays_openings: boolean;
+            /** Is Enabled */
+            is_enabled: boolean;
+            /** Is Portal Visible */
+            is_portal_visible: boolean;
+            /** Online Description */
+            online_description: string | null;
+            /** Opens On */
+            opens_on: string | null;
+            /** Payment Requirement */
+            payment_requirement: string;
+            /** Portal Publish Name */
+            portal_publish_name: string | null;
+            /** Portal Published At */
+            portal_published_at: string | null;
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
+            /** Public Slug */
+            public_slug: string | null;
+        };
+        /** RegistrationConfigPut */
+        RegistrationConfigPut: {
+            /** Closed Message */
+            closed_message?: string | null;
+            /** Closes On */
+            closes_on?: string | null;
+            /** Confirmation Message */
+            confirmation_message?: string | null;
+            /** Displays Openings */
+            displays_openings?: boolean | null;
+            /** Is Enabled */
+            is_enabled?: boolean | null;
+            /** Online Description */
+            online_description?: string | null;
+            /** Opens On */
+            opens_on?: string | null;
+            /** Payment Requirement */
+            payment_requirement?: ("pay_later_allowed" | "immediate_card_payment" | "card_required_charge_optional" | "card_required_no_charge") | null;
+            /** Portal Publish Name */
+            portal_publish_name?: string | null;
+            /** Public Slug */
+            public_slug?: string | null;
+        };
         /**
          * RelationshipCreate
          * @description "This client is <type> of the other client" (from = this client).
@@ -19764,6 +25992,54 @@ export interface components {
             is_portal_selectable?: boolean | null;
             /** Label */
             label?: string | null;
+        };
+        /** ReminderRuleCreate */
+        ReminderRuleCreate: {
+            /**
+             * First Offset Minutes
+             * @default 1440
+             */
+            first_offset_minutes: number;
+            /**
+             * Is Enabled
+             * @default true
+             */
+            is_enabled: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Second Offset Minutes */
+            second_offset_minutes?: number | null;
+        };
+        /** ReminderRuleOut */
+        ReminderRuleOut: {
+            /** First Offset Minutes */
+            first_offset_minutes: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Enabled */
+            is_enabled: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Second Offset Minutes */
+            second_offset_minutes: number | null;
+        };
+        /** ReminderRuleUpdate */
+        ReminderRuleUpdate: {
+            /** First Offset Minutes */
+            first_offset_minutes?: number | null;
+            /** Is Enabled */
+            is_enabled?: boolean | null;
+            /** Second Offset Minutes */
+            second_offset_minutes?: number | null;
         };
         /** RemovalQuoteOut */
         RemovalQuoteOut: {
@@ -20916,6 +27192,52 @@ export interface components {
             /** Waiting Count */
             waiting_count: number;
         };
+        /** RosterEntryCreate */
+        RosterEntryCreate: {
+            /** Client Id */
+            client_id?: string | null;
+            /** First Name */
+            first_name?: string | null;
+            /** Jersey Number */
+            jersey_number?: string | null;
+            /** Last Name */
+            last_name?: string | null;
+            /** Position */
+            position?: string | null;
+            /**
+             * Role
+             * @default player
+             * @enum {string}
+             */
+            role: "player" | "captain" | "coach" | "manager";
+        };
+        /** RosterEntryUpdate */
+        RosterEntryUpdate: {
+            /** Client Id */
+            client_id?: string | null;
+            /** Jersey Number */
+            jersey_number?: string | null;
+            /** Position */
+            position?: string | null;
+            /** Role */
+            role?: ("player" | "captain" | "coach" | "manager") | null;
+            /** Status */
+            status?: ("active" | "removed") | null;
+        };
+        /** RosterMessage */
+        RosterMessage: {
+            /** Body Html */
+            body_html: string;
+            /**
+             * Statuses
+             * @default [
+             *       "enrolled"
+             *     ]
+             */
+            statuses: ("enrolled" | "pending" | "cancelled")[];
+            /** Subject */
+            subject: string;
+        };
         /** SalePayment */
         SalePayment: {
             /** Amount Minor */
@@ -21013,6 +27335,207 @@ export interface components {
         ScheduleReplace: {
             /** Instalments */
             instalments: components["schemas"]["InstalmentIn"][];
+        };
+        /** ScheduleRunCreate */
+        ScheduleRunCreate: {
+            /**
+             * Blackout Dates
+             * @default []
+             */
+            blackout_dates: string[];
+            /**
+             * Bye Mode
+             * @default hidden
+             * @enum {string}
+             */
+            bye_mode: "hidden" | "occupy_slot" | "fold_last_round" | "rotate_extra_game";
+            /** Competition Ids */
+            competition_ids: string[];
+            /**
+             * Ends On
+             * Format: date
+             */
+            ends_on: string;
+            /** Game Length Min */
+            game_length_min?: number | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Removes Previous Games
+             * @default false
+             */
+            removes_previous_games: boolean;
+            /** Resource Ids */
+            resource_ids: string[];
+            /** Rounds */
+            rounds?: number | null;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** Time Slots */
+            time_slots: components["schemas"]["TimeWindow"][];
+        };
+        /** ScheduleRunOut */
+        ScheduleRunOut: {
+            /** Blackout Dates */
+            blackout_dates: string[];
+            /** Bye Mode */
+            bye_mode: string;
+            /** Committed At */
+            committed_at: string | null;
+            /** Competition Ids */
+            competition_ids: string[];
+            /** Ends On */
+            ends_on: string | null;
+            /** Game Length Min */
+            game_length_min: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Removes Previous Games */
+            removes_previous_games: boolean;
+            /** Resource Ids */
+            resource_ids: string[];
+            /** Rounds */
+            rounds: number | null;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** State */
+            state: string;
+            /** Stats */
+            stats: {
+                [key: string]: unknown;
+            } | null;
+            /** Time Slots */
+            time_slots: {
+                [key: string]: unknown;
+            }[];
+            /** Wizard Step */
+            wizard_step: number;
+        };
+        /** ScheduleRunUpdate */
+        ScheduleRunUpdate: {
+            /** Blackout Dates */
+            blackout_dates?: string[] | null;
+            /** Bye Mode */
+            bye_mode?: ("hidden" | "occupy_slot" | "fold_last_round" | "rotate_extra_game") | null;
+            /** Ends On */
+            ends_on?: string | null;
+            /** Game Length Min */
+            game_length_min?: number | null;
+            /** Removes Previous Games */
+            removes_previous_games?: boolean | null;
+            /** Resource Ids */
+            resource_ids?: string[] | null;
+            /** Rounds */
+            rounds?: number | null;
+            /** Starts On */
+            starts_on?: string | null;
+            /** Time Slots */
+            time_slots?: components["schemas"]["TimeWindow"][] | null;
+            /** Wizard Step */
+            wizard_step?: number | null;
+        };
+        /** SeasonOut */
+        SeasonOut: {
+            /** Ends On */
+            ends_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Starts On */
+            starts_on: string | null;
+        };
+        /** SeasonWrite */
+        SeasonWrite: {
+            /** Ends On */
+            ends_on?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Starts On */
+            starts_on?: string | null;
+        };
+        /** Seeding */
+        Seeding: {
+            /** Competition Team Ids */
+            competition_team_ids: string[];
+        };
+        /** SegmentCreate */
+        SegmentCreate: {
+            definition: components["schemas"]["AudienceDefinition"];
+            /** Name */
+            name: string;
+        };
+        /** SegmentOut */
+        SegmentOut: {
+            /** Definition */
+            definition: {
+                [key: string]: unknown;
+            };
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Builtin */
+            is_builtin: boolean;
+            /** Last Count */
+            last_count: number | null;
+            /** Last Counted At */
+            last_counted_at: string | null;
+            /** Name */
+            name: string;
+        };
+        /** SegmentPreviewIn */
+        SegmentPreviewIn: {
+            definition?: components["schemas"]["AudienceDefinition"] | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Segment Id */
+            segment_id?: string | null;
+        };
+        /** SegmentPreviewOut */
+        SegmentPreviewOut: {
+            /** Count */
+            count: number;
+            /** Sample */
+            sample: components["schemas"]["AudienceSampleItem"][];
+            /** With Email Count */
+            with_email_count: number;
+        };
+        /** SegmentUpdate */
+        SegmentUpdate: {
+            definition?: components["schemas"]["AudienceDefinition"] | null;
+            /** Name */
+            name?: string | null;
         };
         /** SeriesCancel */
         SeriesCancel: {
@@ -21563,6 +28086,16 @@ export interface components {
              */
             role: "client" | "guardian" | "co_signer";
         };
+        /** Skipped */
+        Skipped: {
+            /** Code */
+            code: string | null;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+        };
         /** SoldByIn */
         SoldByIn: {
             /** Sold By Staff User Id */
@@ -21574,6 +28107,139 @@ export interface components {
             end_on?: string | null;
             /** Remarks */
             remarks?: string | null;
+        };
+        /** SportCreate */
+        SportCreate: {
+            /**
+             * Default Game Length Min
+             * @default 60
+             */
+            default_game_length_min: number;
+            /** Default Team Fee Minor */
+            default_team_fee_minor?: number | null;
+            /** Fees Text */
+            fees_text?: string | null;
+            /** Forfeit Score For */
+            forfeit_score_for?: number | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Points Default Loss */
+            points_default_loss?: number | string | null;
+            /** Points Forfeit Loss */
+            points_forfeit_loss?: number | string | null;
+            /** Points Forfeit Win */
+            points_forfeit_win?: number | string | null;
+            /** Points Loss */
+            points_loss?: number | string | null;
+            /** Points Overtime Loss */
+            points_overtime_loss?: number | string | null;
+            /** Points Tie */
+            points_tie?: number | string | null;
+            /** Points Win */
+            points_win?: number | string | null;
+            /** Rules Text */
+            rules_text?: string | null;
+            /** Standings Columns */
+            standings_columns?: components["schemas"]["StandingsColumn"][] | null;
+            /** Standings Sort */
+            standings_sort?: components["schemas"]["StandingsSort"][] | null;
+            /** Tracks Sportsmanship */
+            tracks_sportsmanship?: boolean | null;
+        };
+        /** SportOut */
+        SportOut: {
+            /** Default Game Length Min */
+            default_game_length_min: number;
+            /** Default Team Fee Minor */
+            default_team_fee_minor: number | null;
+            /** Fees Text */
+            fees_text: string | null;
+            /** Forfeit Score For */
+            forfeit_score_for: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Points Default Loss */
+            points_default_loss: string;
+            /** Points Forfeit Loss */
+            points_forfeit_loss: string;
+            /** Points Forfeit Win */
+            points_forfeit_win: string;
+            /** Points Loss */
+            points_loss: string;
+            /** Points Overtime Loss */
+            points_overtime_loss: string;
+            /** Points Tie */
+            points_tie: string;
+            /** Points Win */
+            points_win: string;
+            /** Rules Text */
+            rules_text: string | null;
+            /** Standings Columns */
+            standings_columns: {
+                [key: string]: unknown;
+            }[];
+            /** Standings Sort */
+            standings_sort: {
+                [key: string]: unknown;
+            }[];
+            /** Tracks Sportsmanship */
+            tracks_sportsmanship: boolean;
+        };
+        /** SportUpdate */
+        SportUpdate: {
+            /** Default Game Length Min */
+            default_game_length_min?: number | null;
+            /** Default Team Fee Minor */
+            default_team_fee_minor?: number | null;
+            /** Fees Text */
+            fees_text?: string | null;
+            /** Forfeit Score For */
+            forfeit_score_for?: number | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Points Default Loss */
+            points_default_loss?: number | string | null;
+            /** Points Forfeit Loss */
+            points_forfeit_loss?: number | string | null;
+            /** Points Forfeit Win */
+            points_forfeit_win?: number | string | null;
+            /** Points Loss */
+            points_loss?: number | string | null;
+            /** Points Overtime Loss */
+            points_overtime_loss?: number | string | null;
+            /** Points Tie */
+            points_tie?: number | string | null;
+            /** Points Win */
+            points_win?: number | string | null;
+            /** Rules Text */
+            rules_text?: string | null;
+            /** Standings Columns */
+            standings_columns?: components["schemas"]["StandingsColumn"][] | null;
+            /** Standings Sort */
+            standings_sort?: components["schemas"]["StandingsSort"][] | null;
+            /** Tracks Sportsmanship */
+            tracks_sportsmanship?: boolean | null;
+        };
+        /** StaffAlertOut */
+        StaffAlertOut: {
+            /** Message */
+            message: string;
+            /** Severity */
+            severity: string;
         };
         /** StaffHourlyRateCreate */
         StaffHourlyRateCreate: {
@@ -21915,6 +28581,13 @@ export interface components {
             /** Mobile Phone */
             mobile_phone?: string | null;
         };
+        /** StandingAdjust */
+        StandingAdjust: {
+            /** Adjustment Points */
+            adjustment_points: number | string;
+            /** Reason */
+            reason: string;
+        };
         /** StandingOut */
         StandingOut: {
             /**
@@ -21947,6 +28620,30 @@ export interface components {
             visits_remaining_count?: number | null;
             /** Visits Used Count */
             visits_used_count?: number | null;
+        };
+        /** StandingsColumn */
+        StandingsColumn: {
+            /** Heading */
+            heading?: string | null;
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "GP" | "W" | "L" | "T" | "GF" | "GA" | "PTS" | "GD" | "WP" | "OTL" | "FF" | "BP" | "SPT" | "H2H";
+        };
+        /** StandingsSort */
+        StandingsSort: {
+            /**
+             * Direction
+             * @default desc
+             * @enum {string}
+             */
+            direction: "asc" | "desc";
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "GP" | "W" | "L" | "T" | "GF" | "GA" | "PTS" | "GD" | "WP" | "OTL" | "FF" | "BP" | "SPT" | "H2H";
         };
         /** StatementOut */
         StatementOut: {
@@ -22178,6 +28875,38 @@ export interface components {
             notes?: string | null;
             /** Phone */
             phone?: string | null;
+        };
+        /** SuppressionCreate */
+        SuppressionCreate: {
+            /** Address */
+            address: string;
+            /** Detail */
+            detail?: string | null;
+        };
+        /** SuppressionOut */
+        SuppressionOut: {
+            /** Address */
+            address: string;
+            /** Channel */
+            channel: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Permanent */
+            is_permanent: boolean;
+            /** Reason */
+            reason: string;
+            /** Release Count */
+            release_count: number;
+            /** Released At */
+            released_at: string | null;
         };
         /** SuspensionIn */
         SuspensionIn: {
@@ -22439,6 +29168,41 @@ export interface components {
             label?: string | null;
             /** Remarks */
             remarks?: string | null;
+        };
+        /** TeamCopy */
+        TeamCopy: {
+            /** Competition Team Ids */
+            competition_team_ids?: string[] | null;
+            /**
+             * Includes Rosters
+             * @default false
+             */
+            includes_rosters: boolean;
+            /**
+             * Source Competition Id
+             * Format: uuid
+             */
+            source_competition_id: string;
+        };
+        /** TeamFeeBill */
+        TeamFeeBill: {
+            /**
+             * Bill To Client Id
+             * Format: uuid
+             */
+            bill_to_client_id: string;
+        };
+        /** TeamGenerate */
+        TeamGenerate: {
+            /** Count */
+            count: number;
+            /** Division Id */
+            division_id?: string | null;
+            /**
+             * Name Prefix
+             * @default Team
+             */
+            name_prefix: string;
         };
         /** TenantOnboard */
         TenantOnboard: {
@@ -22712,6 +29476,20 @@ export interface components {
              */
             staff_user_id: string;
         };
+        /** TimeWindow */
+        TimeWindow: {
+            /** Ends At */
+            ends_at: string;
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /** Starts At */
+            starts_at: string;
+            /** Weekday */
+            weekday: number;
+        };
         /** Timeline */
         Timeline: {
             /** Data */
@@ -22911,6 +29689,20 @@ export interface components {
             /** Uses Default Buffer */
             uses_default_buffer?: boolean | null;
         };
+        /** UnsubscribeOut */
+        UnsubscribeOut: {
+            /** Changed */
+            changed: boolean;
+            /** Topic */
+            topic: string;
+            /** Unsubscribed */
+            unsubscribed: boolean;
+        };
+        /** UnsubscribeTokenIn */
+        UnsubscribeTokenIn: {
+            /** Token */
+            token: string;
+        };
         /** UpcomingRenewalOut */
         UpcomingRenewalOut: {
             /**
@@ -22968,6 +29760,66 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** VideoCreate */
+        VideoCreate: {
+            /** Description */
+            description?: string | null;
+            /**
+             * Is Published
+             * @default false
+             */
+            is_published: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+        };
+        /** VideoOut */
+        VideoOut: {
+            /** Description */
+            description: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Published */
+            is_published: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Sort Order */
+            sort_order: number;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
+        };
+        /** VideoUpdate */
+        VideoUpdate: {
+            /** Description */
+            description?: string | null;
+            /** Is Published */
+            is_published?: boolean | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Title */
+            title?: string | null;
+            /** Url */
+            url?: string | null;
         };
         /** VisitAdjust */
         VisitAdjust: {
@@ -23029,11 +29881,14 @@ export interface components {
              * @enum {string}
              */
             mode: "manual" | "auto_promote";
-            /**
-             * Session Id
-             * Format: uuid
-             */
-            session_id: string;
+            /** Payer Client Id */
+            payer_client_id?: string | null;
+            /** Program Fee Id */
+            program_fee_id?: string | null;
+            /** Program Group Id */
+            program_group_id?: string | null;
+            /** Session Id */
+            session_id?: string | null;
         };
         /** WaitlistOut */
         WaitlistOut: {
@@ -23054,8 +29909,12 @@ export interface components {
             location_id: string;
             /** Mode */
             mode: string;
+            /** Offer Expires At */
+            offer_expires_at: string | null;
             /** Position */
             position: number | null;
+            /** Program Group Id */
+            program_group_id: string | null;
             /** Promoted Enrollment Id */
             promoted_enrollment_id: string | null;
             /**
@@ -23070,6 +29929,8 @@ export interface components {
              * @enum {string}
              */
             status: "waiting" | "offered" | "promoted" | "expired" | "removed";
+            /** Target Kind */
+            target_kind: string;
         };
         /** WaiverOverrideIn */
         WaiverOverrideIn: {
@@ -23499,6 +30360,189 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_AdapterCommandOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listAgeGroups: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AgeGroupOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createAgeGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgeGroupWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgeGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getAgeGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                age_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgeGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteAgeGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                age_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateAgeGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                age_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgeGroupWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgeGroupOut"];
                 };
             };
             /** @description Validation Error */
@@ -24534,6 +31578,155 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    listAutomationRules: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AutomationRuleOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createAutomationRule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationRuleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationRuleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteAutomationRule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                automation_rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateAutomationRule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                automation_rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationRuleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomationRuleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
@@ -25824,6 +33017,144 @@ export interface operations {
             };
         };
     };
+    updateBracketSlot: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                bracket_slot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BracketSlotUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BracketSlotOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getBracket: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                bracket_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BracketOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteBracket: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                bracket_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publishBracket: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                bracket_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BracketOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getCalendar: {
         parameters: {
             query: {
@@ -25851,6 +33182,442 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CalendarView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCampaigns: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CampaignOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createCampaign: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getCampaign: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteCampaign: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateCampaign: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancelCampaign: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recallCampaign: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCampaignRecipients: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_MessageOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    scheduleCampaign: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignSchedule"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sendCampaign: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getCampaignStats: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignStatsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    testCampaign: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageOut"];
                 };
             };
             /** @description Validation Error */
@@ -26114,6 +33881,155 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChargeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCheckIns: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CheckInRowOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createCheckIn: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckInCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckInResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evaluateCheckIn: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccessEvaluateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessDecision"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getCheckIn: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                check_in_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckInOut"];
                 };
             };
             /** @description Validation Error */
@@ -28328,6 +36244,114 @@ export interface operations {
             };
         };
     };
+    listClientCredentials: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CredentialOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assignCredential: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CredentialCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revokeClientAppCards: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CredentialRevokeAllRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     disableClient: {
         parameters: {
             query?: never;
@@ -29139,6 +37163,905 @@ export interface operations {
             };
         };
     };
+    removeCompetitionTeam: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateCompetitionTeam: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompetitionTeamUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionTeamOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    billCompetitionTeam: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeamFeeBill"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionTeamOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listTeamRoster: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueRosterEntryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    addRosterEntry: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RosterEntryCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueRosterEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCompetitions: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CompetitionOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createCompetition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompetitionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getCompetition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteCompetition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateCompetition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompetitionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activateCompetition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    archiveCompetition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listBrackets: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BracketOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generateBracket: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BracketGenerate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BracketOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    completeCompetition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listDivisions: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DivisionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createDivision: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DivisionWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DivisionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reopenCompetition: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putCompetitionSeeding: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Seeding"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionTeamOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listStandings: {
+        parameters: {
+            query?: {
+                division_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueStandingOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recomputeStandings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueStandingOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCompetitionTeams: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionTeamOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    addCompetitionTeam: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompetitionTeamCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionTeamOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    copyCompetitionTeams: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeamCopy"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionTeamOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generateCompetitionTeams: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeamGenerate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompetitionTeamOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listCoupons: {
         parameters: {
             query?: {
@@ -29379,6 +38302,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CouponRedemptionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolveCredential: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CredentialResolveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialMatch"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revokeCredential: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                credential_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialOut"];
                 };
             };
             /** @description Validation Error */
@@ -29753,6 +38746,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DiscountPresetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteDivision: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                division_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateDivision: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                division_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DivisionWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DivisionOut"];
                 };
             };
             /** @description Validation Error */
@@ -30587,6 +39650,42 @@ export interface operations {
             };
         };
     };
+    createEnrollmentBatch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrollmentBatchCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrollmentBatchResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getEnrollment: {
         parameters: {
             query?: never;
@@ -30636,6 +39735,44 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["EnrollmentCancel"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrollmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rebookEnrollment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                enrollment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrollmentRebook"];
             };
         };
         responses: {
@@ -31181,6 +40318,443 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ExternalConnectionOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listGames: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_GameOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createGame: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GameCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getGame: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateGame: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GameUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancelGame: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listGameOfficials: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameOfficialOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putGameOfficials: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GameOfficialsPut"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameOfficialOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    postponeGame: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GamePostpone"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rescheduleGame: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GameReschedule"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getGameResult: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameResultOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putGameResult: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GameResultPut"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GameResultOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteGameResult: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -31984,6 +41558,364 @@ export interface operations {
             };
         };
     };
+    listKioskDevices: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_KioskDeviceOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createKioskDevice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KioskDeviceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskPairingCode"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createKioskPairingCode: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                kiosk_device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskPairingCode"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revokeKioskDevice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                kiosk_device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskDeviceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getKioskSettings: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putKioskSettings: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KioskSettingsWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createKioskCheckIn: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KioskCheckInCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskCheckInResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getKioskConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskConfig"];
+                };
+            };
+        };
+    };
+    exitKiosk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    kioskLookup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KioskLookupRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskLookupResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pairKiosk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KioskPairRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskConfig"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listLedgerEntries: {
         parameters: {
             query?: {
@@ -32271,6 +42203,116 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FacilityHoursOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                location_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putPortalSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                location_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putDefaultSessionBookingPolicy: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                location_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingPolicyDefault"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingPolicyOut"];
                 };
             };
             /** @description Validation Error */
@@ -33782,6 +43824,302 @@ export interface operations {
             };
         };
     };
+    listMessageTemplates: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_MessageTemplateOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createMessageTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageTemplateCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getMessageTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                message_template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteMessageTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                message_template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateMessageTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                message_template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageTemplateUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listMessages: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_MessageOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sendDirectMessage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DirectMessageCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getMessage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listMyShifts: {
         parameters: {
             query?: {
@@ -33950,6 +44288,372 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NoteSubjectOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listNotificationRoutes: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_NotificationRouteOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createNotificationRoute: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationRouteCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRouteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getNotificationRoute: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                notification_route_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRouteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteNotificationRoute: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                notification_route_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateNotificationRoute: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                notification_route_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationRouteUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRouteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listOfficials: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_OfficialOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createOfficial: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OfficialCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getOfficial: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                official_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteOfficial: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                official_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateOfficial: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                official_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OfficialUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OfficialOut"];
                 };
             };
             /** @description Validation Error */
@@ -35326,6 +46030,108 @@ export interface operations {
             };
         };
     };
+    listAppCards: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PortalAppCardOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    issueAppCard: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalAppCardCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalAppCardIssued"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revokeAppCard: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                credential_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPortalAssessmentBests: {
         parameters: {
             query?: {
@@ -36067,6 +46873,74 @@ export interface operations {
             };
         };
     };
+    registerPortalDevice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalDeviceIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalDeviceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unregisterPortalDevice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                device_registration_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getPortalDocumentRequirements: {
         parameters: {
             query: {
@@ -36090,6 +46964,228 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentRequirementList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalEnrollments: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PortalEnrollmentOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createPortalEnrollment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalEnrollmentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalEnrollmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancelPortalEnrollment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                enrollment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalEnrollmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalInbox: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PortalInboxItem_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalInboxUnreadCount: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalUnreadCount"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    markPortalInboxRead: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                inbox_item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalInboxItem"];
                 };
             };
             /** @description Validation Error */
@@ -36685,6 +47781,221 @@ export interface operations {
             };
         };
     };
+    createPortalRegistrationCheckout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalCheckoutCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalCheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalRegistrationCheckout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                checkout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalCheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    abandonPortalRegistrationCheckout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                checkout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalCheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirmPortalRegistrationCheckout: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path: {
+                checkout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalCheckoutConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalCheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    addPortalRegistrationCheckoutItem: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                checkout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalCheckoutItemAdd"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalCheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    removePortalRegistrationCheckoutItem: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                checkout_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalCheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPortalRelationshipTypes: {
         parameters: {
             query?: never;
@@ -36989,6 +48300,226 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortalRentalCheckout"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalSessionListings: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+                location_id?: string | null;
+                reservation_type_id?: string | null;
+                resource_id?: string | null;
+                "starts_at[gte]"?: string | null;
+                "starts_at[lt]"?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalSessionListing"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalVideos: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PortalVideo_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalWaitlistEntries: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalWaitlistOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    joinPortalWaitlist: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalWaitlistJoin"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalWaitlistOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    leavePortalWaitlist: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                waitlist_entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    claimPortalWaitlistOffer: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                waitlist_entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalClaim"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalWaitlistOut"];
                 };
             };
             /** @description Validation Error */
@@ -38420,6 +49951,859 @@ export interface operations {
             };
         };
     };
+    listProgramFees: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ProgramFeeOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createCatalogueFee: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramFeeCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramFeeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteProgramFee: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_fee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateProgramFee: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_fee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramFeeUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramFeeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listProgramGroups: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ProgramGroupOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramGroupCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramGroupUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    archiveProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    completeProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listProgramGroupFees: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramFeeOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createProgramGroupFee: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramFeeCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramFeeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publishProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getRegistrationConfig: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putRegistrationConfig: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegistrationConfigPut"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reopenProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restoreProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getProgramGroupRoster: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GroupRoster"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listProgramSessions: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramSessionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    addProgramSessions: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProgramSessionsAdd"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramSessionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    removeProgramSession: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+                schedule_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getProgramGroupTree: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgramGroupNode"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unpublishProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listProviderAccounts: {
         parameters: {
             query?: never;
@@ -38543,6 +50927,196 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OnboardingLink"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putPublicCommunicationPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicPreferencesReplace"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPreferencesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lookupPublicCommunicationPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnsubscribeTokenIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPreferencesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPublicCompetitions: {
+        parameters: {
+            query?: {
+                location_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicCompetitionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPublicCompetition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicCompetitionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPublicGames: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicGameOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPublicStandings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                competition_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicStandingOut"][];
                 };
             };
             /** @description Validation Error */
@@ -38844,6 +51418,26 @@ export interface operations {
             };
         };
     };
+    getPublicPortalConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPortalConfig"];
+                };
+            };
+        };
+    };
     getPublicPortalTerms: {
         parameters: {
             query?: never;
@@ -38860,6 +51454,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortalTermsOut"];
+                };
+            };
+        };
+    };
+    listPublicProgramGroups: {
+        parameters: {
+            query?: {
+                location_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicProgramGroup"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPublicProgramGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                program_group_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicProgramGroup"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -38948,6 +51604,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicRentalType"][];
+                };
+            };
+        };
+    };
+    publicUnsubscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnsubscribeTokenIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnsubscribeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -39431,6 +52120,217 @@ export interface operations {
             };
         };
     };
+    createRegistrationCheckout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckoutCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getRegistrationCheckout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                checkout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    abandonRegistrationCheckout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                checkout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirmRegistrationCheckout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                checkout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    addRegistrationCheckoutItem: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                checkout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckoutItemAdd"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    removeRegistrationCheckoutItem: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                checkout_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listRelationshipTypes: {
         parameters: {
             query?: never;
@@ -39524,6 +52424,189 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RelationshipTypeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listReminderRules: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ReminderRuleOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createReminderRule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReminderRuleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReminderRuleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getReminderRule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                reminder_rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReminderRuleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteReminderRule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                reminder_rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateReminderRule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                reminder_rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReminderRuleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReminderRuleOut"];
                 };
             };
             /** @description Validation Error */
@@ -40778,6 +53861,76 @@ export interface operations {
             };
         };
     };
+    putSessionBookingPolicyOverride: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                reservation_type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingPolicyOverride"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingPolicyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteSessionBookingPolicyOverride: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                reservation_type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listResourceGroups: {
         parameters: {
             query?: {
@@ -41596,6 +54749,417 @@ export interface operations {
             };
         };
     };
+    searchRosterEntries: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_LeagueRosterEntryOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    removeRosterEntry: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                roster_entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateRosterEntry: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                roster_entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RosterEntryUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueRosterEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listScheduleRuns: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ScheduleRunOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createScheduleRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleRunCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getScheduleRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateScheduleRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleRunUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    commitSchedule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    discardScheduleRun: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listScheduleRunGames: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_GameOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generateSchedule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getSchedulingSettings: {
         parameters: {
             query?: {
@@ -41655,6 +55219,442 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listSeasons: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_SeasonOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createSeason: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeasonWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getSeason: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                season_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteSeason: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                season_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateSeason: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                season_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeasonWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeasonOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listSegments: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_SegmentOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createSegment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SegmentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SegmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    previewSegment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SegmentPreviewIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SegmentPreviewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getSegment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                segment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SegmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteSegment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                segment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateSegment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                segment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SegmentUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SegmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listSessionBookingPolicies: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingPolicyOut"][];
                 };
             };
             /** @description Validation Error */
@@ -41929,6 +55929,44 @@ export interface operations {
             };
         };
     };
+    sendSessionRosterMessage: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RosterMessage"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Accepted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listShifts: {
         parameters: {
             query?: {
@@ -42103,6 +56141,189 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShiftOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listSports: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_SportOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createSport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SportCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getSport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                sport_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteSport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                sport_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateSport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                sport_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SportUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SportOut"];
                 };
             };
             /** @description Validation Error */
@@ -43094,6 +57315,44 @@ export interface operations {
             };
         };
     };
+    adjustStanding: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                standing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StandingAdjust"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueStandingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listStockMovements: {
         parameters: {
             query?: {
@@ -43196,6 +57455,119 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StockMovementOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listSuppressions: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_SuppressionOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createSuppression: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuppressionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuppressionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    releaseSuppression: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                suppression_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuppressionOut"];
                 };
             };
             /** @description Validation Error */
@@ -43563,6 +57935,189 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TaxDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listTeams: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_LeagueTeamOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createTeam: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeagueTeamCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueTeamOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getTeam: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueTeamOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteTeam: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateTeam: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeagueTeamUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeagueTeamOut"];
                 };
             };
             /** @description Validation Error */
@@ -44047,10 +58602,194 @@ export interface operations {
             };
         };
     };
+    listVideos: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_VideoOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createVideo: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VideoCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getVideo: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteVideo: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateVideo: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VideoUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listWaitlistEntries: {
         parameters: {
-            query: {
-                session_id: string;
+            query?: {
+                session_id?: string | null;
+                program_group_id?: string | null;
             };
             header?: {
                 /** @description Optional; keys live 24 hours. */

@@ -168,6 +168,7 @@ def populate(client, tenant) -> SimpleNamespace:
         session.add(identity)
         session.flush()
         clients.service.link_identity(session, person["id"], identity.id)
+        identity_id = identity.id
         tax = billing.service.create_tax(
             session, code="ST", label="Sales tax", rate=Decimal("0.0825"), effective_from_on=date(2020, 1, 1)
         )
@@ -205,11 +206,16 @@ def populate(client, tenant) -> SimpleNamespace:
     )
     space |= _populate_staff(client, headers, post, location["id"], invited["id"], space["trainer_resource_id"])
     space |= _populate_assessments(client, headers, post, location["id"], person["id"])
+    space |= _populate_programs(client, headers, post, location["id"], person["id"], space, category_id)
+    space |= _populate_access(client, headers, post, tenant, location["id"], person["id"], space)
+    space |= _populate_engagement(client, tenant, post, location["id"], person["id"], identity_id)
+    leagues = _populate_leagues(client, headers, post, location["id"], person["id"], space["resource_id"], category_id)
     integration = _populate_integrations(client, headers, tenant, post, location, person)
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
         session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
         payment_id=payment["id"], revenue_category_id=category_id, tax_id=tax_id, **billing_ids, **people, **documents, **space,
+        **leagues,
         **integration,
     )  # fmt: skip
 
@@ -363,6 +369,57 @@ def _populate_people(client, headers, tenant, location_id, person_id) -> dict:
         "custom_field_id": field["id"], "relationship_type_id": parent_of["id"], "relationship_id": relationship["id"],
         "note_subject_id": subject["id"], "note_id": note["id"], "task_id": task["id"], "alert_id": alert["id"],
         "request_id": request["id"], "email_id": email_id, "kid_id": kid["id"],
+    }  # fmt: skip
+
+
+def _populate_engagement(client, tenant, post, location_id, person_id, identity_id) -> dict:
+    """Build module 14: every messaging table, mostly through its own routes."""
+    from datetime import timedelta
+
+    from sqlalchemy import select
+
+    from app.modules.engagement.models import DeviceRegistration, InboxItem, ScheduledNotification
+
+    template = post("/message-templates", {"name": "Welcome", "subject": "Hi $first_name", "body_text": "Welcome."})
+    everyone = {"sources": [{"kind": "client_ids", "ids": [person_id]}]}
+    segment = post("/segments", {"name": "Just Casey", "definition": everyone})
+    email_campaign = post("/campaigns", {"location_id": location_id, "name": "News", "subject": "News",
+                                         "body_text": "Hello $first_name", "segment_id": segment["id"]})  # fmt: skip
+    post(f"/campaigns/{email_campaign['id']}/send", {})
+    push = post("/campaigns", {"location_id": location_id, "channel": "push", "name": "Closed", "subject": "Closed",
+                               "body_text": "Courts close early today.", "audience": everyone})  # fmt: skip
+    post(f"/campaigns/{push['id']}/send", {})
+    message = post("/messages", {"client_id": person_id, "subject": "Your booking", "body_text": "See you."})
+    suppression = post("/suppressions", {"address": f"bounced@{tenant.slug}.example.com"})
+    reminder = post("/reminder-rules", {"location_id": location_id, "first_offset_minutes": 1440})
+    route = post("/notification-routes", {"location_id": location_id, "alert_kind": "payment_declined",
+                                          "emails": [f"desk@{tenant.slug}.example.com"]})  # fmt: skip
+    automation = post("/automation-rules", {"name": "Welcome new", "trigger_event_type": "clients.client.created",
+                                            "location_id": location_id,
+                                            "message_template_id": template["id"], "delay_minutes": 60})  # fmt: skip
+    response = client.put(f"/api/v1/locations/{location_id}/portal-settings", headers=login(client, tenant),
+                          json={"is_enabled": True, "is_public": True, "welcome_text": "Welcome"})  # fmt: skip
+    assert response.status_code == 200, response.text
+    video = post("/videos", {"location_id": location_id, "title": "Warm-up", "url": "https://www.youtube.com/watch?v=abc",
+                             "is_published": True})  # fmt: skip
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        device = DeviceRegistration(identity_id=identity_id, client_id=person_id, location_id=location_id,
+                                    platform="ios", push_token=f"tok-{uuid4().hex}")  # fmt: skip
+        session.add(device)
+        later = clock.now() + timedelta(days=2)
+        session.add(ScheduledNotification(
+            location_id=location_id, kind="session_reminder", reminder_no=1, subject_type="booking",
+            subject_id=uuid4(), client_id=person_id, subject_starts_at=later, send_at=later - timedelta(days=1),
+            dedupe_key=f"populate:{uuid4().hex}",
+        ))  # fmt: skip
+        session.flush()
+        inbox_item_id = session.scalar(select(InboxItem.id).where(InboxItem.campaign_id == push["id"]))
+        device_id = device.id
+    return {
+        "message_template_id": template["id"], "segment_id": segment["id"], "campaign_id": email_campaign["id"],
+        "message_id": message["id"], "suppression_id": suppression["id"], "reminder_rule_id": reminder["id"],
+        "notification_route_id": route["id"], "automation_rule_id": automation["id"], "video_id": video["id"],
+        "inbox_item_id": str(inbox_item_id), "device_registration_id": str(device_id),
     }  # fmt: skip
 
 
@@ -521,6 +578,55 @@ def _populate_space(client, tenant, headers, post, location_id, client_id) -> di
     }  # fmt: skip
 
 
+def _populate_programs(client, headers, post, location_id, client_id, space, category_id) -> dict:
+    """Build module 6: a program with a subgroup, a fee, online registration (published), a linked session, a
+    registration (charged and invoiced), a group waitlist entry, a basket holding a place, and booking policies."""
+    program = post("/program-groups", {
+        "location_id": location_id, "name": "Summer Camp", "kind": "camp", "capacity": 1, "waitlist_mode": "manual",
+        "revenue_category_id": category_id,
+    })  # fmt: skip
+    post("/program-groups", {"parent_id": program["id"], "name": "Week 1"})
+    fee = post(f"/program-groups/{program['id']}/fees", {"description": "Camp fee", "amount_minor": 15000})
+    post("/program-fees", {"location_id": location_id, "description": "Late pickup", "amount_minor": 1000})
+    config = client.put(
+        f"/api/v1/program-groups/{program['id']}/registration-config", headers=headers,
+        json={"is_enabled": True, "payment_requirement": "pay_later_allowed"},
+    )  # fmt: skip
+    assert config.status_code == 200, config.text
+    post(f"/program-groups/{program['id']}/publish", {})
+    bookings = client.get(f"/api/v1/bookings?booking_series_id={space['booking_series_id']}", headers=headers).json()
+    linked = next(b["session"]["id"] for b in bookings["data"] if b["session"]["id"] != space["schedule_session_id"])
+    post(f"/program-groups/{program['id']}/sessions", {"session_ids": [linked]})
+    gone = post("/program-groups", {"location_id": location_id, "name": "Old Camp"})
+    assert client.delete(f"/api/v1/program-groups/{gone['id']}", headers=headers).status_code == 204
+    post("/enrollments", {"program_group_id": program["id"], "client_id": client_id, "program_fee_ids": [fee["id"]]})
+    post(
+        "/waitlist-entries",
+        {"program_group_id": program["id"], "client_id": new_client(client, headers, location_id)["id"],
+         "program_fee_id": fee["id"]},
+    )  # fmt: skip
+    open_program = post("/program-groups", {"location_id": location_id, "name": "Clinic Series"})
+    basket = post("/registration-checkouts", {"location_id": location_id})
+    basket = post(f"/registration-checkouts/{basket['id']}/items", {
+        "program_group_id": open_program["id"], "client_id": new_client(client, headers, location_id)["id"],
+    })  # fmt: skip
+    policy = {
+        "listing_mode": "bookable", "requires_active_membership": False, "visible_range_days": 60,
+        "hides_full_sessions": False, "booking_cutoff_minutes": 60, "allows_self_cancel": True,
+        "cancel_notice_minutes": 720, "waitlist_mode": "open_offer",
+    }  # fmt: skip
+    for path, body in (
+        (f"/locations/{location_id}/session-booking-policy", policy),
+        (f"/reservation-types/{space['reservation_type_id']}/session-booking-policy", {"booking_cutoff_minutes": 0}),
+    ):
+        put = client.put(f"/api/v1{path}", headers=headers, json=body)
+        assert put.status_code == 200, put.text
+    return {
+        "program_group_id": program["id"], "program_fee_id": fee["id"], "checkout_id": basket["id"],
+        "item_id": basket["items"][0]["id"], "linked_session_id": linked, "deleted_program_group_id": gone["id"],
+    }  # fmt: skip
+
+
 def _populate_rentals(client, headers, post, location_id, client_id, court_id, category_id, tax_id) -> dict:
     """Build module 3: a row in every rentals table (type, rate with tax and rule, a billed rental with a
     party, a plan allowed on the type, its sale and a plan-covered rental)."""
@@ -606,11 +712,82 @@ def _populate_staff(client, headers, post, location_id, staff_user_id, trainer_r
     }  # fmt: skip
 
 
+def _populate_leagues(client, headers, post, location_id, client_id, court_id, category_id) -> dict:
+    """Build module 11: a row in every leagues table. A fee-paying league with four teams (one billed), a
+    roster place, an official, a committed schedule run (booked games), a result (standings) with the official
+    assigned, and a draft bracket."""
+    sport = post("/sports", {"name": "Futsal", "default_game_length_min": 60})
+    age = post("/age-groups", {"name": "Adult", "min_age": 18})
+    season = post("/seasons", {"name": "Spring 2031", "starts_on": "2031-04-01", "ends_on": "2031-06-30"})
+    league = post("/competitions", {
+        "location_id": location_id, "kind": "league", "name": "Wednesday Futsal", "sport_id": sport["id"],
+        "age_group_id": age["id"], "season_id": season["id"], "starts_on": "2031-04-01", "ends_on": "2031-06-30",
+        "is_public": True, "team_fee_minor": 30000, "revenue_category_id": category_id,
+    })  # fmt: skip
+    cid = league["id"]
+    post(f"/competitions/{cid}/activate", {})
+    first = post(f"/competitions/{cid}/teams", {"team": {"name": "Strikers"}, "bill_to_client_id": client_id})
+    post(f"/competitions/{cid}/teams/generate", {"count": 3})
+    roster = post(f"/competition-teams/{first['id']}/roster", {"client_id": client_id, "role": "captain"})
+    official = post("/officials", {
+        "location_id": location_id, "first_name": "Ref", "last_name": "One", "sport_ids": [sport["id"]],
+        "age_group_ids": [age["id"]],
+    })  # fmt: skip
+    run = post("/schedule-runs", {
+        "location_id": location_id, "competition_ids": [cid], "resource_ids": [court_id],
+        "time_slots": [{"weekday": 3, "starts_at": "18:00", "ends_at": "22:00", "resource_id": court_id}],
+        "starts_on": "2031-04-02", "ends_on": "2031-06-25",
+    })  # fmt: skip
+    post(f"/schedule-runs/{run['id']}/generate", {})
+    post(f"/schedule-runs/{run['id']}/commit", {})
+    games = client.get(f"/api/v1/schedule-runs/{run['id']}/games?status=scheduled", headers=headers).json()["data"]
+    game = games[0]
+    put = client.put(f"/api/v1/games/{game['id']}/officials", headers=headers,
+                     json={"assignments": [{"official_id": official["id"]}]})  # fmt: skip
+    assert put.status_code == 200, put.text
+    put = client.put(f"/api/v1/games/{game['id']}/result", headers=headers,
+                     json={"home": {"score": 3}, "away": {"score": 1}})  # fmt: skip
+    assert put.status_code == 200, put.text
+    standing = client.get(f"/api/v1/competitions/{cid}/standings", headers=headers).json()[0]
+    bracket = post(f"/competitions/{cid}/brackets", {"bracket_type": "single_elimination", "seed_source": "seeds"})
+    division = client.get(f"/api/v1/competitions/{cid}/divisions", headers=headers).json()[0]
+    return {
+        "sport_id": sport["id"], "age_group_id": age["id"], "season_id": season["id"], "competition_id": cid,
+        "division_id": division["id"], "team_id": first["team_id"], "competition_team_id": first["id"],
+        "roster_entry_id": roster["id"], "official_id": official["id"], "schedule_run_id": run["id"],
+        "game_id": game["id"], "standing_id": standing["id"], "bracket_id": bracket["id"],
+        "bracket_slot_id": bracket["slots"][0]["id"],
+    }  # fmt: skip
+
+
 @pytest.fixture(scope="session")
 def two_tenants():
     """Tenants A and B, each populated in every table: the reusable tenant-isolation fixture."""
     client = TestClient(fastapi_app)
     return populate(client, make_tenant()), populate(client, make_tenant("Asia/Kolkata"))
+
+
+def _populate_access(client, headers, post, tenant, location_id, client_id, space) -> dict:
+    """Module 10: a barcode, a staff check-in (its attendance row by hand: no session starts near now), kiosk
+    settings and a registered kiosk device."""
+    from app.modules.access.models import CheckInAttendance
+
+    credential = post(f"/clients/{client_id}/credentials", {"kind": "barcode", "value": f"POP-{uuid4().hex[:8]}"})
+    checked = post("/check-ins", {"client_id": client_id, "location_id": location_id, "channel": "staff_window"})
+    response = client.put(
+        f"/api/v1/kiosk-settings?location_id={location_id}", headers=headers, json={"welcome_message": "Hi"}
+    )
+    assert response.status_code == 200, response.text
+    device = post("/kiosk-devices", {"location_id": location_id, "name": "Front door"})
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        session.add(CheckInAttendance(
+            check_in_id=checked["check_in"]["id"], target_id=space["enrollment_id"],
+            session_id=space["schedule_session_id"],
+        ))  # fmt: skip
+    return {
+        "credential_id": credential["id"], "check_in_id": checked["check_in"]["id"],
+        "kiosk_device_id": device["kiosk_device_id"],
+    }  # fmt: skip
 
 
 def _populate_integrations(client, headers, tenant, post, location, person) -> dict:

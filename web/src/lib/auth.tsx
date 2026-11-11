@@ -23,7 +23,7 @@ type AuthValue = {
   me: Me | null | undefined
   isLoading: boolean
   error: unknown
-  signIn: (email: string, password: string) => Promise<void>
+  signIn: (email: string, password: string, audience?: 'staff' | 'client') => Promise<void>
   sessionStarted: (csrf: string | null | undefined) => Promise<void>
   signOut: () => Promise<void>
   can: (key: string) => boolean
@@ -52,8 +52,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const signIn = useCallback(
-    async (email: string, password: string) => {
-      const out = await api.post('/api/v1/auth/sign-in', { body: { email, password, audience: 'staff', client_kind: 'web' } })
+    async (email: string, password: string, audience: 'staff' | 'client' = 'staff') => {
+      const out = await api.post('/api/v1/auth/sign-in', { body: { email, password, audience, client_kind: 'web' } })
       await sessionStarted(out.csrf_token)
     },
     [sessionStarted],

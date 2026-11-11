@@ -223,6 +223,31 @@ _BODIES = {
     "cancelBookingSeries": {"scope": {"mode": "all"}},
     "updateSession": {"is_self_bookable": False},
     "cancelEnrollment": {},
+    "rebookEnrollment": lambda ids: {"session_id": ids.schedule_session_id},
+    "sendSessionRosterMessage": {"subject": "Hi", "body_html": "Hello"},
+    "updateProgramGroup": {"name": "Renamed"},
+    "addProgramSessions": lambda ids: {"session_ids": [ids.schedule_session_id]},
+    "createProgramGroupFee": {"description": "X", "amount_minor": 100},
+    "updateProgramFee": {"description": "Renamed"},
+    "putRegistrationConfig": {"is_enabled": True},
+    "addRegistrationCheckoutItem": lambda ids: {"program_group_id": ids.program_group_id, "client_id": ids.client_id},
+    "addPortalRegistrationCheckoutItem": lambda ids: {
+        "program_group_id": ids.program_group_id,
+        "client_id": ids.client_id,
+    },
+    "confirmPortalRegistrationCheckout": {},
+    "claimPortalWaitlistOffer": {},
+    "putDefaultSessionBookingPolicy": {
+        "listing_mode": "bookable",
+        "requires_active_membership": False,
+        "visible_range_days": 30,
+        "hides_full_sessions": False,
+        "booking_cutoff_minutes": 0,
+        "allows_self_cancel": True,
+        "cancel_notice_minutes": 0,
+        "waitlist_mode": "auto_promote",
+    },
+    "putSessionBookingPolicyOverride": {},
     "putSessionAttendance": {
         "marks": [{"enrollment_id": "00000000-0000-7000-8000-000000000000", "status": "attended"}]
     },
@@ -259,6 +284,44 @@ _BODIES = {
     "createAssessmentField": {"name": "Body fat"},
     "updateAssessmentField": {"sort_order": 1},
     "updateAssessmentResult": {"note": "Rechecked"},
+    # engagement (build module 14)
+    "updateMessageTemplate": {"name": "Renamed"},
+    "updateSegment": {"name": "Renamed"},
+    "updateCampaign": {"name": "Renamed"},
+    "scheduleCampaign": {"scheduled_at": "2031-01-01T00:00:00Z"},
+    "updateReminderRule": {"is_enabled": True},
+    "updateNotificationRoute": {"is_enabled": True},
+    "updateAutomationRule": {"is_enabled": True},
+    "putPortalSettings": {"welcome_text": "Hi"},
+    "updateVideo": {"title": "Renamed"},
+    "assignCredential": {"kind": "barcode", "generate": True},
+    "revokeClientAppCards": {"kind": "app_card"},
+    # leagues (build module 11)
+    "updateSport": {"name": "Renamed"},
+    "updateAgeGroup": {"name": "Renamed"},
+    "updateSeason": {"name": "Renamed"},
+    "updateCompetition": {"name": "Renamed"},
+    "createDivision": {"name": "North"},
+    "updateDivision": {"name": "Renamed"},
+    "updateTeam": {"name": "Renamed"},
+    "addCompetitionTeam": {"team": {"name": "Other"}},
+    "generateCompetitionTeams": {"count": 1},
+    "copyCompetitionTeams": lambda ids: {"source_competition_id": ids.competition_id},
+    "putCompetitionSeeding": lambda ids: {"competition_team_ids": [ids.competition_team_id]},
+    "updateCompetitionTeam": {"display_name": "Renamed"},
+    "billCompetitionTeam": lambda ids: {"bill_to_client_id": ids.client_id},
+    "addRosterEntry": {"first_name": "Walk", "last_name": "On"},
+    "updateRosterEntry": {"position": "Keeper"},
+    "adjustStanding": {"adjustment_points": "-1", "reason": "Late"},
+    "updateScheduleRun": {"rounds": 2},
+    "updateGame": {"notes": "Renamed"},
+    "rescheduleGame": lambda ids: {"resource_id": ids.resource_id, "starts_at": "2031-07-02T23:00:00Z"},
+    "postponeGame": {},
+    "putGameResult": {"home": {"score": 1}, "away": {"score": 0}},
+    "updateOfficial": {"first_name": "Renamed"},
+    "putGameOfficials": lambda ids: {"assignments": [{"official_id": ids.official_id}]},
+    "generateBracket": {"bracket_type": "single_elimination", "seed_source": "seeds"},
+    "updateBracketSlot": {},
     # integrations (module 16)
     "rotateApiKey": {},
     "updateWebhookEndpoint": {"description": "Renamed"},
@@ -299,7 +362,10 @@ def test_api_foreign_tenant_id_is_404(client, two_tenants, method, path, name):
     a, b = two_tenants
     url = re.sub(r"\{(\w+)_id\}", lambda m: str(getattr(b, f"{m[1]}_id")), path)
     body = body_for(name, a)  # A's own ids in the body, so only the path id is foreign
-    response = client.request(method, url, headers=a.headers | {"Idempotency-Key": f"iso-{name}-key"}, json=body)
+    headers = a.headers | {"Idempotency-Key": f"iso-{name}-key"}
+    if "/public/" in path:  # anonymous routes take the tenant from the host or X-Tenant-Slug, not the token
+        headers |= {"X-Tenant-Slug": a.tenant.slug}
+    response = client.request(method, url, headers=headers, json=body)
     assert response.status_code == 404, response.text
     assert response.json()["code"] == "not-found"
 
