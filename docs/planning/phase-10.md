@@ -20,12 +20,12 @@ and does not make the change.
 
 | Chip | Features | Model | Owns | Migrations | Starts |
 |---|---|---|---|---|---|
-| A. Scheduling edges | RES-01, SCH-03, SCH-05, SCH-07, SCH-09, SCH-10, SCH-11, SCH-18 | Opus | `scheduling`, `resources`, `web/src/features/{scheduling,resources}` | 1301 to 1319 | batch 1 |
-| B. Access rules and visits | MEM-20, CHK-02, CHK-08, CHK-09, CHK-10 (CHK-17 parked) | Opus | `access` backend and settings screens; one call into `memberships.service.record_visit` | 1321 to 1339 | batch 1 |
-| D. Staff pay and shifts | STF-02, STF-03, STF-04, STF-10, STF-15 | Sonnet | `staff`, `web/src/features/staff` | 1361 to 1379 | batch 1 |
-| E. Clients, memberships and POS desk | CLI-11, CLI-20, POS-08, POS-14, POS-22, MEM-13, PKG-12, plus the MEM-14 and MEM-20 screens | Sonnet | `clients`, `memberships` and `packages` web, `pos`, `packages` service | 1381 to 1389 | batch 2, when a slot frees |
-| C. Check-in desk | MEM-19, CHK-04, CHK-07, CHK-12, CHK-21 | Opus | `access` (after B merges), check-in window web | 1341 to 1359 | batch 2, after B |
-| F. Client files | CLI-12, CLI-09 | Sonnet | `clients` photo and attachment routes and screens; photo on the check-in card and ID card | 1391 to 1399 | batch 2 (not blocked) |
+| A. Scheduling edges | RES-01, SCH-03, SCH-05, SCH-07, SCH-09, SCH-10, SCH-11, SCH-18 | Opus | `scheduling`, `resources`, `web/src/features/{scheduling,resources}` | 1001 to 1019 | batch 1 |
+| B. Access rules and visits | MEM-20, CHK-02, CHK-08, CHK-09, CHK-10 (CHK-17 parked) | Opus | `access` backend and settings screens; one call into `memberships.service.record_visit` | 1021 to 1039 | batch 1 |
+| D. Staff pay and shifts | STF-02, STF-03, STF-04, STF-10, STF-15 | Sonnet | `staff`, `web/src/features/staff` | 1061 to 1079 | batch 1 |
+| E. Clients, memberships and POS desk | CLI-11, CLI-20, POS-08, POS-14, POS-22, MEM-13, PKG-12, plus the MEM-14 and MEM-20 screens | Sonnet | `clients`, `memberships` and `packages` web, `pos`, `packages` service | 1081 to 1089 | batch 2, when a slot frees |
+| C. Check-in desk | MEM-19, CHK-04, CHK-07, CHK-12, CHK-21 | Opus | `access` (after B merges), check-in window web | 1041 to 1059 | batch 2, after B |
+| F. Client files | CLI-12, CLI-09 | Sonnet | `clients` photo and attachment routes and screens; photo on the check-in card and ID card | 1091 to 1099 | batch 2 (not blocked) |
 
 8 + 6 + 5 + 7 + 5 + 2 = 33 features.
 
@@ -72,7 +72,7 @@ and does not make the change.
 
 ### E. Clients, memberships and POS desk
 
-- CLI-11: the task reminder actor (Phase 8 adds its line to `app/scheduler.py`). CLI-20: derived alerts
+- CLI-11: the task reminder actor and its one line in `EVERY_HOUR` in `app/scheduler.py`. CLI-20: derived alerts
   (balance due, membership expiring, waiver missing), read from the owning contexts' service functions.
 - POS-08: quick-create a client from the register. POS-14: a per-location receipt footer in POS settings
   (billing's tenant footer stays the fallback). POS-22: the daily low-stock email; the `rpt_*` read models go
@@ -99,11 +99,12 @@ and does not make the change.
 | `backend/openapi.json`, `web/src/api/schema.d.ts` | chips regenerate for their own work; the coordinator regenerates after each merge instead of merging by hand |
 | Module `README.md`, `docs/status/10-checkin.md`, `docs/status/12-staff.md`, the chip's own rows in `docs/status/README.md` | the chip |
 | `CLAUDE.md` build-status table, this file | coordinator only |
-| `app/scheduler.py`, `core/*`, `infra/*` | Phase 8 (ask, do not edit) |
+| `app/scheduler.py` | a chip adds one line to `EVERY_HOUR` per actor, nothing else (agreed with Phase 8) |
+| `core/*`, `infra/*`, `ports/storage.py`, `platform/files.py` | Phase 8 (ask, do not edit) |
 | `billing/*` | Phase 9 (handover, do not edit) |
 
 Migrations: the chain head is `0953`. Each chip's first revision has `down_revision = "0953"`; the coordinator
-re-points it at merge. Phase 10 uses `1301` to `1399` only (Phase 8 has `12xx`).
+re-points it at merge. Phase 10 uses `1001` to `1099` only (Phase 8 has `1201` to `1279`).
 
 ## Order and dependencies
 
@@ -144,7 +145,10 @@ table below is the record.
 
 ## Handovers
 
-- To Phase 8: `files.download_url` and `files.remove` (its chip K1); one `app/scheduler.py` line each for the task reminder and the
-  low-stock digest actors; where the tenant-wide minor-age setting lives.
+- With Phase 8 (agreed 2026-11-11): its chip K1 adds `files.load`, `files.download_url`, `files.remove` and a web
+  `FileUpload`, and swaps chip F's call sites when it lands; until then F checks `row.purpose` after
+  `files.read` and nulls the FK on erasure with a TODO naming K1. The minor age is the key `minor_age` in the
+  existing `tenant.settings` JSON (default 18 in code), read through one accessor chip B adds to
+  `platform/service.py` and written only through the existing platform settings command.
 - To Phase 9: none yet. Chips record here any billing change they need (likely candidates: CHK-21 card entry
   at the window, the question 16 reversal).
