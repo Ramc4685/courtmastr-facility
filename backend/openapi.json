@@ -2572,6 +2572,18 @@
             ],
             "title": "Csrf Token"
           },
+          "elevated_until_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elevated Until At"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -2610,6 +2622,20 @@
           },
           "principal": {
             "$ref": "#/components/schemas/PrincipalOut"
+          },
+          "recovery_codes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recovery Codes"
           },
           "refresh_token": {
             "anyOf": [
@@ -26568,6 +26594,153 @@
           }
         },
         "title": "MessageTemplateUpdate",
+        "type": "object"
+      },
+      "MfaChallengeCode": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "maxLength": 32,
+            "title": "Code",
+            "type": "string"
+          },
+          "mfa_token": {
+            "maxLength": 200,
+            "title": "Mfa Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mfa_token",
+          "code"
+        ],
+        "title": "MfaChallengeCode",
+        "type": "object"
+      },
+      "MfaChallengeOut": {
+        "description": "A pending sign-in: send mfa_token with a code to /auth/mfa/verify (after /auth/mfa/enrolment when\nenrolment_required). It grants nothing else and expires in minutes.",
+        "properties": {
+          "enrolment_required": {
+            "title": "Enrolment Required",
+            "type": "boolean"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "mfa_token": {
+            "title": "Mfa Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mfa_token",
+          "expires_at",
+          "enrolment_required"
+        ],
+        "title": "MfaChallengeOut",
+        "type": "object"
+      },
+      "MfaChallengeToken": {
+        "additionalProperties": false,
+        "properties": {
+          "mfa_token": {
+            "maxLength": 200,
+            "title": "Mfa Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mfa_token"
+        ],
+        "title": "MfaChallengeToken",
+        "type": "object"
+      },
+      "MfaCode": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "maxLength": 32,
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "MfaCode",
+        "type": "object"
+      },
+      "MfaEnrolmentOut": {
+        "description": "Shown once. Render otpauth_uri as a QR code on the device; never send it anywhere.",
+        "properties": {
+          "otpauth_uri": {
+            "title": "Otpauth Uri",
+            "type": "string"
+          },
+          "secret": {
+            "title": "Secret",
+            "type": "string"
+          }
+        },
+        "required": [
+          "secret",
+          "otpauth_uri"
+        ],
+        "title": "MfaEnrolmentOut",
+        "type": "object"
+      },
+      "MfaRecoveryCodesOut": {
+        "properties": {
+          "recovery_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Recovery Codes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "recovery_codes"
+        ],
+        "title": "MfaRecoveryCodesOut",
+        "type": "object"
+      },
+      "MfaStatus": {
+        "properties": {
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "enrolled": {
+            "title": "Enrolled",
+            "type": "boolean"
+          },
+          "recovery_codes_remaining": {
+            "title": "Recovery Codes Remaining",
+            "type": "integer"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enrolled",
+          "confirmed_at",
+          "recovery_codes_remaining",
+          "required"
+        ],
+        "title": "MfaStatus",
         "type": "object"
       },
       "MissingDocument": {
@@ -52623,18 +52796,33 @@
         "type": "object"
       },
       "SecuritySettings": {
-        "description": "Tenant security policy (PLT-07). An empty staff_ip_allowlist means staff may act from anywhere.",
+        "description": "Tenant security policy. An empty staff_ip_allowlist means staff may act from anywhere (PLT-07).\nstaff_mfa_policy: who must use two-step verification (privileged = Owner and Admin). staff_idle_timeout_min:\nminutes a staff web session survives unused.",
         "properties": {
+          "staff_idle_timeout_min": {
+            "title": "Staff Idle Timeout Min",
+            "type": "integer"
+          },
           "staff_ip_allowlist": {
             "items": {
               "type": "string"
             },
             "title": "Staff Ip Allowlist",
             "type": "array"
+          },
+          "staff_mfa_policy": {
+            "enum": [
+              "optional",
+              "privileged",
+              "all"
+            ],
+            "title": "Staff Mfa Policy",
+            "type": "string"
           }
         },
         "required": [
-          "staff_ip_allowlist"
+          "staff_ip_allowlist",
+          "staff_mfa_policy",
+          "staff_idle_timeout_min"
         ],
         "title": "SecuritySettings",
         "type": "object"
@@ -52642,6 +52830,19 @@
       "SecuritySettingsUpdate": {
         "additionalProperties": false,
         "properties": {
+          "staff_idle_timeout_min": {
+            "anyOf": [
+              {
+                "maximum": 60.0,
+                "minimum": 15.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Idle Timeout Min"
+          },
           "staff_ip_allowlist": {
             "anyOf": [
               {
@@ -52657,6 +52858,22 @@
               }
             ],
             "title": "Staff Ip Allowlist"
+          },
+          "staff_mfa_policy": {
+            "anyOf": [
+              {
+                "enum": [
+                  "optional",
+                  "privileged",
+                  "all"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Mfa Policy"
           }
         },
         "title": "SecuritySettingsUpdate",
@@ -56459,6 +56676,38 @@
           "to_on"
         ],
         "title": "StatementSend",
+        "type": "object"
+      },
+      "StepUpRequest": {
+        "additionalProperties": false,
+        "description": "A code when two-step verification is on (TOTP or a recovery code), otherwise the password.",
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          }
+        },
+        "title": "StepUpRequest",
         "type": "object"
       },
       "StockMovementCreate": {
@@ -63359,11 +63608,29 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AuthSessionOut"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AuthSessionOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MfaChallengeOut"
+                    }
+                  ],
+                  "title": "Response Acceptinvitation"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaChallengeOut"
+                }
+              }
+            },
+            "description": "Accepted"
           },
           "422": {
             "content": {
@@ -63441,6 +63708,108 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AuthSessionOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MfaChallengeOut"
+                    }
+                  ],
+                  "title": "Response Consumemagiclink"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaChallengeOut"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Consume Magic Link",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/auth/mfa/enrolment": {
+      "post": {
+        "description": "Forced enrolment inside a pending sign-in: a new TOTP secret as an otpauth URI (render the QR on the\ndevice). Errors: mfa-challenge-invalid, mfa-already-enrolled.",
+        "operationId": "startMfaChallengeEnrolment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaChallengeToken"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaEnrolmentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Mfa Challenge Enrolment",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/auth/mfa/verify": {
+      "post": {
+        "description": "Complete a pending sign-in with a TOTP code or a recovery code (consumed); for a forced enrolment, the\nfirst code of the new factor, and the response carries the ten recovery codes once. Errors:\nmfa-challenge-invalid, mfa-code-invalid, mfa-enrolment-not-started, identity-locked, rate-limited.",
+        "operationId": "verifyMfaChallenge",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaChallengeCode"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
                   "$ref": "#/components/schemas/AuthSessionOut"
                 }
               }
@@ -63458,7 +63827,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Consume Magic Link",
+        "summary": "Verify Mfa Challenge",
         "tags": [
           "platform"
         ]
@@ -63558,11 +63927,29 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AuthSessionOut"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AuthSessionOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MfaChallengeOut"
+                    }
+                  ],
+                  "title": "Response Consumepasswordreset"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaChallengeOut"
+                }
+              }
+            },
+            "description": "Accepted"
           },
           "422": {
             "content": {
@@ -63739,7 +64126,7 @@
     },
     "/api/v1/auth/sign-in": {
       "post": {
-        "description": "Sign in with email and password. Errors: invalid-credentials, identity-locked, ip-not-allowed,\ncsrf-failed, rate-limited.",
+        "description": "Sign in with email and password. 202 with an MFA challenge when a second factor comes next. Errors:\ninvalid-credentials, identity-locked, ip-not-allowed, csrf-failed, rate-limited.",
         "operationId": "signIn",
         "requestBody": {
           "content": {
@@ -63756,11 +64143,29 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AuthSessionOut"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AuthSessionOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MfaChallengeOut"
+                    }
+                  ],
+                  "title": "Response Signin"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaChallengeOut"
+                }
+              }
+            },
+            "description": "Accepted"
           },
           "422": {
             "content": {
@@ -63789,6 +64194,48 @@
           }
         },
         "summary": "Sign Out",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/auth/step-up": {
+      "post": {
+        "description": "Re-authenticate (TOTP or recovery code when enrolled, else password) so `+` permissions work for 10\nminutes. The session rotates: new cookie and CSRF token (web) or token pair (mobile). Errors:\nreauthentication-failed, identity-locked, step-up-unavailable, rate-limited.",
+        "operationId": "stepUp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepUpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Step Up",
         "tags": [
           "platform"
         ]
@@ -86237,6 +86684,127 @@
           }
         },
         "summary": "Get Me",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/me/mfa": {
+      "get": {
+        "description": "Whether two-step verification is on for the caller, and whether their role requires it.",
+        "operationId": "getOwnMfa",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Own Mfa",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/me/mfa/recovery-codes": {
+      "post": {
+        "description": "Replace every recovery code with ten new ones (needs step-up), shown once.",
+        "operationId": "regenerateOwnRecoveryCodes",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaRecoveryCodesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Regenerate Own Recovery Codes",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/me/mfa/totp": {
+      "delete": {
+        "description": "Turn two-step verification off (needs step-up; refused when the caller's role requires it). Errors:\nstep-up-required, mfa-required.",
+        "operationId": "disableOwnMfa",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Disable Own Mfa",
+        "tags": [
+          "platform"
+        ]
+      },
+      "post": {
+        "description": "Start TOTP enrolment (needs step-up): the secret as an otpauth URI. Errors: step-up-required,\nmfa-already-enrolled.",
+        "operationId": "startOwnMfaEnrolment",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaEnrolmentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Start Own Mfa Enrolment",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/me/mfa/totp/confirm": {
+      "post": {
+        "description": "Turn TOTP on with the first code; returns ten single-use recovery codes, shown once. Other sessions are\nsigned out. Errors: mfa-code-invalid, mfa-enrolment-not-started.",
+        "operationId": "confirmOwnMfaEnrolment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaCode"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaRecoveryCodesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Own Mfa Enrolment",
         "tags": [
           "platform"
         ]
