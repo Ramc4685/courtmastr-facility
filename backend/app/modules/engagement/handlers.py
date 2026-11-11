@@ -38,6 +38,9 @@ def on_booking_cancelled(session, payload: dict) -> None:
 
 @handles("programs.enrollment.created")
 def on_enrollment_created(session, payload: dict) -> None:
+    if "session_id" not in payload:  # a whole-group enrollment has no single start to remind about
+        service.on_trigger(session, "programs.enrollment.created", payload)
+        return
     try:
         seat = scheduling.service.get_session(session, UUID(payload["session_id"]))
     except NotFound:
@@ -58,6 +61,8 @@ def on_enrollment_cancelled(session, payload: dict) -> None:
 @handles("programs.waitlist.promoted")
 def on_waitlist_promoted(session, payload: dict) -> None:
     service.on_trigger(session, "programs.waitlist.promoted", payload)
+    if "session_id" not in payload:  # a group waitlist promotion names no single session
+        return
     try:
         seat = scheduling.service.get_session(session, UUID(payload["session_id"]))
     except NotFound:
