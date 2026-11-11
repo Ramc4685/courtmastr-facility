@@ -50,6 +50,12 @@ rate_limit:
 audit:
   retention_days: 730                 # standard class, 24 months
   retention_days_long: 2557           # role and permission changes, 7 years
+retention:                            # purge periods in days (ADR 0007 section 9; platform/retention.py)
+  auth_session_days: 90               # after expiry or revocation
+  auth_token_days: 30                 # after expiry or use
+  outbox_days: 30                     # published events only
+  processed_event_days: 45            # longer than the outbox plus the retry window
+  batch_rows: 10000                   # per table per hourly run
 storage:
   local_dir: var/storage              # relative to the repository root (git-ignored)
   max_upload_bytes: 20971520          # the one route that takes file bytes (scanned documents, 20 MiB)

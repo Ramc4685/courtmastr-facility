@@ -16,6 +16,11 @@ def main() -> None:
     onboard = commands.add_parser("onboard-tenant", help="create a tenant and its owner (invite link is emailed)")
     for flag in ("name", "slug", "time-zone", "owner-email", "owner-first-name", "owner-last-name"):
         onboard.add_argument(f"--{flag}", required=True)
+    failed = commands.add_parser("failed-jobs", help="list a tenant's dead letters, or requeue or discard one")
+    failed.add_argument("--tenant", required=True, help="tenant id")
+    action = failed.add_mutually_exclusive_group()
+    action.add_argument("--requeue", metavar="FAILED_JOB_ID")
+    action.add_argument("--discard", metavar="FAILED_JOB_ID")
     args = parser.parse_args()
 
     if args.command == "serve":
@@ -30,6 +35,8 @@ def main() -> None:
         sys.stdout.write("\n")
     elif args.command == "lane-db":
         _create_lane_databases()
+    elif args.command == "failed-jobs":
+        _failed_jobs(args)
     else:
         from app.bootstrap import bootstrap
         from app.modules.platform import service
@@ -40,6 +47,28 @@ def main() -> None:
             owner_first_name=args.owner_first_name, owner_last_name=args.owner_last_name,
         )  # fmt: skip
         print(json.dumps(result, default=str))
+
+
+def _failed_jobs(args) -> None:
+    """ADR 0008 section 7, operator command. Runs as fh_app inside the tenant, as the system principal."""
+    from uuid import UUID
+
+    from app.bootstrap import bootstrap
+    from app.core.auth import system_principal
+    from app.core.db.session import tenant_session
+    from app.modules.platform import retention
+    from app.modules.platform.models import FailedJobResolution
+
+    bootstrap()
+    with tenant_session(UUID(args.tenant), actor=system_principal("operator-cli")) as session:
+        if args.requeue or args.discard:
+            resolution = FailedJobResolution.REQUEUED if args.requeue else FailedJobResolution.DISCARDED
+            rows = [retention.resolve_failed_job(session, UUID(args.requeue or args.discard), resolution)]
+        else:
+            rows = retention.open_failed_jobs(session)
+        for row in rows:
+            print(json.dumps({k: getattr(row, k) for k in ("id", "actor_name", "queue", "args", "error_class",
+                              "error_detail", "attempts", "failed_at", "resolution")}, default=str))  # fmt: skip
 
 
 def _create_lane_databases() -> None:

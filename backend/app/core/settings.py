@@ -110,6 +110,17 @@ class Audit(BaseModel):
     retention_days_long: int
 
 
+class Retention(BaseModel):
+    """Purge periods in days (ADR 0007 section 9, security-baseline 2.3). Audit rows carry their own
+    retain_until_on from `audit`; idempotency keys and report results carry their own expiry."""
+
+    auth_session_days: int = 90  # after the session expired or was revoked
+    auth_token_days: int = 30  # after the link expired or was used (assumption: no spec value)
+    outbox_days: int = 30  # published events only; unpublished rows are never purged
+    processed_event_days: int = 45  # must exceed outbox retention plus the retry window
+    batch_rows: int = 10_000  # per table per run; the hourly clock drains any backlog
+
+
 class Storage(BaseModel):
     local_dir: str = "var/storage"  # relative to the repository root
     max_upload_bytes: int = 20_971_520  # scanned documents and attachments (security-baseline 8.2)
@@ -130,6 +141,7 @@ class Settings(BaseModel):
     audit: Audit
     integrations: Integrations = Integrations()
     storage: Storage = Storage()
+    retention: Retention = Retention()
 
     def db_url(self, role: str) -> str:
         """role is owner, app or platform; the password comes from FH_DB_<ROLE>_PASSWORD."""
