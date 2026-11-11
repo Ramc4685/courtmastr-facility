@@ -114,6 +114,6 @@ per location, WCAG 2.1 AA, docs updated).
 | 7 | Waivers and documents (`documents`) | all P0 done; P1 all but DOC-07 bulk send |
 | 8 | Billing and payments | staff screens; P0 13 done, 13 partial; no pre-defined items, disputes, PDFs |
 | 9 | Point of sale and inventory | all P0 done bar 2 partial; packages sell at the till |
-| 10-17 | 10 check-in; 11 leagues; staff, assessments, reporting; 14 engagement; 16 integrations; 17 mobile (`mobile/`) | 10 P0 8 done, 1 partial; 11 P0 8 done, 3 partial; 12 staff P0 4 done, 5 partial; 13 assessments P0 2 done, 1 partial; 14 P0 5 done, 9 partial; 15 reporting P0 6 done, 4 partial; 16, 17 partial (17 demo adapter); details `docs/status/` |
+| 10-17 | 10 check-in; 11 leagues; staff, assessments, reporting; 14 engagement; 16 integrations; 17 mobile (`mobile/`) | 10 P0 8 done, 1 partial; 11 P0 8 done, 3 partial; 12 staff P0 4 done, 5 partial; 13 assessments P0 2 done, 1 partial; 14 P0 5 done, 9 partial; 15 reporting P0 6 done, 4 partial; 16, 17 partial (17 on the real portal API, 2 screens not available yet); details `docs/status/` |
 Per-feature state, known defects and notes for the next modules: `docs/status/README.md`; limits: module READMEs.
 Parallel lanes (worktrees), migration numbering and the kernel service APIs: top of `docs/dev/module-playbook.md`.
