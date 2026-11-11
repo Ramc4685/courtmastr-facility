@@ -5,6 +5,10 @@ run outside the `dev` and `test` environments. Never use these values anywhere e
 
 Password for every account: `courtside-demo-2026`
 
+The seed sets the tenant's staff two-step verification policy to **optional** on every run (the product default
+is required for Owner and Admin), so every account signs in with the password alone. Turn it on per account at
+`/account/security`, or change the policy at `/settings/security`.
+
 | Role | Email | Locations |
 |---|---|---|
 | Owner | owner@courtside-demo.example.com | all |

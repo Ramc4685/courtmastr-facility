@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockFetch } from '../test/fetchMock'
-import { api, ApiError, fieldErrors, setCsrfToken, setUnauthenticatedHandler } from './client'
+import { api, ApiError, fieldErrors, setCsrfToken, setStepUpHandler, setUnauthenticatedHandler } from './client'
 
 afterEach(() => {
   vi.unstubAllGlobals()
   setCsrfToken(null)
+  setStepUpHandler(null)
 })
 
 describe('api client', () => {
@@ -89,5 +90,36 @@ describe('api client', () => {
     const posts = calls.filter((c) => c.method === 'POST')
     expect(posts.map((c) => c.headers['x-csrf-token'])).toEqual(['pre-1', 'pre-2'])
     expect(posts[1]?.headers['idempotency-key']).toBe(posts[0]?.headers['idempotency-key'])
+  })
+
+  it('asks once for a step-up, then retries each refused request with its own idempotency key', async () => {
+    let elevated = false
+    const refused = { status: 403, body: { code: 'step-up-required', detail: 'Confirm it is you.' } }
+    const calls = mockFetch({
+      'POST /api/v1/locations': () => (elevated ? { status: 201, body: { id: 'l' } } : refused),
+      'GET /api/v1/api-keys': () => (elevated ? { status: 200, body: { data: [] } } : refused),
+    })
+    const confirm = vi.fn(async () => {
+      elevated = true
+      setCsrfToken('rotated')
+      return true
+    })
+    setStepUpHandler(confirm)
+    setCsrfToken('before')
+    const body = { name: 'A', time_zone: 'UTC', country_code: 'US' }
+    const [created] = await Promise.all([api.post('/api/v1/locations', { body, idempotencyKey: 'k-9' }), api.get('/api/v1/api-keys')])
+    expect(created).toEqual({ id: 'l' })
+    expect(confirm).toHaveBeenCalledTimes(1) // concurrent refusals share one prompt
+    const posts = calls.filter((c) => c.method === 'POST')
+    expect(posts.map((c) => c.headers['idempotency-key'])).toEqual(['k-9', 'k-9'])
+    expect(posts.map((c) => c.headers['x-csrf-token'])).toEqual(['before', 'rotated'])
+  })
+
+  it('surfaces step-up-required when the user cancels the prompt', async () => {
+    const calls = mockFetch({ 'GET /api/v1/api-keys': { status: 403, body: { code: 'step-up-required' } } })
+    setStepUpHandler(async () => false)
+    const error = await api.get('/api/v1/api-keys').catch((e: unknown) => e)
+    expect((error as ApiError).code).toBe('step-up-required')
+    expect(calls).toHaveLength(1)
   })
 })

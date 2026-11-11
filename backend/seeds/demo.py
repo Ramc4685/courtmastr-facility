@@ -12,7 +12,7 @@ from app.core.db.platform import resolve_tenant
 from app.core.db.session import tenant_session
 from app.core.settings import get_settings
 from app.modules.platform import service, staff
-from app.modules.platform.models import Identity, Location, StaffUser, UserLocationAccess
+from app.modules.platform.models import Identity, Location, StaffUser, Tenant, UserLocationAccess
 from seeds import access as access_seed
 from seeds import assessments as assessments_seed
 from seeds import billing, clients, documents, engagement, integrations, leagues, memberships, packages, pos, programs
@@ -57,6 +57,9 @@ def seed() -> None:
         tenant_id = tenant.id
 
     with tenant_session(tenant_id, actor=actor) as session:
+        # Demo accounts share one password and the e2e specs sign in as them in parallel, which a TOTP step
+        # (one use per 30 s) cannot serve; MFA stays optional here, and each run resets it (demo-accounts.md).
+        session.get(Tenant, tenant_id).staff_mfa_policy = "optional"
         roles = staff.ensure_system_roles(session)
         locations = {loc.slug: loc for loc in session.scalars(select(Location))}
         for data in LOCATIONS:

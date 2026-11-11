@@ -65,6 +65,7 @@ class TokenPurpose(StrEnum):
     EMAIL_VERIFY = "email_verify"
     EMAIL_CHANGE = "email_change"
     RELATIONSHIP_CONFIRM = "relationship_confirm"
+    MFA_CHALLENGE = "mfa_challenge"  # the pending sign-in between the first and second factor (S2)
 
 
 class SessionKind(StrEnum):
@@ -100,6 +101,7 @@ class Tenant(Timestamps, Base):
         UniqueConstraint("slug", name="uq_tenant_slug"),
         enum_check("status", TenantStatus),
         enum_check("staff_mfa_policy", MfaPolicy),
+        CheckConstraint("staff_idle_timeout_min BETWEEN 15 AND 60", name="staff_idle_timeout_min"),
         CheckConstraint("billing_cycle IN ('monthly', 'annual')", name="billing_cycle"),
         CheckConstraint(
             "email_sending_state IN ('active', 'marketing_paused', 'suspended')", name="email_sending_state"
@@ -125,6 +127,8 @@ class Tenant(Timestamps, Base):
     settings: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))
     # Staff may act only from these networks unless they hold platform.security.bypass_ip_allowlist (PLT-07).
     staff_ip_allowlist: Mapped[list[Any]] = mapped_column(ARRAY(CIDR), server_default=text("'{}'"))
+    # Staff web idle limit in minutes, 15 to 60 (security-baseline 5.1); NULL is the configured default.
+    staff_idle_timeout_min: Mapped[int | None] = mapped_column(info={"audit": "value"})
 
 
 class TenantDomain(TenantOwned, Timestamps, Base):
@@ -421,6 +425,38 @@ class AuthToken(TenantOwned, Timestamps, Base):
     consumed_at: Mapped[datetime | None]
 
 
+class MfaFactor(TenantOwned, Timestamps, Base):
+    """A second factor (ADR 0002 section 6). TOTP only; the secret is AES-GCM sealed with the tenant id as
+    associated data and never logged or audited. Unconfirmed until the first code is checked."""
+
+    __tablename__ = "mfa_factor"
+    __table_args__ = tenant_args(
+        *tfk("identity_id", "identity", ondelete="CASCADE", index=False),
+        UniqueConstraint("tenant_id", "identity_id", "kind", name="uq_mfa_factor_identity_kind"),
+        CheckConstraint("kind IN ('totp')", name="kind"),
+    )
+
+    identity_id: Mapped[UUID]
+    kind: Mapped[str] = mapped_column(server_default=text("'totp'"))
+    secret_encrypted: Mapped[str] = mapped_column(info={"audit": "never"})
+    confirmed_at: Mapped[datetime | None]
+    last_used_step: Mapped[int | None] = mapped_column(BigInteger)  # a used 30 s step is never accepted again
+
+
+class MfaRecoveryCode(TenantOwned, Timestamps, Base):
+    """One of ten single-use recovery codes; SHA-256 only (high-entropy secret, baseline 5.1)."""
+
+    __tablename__ = "mfa_recovery_code"
+    __table_args__ = tenant_args(
+        *tfk("identity_id", "identity", ondelete="CASCADE", index=False),
+        UniqueConstraint("tenant_id", "identity_id", "code_hash", name="uq_mfa_recovery_code"),
+    )
+
+    identity_id: Mapped[UUID]
+    code_hash: Mapped[str] = mapped_column(info={"audit": "never"})
+    used_at: Mapped[datetime | None]
+
+
 class AuthSession(TenantOwned, Timestamps, Base):
     """One row per sign-in, every secret hashed. Web: one sliding session token in the session cookie plus a
     CSRF token. Mobile: a short access token and a rotating refresh token."""
@@ -442,7 +478,8 @@ class AuthSession(TenantOwned, Timestamps, Base):
         enum_check("kind", SessionKind),
         CheckConstraint("(kind = 'impersonation') = (impersonator_staff_user_id IS NOT NULL)", name="impersonation"),
         CheckConstraint(
-            "revoked_reason IN ('sign_out', 'rotation_reuse', 'password_reset', 'admin', 'expired', 'disabled')",
+            "revoked_reason IN ('sign_out', 'rotation_reuse', 'password_reset', 'admin', 'expired', 'disabled', "
+            "'step_up', 'mfa_change')",
             name="revoked_reason",
         ),
     )

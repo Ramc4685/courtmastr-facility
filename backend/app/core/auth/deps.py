@@ -13,7 +13,7 @@ from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
 from app.core.auth import tokens
-from app.core.auth.permissions import STAFF_SURFACE
+from app.core.auth.permissions import CATALOGUE, STAFF_SURFACE, check_step_up
 from app.core.auth.principal import Principal
 from app.core.db.platform import TenantRef, resolve_tenant
 from app.core.db.session import open_tenant_session
@@ -162,8 +162,11 @@ def require(*keys: str) -> Callable[..., Ctx]:
         principal = ctx.principal
         if principal.kind not in STAFF_SURFACE:
             raise PermissionDenied("Staff only")
-        if keys and not any(principal.has(key) for key in keys):
+        held = [key for key in keys if principal.has(key)]
+        if keys and not held:
             raise PermissionDenied(f"Requires {keys[0]}", required=keys[0])
+        if held and all(CATALOGUE[key].needs_step_up for key in held if key in CATALOGUE):
+            check_step_up(principal, held[0])  # every key that admits the caller carries `+`
         return ctx
 
     dependency.accepts_api_key = bool(keys)

@@ -49,10 +49,15 @@ class Permission:
         return self.key.split(".", 1)[0]
 
     @property
+    def needs_step_up(self) -> bool:
+        return STEP_UP in self.flags
+
+    @property
     def is_owner_only(self) -> bool:
         return "OO" in self.flags  # never grantable, not in the role editor
 
 
+STEP_UP = "+"  # rbac-matrix.md section 4: a recent re-authentication is part of the grant
 CATALOGUE: dict[str, Permission] = {}
 # Principals that act on the staff/admin surface with catalogue keys (an API key is that surface, overview 3.15).
 STAFF_SURFACE = frozenset({"staff", "api_key"})
@@ -72,16 +77,31 @@ def system_role_grants(system_key: str) -> dict[str, str]:
     return {p.key: p.roles[system_key] for p in CATALOGUE.values() if system_key in p.roles}
 
 
+def require_elevated(principal: Principal, key: str | None = None) -> None:
+    """Step-up (ADR 0002 section 4, owner decision 4): the session must have re-authenticated within the last
+    10 minutes. API keys never are (rbac-matrix 11 keeps `+` keys off them), so they cannot pass."""
+    if principal.kind != "system" and not principal.elevated:
+        raise PermissionDenied("Confirm it is you to continue.", code="step-up-required", required=key)
+
+
+def check_step_up(principal: Principal, key: str) -> None:
+    """The one enforcement point for `+` keys, called by authorize() and the router gate require()."""
+    permission = CATALOGUE.get(key)
+    if permission is not None and permission.needs_step_up:
+        require_elevated(principal, key)
+
+
 def authorize(principal: Principal, key: str, *, location_id: UUID | None = None) -> None:
     """The real gate: services call this on the loaded aggregate, whoever the caller is.
 
-    403 when the principal lacks the key; 404 when the record is outside its location set (never
-    reveal existence).
+    403 when the principal lacks the key, or `step-up-required` when the key carries `+` and the session is not
+    recently re-authenticated; 404 when the record is outside its location set (never reveal existence).
     """
     if principal.kind == "system":
         return
     if principal.kind not in STAFF_SURFACE or key not in principal.permissions:
         raise PermissionDenied(f"Requires {key}", required=key)
+    check_step_up(principal, key)
     if location_id is not None and principal.location_ids is not None and location_id not in principal.location_ids:
         raise NotFound()
 

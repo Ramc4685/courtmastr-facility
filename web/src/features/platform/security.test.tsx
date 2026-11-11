@@ -24,7 +24,7 @@ function renderPage(patch: (body: { staff_ip_allowlist: string[] }) => { status:
   const calls = mockFetch({
     'GET /api/v1/auth/session': { status: 200, body: { csrf_token: 'c' } },
     'GET /api/v1/me': { status: 200, body: me },
-    'GET /api/v1/security-settings': { status: 200, body: { staff_ip_allowlist: ['203.0.113.0/24'] } },
+    'GET /api/v1/security-settings': { status: 200, body: { staff_ip_allowlist: ['203.0.113.0/24'], staff_mfa_policy: 'privileged', staff_idle_timeout_min: 30 } },
     'PATCH /api/v1/security-settings': (call) => patch(call.body as { staff_ip_allowlist: string[] }),
   })
   render(

@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { ToastProvider } from '../components/Toast'
 import { SignInPage } from '../features/auth/SignInPage'
+import { StepUpDialog } from '../features/auth/StepUpDialog'
 import { ClientPickerDemo } from '../features/clients/ClientPickerDemo'
 import { ClientProfilePage } from '../features/clients/ClientProfilePage'
 import { ClientsPage } from '../features/clients/ClientsPage'
@@ -35,6 +36,7 @@ import { RolesPage } from '../features/platform/RolesPage'
 import { StaffUserPage } from '../features/platform/StaffUserPage'
 import { StaffUsersPage } from '../features/platform/StaffUsersPage'
 import { SecuritySettingsPage } from '../features/platform/SecuritySettingsPage'
+import { AccountSecurityPage } from '../features/platform/AccountSecurityPage'
 import { TenantSettingsPage } from '../features/platform/TenantSettingsPage'
 import { RentalSetupPage } from '../features/rentals/RentalSetupPage'
 import { RentalsPage } from '../features/rentals/RentalsPage'
@@ -118,6 +120,7 @@ export function AppRoutes() {
         <Route path="audit" element={<RequirePermission permission="platform.audit.read"><AuditLogPage /></RequirePermission>} />
         <Route path="integrations" element={<IntegrationsPage />} />
         <Route path="settings" element={<RequirePermission permission="platform.tenant.update"><TenantSettingsPage /></RequirePermission>} />
+        <Route path="account/security" element={<AccountSecurityPage />} />
         <Route path="settings/security" element={<RequirePermission permission="platform.security.manage"><SecuritySettingsPage /></RequirePermission>} />
         <Route path="billing" element={<RequirePermission permission="billing.charge.read"><BillingLayout /></RequirePermission>}>
           <Route index element={<WorkbenchPage />} />
@@ -203,6 +206,7 @@ export function App() {
           <BrowserRouter future={ROUTER_FUTURE}>
             <AppRoutes />
           </BrowserRouter>
+          <StepUpDialog />
         </ToastProvider>
       </AuthProvider>
     </QueryClientProvider>

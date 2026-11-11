@@ -21,6 +21,7 @@ ANONYMOUS = {
     "/health/live", "/health/ready", "/public/locations", "/operator/tenants",
     "/auth/sign-in", "/auth/magic-links", "/auth/magic-links/consume", "/auth/password-resets",
     "/auth/password-resets/consume", "/auth/invitations/accept", "/auth/refresh", "/auth/pre-session",
+    "/auth/mfa/enrolment", "/auth/mfa/verify",  # authenticated by the pending sign-in's single-purpose token
     "/webhooks/{provider}",  # authenticated by the provider's signature, not a session
     # authenticated by the paired device's kiosk cookie (pairing: the single-use code), not a session
     "/kiosk/pair", "/kiosk/config", "/kiosk/lookups", "/kiosk/check-ins", "/kiosk/exit",

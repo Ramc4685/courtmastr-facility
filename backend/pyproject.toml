@@ -19,6 +19,7 @@ dependencies = [
     "nh3>=0.3.7",
     "fpdf2>=2.9.0",
     "boto3>=1.44.0",
+    "pyotp>=2.10",
 ]
 
 [dependency-groups]

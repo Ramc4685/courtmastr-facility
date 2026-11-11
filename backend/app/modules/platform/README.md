@@ -16,7 +16,7 @@ scope, the audit trail read API and tenant onboarding. Calls no other context.
 
 Other contexts use `service`, `auth` and `staff` only, never the models.
 
-Not built yet (stubs in `docs/api/openapi-core.yaml`): MFA and step-up, OIDC, per-location networks
+Not built yet (stubs in `docs/api/openapi-core.yaml`): OIDC, per-location networks
 (`/locations/{id}/networks`), entitlements and subscription, brand assets, imports, support access, audit
 export. API keys live in `integrations`, kiosk devices in `access`.
 
@@ -24,11 +24,10 @@ export. API keys live in `integrations`, kiosk devices in `access`.
 
 Later modules must not assume these exist.
 
-- **Auth:** no OIDC (the brief lists it for module 1), no MFA, no step-up (`+` permissions are not
-  re-authenticated): chips S2 and S3. No new-device sign-in notification (baseline 5.1; deferred, see
-  `docs/status/phase8-s1-signin.md`). Session lifetimes are still the config values (staff web idle 12 h,
-  absolute 7 days), not the baseline's 30 minutes and 12 hours. Closed by S1: cookies and CSRF, per-identity
-  and per-address rate limits, lockout, the common-password list and the staff IP allow-list (section below).
+- **Auth:** no OIDC (the brief lists it for module 1): chip S3. No new-device sign-in notification (baseline
+  5.1; deferred, see `docs/status/phase8-s1-signin.md`). No staff reset of another user's lost factor. Closed by
+  S1: cookies and CSRF, per-identity and per-address rate limits, lockout, the common-password list and the staff
+  IP allow-list. Closed by S2: TOTP MFA, step-up and baseline session lifetimes (sections below).
 - **Permissions:** subject-scoped grants are stored but not applied; `Me.entitlements` is always empty.
 - **Kernel:** no `import-linter` boundary contracts, no mypy. Scheduler, purges and dead
   letters: see "Jobs and retention" below. No `job_run` table yet (the once-per-local-day guard has no caller).
@@ -155,6 +154,44 @@ bytes of purged rows and logs objects that have no row.
   matching live in `core/networks.py`, shared with POS registers and the time clock. Assumption: the brief's
   tenant-wide list replaces, for now, the data model's per-location networks plus `staff_user.ip_policy`
   (`unknowns` "IP restriction scope" says tenant-wide); `ip_policy` is stored but not yet consulted.
+
+## MFA, step-up and session lifetimes (Phase 8 chip S2)
+
+Evidence and open questions: `docs/status/phase8-s2-mfa.md`. Migration `1230`.
+
+- **TOTP** (`mfa.py`, pyotp): RFC 6238, 30 s, 6 digits, one step of drift either way, no replay
+  (`mfa_factor.last_used_step`; the row is locked while a code is checked). The secret is sealed with
+  `core.crypto` under the tenant id, never logged or audited (`audit: never`), and leaves the server once, as
+  the otpauth URI at enrolment; the web draws the QR code locally as SVG. Ten recovery codes `xxxxx-xxxxx`,
+  stored as SHA-256 (`mfa_recovery_code`), shown once, single use, replaced as a set by regenerate.
+- **Pending sign-in.** A right password, magic link, reset or invitation for an identity that has a factor
+  or is required to have one returns `202 {mfa_token, expires_at, enrolment_required}` instead of a session:
+  an `fhm_` `auth_token` (purpose `mfa_challenge`, 5 minutes, a newer one supersedes it) that authenticates
+  nothing else. `POST /auth/mfa/verify` takes a TOTP or recovery code (a recovery code is spent);
+  `POST /auth/mfa/enrolment` first when `enrolment_required`. Both rate limited (`mfa`, and `mfa-challenge`
+  per token). The same applies to mobile bearer sign-in. A wrong code counts against the password lockout,
+  and neither the password stage nor a redeemed link clears the count while a code is still due.
+- **Policy** (`tenant.staff_mfa_policy`, on `/security-settings`): `privileged` (product default: Owner and
+  Admin system roles), `all` staff, or `optional`. Members may enrol but are never required. A required user
+  without a factor is walked through enrolment at next sign-in and cannot turn MFA off (`mfa-required`).
+  Relaxing the policy is Owner-only (`owner-only`); every change is audited with old and new values. The demo
+  seed and the test tenants use `optional` so password-only sign-ins keep working.
+- **Own factor** (`/me/mfa`, staff screen `/account/security`): status, enrol + confirm (signs out the
+  user's other sessions, sends an email), disable, regenerate. Enrol, disable and regenerate need step-up.
+- **Step-up** (`POST /auth/step-up`, ADR 0002 section 4): the TOTP or recovery code when enrolled, else the
+  password (refused with `mfa-enrolment-required` once the policy requires MFA of that user). It revokes the
+  current session (`step_up`) and starts a new one through `_start_session` (new id and CSRF token) that keeps
+  the old absolute limit and is elevated for 10 minutes (`auth_session.elevated_until_at`). A fresh password
+  sign-in, or one completed with MFA, is elevated too; a magic-link sign-in without MFA is not. Enforced in one
+  place for every `+` key: `core.auth.permissions.check_step_up`, called by `authorize()` and by the router
+  gate `require()` (when every key the caller holds for the route is a `+` key), refusing with
+  `403 step-up-required`. API keys and other non-session principals never satisfy it. The web client handles
+  the refusal generically (`StepUpDialog`, prompt once, retry once with the same Idempotency-Key).
+- **Session lifetimes** (`config/app.yaml` `auth.session_lifetimes`): staff web idle 30 min (tenant setting
+  `staff_idle_timeout_min`, 15 to 60) and absolute 12 h; member web idle 30 days and absolute 90 days; mobile
+  unchanged. Idle expiry slides on use, never past the absolute limit.
+- **IP allow-list**: unchanged from S1, including the Owner and Admin bypass (the owner has been asked
+  whether to remove it).
 
 ## Security hardening (wave 1, S-07)
 

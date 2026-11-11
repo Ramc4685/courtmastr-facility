@@ -43,11 +43,13 @@ auth:
   password_min_length: 12
   cookie_secure: false                # true behind TLS; also switches the cookie names to __Host-fh_*
   argon2: {memory_kib: 65536, time_cost: 3, parallelism: 4}
-  sessions:                           # idle slides on refresh; absolute does not (ADR 0002 section 4)
-    staff_web:     {idle_hours: 12,   absolute_days: 7}
-    staff_mobile:  {idle_hours: 12,   absolute_days: 7}
-    client_web:    {idle_hours: 720,  absolute_days: 180}
-    client_mobile: {idle_hours: 2160, absolute_days: 400}
+  step_up_min: 10                     # a re-authentication satisfies `+` keys this long
+  mfa_challenge_ttl_min: 5            # pending sign-in between the first and second factor
+  sessions:                           # idle slides on use; absolute does not (security-baseline 5.1)
+    staff_web:     {idle_min: 30,     absolute_hours: 12}    # idle: tenant may set 15 to 60
+    staff_mobile:  {idle_min: 720,    absolute_hours: 168}
+    client_web:    {idle_min: 43200,  absolute_hours: 2160}  # 30 days idle, 90 days absolute (D2)
+    client_mobile: {idle_min: 129600, absolute_hours: 9600}
 rate_limit:                           # security-baseline 6; fixed windows. closed: refuse when Redis is down
   enabled: true
   buckets:
@@ -58,6 +60,9 @@ rate_limit:                           # security-baseline 6; fixed windows. clos
     link-address:     {limit: 3,  window_sec: 3600, closed: true}   # per target address, link and reset
     consume:          {limit: 20, window_sec: 900,  closed: true}   # token confirm, per IP
     document-link:    {limit: 20, window_sec: 900,  closed: true}   # token confirm (DOC-04), per IP
+    mfa:              {limit: 10, window_sec: 60,   closed: true}   # second-factor code, per IP
+    mfa-challenge:    {limit: 5,  window_sec: 300,  closed: true}   # codes per pending sign-in
+    step-up:          {limit: 10, window_sec: 300,  closed: true}   # re-authentication, per IP
     refresh:          {limit: 60, window_sec: 60}                   # mobile token rotation, per IP
     default:          {limit: 20, window_sec: 60}                   # any other named bucket, per IP
 audit:

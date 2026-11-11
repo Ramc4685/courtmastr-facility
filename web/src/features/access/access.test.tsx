@@ -50,7 +50,7 @@ describe('CheckInPage', SCREEN, () => {
       'POST /api/v1/check-ins/evaluate': { status: 200, body: decision(true) },
       'POST /api/v1/check-ins': { status: 201, body: { check_in: row, alerts: [], client: card } },
     })
-    expect(await screen.findByRole('table', { name: 'Recent check-ins' })).toHaveTextContent('Avery Zephyr')
+    expect(await screen.findByRole('table', { name: 'Recent check-ins' }, { timeout: 5000 })).toHaveTextContent('Avery Zephyr') // first render pays the cold transform
     ;[...'M100', 'Enter'].forEach((key) => fireEvent.keyDown(document.body, { key }))
     const status = await screen.findByRole('heading', { name: 'Avery Zephyr', level: 3 })
     const panel = status.closest('div[aria-live]') as HTMLElement

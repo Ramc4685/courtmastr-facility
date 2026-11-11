@@ -375,6 +375,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/mfa/enrolment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Mfa Challenge Enrolment
+         * @description Forced enrolment inside a pending sign-in: a new TOTP secret as an otpauth URI (render the QR on the
+         *     device). Errors: mfa-challenge-invalid, mfa-already-enrolled.
+         */
+        post: operations["startMfaChallengeEnrolment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/mfa/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Mfa Challenge
+         * @description Complete a pending sign-in with a TOTP code or a recovery code (consumed); for a forced enrolment, the
+         *     first code of the new factor, and the response carries the ten recovery codes once. Errors:
+         *     mfa-challenge-invalid, mfa-code-invalid, mfa-enrolment-not-started, identity-locked, rate-limited.
+         */
+        post: operations["verifyMfaChallenge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/password": {
         parameters: {
             query?: never;
@@ -550,8 +593,8 @@ export interface paths {
         put?: never;
         /**
          * Sign In
-         * @description Sign in with email and password. Errors: invalid-credentials, identity-locked, ip-not-allowed,
-         *     csrf-failed, rate-limited.
+         * @description Sign in with email and password. 202 with an MFA challenge when a second factor comes next. Errors:
+         *     invalid-credentials, identity-locked, ip-not-allowed, csrf-failed, rate-limited.
          */
         post: operations["signIn"];
         delete?: never;
@@ -574,6 +617,28 @@ export interface paths {
          * @description Revoke the current session.
          */
         post: operations["signOut"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/step-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Step Up
+         * @description Re-authenticate (TOTP or recovery code when enrolled, else password) so `+` permissions work for 10
+         *     minutes. The session rotates: new cookie and CSRF token (web) or token pair (mobile). Errors:
+         *     reauthentication-failed, identity-locked, step-up-unavailable, rate-limited.
+         */
+        post: operations["stepUp"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4813,6 +4878,93 @@ export interface paths {
         get: operations["getMe"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/mfa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Own Mfa
+         * @description Whether two-step verification is on for the caller, and whether their role requires it.
+         */
+        get: operations["getOwnMfa"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/mfa/recovery-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Regenerate Own Recovery Codes
+         * @description Replace every recovery code with ten new ones (needs step-up), shown once.
+         */
+        post: operations["regenerateOwnRecoveryCodes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/mfa/totp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Own Mfa Enrolment
+         * @description Start TOTP enrolment (needs step-up): the secret as an otpauth URI. Errors: step-up-required,
+         *     mfa-already-enrolled.
+         */
+        post: operations["startOwnMfaEnrolment"];
+        /**
+         * Disable Own Mfa
+         * @description Turn two-step verification off (needs step-up; refused when the caller's role requires it). Errors:
+         *     step-up-required, mfa-required.
+         */
+        delete: operations["disableOwnMfa"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/mfa/totp/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Own Mfa Enrolment
+         * @description Turn TOTP on with the first code; returns ten single-use recovery codes, shown once. Other sessions are
+         *     signed out. Errors: mfa-code-invalid, mfa-enrolment-not-started.
+         */
+        post: operations["confirmOwnMfaEnrolment"];
         delete?: never;
         options?: never;
         head?: never;
@@ -12444,6 +12596,8 @@ export interface components {
             access_token?: string | null;
             /** Csrf Token */
             csrf_token?: string | null;
+            /** Elevated Until At */
+            elevated_until_at?: string | null;
             /**
              * Id
              * Format: uuid
@@ -12467,6 +12621,8 @@ export interface components {
             /** Mfa Verified At */
             mfa_verified_at?: string | null;
             principal: components["schemas"]["PrincipalOut"];
+            /** Recovery Codes */
+            recovery_codes?: string[] | null;
             /** Refresh Token */
             refresh_token?: string | null;
         };
@@ -19866,6 +20022,65 @@ export interface components {
             name?: string | null;
             /** Subject */
             subject?: string | null;
+        };
+        /** MfaChallengeCode */
+        MfaChallengeCode: {
+            /** Code */
+            code: string;
+            /** Mfa Token */
+            mfa_token: string;
+        };
+        /**
+         * MfaChallengeOut
+         * @description A pending sign-in: send mfa_token with a code to /auth/mfa/verify (after /auth/mfa/enrolment when
+         *     enrolment_required). It grants nothing else and expires in minutes.
+         */
+        MfaChallengeOut: {
+            /** Enrolment Required */
+            enrolment_required: boolean;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Mfa Token */
+            mfa_token: string;
+        };
+        /** MfaChallengeToken */
+        MfaChallengeToken: {
+            /** Mfa Token */
+            mfa_token: string;
+        };
+        /** MfaCode */
+        MfaCode: {
+            /** Code */
+            code: string;
+        };
+        /**
+         * MfaEnrolmentOut
+         * @description Shown once. Render otpauth_uri as a QR code on the device; never send it anywhere.
+         */
+        MfaEnrolmentOut: {
+            /** Otpauth Uri */
+            otpauth_uri: string;
+            /** Secret */
+            secret: string;
+        };
+        /** MfaRecoveryCodesOut */
+        MfaRecoveryCodesOut: {
+            /** Recovery Codes */
+            recovery_codes: string[];
+        };
+        /** MfaStatus */
+        MfaStatus: {
+            /** Confirmed At */
+            confirmed_at: string | null;
+            /** Enrolled */
+            enrolled: boolean;
+            /** Recovery Codes Remaining */
+            recovery_codes_remaining: number;
+            /** Required */
+            required: boolean;
         };
         /** MissingDocument */
         MissingDocument: {
@@ -28017,16 +28232,29 @@ export interface components {
         };
         /**
          * SecuritySettings
-         * @description Tenant security policy (PLT-07). An empty staff_ip_allowlist means staff may act from anywhere.
+         * @description Tenant security policy. An empty staff_ip_allowlist means staff may act from anywhere (PLT-07).
+         *     staff_mfa_policy: who must use two-step verification (privileged = Owner and Admin). staff_idle_timeout_min:
+         *     minutes a staff web session survives unused.
          */
         SecuritySettings: {
+            /** Staff Idle Timeout Min */
+            staff_idle_timeout_min: number;
             /** Staff Ip Allowlist */
             staff_ip_allowlist: string[];
+            /**
+             * Staff Mfa Policy
+             * @enum {string}
+             */
+            staff_mfa_policy: "optional" | "privileged" | "all";
         };
         /** SecuritySettingsUpdate */
         SecuritySettingsUpdate: {
+            /** Staff Idle Timeout Min */
+            staff_idle_timeout_min?: number | null;
             /** Staff Ip Allowlist */
             staff_ip_allowlist?: string[] | null;
+            /** Staff Mfa Policy */
+            staff_mfa_policy?: ("optional" | "privileged" | "all") | null;
         };
         /** Seeding */
         Seeding: {
@@ -29254,6 +29482,16 @@ export interface components {
              * Format: date
              */
             to_on: string;
+        };
+        /**
+         * StepUpRequest
+         * @description A code when two-step verification is on (TOTP or a recovery code), otherwise the password.
+         */
+        StepUpRequest: {
+            /** Code */
+            code?: string | null;
+            /** Password */
+            password?: string | null;
         };
         /** StockMovementCreate */
         StockMovementCreate: {
@@ -31799,7 +32037,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuthSessionOut"];
+                    "application/json": components["schemas"]["AuthSessionOut"] | components["schemas"]["MfaChallengeOut"];
+                };
+            };
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaChallengeOut"];
                 };
             };
             /** @description Validation Error */
@@ -31856,6 +32103,81 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["TokenConsumeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthSessionOut"] | components["schemas"]["MfaChallengeOut"];
+                };
+            };
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaChallengeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    startMfaChallengeEnrolment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfaChallengeToken"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaEnrolmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verifyMfaChallenge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfaChallengeCode"];
             };
         };
         responses: {
@@ -31962,7 +32284,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuthSessionOut"];
+                    "application/json": components["schemas"]["AuthSessionOut"] | components["schemas"]["MfaChallengeOut"];
+                };
+            };
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaChallengeOut"];
                 };
             };
             /** @description Validation Error */
@@ -32117,7 +32448,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuthSessionOut"];
+                    "application/json": components["schemas"]["AuthSessionOut"] | components["schemas"]["MfaChallengeOut"];
+                };
+            };
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaChallengeOut"];
                 };
             };
             /** @description Validation Error */
@@ -32146,6 +32486,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    stepUp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StepUpRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthSessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
@@ -43088,6 +43461,117 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Me"];
+                };
+            };
+        };
+    };
+    getOwnMfa: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaStatus"];
+                };
+            };
+        };
+    };
+    regenerateOwnRecoveryCodes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaRecoveryCodesOut"];
+                };
+            };
+        };
+    };
+    startOwnMfaEnrolment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaEnrolmentOut"];
+                };
+            };
+        };
+    };
+    disableOwnMfa: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    confirmOwnMfaEnrolment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfaCode"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaRecoveryCodesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
