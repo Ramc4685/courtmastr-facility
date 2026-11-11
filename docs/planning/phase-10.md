@@ -20,12 +20,12 @@ and does not make the change.
 
 | Chip | Features | Model | Owns | Migrations | Starts |
 |---|---|---|---|---|---|
-| A. Scheduling edges | RES-01, SCH-03, SCH-05, SCH-07, SCH-09, SCH-10, SCH-11, SCH-18 | Opus | `scheduling`, `resources`, `web/src/features/{scheduling,resources}` | 1001 to 1019 | batch 1 |
-| B. Access rules and visits | MEM-20, CHK-02, CHK-08, CHK-09, CHK-10 (CHK-17 parked) | Opus | `access` backend and settings screens; one call into `memberships.service.record_visit` | 1021 to 1039 | batch 1 |
-| D. Staff pay and shifts | STF-02, STF-03, STF-04, STF-10, STF-15 | Sonnet | `staff`, `web/src/features/staff` | 1061 to 1079 | batch 1 |
-| E. Clients, memberships and POS desk | CLI-11, CLI-20, POS-08, POS-14, POS-22, MEM-13, PKG-12, plus the MEM-14 and MEM-20 screens | Sonnet | `clients`, `memberships` and `packages` web, `pos`, `packages` service | 1081 to 1089 | batch 2, when a slot frees |
-| C. Check-in desk | MEM-19, CHK-04, CHK-07, CHK-12, CHK-21 | Opus | `access` (after B merges), check-in window web | 1041 to 1059 | batch 2, after B |
-| F. Client files | CLI-12, CLI-09 | Sonnet | `clients` photo and attachment routes and screens; photo on the check-in card and ID card | 1091 to 1099 | when Phase 8's uploads land |
+| A. Scheduling edges | RES-01, SCH-03, SCH-05, SCH-07, SCH-09, SCH-10, SCH-11, SCH-18 | Opus | `scheduling`, `resources`, `web/src/features/{scheduling,resources}` | 1301 to 1319 | batch 1 |
+| B. Access rules and visits | MEM-20, CHK-02, CHK-08, CHK-09, CHK-10 (CHK-17 parked) | Opus | `access` backend and settings screens; one call into `memberships.service.record_visit` | 1321 to 1339 | batch 1 |
+| D. Staff pay and shifts | STF-02, STF-03, STF-04, STF-10, STF-15 | Sonnet | `staff`, `web/src/features/staff` | 1361 to 1379 | batch 1 |
+| E. Clients, memberships and POS desk | CLI-11, CLI-20, POS-08, POS-14, POS-22, MEM-13, PKG-12, plus the MEM-14 and MEM-20 screens | Sonnet | `clients`, `memberships` and `packages` web, `pos`, `packages` service | 1381 to 1389 | batch 2, when a slot frees |
+| C. Check-in desk | MEM-19, CHK-04, CHK-07, CHK-12, CHK-21 | Opus | `access` (after B merges), check-in window web | 1341 to 1359 | batch 2, after B |
+| F. Client files | CLI-12, CLI-09 | Sonnet | `clients` photo and attachment routes and screens; photo on the check-in card and ID card | 1391 to 1399 | batch 2 (not blocked) |
 
 8 + 6 + 5 + 7 + 5 + 2 = 33 features.
 
@@ -82,12 +82,14 @@ and does not make the change.
 - PKG-12: book all linked sessions, speed register, sell a package inline while registering.
 - Question 16 (if approved): a manager override for package removal after sessions were used, under its own key.
 
-### F. Client files (blocked on Phase 8)
+### F. Client files
 
-- CLI-12 photo (`client.photo_file_id`) and CLI-09 note attachments, on Phase 8's `stored_file` and upload
-  flow (security-baseline 8). Interface asked of Phase 8: a `stored_file` table that contexts reference with
-  `tfk`, a scoped loader that returns only `ready` files of an expected purpose, a signed download URL, a web
-  upload component, the purposes `client_photo` and `client_attachment`, and erasure of a client's files.
+- CLI-12 photo (`client.photo_file_id`) and CLI-09 note attachments. Not blocked: `stored_file` and
+  `platform.files` are already on `main` (the backlog was stale). Agreed with Phase 8 on 2026-11-11: call
+  `files.clean`, `files.store(purpose="client_photo" | "client_attachment")` and `files.read` as they are;
+  FK with `tfk("photo_file_id", "stored_file")`; serve bytes through a permission-checked `clients` route (as
+  `documents` does) until Phase 8 adds `files.download_url` and `files.remove`. Never edit `ports/storage.py`,
+  `platform/files.py` or `StoredFile`.
 
 ## Shared files
 
@@ -101,13 +103,12 @@ and does not make the change.
 | `billing/*` | Phase 9 (handover, do not edit) |
 
 Migrations: the chain head is `0953`. Each chip's first revision has `down_revision = "0953"`; the coordinator
-re-points it at merge. Phase 10 uses `1001` to `1099` only.
+re-points it at merge. Phase 10 uses `1301` to `1399` only (Phase 8 has `12xx`).
 
 ## Order and dependencies
 
 1. Batch 1 in parallel: A, B, D (three contexts, no shared domain files).
-2. E takes the first free slot. C starts when B is merged (same context). F starts when Phase 8 reports the
-   upload flow merged on its branch and the owner agrees how the two phase branches meet.
+2. E takes the first free slot. C starts when B is merged (same context). F takes a slot after E or C.
 3. After every merge: `make lint test web-check web-test web-e2e` on the phase branch.
 
 ## Done, per chip
@@ -115,7 +116,8 @@ re-points it at merge. Phase 10 uses `1001` to `1099` only.
 - Tests on the real PostgreSQL as `fh_app`; every new table in `populate()`; isolation, location-scope,
   portal-schema and security suites green without allow-list edits; 80% domain coverage holds.
 - Both permission gates, audit and events on every new command; new keys in `permissions.py` and the RBAC matrix.
-- A Playwright spec with an axe scan for every new screen; colours from the CSS variables.
+- A Playwright spec with an axe scan for every new screen, signing in through the shared helper (Phase 8 will
+  rename the session cookies); colours from the CSS variables.
 - `make lint test web-check web-test web-e2e` green in the chip's lane; one Conventional Commit per chip.
 - Module README and status rows updated; assumptions written down, not guessed.
 
@@ -142,7 +144,7 @@ table below is the record.
 
 ## Handovers
 
-- To Phase 8: the upload interface above; one `app/scheduler.py` line each for the task reminder and the
+- To Phase 8: `files.download_url` and `files.remove` (its chip K1); one `app/scheduler.py` line each for the task reminder and the
   low-stock digest actors; where the tenant-wide minor-age setting lives.
 - To Phase 9: none yet. Chips record here any billing change they need (likely candidates: CHK-21 card entry
   at the window, the question 16 reversal).
