@@ -462,12 +462,15 @@ def linked_resource_id(session: Session, staff_user_id: UUID | None) -> UUID | N
 
 
 def set_linked_resource(session: Session, staff_user_id: UUID, resource_id: UUID) -> None:
-    """Point a staff user at their trainer resource. Internal: resources.create_resource authorizes."""
+    """Point a staff user at their trainer resource. Internal: resources.create_resource authorizes. An existing
+    link to another resource is never overwritten silently (W2-03): unlink it first."""
     from app.modules.platform.models import StaffUser
 
     user = session.get(StaffUser, staff_user_id)
     if user is None:
         raise ValidationFailed("Unknown staff user.", pointer="/staff_user_id")
+    if user.linked_resource_id not in (None, resource_id):
+        raise Conflict("That staff user already has a trainer calendar.", code="already-linked")
     user.linked_resource_id = resource_id
     session.flush()
 

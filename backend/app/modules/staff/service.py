@@ -141,6 +141,7 @@ def create_payee(session: Session, principal: Principal, data: dict) -> StaffPay
     authorize(principal, PAYEE_MANAGE, location_id=location_id)
     staff_user_id = data.get("staff_user_id")
     if staff_user_id is not None:
+        authorize(principal, PAY_MANAGE)  # the linked login gets the pay, as on update_payee (W2-03)
         _employee(session, staff_user_id, location_id)
     elif data["kind"] == "salesperson":
         raise ValidationFailed("A salesperson is a staff user.", pointer="/staff_user_id")
@@ -928,6 +929,9 @@ def get_pay_statement(session: Session, principal: Principal, statement_id: UUID
 def update_pay_statement(session: Session, principal: Principal, statement_id: UUID, data: dict) -> PayStatement:
     """The manual "additional income" a manager adds before finalizing (STF-09)."""
     statement = _statement(session, principal, statement_id, RUN_CREATE)
+    payee = session.get(StaffPayee, statement.staff_payee_id) if statement.staff_payee_id else None
+    # W2-05: nobody below Admin adds income to their own pay, as an employee or as a linked payee.
+    _not_self(principal, statement.staff_user_id or (payee and payee.staff_user_id))
     run = session.get(PayrollRun, statement.payroll_run_id)
     if run.status != "calculated":
         raise Conflict("A finalized or voided run is frozen.", code="invalid-state-transition")

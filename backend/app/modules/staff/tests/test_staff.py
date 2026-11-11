@@ -2,6 +2,7 @@
 instructor assignment and payroll runs, each through the API with both permission gates and location scope."""
 
 from datetime import timedelta
+from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -9,8 +10,12 @@ from sqlalchemy import func, select
 
 from app.core import clock
 from app.core.audit import AuditEvent
+from app.core.auth import Principal
+from app.core.db.session import tenant_session
+from app.core.errors import PermissionDenied
 from app.core.events import OutboxEvent
 from app.modules.scheduling.tests.helpers import API, DAY, at, book, facility, local, ok
+from app.modules.staff import service
 from conftest import PASSWORD, add_staff, login, make_tenant, new_client, populate, scalar
 
 
@@ -441,3 +446,38 @@ def test_other_location_admin_sees_nothing_and_cannot_run_tenant_wide(client, te
     assert ok(client.get(f"{API}/payroll-runs", headers=admin), 200)["data"] == []
     assert client.put(f"{API}/staff-settings", headers=admin, json={}).status_code == 403
     assert client.post(f"{API}/job-classifications", headers=admin, json={"name": "Coach"}).status_code == 403
+
+
+# --- wave 2 hardening (docs/status/security-wave2.md) ------------------------------------------------------
+
+
+def test_w2_03_linking_a_login_to_a_payee_needs_the_pay_key_and_never_overwrites(client, tenant, owner, f):
+    _, coach_id = add_staff(tenant, "coach", location_ids=[f.location])
+    manager_email, _ = add_staff(tenant, "manager", location_ids=[f.location])
+    manager = login(client, tenant, manager_email)  # holds resources.resource.manage, not staff.pay_rate.manage
+    body = {"kind": "trainer", "display_name": "Pat", "location_id": f.location, "staff_user_id": str(coach_id)}
+    assert client.post(f"{API}/staff-payees", headers=manager, json=body).status_code == 403
+    unlinked = body | {"staff_user_id": None, "display_name": "Pat unlinked"}
+    assert _post(client, manager, "/staff-payees", unlinked)["staff_user_id"] is None
+    _post(client, owner, "/staff-payees", body)  # links the coach to a new calendar column
+    relink = client.post(
+        f"{API}/staff-payees", headers=owner, json=body | {"display_name": "Pat 2", "resource_id": f.coach}
+    )
+    assert _code(relink, 409) == "already-linked"
+
+
+def test_w2_05_a_payroll_runner_never_adds_income_to_their_own_statement(client, tenant, owner, f):
+    desk_email, desk_id = add_staff(tenant, "front_desk", location_ids=[f.location])
+    job = _hourly(client, owner, desk_id)
+    _post(client, owner, "/time-entries", {"staff_user_id": str(desk_id), "location_id": f.location,
+                                           "job_classification_id": job, "clock_in_at": at(9), "clock_out_at": at(11),
+                                           "edit_reason": "Manual"})  # fmt: skip
+    with clock.freeze(DAY + timedelta(days=1)):
+        owner = login(client, tenant)
+        period = {"location_id": f.location, "period_starts_on": "2031-05-01", "period_ends_on": "2031-05-10"}
+        run = _post(client, owner, "/payroll-runs", period)
+        mine = ok(client.get(f"{API}/payroll-runs/{run['id']}/statements", headers=owner), 200)["data"][0]
+    runner = Principal(kind="staff", tenant_id=tenant.id, staff_user_id=desk_id,
+                       permissions={service.RUN_CREATE: "all"})  # a custom role below Admin  # fmt: skip
+    with tenant_session(tenant.id, actor=runner) as session, pytest.raises(PermissionDenied):
+        service.update_pay_statement(session, runner, UUID(mine["id"]), {"additional_income_minor": 500})

@@ -46,7 +46,11 @@ A sale already on a finalized run is flagged `was_paid_before` but still counted
 ## Assumptions (written down, not guessed)
 
 - A trainer payee is created by `resources.resource.manage` (it creates or adopts a calendar column).
-- Changing a payee's linked staff login also needs `staff.pay_rate.manage`: the login is who is paid.
+- Setting a payee's linked staff login, on create or on update, also needs `staff.pay_rate.manage`: the login
+  is who is paid (W2-03). A staff user already linked to another trainer calendar is refused with
+  `409 already-linked` rather than silently moved.
+- Below Owner and Admin, nobody edits the additional income on their own pay statement, as the employee or as
+  the payee's linked login (`own-time-entry`, the same rule as their own hours; W2-05).
 - With `own` reach on `scheduling.session.manage`, a coach may only put themselves on a session; handing it
   to another trainer or taking themselves off is `403 own-sessions-only`.
   `resource_id` adopts an existing trainer resource; otherwise one is created in `resource_group_id`, or in
