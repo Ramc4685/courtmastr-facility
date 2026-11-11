@@ -85,8 +85,8 @@ row, data = files.read(session, file_id)        # NotFound unless ready and in t
 FK with `*tfk("photo_file_id", "stored_file")`. K1 adds, without changing the above: `files.remove(session,
 file_id)` (row to `purged`, bytes deleted after commit), `files.download_url(session, file_id)` (signed,
 5 minutes; with the local adapter a signed API route), a `public` flag for logo renditions, and the S3
-adapter. Purposes are a `text` + CHECK enum on `stored_file.purpose`: a chip that needs a new purpose adds it
-in its own migration by replacing the CHECK, and tells the coordinator.
+adapter. `stored_file.purpose` is plain text with no CHECK today, so a new purpose needs no migration: Phase 10
+uses `client_photo` and `client_attachment`. K1 will not add a CHECK without listing those two.
 
 ## Phase 10 boundary
 
