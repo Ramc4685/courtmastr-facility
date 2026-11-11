@@ -9,5 +9,7 @@ auth:
   argon2: {memory_kib: 1024, time_cost: 1, parallelism: 1}
 rate_limit:
   enabled: false
+integrations:
+  webhook_allow_localhost: false
 storage:
   local_dir: var/storage-test

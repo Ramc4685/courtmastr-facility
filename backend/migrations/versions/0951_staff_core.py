@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 from app.core.db.rls import enable_rls
 
 revision = "0951"
-down_revision = "0401"
+down_revision = "0501"
 
 TENANT_TABLES = (
     "job_classification", "staff_settings", "shift", "staff_hourly_rate", "staff_payee", "time_entry",
