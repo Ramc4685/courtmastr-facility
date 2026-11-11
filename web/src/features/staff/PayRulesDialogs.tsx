@@ -95,7 +95,7 @@ export function TypeRatesDialog({ payee, onClose }: { payee: Payee; onClose: () 
   const options = (f.scope === 'reservation' ? types.data?.data ?? [] : memberships.data?.data ?? []).map((t) => ({ value: t.id, label: t.name }))
   const e = fieldErrors(save.error)
   return (
-    <FormDialog title={`Rates by type for ${payee.display_name}`} description="A reservation type's rate wins over a membership type's, which wins over the default." submitLabel="Save type rate" busy={save.isPending} error={save.error ?? remove.error} onClose={onClose} onSubmit={() => save.mutate()} size="lg">
+    <FormDialog title={`Type rates for ${payee.display_name}`} description="A reservation type's rate wins over a membership type's, which wins over the default." submitLabel="Save type rate" busy={save.isPending} error={save.error ?? remove.error} onClose={onClose} onSubmit={() => save.mutate()} size="lg">
       {overrides.length === 0 && <p className="text-sm text-muted">No type rates yet.</p>}
       {overrides.length > 0 && (
         <ul className="divide-y divide-border rounded-md border border-border text-sm">

@@ -29,8 +29,8 @@ test('trainer pay dialogs: session pay, rates by type and bonuses pass axe', asy
   await scan(page, 'session pay dialog')
   await page.keyboard.press('Escape')
 
-  await page.getByRole('button', { name: 'Rates by type for Chloe Coach' }).click()
-  await expect(page.getByRole('dialog', { name: /Rates by type/ })).toBeVisible()
+  await page.getByRole('button', { name: 'Type rates for Chloe Coach' }).click()
+  await expect(page.getByRole('dialog', { name: /Type rates/ })).toBeVisible()
   await scan(page, 'rates by type dialog')
   await page.keyboard.press('Escape')
 

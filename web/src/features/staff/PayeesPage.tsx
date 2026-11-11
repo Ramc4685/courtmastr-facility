@@ -112,7 +112,7 @@ export function PayeesPage() {
             cell: (p) => (
               <div className="flex justify-end gap-1">
                 {pay && p.kind === 'trainer' && <Button size="sm" variant="ghost" aria-label={`Session pay for ${p.display_name}`} onClick={() => setDialog({ kind: 'rate', payee: p })}>Session pay</Button>}
-                {pay && p.kind === 'trainer' && <Button size="sm" variant="ghost" aria-label={`Rates by type for ${p.display_name}`} onClick={() => setDialog({ kind: 'types', payee: p })}>Type rates</Button>}
+                {pay && p.kind === 'trainer' && <Button size="sm" variant="ghost" aria-label={`Type rates for ${p.display_name}`} onClick={() => setDialog({ kind: 'types', payee: p })}>Type rates</Button>}
                 {pay && p.kind === 'trainer' && <Button size="sm" variant="ghost" aria-label={`Bonuses for ${p.display_name}`} onClick={() => setDialog({ kind: 'bonus', payee: p })}>Bonuses</Button>}
                 {pay && <Button size="sm" variant="ghost" aria-label={`Commission for ${p.display_name}`} onClick={() => setDialog({ kind: 'commission', payee: p })}>Commission</Button>}
                 <Button size="sm" variant="ghost" aria-label={`Edit ${p.display_name}`} onClick={() => setDialog({ kind: 'edit', payee: p })}>Edit</Button>
