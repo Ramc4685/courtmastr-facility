@@ -268,6 +268,8 @@ def test_accounts_customers_and_stored_methods(stripe, http):
     )
     sent = http.last["params"]
     assert sent["controller[stripe_dashboard][type]"] == ["full"] and sent["controller[losses][payments]"] == ["stripe"]
+    # Stripe rejects card_payments requested without transfers (seen against real test mode).
+    assert sent["capabilities[card_payments][requested]"] == sent["capabilities[transfers][requested]"] == ["true"]
     assert sent["default_currency"] == ["usd"] and "Stripe-Account" not in http.last["headers"]  # a platform call
     http.reply(200, {"id": ACCOUNT, "details_submitted": True}).reply(200, {"id": ACCOUNT})
     assert stripe.get_account(account_ref=ACCOUNT).status == "restricted"

@@ -166,8 +166,10 @@ class StripeConnectProvider:
                 "stripe_dashboard": {"type": "full"}, "fees": {"payer": "account"},
                 "losses": {"payments": "stripe"}, "requirement_collection": "stripe",
             },
+            # Stripe refuses card_payments without transfers on a connected account.
             "capabilities": {
-                "card_payments": {"requested": True}, "us_bank_account_ach_payments": {"requested": True},
+                "card_payments": {"requested": True}, "transfers": {"requested": True},
+                "us_bank_account_ach_payments": {"requested": True},
             },
             "metadata": {"fh_tenant": tenant_ref},
         }  # fmt: skip
