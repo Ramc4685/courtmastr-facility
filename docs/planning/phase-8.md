@@ -29,13 +29,13 @@ Read before planning, so no chip rebuilds them:
 
 ## Chips
 
-Migration block for this phase: **`12xx`**. Phase 10 is asked to take `13xx`. Each chip's first revision
+Migration block for this phase: **`12xx`**. Phase 10 takes `1001` to `1099`. Each chip's first revision
 points at the head it finds (`alembic heads`); the coordinator re-points one `down_revision` per merge.
 
 | Chip | Model | Rows and items | Owns (files, contexts) | Migrations | Needs |
 |---|---|---|---|---|---|
 | **K1 Files and object storage** | Opus | storage gap (section 3); unblocks CLI-12, CLI-09, PLT-08, MKT-06, CHK-12 | `ports/storage.py`, `adapters/*storage*.py`, `platform/files.py`, `platform/models.py` (`StoredFile` only), MinIO service in `infra/docker-compose.yml` | 1201 to 1209 | none; publishes its interface on day one (below) |
-| **K2 Jobs and retention** | Opus | unscheduled jobs, purge and retention, dead-letter table, chunked-job framework (section 3 and 6) | `app/scheduler.py`, `core/jobs.py`, new `platform/retention.py`, `platform/models.py` (`failed_job`, `job_run` only) | 1210 to 1219 | none |
+| **K2 Jobs and retention** | Opus | unscheduled jobs (POS stale drafts, webhook sweep; client task reminders are Phase 10's), purge and retention, dead-letter table, chunked-job framework (section 3 and 6) | `app/scheduler.py`, `core/jobs.py`, new `platform/retention.py`, `platform/models.py` (`failed_job`, `job_run` only) | 1210 to 1219 | none |
 | **K3 Contract and static checks** | Sonnet | Schemathesis in the suite, API breaking-change diff, mypy, import-linter | `backend/pyproject.toml`, `Makefile`, `.github/workflows/ci.yml`, `backend/tests/test_contract*.py` | none | none; fixes it finds in a context go back to the coordinator as a list, not silent edits |
 | **S1 Sign-in hardening** | Opus | cookies and CSRF to baseline 5.2 and 5.3, per-identity rate limit and closed buckets (6), lockout doubling and email, larger common-password list, staff IP allow-list (PLT-07) | `core/auth/*`, `core/ratelimit.py`, `core/api.py` (auth parts), `platform/auth*.py`, `web/src/api/client.ts`, `web/src/features/auth/` | 1220 to 1229 | none |
 | **S2 MFA and step-up** | Opus | TOTP MFA with recovery codes, step-up re-authentication for every `+` key (PLT-02, STF-09) | same files as S1, plus `core/auth/permissions.py` | 1230 to 1239 | S1 merged (same files) |
