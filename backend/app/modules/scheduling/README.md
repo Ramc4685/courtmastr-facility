@@ -71,8 +71,9 @@ winner named. Moves delete and re-insert the booking's holds in one transaction 
 15. **Type grants (SCH-05).** A reservation type with no `reservation_type_grant` rows is open to everyone
     who may book; with rows, only those staff may create, move, edit or cancel its bookings (including every
     occurrence a series command touches, and changing a booking to that type). Owners, system jobs and API
-    keys are exempt. Grants are checked in the shared inner `_authorize`, so reads, programs enrolment and
-    portal booking are not affected. The calendar's `can_edit` is false for a denied type.
+    keys are exempt. Grants are checked in the shared inner `_authorize`, so staff enrolment and attendance
+    (programs) and instructor assignment (staff) on a restricted type need the grant too, through
+    `authorize_reach`. Reads and portal (member) booking are not affected. The calendar's `can_edit` is false for a denied type.
 16. **Slot offers (SCH-07, SCH-18).** An offer splits one availability window into `slot_min` slots over the
     window's resource plus optional extra resources. Slots are derived on read (`free`, `booked`, `full`,
     `unavailable` when a hold or a closure, padded by the type's buffers, overlaps). Taking a slot

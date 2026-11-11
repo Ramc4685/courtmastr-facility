@@ -111,6 +111,8 @@ def _window(session: Db, principal: Principal, window_id: UUID):
 
 
 def _gate(session: Db, principal: Principal, key: str, offer: SlotOffer, window, extra_ids) -> None:
+    """`own` reach passes when any listed resource is the caller's, so callers pass resources the offer already
+    has (never only what the request adds): a coach cannot claim another trainer's window by listing theirs."""
     service._authorize(
         session, principal, key, offer.location_id, [window.resource_id, *extra_ids], offer.reservation_type_id
     )
@@ -155,7 +157,7 @@ def create_offer(session: Db, principal: Principal, data: dict) -> dict:
         allows_free_booking=bool(data.get("allows_free_booking")), direct_link_token=secrets.token_urlsafe(16),
         is_active=data.get("is_active", True),
     )  # fmt: skip
-    _gate(session, principal, service.SESSION, offer, window, extras)
+    _gate(session, principal, service.SESSION, offer, window, [])  # a new offer is on the caller's own window
     service._check_free_flag(principal, offer.location_id, offer.allows_free_booking, False)
     session.add(offer)
     session.flush()
@@ -176,7 +178,9 @@ def update_offer(session: Db, principal: Principal, offer_id: UUID, data: dict) 
     offer = service._load(session, principal, SlotOffer, offer_id, lock=True)
     window = resources.service.get_window(session, offer.availability_window_id)
     extras = data.pop("additional_resource_ids", None)
-    _gate(session, principal, service.SESSION, offer, window, extras or _extras(session, [offer.id])[offer.id])
+    _gate(session, principal, service.SESSION, offer, window, _extras(session, [offer.id])[offer.id])
+    if extras is not None:
+        _gate(session, principal, service.SESSION, offer, window, extras)
     if data.get("reservation_type_id"):
         service._reservation_type(session, offer.location_id, "session", data["reservation_type_id"])
         service._check_grant(session, principal, service.SESSION, data["reservation_type_id"])

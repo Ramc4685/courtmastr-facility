@@ -2106,10 +2106,13 @@ def free_ranges(
 
 def authorize_reach(session: Db, principal: Principal, key: str, booking_id: UUID) -> Booking:
     """Service gate for an action on a booking owned by another context's use case (enrolment, attendance):
-    location containment plus `own` reach against the booking's resources. Returns the booking."""
+    location containment, `own` reach against the booking's resources, and the type's staff grants (portal and
+    system callers are exempt). Returns the booking."""
     booking = get_booking(session, booking_id)
     everywhere = principal.kind == "system" or principal.location_ids is None
     if not (everywhere or booking.location_id in principal.location_ids):
         raise NotFound()
-    _authorize(session, principal, key, booking.location_id, _resource_ids(session, booking))
+    _authorize(
+        session, principal, key, booking.location_id, _resource_ids(session, booking), booking.reservation_type_id
+    )
     return booking

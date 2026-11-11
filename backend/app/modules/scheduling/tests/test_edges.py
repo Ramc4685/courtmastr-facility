@@ -14,7 +14,7 @@ from app.modules.scheduling import service
 from app.modules.scheduling.models import Booking, Session
 from app.modules.scheduling.tests.helpers import API, at, book, ok
 from app.modules.scheduling.tests.helpers import facility as build
-from conftest import WEEK, add_staff, login
+from conftest import WEEK, add_staff, login, new_client
 
 
 @pytest.fixture
@@ -372,3 +372,39 @@ def test_every_typed_write_checks_the_grant(client, owner, f, tenant):
         client.patch(f"{API}/slot-offers/{offer['id']}", headers=manager, json={"title": "x"}),
     ]  # fmt: skip
     assert [r.status_code for r in refused] == [403] * 6, [r.text for r in refused if r.status_code != 403]
+
+
+def test_a_coach_cannot_take_over_another_trainers_offer_by_listing_their_own_resource(client, owner, f, tenant):
+    coach_email, coach_id = add_staff(tenant, "coach", location_ids=[f.location])
+    mine = ok(client.post(f"{API}/resources", headers=owner, json={
+        "location_id": f.location, "resource_group_id": f.group, "name": "Coach Lee", "kind": "trainer",
+        "staff_user_id": str(coach_id)}))["id"]  # fmt: skip
+    coach = login(client, tenant, coach_email)
+    theirs = window(client, owner, f)  # Coach Kim's window
+    offer = _offer(client, owner, f, theirs)
+    takeover = {"additional_resource_ids": [mine]}
+    assert client.patch(f"{API}/slot-offers/{offer['id']}", headers=coach, json=takeover).status_code == 403
+    body = {"availability_window_id": theirs, "reservation_type_id": f.type, "slot_min": 30} | takeover
+    assert client.post(f"{API}/slot-offers", headers=coach, json=body).status_code == 403
+    own_window = ok(client.post(f"{API}/resources/{mine}/availability-windows", headers=owner, json={
+        "starts_on": "2031-05-05", "weekdays": [1], "start_time": "12:00", "end_time": "13:00"}))["id"]  # fmt: skip
+    _offer(client, coach, f, own_window)  # their own window is fine
+
+
+def test_staff_enrolment_and_instructor_assignment_need_the_type_grant(client, owner, f, tenant):
+    email, _ = add_staff(tenant, "manager", all_locations=True)
+    manager = login(client, tenant, email)
+    seat = ok(book(client, owner, f, [f.court], at(15), at(16), kind="session"))["booking"]["session"]["id"]
+    trainer = ok(client.post(f"{API}/staff-payees", headers=owner, json={
+        "kind": "trainer", "display_name": "Coach Kim", "location_id": f.location, "resource_id": f.coach}))  # fmt: skip
+    person = new_client(client, owner, f.location, first_name="Pat", primary_email="pat-grant@example.com")["id"]
+    _, someone = add_staff(tenant, "front_desk", all_locations=True)
+    grants = f"{API}/reservation-types/{f.type}/grants"
+    ok(client.put(grants, headers=owner, json={"staff_user_ids": [str(someone)]}), 200)
+    enrol = {"session_id": seat, "client_id": person}
+    assert client.post(f"{API}/enrollments", headers=manager, json=enrol).status_code == 403
+    instructor = {"staff_payee_id": trainer["id"]}
+    assert client.put(f"{API}/sessions/{seat}/instructor", headers=manager, json=instructor).status_code == 403
+    ok(client.put(grants, headers=owner, json={"staff_user_ids": []}), 200)  # open again: both go through
+    ok(client.post(f"{API}/enrollments", headers=manager, json=enrol))
+    ok(client.put(f"{API}/sessions/{seat}/instructor", headers=manager, json=instructor), 200)
