@@ -53,9 +53,11 @@ def _check_owner_protection(principal: Principal, target: StaffUser) -> None:
         raise PermissionDenied("Only an owner can change an owner.")
 
 
-def _check_not_self(principal: Principal, target: StaffUser) -> None:
+def _check_not_self(
+    principal: Principal, target: StaffUser, detail: str = "You cannot change your own role, permissions or locations."
+) -> None:
     if principal.staff_user_id == target.id:
-        raise _self_escalation("You cannot change your own role, permissions or locations.")
+        raise _self_escalation(detail)
 
 
 def _check_last_owner(session: Session, target: StaffUser) -> None:
@@ -209,11 +211,24 @@ def invite_staff_user(session: Session, principal: Principal, data: dict) -> Sta
     return _refresh(session, staff_user)
 
 
+_SECURITY_FIELDS = frozenset({"ip_policy", "access_expires_on"})  # extending access or lifting an IP restriction
+_UPDATABLE_FIELDS = _SECURITY_FIELDS | {
+    "first_name", "last_name", "mobile_phone", "linked_resource_id", "is_attendance_notified"
+}  # fmt: skip
+
+
 def update_staff_user(session: Session, principal: Principal, staff_user_id: UUID, data: dict) -> StaffUser:
     staff_user = get_staff_user(session, principal, staff_user_id, permission="platform.staff_user.update")
     _check_owner_protection(principal, staff_user)
-    for field, value in data.items():
-        setattr(staff_user, field, value)
+    if unknown := sorted(data.keys() - _UPDATABLE_FIELDS):
+        raise ValidationFailed(f"{unknown[0]} cannot be changed here.", code="unknown-field", pointer=f"/{unknown[0]}")
+    changed = {field for field, value in data.items() if getattr(staff_user, field) != value}
+    if changed & _SECURITY_FIELDS:
+        _check_not_self(principal, staff_user, "You cannot change your own access expiry or IP policy.")
+    if "ip_policy" in changed:
+        authorize(principal, "platform.security.manage")
+    for field in changed:
+        setattr(staff_user, field, data[field])
     audit.record(session, "platform.staff_user.update", staff_user, changes=audit.diff(staff_user))
     return _refresh(session, staff_user)
 

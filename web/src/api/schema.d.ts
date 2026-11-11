@@ -96,7 +96,8 @@ export interface paths {
         put?: never;
         /**
          * Change Own Password
-         * @description Change the caller's password; other sessions are revoked. Errors: invalid-credentials, password-too-weak.
+         * @description Change the caller's password; other sessions are revoked. A first password needs a magic-link session
+         *     from the last 15 minutes. Errors: invalid-credentials, password-too-weak, password-reset-required.
          */
         post: operations["changeOwnPassword"];
         delete?: never;

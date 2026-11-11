@@ -40839,7 +40839,7 @@
     },
     "/api/v1/auth/password": {
       "post": {
-        "description": "Change the caller's password; other sessions are revoked. Errors: invalid-credentials, password-too-weak.",
+        "description": "Change the caller's password; other sessions are revoked. A first password needs a magic-link session\nfrom the last 15 minutes. Errors: invalid-credentials, password-too-weak, password-reset-required.",
         "operationId": "changeOwnPassword",
         "requestBody": {
           "content": {
