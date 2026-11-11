@@ -7,7 +7,7 @@ official qualifications are uuid arrays, bracket rounds fold into bracket_slot.
 Generated from the models, then completed by hand: enable_rls() per table.
 
 Revision ID: 1101
-Revises: 0401
+Revises: 0501
 """
 
 import sqlalchemy as sa
@@ -17,7 +17,7 @@ from sqlalchemy.dialects import postgresql
 from app.core.db.rls import enable_rls
 
 revision = "1101"
-down_revision = "0401"
+down_revision = "0501"
 
 TENANT_TABLES = (
     "age_group",

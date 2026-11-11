@@ -27,7 +27,9 @@ def seed(session: Session) -> None:
     member = session.scalar(select(Client).where(Client.first_name == "Morgan", Client.last_name == "Member"))
     today = platform.service.location_today(session, location.id)
     monday = today + timedelta(days=7 - today.weekday())
-    sport = service.create_sport(session, actor, body(s.SportCreate, name="Futsal", default_game_length_min=60, points_win=3))
+    sport = service.create_sport(
+        session, actor, body(s.SportCreate, name="Futsal", default_game_length_min=60, points_win=3)
+    )
     season = service.create_season(
         session, actor, body(s.SeasonWrite, name="Demo season", starts_on=monday, ends_on=monday + timedelta(weeks=10))
     )
@@ -41,7 +43,9 @@ def seed(session: Session) -> None:
         s.CompetitionTeamCreate, team={"name": "Downtown Strikers"}, bill_to_client_id=member.id
     ))  # fmt: skip
     service.generate_competition_teams(session, actor, league.id, body(s.TeamGenerate, count=5))
-    service.add_roster_entry(session, actor, first["id"], body(s.RosterEntryCreate, client_id=member.id, role="captain"))
+    service.add_roster_entry(
+        session, actor, first["id"], body(s.RosterEntryCreate, client_id=member.id, role="captain")
+    )
     service.create_official(session, actor, body(
         s.OfficialCreate, location_id=location.id, first_name="Rita", last_name="Referee", sport_ids=[sport.id]
     ))  # fmt: skip

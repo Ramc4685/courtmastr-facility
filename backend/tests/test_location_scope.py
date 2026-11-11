@@ -70,6 +70,13 @@ CLIENT_OR_TENANT_ROUTES = {
         updateProductCategory updateProductSupplier updateReferralCategory updateRelationshipType
         updateRentalPlan updateRentalRate updateRentalType updateReservationCategory updateReservationType
         updateRevenueCategory updateRole updateStaffUser updateTag updateTax updateTaxRate updateTenderType
+    """.split())
+    # Integrations (module 16): T keys; the service limits a location-bound admin to their own endpoints and to
+    # keys inside their locations, and disconnect authorizes on the connection's location_id.
+    | set("""
+        deleteWebhookEndpoint disconnectExternalConnection getWebhookDelivery getWebhookEndpoint
+        replayWebhookDelivery revokeApiKey rotateApiKey rotateWebhookSecret testWebhookEndpoint
+        updateWebhookEndpoint
     """.split()),
 }  # fmt: skip
 

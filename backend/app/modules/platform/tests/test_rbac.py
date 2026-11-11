@@ -47,7 +47,7 @@ def _matrix_rows(context: str = "platform") -> dict[str, dict]:
     ("context", "count"),
     [
         ("platform", 28), ("clients", 16), ("billing", 39), ("pos", 15), ("documents", 6), ("memberships", 13),
-        ("packages", 9), ("resources", 5), ("scheduling", 20), ("rentals", 11),
+        ("packages", 9), ("resources", 5), ("scheduling", 20), ("rentals", 11), ("integrations", 6),
         ("leagues", 16),
     ],
 )  # fmt: skip
@@ -67,7 +67,7 @@ def test_catalogue_matches_the_rbac_matrix_document(context, count):
 def test_every_registered_context_is_checked_against_the_matrix():
     assert {p.context for p in CATALOGUE.values()} == {
         "platform", "clients", "billing", "pos", "documents", "memberships", "packages", "resources", "scheduling",
-        "rentals", "leagues",
+        "rentals", "integrations", "leagues",
     }  # fmt: skip
 
 
