@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import { Button } from '../../components/Button'
 import { Input } from '../../components/Field'
@@ -15,7 +15,9 @@ function messageFor(error: unknown): string {
   return error.message
 }
 
-function PasswordForm({ next }: { next: string }) {
+type Audience = 'staff' | 'client'
+
+function PasswordForm({ next, audience }: { next: string; audience: Audience }) {
   const { signIn } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
@@ -28,8 +30,8 @@ function PasswordForm({ next }: { next: string }) {
     setBusy(true)
     setError(null)
     try {
-      await signIn(email, password)
-      navigate(next, { replace: true })
+      await signIn(email, password, audience)
+      navigate(audience === 'client' ? '/portal' : next, { replace: true })
     } catch (err) {
       setError(messageFor(err))
       setBusy(false)
@@ -51,7 +53,7 @@ function PasswordForm({ next }: { next: string }) {
   )
 }
 
-function MagicLinkForm({ next }: { next: string }) {
+function MagicLinkForm({ next, audience }: { next: string; audience: Audience }) {
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -62,7 +64,7 @@ function MagicLinkForm({ next }: { next: string }) {
     setBusy(true)
     setError(null)
     try {
-      await api.post('/api/v1/auth/magic-links', { body: { email, audience: 'staff', redirect_path: next === '/' ? null : next } })
+      await api.post('/api/v1/auth/magic-links', { body: { email, audience, redirect_path: audience === 'client' ? '/portal' : next === '/' ? null : next } })
       setSent(true)
     } catch (err) {
       setError(messageFor(err))
@@ -96,16 +98,30 @@ export function SignInPage() {
   const { me } = useAuth()
   const [params] = useSearchParams()
   const next = safeNext(params.get('next'))
+  // Members and staff are separate identities with the same email allowed in both, so the page asks which.
+  const audience: Audience = params.get('as') === 'member' ? 'client' : 'staff'
   if (me) return <Navigate to={me.principal.kind === 'staff' ? next : '/portal'} replace />
   return (
-    <AuthLayout title="Sign in">
+    <AuthLayout title={audience === 'client' ? 'Member sign in' : 'Sign in'}>
       <Tabs
+        key={audience}
         label="Sign-in method"
         tabs={[
-          { id: 'password', label: 'Password', content: <PasswordForm next={next} /> },
-          { id: 'link', label: 'Email link', content: <MagicLinkForm next={next} /> },
+          { id: 'password', label: 'Password', content: <PasswordForm next={next} audience={audience} /> },
+          { id: 'link', label: 'Email link', content: <MagicLinkForm next={next} audience={audience} /> },
         ]}
       />
+      <p className="mt-6 text-center text-sm text-muted">
+        {audience === 'client' ? (
+          <Link to="/sign-in" className="font-medium text-primary underline-offset-2 hover:underline">
+            Staff sign in
+          </Link>
+        ) : (
+          <Link to="/sign-in?as=member" className="font-medium text-primary underline-offset-2 hover:underline">
+            Member? Sign in to the member portal
+          </Link>
+        )}
+      </p>
     </AuthLayout>
   )
 }

@@ -15,7 +15,7 @@ import { TemplateEditorPage } from '../features/documents/TemplateEditorPage'
 import { TemplatesPage } from '../features/documents/TemplatesPage'
 import { MembershipsPage } from '../features/memberships/MembershipsPage'
 import { PackagesPage } from '../features/packages/PackagesPage'
-import { PortalHome } from '../features/portal/PortalHome'
+import { PortalApp } from '../features/portal/PortalApp'
 import { AuditLogPage } from '../features/platform/AuditLogPage'
 import { DashboardPage } from '../features/platform/DashboardPage'
 import { LocationsPage } from '../features/platform/LocationsPage'
@@ -69,7 +69,7 @@ export function AppRoutes() {
       <Route path="/auth/accept-invite" element={<TokenLinkPage purpose="accept-invite" />} />
       <Route path="/pay" element={<PayLinkPage />} />
       <Route path="/sign" element={<PublicSignPage />} />
-      <Route path="/portal/*" element={<RequireClient><PortalHome /></RequireClient>} />
+      <Route path="/portal/*" element={<RequireClient><PortalApp /></RequireClient>} />
       <Route path="/billing/invoices/:id/document" element={<RequireStaff><RequirePermission permission="billing.invoice.read"><InvoiceDocumentPage /></RequirePermission></RequireStaff>} />
       <Route path="/billing/payments/:id/receipt" element={<RequireStaff><RequirePermission permission="billing.payment.read"><ReceiptPage /></RequirePermission></RequireStaff>} />
       <Route path="/pos/sales/:id/receipt" element={<RequireStaff><RequirePermission permission="pos.sale.read"><PosReceiptPage /></RequirePermission></RequireStaff>} />

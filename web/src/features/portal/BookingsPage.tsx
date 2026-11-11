@@ -1,0 +1,244 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
+import { api, type Schemas } from '../../api/client'
+import { Badge } from '../../components/Badge'
+import { Button } from '../../components/Button'
+import { ConfirmDialog, Dialog } from '../../components/Dialog'
+import { Input, Select } from '../../components/Field'
+import { EmptyState, ErrorState, LoadingState } from '../../components/States'
+import { Table, useKeysetQuery } from '../../components/Table'
+import { useToast } from '../../components/Toast'
+import { addDays, formatDateTime, todayIn } from '../../lib/format'
+import { FormError } from '../billing/shared'
+import { PortalPage } from './PortalApp'
+import { label, NewCardField, PaymentOutcome, RENTAL_TONE, useAttemptKey, usePortal } from './shared'
+
+type Rental = Schemas['PortalRentalOut']
+type RentalType = Schemas['PublicRentalType']
+type Checkout = Schemas['PortalRentalCheckout']
+
+const useRentalTypes = () => useQuery({ queryKey: ['portal', 'rental-types'], queryFn: () => api.get('/api/v1/public/rental-types'), staleTime: 5 * 60_000 })
+
+function timeIn(iso: string, timeZone?: string) {
+  return new Intl.DateTimeFormat(undefined, { timeStyle: 'short', timeZone }).format(new Date(iso))
+}
+
+/** Pay the held checkout. The hold is the server's; we only show what it answers. */
+function PayCheckout({ checkout, onDone }: { checkout: Checkout; onDone: (c: Checkout) => void }) {
+  const qc = useQueryClient()
+  const { money, zoneOf } = usePortal()
+  const [token, setToken] = useState('')
+  const attempt = useAttemptKey()
+  const confirm = useMutation({
+    mutationFn: () => api.post('/api/v1/portal/rentals/{rental_id}/confirm', { path: { rental_id: checkout.rental.id }, body: { provider_payment_token: token }, idempotencyKey: attempt.key }),
+    onSuccess: (c) => {
+      void qc.invalidateQueries({ queryKey: ['portal'] })
+      onDone(c)
+    },
+    onError: attempt.settle,
+  })
+  const q = checkout.quote
+  return (
+    <form
+      className="space-y-4"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (token) confirm.mutate()
+      }}
+    >
+      <ul className="divide-y divide-border text-sm">
+        {q.lines.map((l, i) => (
+          <li key={i} className="flex justify-between gap-4 py-1.5">
+            <span>{l.description}</span>
+            <span>{money(l.amount_minor)}</span>
+          </li>
+        ))}
+        <li className="flex justify-between py-1.5 text-muted">
+          <span>Tax</span>
+          <span>{money(q.tax_minor)}</span>
+        </li>
+        <li className="flex justify-between py-1.5 font-semibold">
+          <span>Total</span>
+          <span>{money(q.total_minor)}</span>
+        </li>
+      </ul>
+      <p className="font-medium">Due now: {money(checkout.amount_due_minor)}</p>
+      {checkout.expires_at && <p className="text-sm text-muted">We are holding this time until {formatDateTime(checkout.expires_at, zoneOf(checkout.rental.location_id))}.</p>}
+      <FormError error={confirm.error} />
+      <NewCardField value={token} onChange={setToken} />
+      <Button type="submit" loading={confirm.isPending} disabled={!token}>
+        Pay {money(checkout.amount_due_minor)}
+      </Button>
+    </form>
+  )
+}
+
+function BookRentalDialog({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient()
+  const { actingFor, money, zoneOf, locations } = usePortal()
+  const types = useRentalTypes()
+  const [typeId, setTypeId] = useState('')
+  const type: RentalType | undefined = types.data?.find((t) => t.id === typeId) ?? types.data?.[0]
+  const zone = zoneOf(type?.location_id)
+  const [on, setOn] = useState(() => addDays(todayIn(zone), 1))
+  const [length, setLength] = useState<number | null>(null)
+  const minutes = length ?? type?.default_length_min ?? type?.min_length_min ?? 60
+  const [checkout, setCheckout] = useState<Checkout | null>(null)
+  const [result, setResult] = useState<Checkout | null>(null)
+  const attempt = useAttemptKey()
+
+  const slots = useQuery({
+    queryKey: ['portal', 'availability', type?.id, on, minutes],
+    queryFn: () => api.get('/api/v1/public/rental-availability', { query: { rental_type_id: type?.id, on, length_min: minutes, limit: 60 } }),
+    enabled: Boolean(type && on),
+  })
+  const hold = useMutation({
+    mutationFn: (slot: Schemas['RentalSlot']) =>
+      api.post('/api/v1/portal/rentals', { body: { client_id: actingFor.id, rental_type_id: type?.id ?? '', resource_id: slot.resource_id, starts_at: slot.starts_at, ends_at: slot.ends_at }, idempotencyKey: attempt.key }),
+    onSuccess: (c) => {
+      void qc.invalidateQueries({ queryKey: ['portal', 'rentals'] })
+      if (c.payment_required) setCheckout(c)
+      else setResult(c)
+    },
+    onError: attempt.settle,
+  })
+  const abandon = useMutation({
+    mutationFn: (id: string) => api.post('/api/v1/portal/rentals/{rental_id}/abandon', { path: { rental_id: id } }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ['portal', 'rentals'] }),
+  })
+  const close = () => {
+    // Leaving an unpaid hold gives the time back at once rather than when the hold runs out.
+    if (checkout && !result) abandon.mutate(checkout.rental.id)
+    onClose()
+  }
+
+  const lengths: number[] = []
+  if (type) for (let m = type.min_length_min; m <= (type.max_length_min ?? type.min_length_min); m += Math.max(type.slot_granularity_min, 15)) lengths.push(m)
+
+  const body = () => {
+    if (result) {
+      const r = result.rental
+      return (
+        <div className="space-y-3">
+          {r.status === 'confirmed' ? (
+            <PaymentOutcome status={result.payment_status} done={`Booked: ${r.title} on ${formatDateTime(r.starts_at, zoneOf(r.location_id))}.`} />
+          ) : (
+            <PaymentOutcome status={result.payment_status ?? 'processing'} done="Payment received; the booking is confirmed once the club records it." />
+          )}
+        </div>
+      )
+    }
+    if (checkout) return <PayCheckout checkout={checkout} onDone={setResult} />
+    if (types.isPending) return <LoadingState />
+    if (types.isError) return <ErrorState error={types.error} />
+    if (!type) return <EmptyState title="Nothing can be booked online right now" />
+    return (
+      <div className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Select label="Rental" value={type.id} onChange={(e) => setTypeId(e.target.value)} options={types.data.map((t) => ({ value: t.id, label: locations.length > 1 ? `${t.name} (${locations.find((l) => l.id === t.location_id)?.public_name ?? ''})` : t.name }))} />
+          <Input label="Date" type="date" value={on} min={todayIn(zone)} onChange={(e) => setOn(e.target.value)} />
+          <Select label="Length" value={String(minutes)} onChange={(e) => setLength(Number(e.target.value))} options={lengths.map((m) => ({ value: String(m), label: m % 60 ? `${m} minutes` : `${m / 60} hour${m > 60 ? 's' : ''}` }))} />
+        </div>
+        {type.online_description && <p className="text-sm text-muted">{type.online_description}</p>}
+        {type.cancel_cutoff_hours !== null && (
+          <p className="text-sm text-muted">
+            Cancel at least {type.cancel_cutoff_hours} hours ahead{type.late_cancel_fee_pct ? `; later cancellations keep ${Number(type.late_cancel_fee_pct)}% as a fee` : ''}.
+          </p>
+        )}
+        <FormError error={hold.error} />
+        <fieldset>
+          <legend className="mb-2 text-sm font-medium">Available times{zone ? ` (${zone.replace(/_/g, ' ')})` : ''}</legend>
+          {slots.isPending ? (
+            <LoadingState label="Finding open times" />
+          ) : slots.isError ? (
+            <ErrorState error={slots.error} onRetry={() => slots.refetch()} />
+          ) : slots.data.data.length === 0 ? (
+            <p className="text-muted">No open times on this date. Try another day.</p>
+          ) : (
+            <ul className="grid gap-2 sm:grid-cols-2">
+              {slots.data.data.map((s) => (
+                <li key={`${s.resource_id}-${s.starts_at}`}>
+                  <Button variant="secondary" className="w-full justify-between" disabled={hold.isPending} onClick={() => hold.mutate(s)}>
+                    <span>
+                      {timeIn(s.starts_at, zone)} · {s.resource_name}
+                    </span>
+                    <span>{money(s.price_minor)}</span>
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </fieldset>
+      </div>
+    )
+  }
+  return (
+    <Dialog open onClose={close} size="lg" title="Book a rental" description={`Booking for ${actingFor.preferred_name || actingFor.first_name}.`} footer={<Button variant="secondary" onClick={close}>{result ? 'Done' : 'Cancel'}</Button>}>
+      {body()}
+    </Dialog>
+  )
+}
+
+export function BookingsPage() {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const { zoneOf, nameOf, money } = usePortal()
+  const types = useRentalTypes()
+  const [booking, setBooking] = useState(false)
+  const [cancelling, setCancelling] = useState<Rental | null>(null)
+  const paging = useKeysetQuery(['portal', 'rentals', 'list'], (cursor) => api.get('/api/v1/portal/rentals', { query: { cursor, sort: '-starts_at', limit: 25 } }))
+  const resourceNames = new Map((types.data ?? []).flatMap((t) => t.resources.map((r) => [String(r.id), String(r.name)] as const)))
+  const cancel = useMutation({
+    mutationFn: (r: Rental) => api.post('/api/v1/portal/rentals/{rental_id}/cancel', { path: { rental_id: r.id } }),
+    onSuccess: (out) => {
+      setCancelling(null)
+      void qc.invalidateQueries({ queryKey: ['portal'] })
+      toast('success', out.late_fee_minor > 0 ? `Rental cancelled. A late-cancellation fee of ${money(out.late_fee_minor)} applies.` : 'Rental cancelled.')
+    },
+  })
+  const cancelType = types.data?.find((t) => t.id === cancelling?.rental_type_id)
+
+  return (
+    <PortalPage title="Bookings" description="Your household's court and space rentals." actions={<Button onClick={() => setBooking(true)}>Book a rental</Button>}>
+      <Table
+        caption="Rentals"
+        paging={paging}
+        rowKey={(r) => r.id}
+        empty={<EmptyState title="No rentals yet">Book a court or space online.</EmptyState>}
+        columns={[
+          { header: 'When', cell: (r) => formatDateTime(r.starts_at, zoneOf(r.location_id)) },
+          { header: 'What', cell: (r) => `${r.title}${r.resources[0] ? ` · ${resourceNames.get(r.resources[0].resource_id) ?? ''}` : ''}` },
+          { header: 'For', cell: (r) => nameOf(r.client_id) },
+          { header: 'Status', cell: (r) => <Badge tone={RENTAL_TONE[r.status] ?? 'neutral'}>{r.status === 'tentative' ? 'Awaiting payment' : label(r.status)}</Badge> },
+          { header: 'Amount', cell: (r) => money(r.amount_minor), className: 'text-right' },
+          {
+            header: 'Actions',
+            className: 'text-right',
+            cell: (r) =>
+              r.status === 'confirmed' && new Date(r.starts_at).getTime() > Date.now() ? (
+                <Button size="sm" variant="secondary" onClick={() => setCancelling(r)} aria-label={`Cancel ${r.title} on ${formatDateTime(r.starts_at, zoneOf(r.location_id))}`}>
+                  Cancel
+                </Button>
+              ) : null,
+          },
+        ]}
+      />
+      {booking && <BookRentalDialog onClose={() => setBooking(false)} />}
+      <ConfirmDialog open={Boolean(cancelling)} title="Cancel this rental?" confirmLabel="Cancel rental" danger busy={cancel.isPending} onConfirm={() => cancelling && cancel.mutate(cancelling)} onClose={() => setCancelling(null)}>
+        {cancelling && (
+          <div className="space-y-2">
+            <p>
+              {cancelling.title} on {formatDateTime(cancelling.starts_at, zoneOf(cancelling.location_id))}.
+            </p>
+            {cancelType?.cancel_cutoff_hours !== null && cancelType?.cancel_cutoff_hours !== undefined && (
+              <p className="text-muted">
+                Inside {cancelType.cancel_cutoff_hours} hours of the start, a late-cancellation fee may apply. Anything you paid beyond it returns as account credit.
+              </p>
+            )}
+            <FormError error={cancel.error} />
+          </div>
+        )}
+      </ConfirmDialog>
+    </PortalPage>
+  )
+}

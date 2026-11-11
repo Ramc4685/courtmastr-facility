@@ -15,7 +15,7 @@ Password for every account: `courtside-demo-2026`
 | League Manager | league-admin@courtside-demo.example.com | Courtside Downtown |
 | Scorekeeper | scorekeeper@courtside-demo.example.com | Courtside Downtown |
 | View Only | view-only@courtside-demo.example.com | Courtside Downtown |
-| Client (Morgan Member) | member@courtside-demo.example.com | sign in with `"audience": "client"` |
+| Client (Morgan Member) | member@courtside-demo.example.com | member portal: `/sign-in?as=member` (API: `"audience": "client"`) |
 
 Locations: **Courtside Downtown** (`America/Chicago`) and **Courtside West** (`America/Los_Angeles`).
 

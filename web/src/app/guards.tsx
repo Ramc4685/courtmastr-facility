@@ -18,7 +18,7 @@ export function RequireStaff({ children }: { children: ReactNode }) {
 export function RequireClient({ children }: { children: ReactNode }) {
   const { me, isLoading } = useAuth()
   if (isLoading) return <LoadingState label="Restoring your session" />
-  if (!me) return <Navigate to="/sign-in" replace />
+  if (!me) return <Navigate to="/sign-in?as=member" replace />
   if (me.principal.kind === 'staff') return <Navigate to="/" replace />
   return <>{children}</>
 }
