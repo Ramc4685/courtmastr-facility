@@ -1,5 +1,5 @@
-"""scheduling HTTP surface (docs/api/openapi-core.yaml, tag scheduling). Not built: slot offers, direct
-links, the public schedule, per-type staff grants and series merge (see README)."""
+"""scheduling HTTP surface (docs/api/openapi-core.yaml, tag scheduling). Not built: direct links, the public
+schedule and series merge (see README)."""
 
 from typing import Annotated
 from uuid import UUID
@@ -12,8 +12,8 @@ from app.core.auth.deps import Ctx, require
 from app.core.errors import ValidationFailed
 from app.core.idempotency import idempotency
 from app.core.pagination import ListQuery, list_query
+from app.modules.scheduling import offers, service
 from app.modules.scheduling import schemas as s
-from app.modules.scheduling import service
 
 router = APIRouter(
     route_class=TxRoute, tags=["scheduling"], generate_unique_id_function=camel_id, dependencies=[Depends(idempotency)]
@@ -87,6 +87,20 @@ def update_reservation_type(reservation_type_id: UUID, body: s.TypeUpdate, ctx: 
     """Defaults are copied at creation: an edit never changes existing bookings or sessions."""
     data = body.model_dump(exclude_unset=True)
     return service.update_type(ctx.session, ctx.principal, reservation_type_id, data)
+
+
+@router.get("/reservation-types/{reservation_type_id}/grants", response_model=s.TypeGrants)
+def list_reservation_type_grants(reservation_type_id: UUID, ctx: Ctx = Depends(require(service.GRANTS))):
+    """Staff allowed to book this type (SCH-05). Not restricted means every staff user with the booking keys."""
+    return offers.get_grants(ctx.session, ctx.principal, reservation_type_id)
+
+
+@router.put("/reservation-types/{reservation_type_id}/grants", response_model=s.TypeGrants)
+def replace_reservation_type_grants(
+    reservation_type_id: UUID, body: s.TypeGrantsReplace, ctx: Ctx = Depends(require(service.GRANTS))
+):
+    """Restrict booking this type to these staff users; an empty list opens it to all staff again."""
+    return offers.replace_grants(ctx.session, ctx.principal, reservation_type_id, body.staff_user_ids)
 
 
 # --- blackouts ---------------------------------------------------------------------------------------------
@@ -227,6 +241,19 @@ def edit_booking_series(
     return service.edit_series(ctx.session, ctx.principal, booking_series_id, data)
 
 
+@router.patch("/booking-series/{booking_series_id}/rules/{rule_id}", response_model=s.SeriesRuleChanged)
+def update_booking_series_rule(
+    booking_series_id: UUID, rule_id: UUID, body: s.SeriesRuleChange, response: Response,
+    ctx: Ctx = Depends(require(service.UPDATE_SERIES)),
+):  # fmt: skip
+    """Change a pass's pattern from `start_on`: its later occurrences are cancelled and the new pattern is
+    booked in one command. `preview: true` returns the dry run (new occurrences and the cancel count) only."""
+    result = service.change_series_rule(ctx.session, ctx.principal, booking_series_id, rule_id, body.model_dump())
+    if result.get("status_url"):
+        response.status_code = 202
+    return result
+
+
 @router.get("/booking-series/{booking_series_id}/runs/{run_id}", response_model=s.SeriesRunOut)
 def get_booking_series_run(booking_series_id: UUID, run_id: UUID, ctx: Ctx = Read):
     """Status of a long generation pass, with the occurrences that could not be booked."""
@@ -263,3 +290,35 @@ def get_session(schedule_session_id: UUID, ctx: Ctx = Read):
 @router.patch("/sessions/{schedule_session_id}", response_model=s.SessionOut)
 def update_session(schedule_session_id: UUID, body: s.SessionUpdate, ctx: Ctx = Depends(require(service.SESSION))):
     return service.update_session(ctx.session, ctx.principal, schedule_session_id, body.model_dump(exclude_none=True))
+
+
+# --- slot offers -------------------------------------------------------------------------------------------
+
+
+@router.get("/slot-offers", response_model=s.Page[s.SlotOfferOut])
+def list_slot_offers(query: Lists, ctx: Ctx = Read):
+    """Filters: location_id, reservation_type_id, availability_window_id, is_active; resource_id (the window's)."""
+    return offers.list_offers(ctx.session, ctx.principal, query)
+
+
+@router.post("/slot-offers", response_model=s.SlotOfferOut, status_code=201)
+def create_slot_offer(body: s.SlotOfferCreate, ctx: Ctx = Depends(require(service.SESSION))):
+    """Offer an availability window as bookable slots of fixed length (SCH-07 split into slots, SCH-18)."""
+    return offers.create_offer(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.patch("/slot-offers/{slot_offer_id}", response_model=s.SlotOfferOut)
+def update_slot_offer(slot_offer_id: UUID, body: s.SlotOfferUpdate, ctx: Ctx = Depends(require(service.SESSION))):
+    return offers.update_offer(ctx.session, ctx.principal, slot_offer_id, body.model_dump(exclude_unset=True))
+
+
+@router.get("/slot-offers/{slot_offer_id}/slots", response_model=s.SlotList)
+def list_slot_offer_slots(slot_offer_id: UUID, from_: Instant | None = Query(None, alias="from"), to: Instant | None = None, ctx: Ctx = Read):  # fmt: skip
+    """Derived slots over at most 42 days (default: the next 7): free, booked, full or unavailable."""
+    return offers.slots(ctx.session, ctx.principal, slot_offer_id, from_, to)
+
+
+@router.post("/slot-offers/{slot_offer_id}/slots", response_model=s.BookingOut)
+def book_slot_offer_slot(slot_offer_id: UUID, body: s.SlotBook, ctx: Ctx = Depends(require(service.CREATE))):
+    """Take one slot: its session is created (or the existing one returned) so clients can be registered."""
+    return offers.book_slot(ctx.session, ctx.principal, slot_offer_id, body.starts_at)

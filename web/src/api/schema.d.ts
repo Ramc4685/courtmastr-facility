@@ -992,7 +992,12 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Booking Series Rule
+         * @description Change a pass's pattern from `start_on`: its later occurrences are cancelled and the new pattern is
+         *     booked in one command. `preview: true` returns the dry run (new occurrences and the cancel count) only.
+         */
+        patch: operations["updateBookingSeriesRule"];
         trace?: never;
     };
     "/api/v1/booking-series/{booking_series_id}/runs/{run_id}": {
@@ -9494,6 +9499,30 @@ export interface paths {
         patch: operations["updateReservationType"];
         trace?: never;
     };
+    "/api/v1/reservation-types/{reservation_type_id}/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Reservation Type Grants
+         * @description Staff allowed to book this type (SCH-05). Not restricted means every staff user with the booking keys.
+         */
+        get: operations["listReservationTypeGrants"];
+        /**
+         * Replace Reservation Type Grants
+         * @description Restrict booking this type to these staff users; an empty list opens it to all staff again.
+         */
+        put: operations["replaceReservationTypeGrants"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reservation-types/{reservation_type_id}/session-booking-policy": {
         parameters: {
             query?: never;
@@ -10319,6 +10348,71 @@ export interface paths {
         put?: never;
         /** Cancel Shift */
         post: operations["cancelShift"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/slot-offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Slot Offers
+         * @description Filters: location_id, reservation_type_id, availability_window_id, is_active; resource_id (the window's).
+         */
+        get: operations["listSlotOffers"];
+        put?: never;
+        /**
+         * Create Slot Offer
+         * @description Offer an availability window as bookable slots of fixed length (SCH-07 split into slots, SCH-18).
+         */
+        post: operations["createSlotOffer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/slot-offers/{slot_offer_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Slot Offer */
+        patch: operations["updateSlotOffer"];
+        trace?: never;
+    };
+    "/api/v1/slot-offers/{slot_offer_id}/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Slot Offer Slots
+         * @description Derived slots over at most 42 days (default: the next 7): free, booked, full or unavailable.
+         */
+        get: operations["listSlotOfferSlots"];
+        put?: never;
+        /**
+         * Book Slot Offer Slot
+         * @description Take one slot: its session is created (or the existing one returned) so clients can be registered.
+         */
+        post: operations["bookSlotOfferSlot"];
         delete?: never;
         options?: never;
         head?: never;
@@ -13104,6 +13198,11 @@ export interface components {
             results: components["schemas"]["OccurrenceResult"][];
             /** Status Url */
             status_url?: string | null;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: components["schemas"]["HoursWarning"][];
         };
         /** BookingOut */
         BookingOut: {
@@ -13197,6 +13296,11 @@ export interface components {
             updated_at: string;
             /** Version */
             version: number;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: components["schemas"]["HoursWarning"][];
         };
         /** BookingPolicyDefault */
         BookingPolicyDefault: {
@@ -13594,6 +13698,11 @@ export interface components {
             blackouts: components["schemas"]["BlackoutOut"][];
             /** Calendar Slot Min */
             calendar_slot_min: number;
+            /**
+             * Drag Drop Default
+             * @enum {string}
+             */
+            drag_drop_default: "ask" | "reschedule" | "move_enrollment";
             /** Entries */
             entries: components["schemas"]["CalendarEntry"][];
             /** Facility Hours */
@@ -13609,6 +13718,8 @@ export interface components {
              * Format: uuid
              */
             location_id: string;
+            /** Resource Hours */
+            resource_hours: components["schemas"]["ResourceHours"][];
             /** Resources */
             resources: components["schemas"]["ResourceOut"][];
             /** Time Zone */
@@ -18294,6 +18405,21 @@ export interface components {
             /** Weekday */
             weekday: number;
         };
+        /**
+         * HoursWarning
+         * @description A dismissible notice: the booking was made, but outside the facility hours (owner decision, question 19).
+         */
+        HoursWarning: {
+            /**
+             * Code
+             * @constant
+             */
+            code: "outside-opening-hours";
+            /** Count */
+            count: number;
+            /** Detail */
+            detail: string;
+        };
         /** InstalmentIn */
         InstalmentIn: {
             /** Amount Minor */
@@ -20161,6 +20287,19 @@ export interface components {
             /** Url */
             url: string;
         };
+        /** OpenRange */
+        OpenRange: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
         /** OpenTaskCount */
         OpenTaskCount: {
             /** Open Count */
@@ -21662,6 +21801,12 @@ export interface components {
         Page_ShiftOut_: {
             /** Data */
             data: components["schemas"]["ShiftOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[SlotOfferOut] */
+        Page_SlotOfferOut_: {
+            /** Data */
+            data: components["schemas"]["SlotOfferOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[SportOut] */
@@ -27307,6 +27452,19 @@ export interface components {
             /** Sort Order */
             sort_order?: number | null;
         };
+        /**
+         * ResourceHours
+         * @description When a resource with availability windows (a trainer) is available; the rest of its column is shaded.
+         */
+        ResourceHours: {
+            /** Open */
+            open: components["schemas"]["OpenRange"][];
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+        };
         /** ResourceInput */
         ResourceInput: {
             /**
@@ -28101,6 +28259,11 @@ export interface components {
             requested_count: number;
             /** Status Url */
             status_url?: string | null;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: components["schemas"]["HoursWarning"][];
         };
         /** SeriesRuleAdd */
         SeriesRuleAdd: {
@@ -28161,6 +28324,79 @@ export interface components {
             results: components["schemas"]["OccurrenceResult"][];
             /** Status Url */
             status_url?: string | null;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: components["schemas"]["HoursWarning"][];
+        };
+        /**
+         * SeriesRuleChange
+         * @description A new pattern for an existing pass, taking over from `start_on` (today or later).
+         */
+        SeriesRuleChange: {
+            /**
+             * End Day Offset
+             * @default 0
+             */
+            end_day_offset: number;
+            /** End Time */
+            end_time: string;
+            /**
+             * On Conflict
+             * @default abort
+             * @enum {string}
+             */
+            on_conflict: "skip" | "abort";
+            /**
+             * Override Policy
+             * @default false
+             */
+            override_policy: boolean;
+            /**
+             * Preview
+             * @default false
+             */
+            preview: boolean;
+            rule: components["schemas"]["RecurrenceRule"];
+            /**
+             * Start On
+             * Format: date
+             */
+            start_on: string;
+            /** Start Time */
+            start_time: string;
+        };
+        /** SeriesRuleChanged */
+        SeriesRuleChanged: {
+            booking?: components["schemas"]["BookingOut"] | null;
+            /** Booking Series Id */
+            booking_series_id?: string | null;
+            /** Cancelled Count */
+            cancelled_count: number;
+            /**
+             * Conflict Count
+             * @default 0
+             */
+            conflict_count: number;
+            /**
+             * Created Count
+             * @default 0
+             */
+            created_count: number;
+            preview?: components["schemas"]["SeriesPreview"] | null;
+            /**
+             * Results
+             * @default []
+             */
+            results: components["schemas"]["OccurrenceResult"][];
+            /** Status Url */
+            status_url?: string | null;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: components["schemas"]["HoursWarning"][];
         };
         /** SeriesRuleOut */
         SeriesRuleOut: {
@@ -28556,6 +28792,159 @@ export interface components {
              * Format: uuid
              */
             session_id: string;
+        };
+        /** Slot */
+        Slot: {
+            /** Booked Count */
+            booked_count: number;
+            /** Booking Id */
+            booking_id: string | null;
+            /** Capacity */
+            capacity: number;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Session Id */
+            session_id: string | null;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "free" | "booked" | "full" | "unavailable";
+        };
+        /** SlotBook */
+        SlotBook: {
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+        };
+        /** SlotList */
+        SlotList: {
+            /**
+             * Slot Offer Id
+             * Format: uuid
+             */
+            slot_offer_id: string;
+            /** Slots */
+            slots: components["schemas"]["Slot"][];
+        };
+        /** SlotOfferCreate */
+        SlotOfferCreate: {
+            /**
+             * Additional Resource Ids
+             * @default []
+             */
+            additional_resource_ids: string[];
+            /**
+             * Allows Free Booking
+             * @default false
+             */
+            allows_free_booking: boolean;
+            /**
+             * Availability Window Id
+             * Format: uuid
+             */
+            availability_window_id: string;
+            /**
+             * Capacity
+             * @default 1
+             */
+            capacity: number;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Self Bookable
+             * @default true
+             */
+            is_self_bookable: boolean;
+            /** Public Title */
+            public_title?: string | null;
+            /**
+             * Reservation Type Id
+             * Format: uuid
+             */
+            reservation_type_id: string;
+            /** Slot Min */
+            slot_min: number;
+            /** Title */
+            title?: string | null;
+        };
+        /** SlotOfferOut */
+        SlotOfferOut: {
+            /** Additional Resource Ids */
+            additional_resource_ids: string[];
+            /** Allows Free Booking */
+            allows_free_booking: boolean;
+            /**
+             * Availability Window Id
+             * Format: uuid
+             */
+            availability_window_id: string;
+            /** Capacity */
+            capacity: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Self Bookable */
+            is_self_bookable: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Public Title */
+            public_title: string | null;
+            /**
+             * Reservation Type Id
+             * Format: uuid
+             */
+            reservation_type_id: string;
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /** Slot Min */
+            slot_min: number;
+            /** Title */
+            title: string;
+        };
+        /** SlotOfferUpdate */
+        SlotOfferUpdate: {
+            /** Additional Resource Ids */
+            additional_resource_ids?: string[] | null;
+            /** Allows Free Booking */
+            allows_free_booking?: boolean | null;
+            /** Capacity */
+            capacity?: number | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Is Self Bookable */
+            is_self_bookable?: boolean | null;
+            /** Public Title */
+            public_title?: string | null;
+            /** Reservation Type Id */
+            reservation_type_id?: string | null;
+            /** Slot Min */
+            slot_min?: number | null;
+            /** Title */
+            title?: string | null;
         };
         /** SoldByIn */
         SoldByIn: {
@@ -30073,6 +30462,26 @@ export interface components {
             sort_order?: number | null;
             /** Uses Default Buffer */
             uses_default_buffer?: boolean | null;
+        };
+        /**
+         * TypeGrants
+         * @description Staff allowed to book a reservation type (SCH-05). Not restricted = every staff user with the keys.
+         */
+        TypeGrants: {
+            /** Is Restricted */
+            is_restricted: boolean;
+            /**
+             * Reservation Type Id
+             * Format: uuid
+             */
+            reservation_type_id: string;
+            /** Staff User Ids */
+            staff_user_ids: string[];
+        };
+        /** TypeGrantsReplace */
+        TypeGrantsReplace: {
+            /** Staff User Ids */
+            staff_user_ids: string[];
         };
         /** TypeOut */
         TypeOut: {
@@ -33167,6 +33576,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeriesRuleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateBookingSeriesRule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                booking_series_id: string;
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeriesRuleChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesRuleChanged"];
                 };
             };
             /** @description Validation Error */
@@ -54688,6 +55136,78 @@ export interface operations {
             };
         };
     };
+    listReservationTypeGrants: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                reservation_type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TypeGrants"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replaceReservationTypeGrants: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                reservation_type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TypeGrantsReplace"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TypeGrants"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     putSessionBookingPolicyOverride: {
         parameters: {
             query?: never;
@@ -57151,6 +57671,198 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShiftOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listSlotOffers: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_SlotOfferOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createSlotOffer: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SlotOfferCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlotOfferOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateSlotOffer: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                slot_offer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SlotOfferUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlotOfferOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listSlotOfferSlots: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                slot_offer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlotList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bookSlotOfferSlot: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                slot_offer_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SlotBook"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingOut"];
                 };
             };
             /** @description Validation Error */

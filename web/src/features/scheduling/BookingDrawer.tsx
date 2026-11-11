@@ -9,11 +9,11 @@ import { ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { KIND_LABEL, type TreeRow } from '../resources/queries'
-import { ConflictList, OccurrenceTable, SeriesScopeDialog, type ScopeMode } from './parts'
+import { ConflictList, OccurrenceTable, SeriesScopeDialog, WarningNote, warningText, type Scope } from './parts'
 import { BLOCK_KINDS, conflictsOf, useSchedulingSettings, type Booking, type ReservationType } from './queries'
 import { defaultRule, describeRule, RecurrenceEditor, type Rule } from './RecurrenceEditor'
 import { SessionPanel } from './SessionPanel'
-import { formatSpan, hhmm, parseHhmm, toInstant, zoned, zoneLabel } from './time'
+import { formatSpan, hhmm, parseHhmm, today, toInstant, zoned, zoneLabel } from './time'
 import { useMove } from './useMove'
 
 type Location = { id: string; name: string; time_zone: string }
@@ -153,7 +153,7 @@ function NewBooking({ location, rows, types, target, onClose }: Props & { target
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: ['calendar'] })
       if (r?.status_url) toast('success', 'The series is long, so its occurrences are being created in the background. The calendar fills in as they are made.')
-      else toast('success', r && r.created_count > 1 ? `${r.created_count} bookings created${r.conflict_count ? `, ${r.conflict_count} skipped for conflicts` : ''}.` : 'Booking created.')
+      else toast('success', (r && r.created_count > 1 ? `${r.created_count} bookings created${r.conflict_count ? `, ${r.conflict_count} skipped for conflicts` : ''}.` : 'Booking created.') + warningText(r?.warnings))
       onClose()
     },
   })
@@ -261,6 +261,7 @@ function NewBooking({ location, rows, types, target, onClose }: Props & { target
               {preview.data.conflict_count ? `, ${preview.data.conflict_count} conflicting` : ''}.
             </p>
             <OccurrenceTable occurrences={preview.data.occurrences} timeZone={tz} caption={f.repeat ? describeRule(f.rule) : 'Requested booking'} />
+            <WarningNote warnings={preview.data.warnings} />
           </div>
         )}
         {conflicts ? (
@@ -319,6 +320,7 @@ function BookingDetail({ booking: b, location, rows, types, canEdit, onClose }: 
   const [when, setWhen] = useState({ date: s.date, start: hhmm(s.minutes), end: hhmm(e.minutes), primary, additional: b.resources.filter((r) => r.role === 'additional').map((r) => r.resource_id) })
   const [d, setD] = useState({ title: b.title, public_title: b.public_title ?? '', notes: b.notes ?? '', typeId: b.reservation_type_id ?? '', before: String(b.buffer_before_min), after: String(b.buffer_after_min) })
   const [scope, setScope] = useState<'edit' | 'cancel' | null>(null)
+  const [changePattern, setChangePattern] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const mover = useMove(tz, () => void qc.invalidateQueries({ queryKey: ['booking', b.id] }))
   const refresh = () => {
@@ -348,7 +350,7 @@ function BookingDetail({ booking: b, location, rows, types, canEdit, onClose }: 
   }
 
   const details = useMutation({
-    mutationFn: async ({ mode, skip }: { mode: ScopeMode; skip: boolean }) => {
+    mutationFn: async ({ scope, skip }: { scope: Scope; skip: boolean }) => {
       const patch = {
         title: d.title,
         public_title: d.public_title.trim() || null,
@@ -357,8 +359,8 @@ function BookingDetail({ booking: b, location, rows, types, canEdit, onClose }: 
         buffer_before_min: Number(d.before),
         buffer_after_min: Number(d.after),
       }
-      if (mode === 'this') return api.patch('/api/v1/bookings/{booking_id}', { path: { booking_id: b.id }, body: { ...patch, version: b.version } })
-      return api.post('/api/v1/booking-series/{booking_series_id}/edits', { path: { booking_series_id: b.booking_series_id ?? '' }, body: { scope: { mode, anchor_booking_id: b.id }, patch, on_conflict: skip ? 'skip' : 'abort', preview: false } })
+      if (scope.mode === 'this') return api.patch('/api/v1/bookings/{booking_id}', { path: { booking_id: b.id }, body: { ...patch, version: b.version } })
+      return api.post('/api/v1/booking-series/{booking_series_id}/edits', { path: { booking_series_id: b.booking_series_id ?? '' }, body: { scope: { ...scope, anchor_booking_id: b.id }, patch, on_conflict: skip ? 'skip' : 'abort', preview: false } })
     },
     onSuccess: () => {
       toast('success', 'Booking saved.')
@@ -368,9 +370,9 @@ function BookingDetail({ booking: b, location, rows, types, canEdit, onClose }: 
     onError: () => setScope(null),
   })
   const cancel = useMutation({
-    mutationFn: async (mode: ScopeMode) => {
-      if (mode === 'this') return api.post('/api/v1/bookings/{booking_id}/cancel', { path: { booking_id: b.id }, body: { version: b.version, reason: 'staff' } })
-      return api.post('/api/v1/booking-series/{booking_series_id}/cancellations', { path: { booking_series_id: b.booking_series_id ?? '' }, body: { scope: { mode, anchor_booking_id: b.id }, reason: 'staff', preview: false } })
+    mutationFn: async (scope: Scope) => {
+      if (scope.mode === 'this') return api.post('/api/v1/bookings/{booking_id}/cancel', { path: { booking_id: b.id }, body: { version: b.version, reason: 'staff' } })
+      return api.post('/api/v1/booking-series/{booking_series_id}/cancellations', { path: { booking_series_id: b.booking_series_id ?? '' }, body: { scope: { ...scope, anchor_booking_id: b.id }, reason: 'staff', preview: false } })
     },
     onSuccess: (r) => {
       toast('success', r && 'affected_count' in r ? `${r.affected_count} bookings cancelled.` : 'Booking cancelled.')
@@ -441,7 +443,7 @@ function BookingDetail({ booking: b, location, rows, types, canEdit, onClose }: 
         onSubmit={(ev) => {
           ev.preventDefault()
           if (b.booking_series_id) setScope('edit')
-          else details.mutate({ mode: 'this', skip: false })
+          else details.mutate({ scope: { mode: 'this' }, skip: false })
         }}
       >
         <h3 id="details-heading" className="font-semibold sm:col-span-2">
@@ -482,12 +484,22 @@ function BookingDetail({ booking: b, location, rows, types, canEdit, onClose }: 
         </div>
       )}
 
-      {canCancel && (
-        <div className="border-t border-border pt-5">
-          <Button variant="danger" onClick={() => (b.booking_series_id ? setScope('cancel') : setConfirmCancel(true))}>
-            Cancel booking
-          </Button>
+      {(canCancel || (editable && b.booking_series_rule_id && can('scheduling.booking.update_series'))) && (
+        <div className="flex flex-wrap gap-2 border-t border-border pt-5">
+          {editable && b.booking_series_id && b.booking_series_rule_id && can('scheduling.booking.update_series') && (
+            <Button variant="secondary" onClick={() => setChangePattern(true)}>
+              Change pattern
+            </Button>
+          )}
+          {canCancel && (
+            <Button variant="danger" onClick={() => (b.booking_series_id ? setScope('cancel') : setConfirmCancel(true))}>
+              Cancel booking
+            </Button>
+          )}
         </div>
+      )}
+      {changePattern && b.booking_series_id && b.booking_series_rule_id && (
+        <PatternDialog seriesId={b.booking_series_id} ruleId={b.booking_series_rule_id} timeZone={tz} onClose={() => setChangePattern(false)} onDone={onClose} />
       )}
 
       {scope && (
@@ -495,13 +507,104 @@ function BookingDetail({ booking: b, location, rows, types, canEdit, onClose }: 
           action={scope}
           allowSeries={can(scope === 'cancel' ? 'scheduling.booking.delete_series' : 'scheduling.booking.update_series')}
           busy={details.isPending || cancel.isPending}
+          seriesId={b.booking_series_id ?? undefined}
+          timeZone={tz}
           onClose={() => setScope(null)}
-          onConfirm={(mode, skip) => (scope === 'cancel' ? cancel.mutate(mode) : details.mutate({ mode, skip }))}
+          onConfirm={(sc, skip) => (scope === 'cancel' ? cancel.mutate(sc) : details.mutate({ scope: sc, skip }))}
         />
       )}
-      <ConfirmDialog open={confirmCancel} title={`Cancel ${b.title}?`} confirmLabel="Cancel booking" danger busy={cancel.isPending} onConfirm={() => cancel.mutate('this')} onClose={() => setConfirmCancel(false)}>
+      <ConfirmDialog open={confirmCancel} title={`Cancel ${b.title}?`} confirmLabel="Cancel booking" danger busy={cancel.isPending} onConfirm={() => cancel.mutate({ mode: 'this' })} onClose={() => setConfirmCancel(false)}>
         The time is released. The booking stays in the history as cancelled.
       </ConfirmDialog>
     </div>
+  )
+}
+
+/** SCH-09: a new pattern for an existing series from a day on (today or later). Occurrences from that day are
+ * cancelled and the new pattern books in their place; "Check" previews both halves without writing. */
+function PatternDialog({ seriesId, ruleId, timeZone, onClose, onDone }: { seriesId: string; ruleId: string; timeZone: string; onClose: () => void; onDone: () => void }) {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const current = useQuery({
+    queryKey: ['booking-series', seriesId, 'rule', ruleId],
+    queryFn: () => api.get('/api/v1/booking-series/{booking_series_id}/rules/{rule_id}', { path: { booking_series_id: seriesId, rule_id: ruleId } }),
+  })
+  const [f, setF] = useState<{ startOn: string; start: string; end: string; rule: Rule; skip: boolean } | null>(null)
+  if (current.data && !f) {
+    const start = today(timeZone) > current.data.start_on ? today(timeZone) : current.data.start_on
+    setF({ startOn: start, start: current.data.start_time.slice(0, 5), end: current.data.end_time.slice(0, 5), rule: current.data.rule, skip: false })
+  }
+  const body = (preview: boolean) => ({ start_on: f?.startOn ?? '', start_time: f?.start ?? '', end_time: f?.end ?? '', rule: f?.rule as Rule, end_day_offset: current.data?.end_day_offset ?? 0, override_policy: false, on_conflict: f?.skip ? ('skip' as const) : ('abort' as const), preview })
+  const send = (preview: boolean) => api.patch('/api/v1/booking-series/{booking_series_id}/rules/{rule_id}', { path: { booking_series_id: seriesId, rule_id: ruleId }, body: body(preview) })
+  const check = useMutation({ mutationFn: () => send(true) })
+  const apply = useMutation({
+    mutationFn: () => send(false),
+    onSuccess: (r) => {
+      void qc.invalidateQueries({ queryKey: ['calendar'] })
+      toast('success', r.status_url ? 'The new pattern is being booked in the background.' : `Pattern changed: ${r.cancelled_count} cancelled, ${r.created_count} booked.${warningText(r.warnings)}`)
+      onDone()
+    },
+  })
+  const errors = fieldErrors(apply.error ?? check.error)
+  const conflicts = conflictsOf(apply.error)
+  return (
+    <Dialog
+      open
+      size="lg"
+      onClose={onClose}
+      title="Change the pattern"
+      description="Occurrences from the chosen day on are cancelled and the new pattern is booked instead. Earlier ones stay."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Back
+          </Button>
+          <Button variant="secondary" loading={check.isPending} disabled={!f} onClick={() => check.mutate()}>
+            Check availability
+          </Button>
+          <Button loading={apply.isPending} disabled={!f} onClick={() => apply.mutate()}>
+            Change pattern
+          </Button>
+        </>
+      }
+    >
+      {current.isPending ? (
+        <LoadingState />
+      ) : current.isError ? (
+        <ErrorState error={current.error} onRetry={() => void current.refetch()} />
+      ) : (
+        f && (
+          <div className="space-y-4">
+            <p className="text-sm text-muted">Now: {describeRule(current.data.rule)}.</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Input label="From" type="date" min={today(timeZone)} value={f.startOn} error={errors.start_on} onChange={(e) => setF({ ...f, startOn: e.target.value })} />
+              <Input label="Start" type="time" step={300} value={f.start} error={errors.start_time} onChange={(e) => setF({ ...f, start: e.target.value })} />
+              <Input label="End" type="time" step={300} value={f.end} error={errors.end_time} onChange={(e) => setF({ ...f, end: e.target.value })} />
+            </div>
+            <RecurrenceEditor rule={f.rule} date={f.startOn} errors={errors} onChange={(rule) => setF({ ...f, rule })} />
+            <Checkbox label="Skip occurrences that conflict" hint="Otherwise nothing changes if any new occurrence conflicts." checked={f.skip} onChange={(e) => setF({ ...f, skip: e.target.checked })} />
+            {check.data?.preview && (
+              <div className="space-y-2" aria-live="polite">
+                <p className="font-medium">
+                  Preview: {check.data.cancelled_count} cancelled; {check.data.preview.ok_count} of {check.data.preview.requested_count} new occurrences free.
+                </p>
+                <OccurrenceTable occurrences={check.data.preview.occurrences} timeZone={timeZone} caption={describeRule(f.rule)} />
+                <WarningNote warnings={check.data.preview.warnings} />
+              </div>
+            )}
+            {conflicts ? (
+              <ConflictList conflicts={conflicts} timeZone={timeZone} />
+            ) : (
+              (apply.error || check.error) &&
+              !Object.keys(errors).length && (
+                <p role="alert" className="text-danger">
+                  {(apply.error ?? check.error)?.message}
+                </p>
+              )
+            )}
+          </div>
+        )
+      )}
+    </Dialog>
   )
 }

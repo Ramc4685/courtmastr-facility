@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api, fieldErrors, request, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
@@ -136,21 +137,92 @@ function TypeDialog({ type, locationId, categories, onClose }: { type: Reservati
   )
 }
 
+/** SCH-05: which staff may book a type. Nobody ticked means everyone with booking rights; owners always may. */
+function GrantsDialog({ type, onClose }: { type: ReservationType; onClose: () => void }) {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const key = ['reservation-type-grants', type.id]
+  const grants = useQuery({ queryKey: key, queryFn: () => api.get('/api/v1/reservation-types/{reservation_type_id}/grants', { path: { reservation_type_id: type.id } }) })
+  // shortcut: one page of 200 active staff, enough for a facility; a search box is the upgrade.
+  const staff = useQuery({ queryKey: ['staff-users', 'active'], queryFn: () => api.get('/api/v1/staff-users', { query: { is_active: true, sort: 'last_name,first_name', limit: 200 } }) })
+  const [chosen, setChosen] = useState<string[] | null>(null)
+  const ids = chosen ?? grants.data?.staff_user_ids ?? []
+  const save = useMutation({
+    mutationFn: () => api.put('/api/v1/reservation-types/{reservation_type_id}/grants', { path: { reservation_type_id: type.id }, body: { staff_user_ids: ids } }),
+    onSuccess: (r) => {
+      qc.setQueryData(key, r)
+      void qc.invalidateQueries({ queryKey: ['calendar'] })
+      toast('success', r.is_restricted ? `${type.name}: ${r.staff_user_ids.length} staff may book it.` : `${type.name}: open to all staff who can book.`)
+      onClose()
+    },
+  })
+  const pending = grants.isPending || staff.isPending
+  const error = grants.error ?? staff.error
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={`Who can book ${type.name}`}
+      description="Tick the staff who may book, move or cancel this type. Leave everyone unticked to let all staff with booking rights use it. Owners always can."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button loading={save.isPending} disabled={pending} onClick={() => save.mutate()}>
+            Save
+          </Button>
+        </>
+      }
+    >
+      {pending ? (
+        <LoadingState />
+      ) : error ? (
+        <ErrorState error={error} />
+      ) : (
+        <fieldset className="max-h-80 space-y-1.5 overflow-y-auto">
+          <legend className="mb-2 text-sm font-medium">{ids.length ? `${ids.length} chosen` : 'Open to all staff'}</legend>
+          {(staff.data?.data ?? []).map((u) => (
+            <Checkbox
+              key={u.id}
+              label={`${u.first_name} ${u.last_name}`}
+              hint={u.role.name}
+              checked={ids.includes(u.id)}
+              onChange={(ev) => setChosen(ev.target.checked ? [...ids, u.id] : ids.filter((x) => x !== u.id))}
+            />
+          ))}
+        </fieldset>
+      )}
+      <Alert error={save.error} fields={fieldErrors(save.error)} />
+    </Dialog>
+  )
+}
+
 function TypesTab({ locationId, canManage }: { locationId: string; canManage: boolean }) {
+  const { can } = useAuth()
   const types = useTypes(locationId, true)
   const categories = useCategories(locationId)
   const [editing, setEditing] = useState<ReservationType | 'new' | null>(null)
+  const [granting, setGranting] = useState<ReservationType | null>(null)
+  const canGrant = can('scheduling.reservation_type.grant')
   const cats = categories.data?.data ?? []
   if (types.isPending) return <LoadingState />
   if (types.isError) return <ErrorState error={types.error} onRetry={() => void types.refetch()} />
   const rows = types.data.data
   return (
     <>
-      {canManage && (
-        <div className="mb-4">
-          <Button onClick={() => setEditing('new')}>New reservation type</Button>
-        </div>
-      )}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        {canManage && <Button onClick={() => setEditing('new')}>New reservation type</Button>}
+        {can('programs.registration_config.manage') && (
+          <p className="text-sm text-muted">
+            Online booking rules per type (how far ahead, cancellation window, limits) live in{' '}
+            <Link className="font-medium text-primary underline-offset-2 hover:underline" to="/programs/booking-policies">
+              booking policies
+            </Link>
+            .
+          </p>
+        )}
+      </div>
       <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-card">
         {rows.length === 0 ? (
           <EmptyState title="No reservation types yet">Types such as “Yoga” or “Court rental” give bookings their colour, length and capacity.</EmptyState>
@@ -184,6 +256,11 @@ function TypesTab({ locationId, canManage }: { locationId: string; canManage: bo
                       <Badge tone={t.is_active ? 'success' : 'neutral'}>{t.is_active ? 'Active' : 'Inactive'}</Badge>
                     </td>
                     <td className="px-4 py-3 text-right">
+                      {canGrant && (
+                        <Button size="sm" variant="ghost" onClick={() => setGranting(t)} aria-label={`Who can book ${t.name}`}>
+                          Who can book
+                        </Button>
+                      )}
                       {canManage && (
                         <Button size="sm" variant="ghost" onClick={() => setEditing(t)} aria-label={`Edit ${t.name}`}>
                           Edit
@@ -198,6 +275,7 @@ function TypesTab({ locationId, canManage }: { locationId: string; canManage: bo
         )}
       </div>
       {editing && <TypeDialog type={editing === 'new' ? null : editing} locationId={locationId} categories={cats.filter((c) => c.is_active)} onClose={() => setEditing(null)} />}
+      {granting && <GrantsDialog type={granting} onClose={() => setGranting(null)} />}
     </>
   )
 }

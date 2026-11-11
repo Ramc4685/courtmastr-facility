@@ -38,5 +38,6 @@ register(
     _p("waitlist.manage", "Manage session waitlists", "", _CT, own=True),
     _p("registration_link.create", "Create direct registration links", "", _FD),
     _p("reservation_type.manage", "Manage reservation types and categories", "", _MG, scope=Scope.TENANT),
+    _p("reservation_type.grant", "Choose which staff may book a reservation type", "", _MG, scope=Scope.TENANT),
     _p("public_schedule.manage", "Manage the public schedule", "", _MG),
 )

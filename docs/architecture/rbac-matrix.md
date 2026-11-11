@@ -250,6 +250,7 @@ staff-as-staff impersonation (destroys attribution, which is the whole point of 
 | `scheduling.waitlist.manage` | L | | own | Y | Y | Y | own | - | - | - | CLS-06 |
 | `scheduling.registration_link.create` | L | | | Y | Y | Y | - | - | - | - | SCH-16 |
 | `scheduling.reservation_type.manage` | T | | | Y | Y | - | - | - | - | - | SCH-02, SCH-03, SCH-04, SCH-14, SSP-03 |
+| `scheduling.reservation_type.grant` | T | | | Y | Y | - | - | - | - | - | SCH-05 (staff allowed to book a type; empty = everyone) |
 | `scheduling.public_schedule.manage` | L | | | Y | Y | - | - | - | - | - | SCH-20 |
 
 - Double booking is not overridable by anyone: the hold exclusion constraint is the rule. `override_policy`

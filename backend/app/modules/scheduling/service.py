@@ -35,6 +35,7 @@ from app.modules.scheduling.models import (
     BookingSeriesRun,
     ReservationCategory,
     ReservationType,
+    ReservationTypeGrant,
     ResourceHold,
     SchedulingSettings,
     Session,
@@ -46,11 +47,14 @@ OVERRIDE, BLOCK = "scheduling.booking.override_policy", "scheduling.block.manage
 SESSION, CAPACITY = "scheduling.session.manage", "scheduling.session.change_capacity"
 FREE_BOOK = "scheduling.enrollment.free_book"
 TYPES, LOCATION = "scheduling.reservation_type.manage", "platform.location.update"
+GRANTS = "scheduling.reservation_type.grant"
+OUTSIDE_HOURS = "outside-opening-hours"
 SYNC_LIMIT = 50  # occurrences per transaction: stays under Postgres's 64 cached subtransactions (ADR 0004)
 MAX_CALENDAR_DAYS = 42
 OVERLAP = "ex_resource_hold_overlap"
 CONSTRAINT_CODES[OVERLAP] = "booking-conflict"
 CONSTRAINT_CODES["ck_session_booked_within_capacity"] = "capacity-full"
+CONSTRAINT_CODES["fk_session_slot_offer_id_slot_offer"] = "slot-offer-in-use"  # a window whose offer has taken slots
 
 
 # --- shared helpers ----------------------------------------------------------------------------------------
@@ -80,13 +84,39 @@ def _load(session: Db, principal: Principal, model, row_id: UUID, *, lock: bool 
     return row
 
 
-def _authorize(session: Db, principal: Principal, key: str, location_id: UUID, resource_ids) -> None:
-    """The service gate plus `own` reach: a coach writes only bookings that include their own resource."""
+def _authorize(
+    session: Db, principal: Principal, key: str, location_id: UUID, resource_ids, reservation_type_id=None
+) -> None:
+    """The service gate plus `own` reach (a coach writes only bookings that include their own resource) plus
+    the reservation type's staff grants (SCH-05). Every staff booking write meets here."""
     authorize(principal, key, location_id=location_id)
     if principal.kind == "staff" and principal.permissions.get(key) == "own":
         mine = platform.service.linked_resource_id(session, principal.staff_user_id)
         if mine is None or mine not in set(resource_ids):
             raise PermissionDenied("You can change your own calendar only.", required=key)
+    _check_grant(session, principal, key, reservation_type_id)
+
+
+def _check_grant(session: Db, principal: Principal, key: str, reservation_type_id) -> None:
+    if reservation_type_id is not None and reservation_type_id in _denied_types(session, principal):
+        raise PermissionDenied("You are not allowed to book this reservation type.", required=key)
+
+
+def _denied_types(session: Db, principal: Principal) -> set[UUID]:
+    """Restricted reservation types (they have grant rows) that the caller is not granted. Owners, system jobs
+    and API keys are never restricted: grants are per staff user."""
+    if principal.kind != "staff" or principal.is_owner:
+        return set()
+    cache = session.info.setdefault("denied_types", {})
+    if principal.staff_user_id not in cache:
+        rows = session.execute(select(ReservationTypeGrant.reservation_type_id, ReservationTypeGrant.staff_user_id))
+        restricted, granted = set(), set()
+        for type_id, user_id in rows:
+            restricted.add(type_id)
+            if user_id == principal.staff_user_id:
+                granted.add(type_id)
+        cache[principal.staff_user_id] = restricted - granted
+    return cache[principal.staff_user_id]
 
 
 def _apply(row, data: dict) -> None:
@@ -583,6 +613,7 @@ def create_booking(
     session_input: dict | None = None, source: tuple[str, str, UUID] | None = None, created_via: str = "system",
     created_by_staff_user_id: UUID | None = None, hold_minutes: int | None = None, override_policy: bool = False,
     series: tuple[UUID, UUID, int] | None = None, local: tuple[date, str, int] | None = None,
+    slot: tuple[UUID, datetime] | None = None,
 ) -> Booking:  # fmt: skip
     """Write one occurrence with its holds, atomically across its resources. Raises Conflict
     `booking-conflict` (naming the conflicting bookings) or `resource-blacked-out`. `hold_minutes` makes it a
@@ -623,7 +654,8 @@ def create_booking(
             capacity=_default(given.get("capacity"), rtype.default_capacity if rtype else 0),
             is_self_bookable=_default(given.get("is_self_bookable"), rtype.is_self_bookable_default if rtype else False),
             allows_free_booking=_default(given.get("allows_free_booking"), rtype.default_allows_free_booking if rtype else False),
-            direct_link_token=secrets.token_urlsafe(16),
+            direct_link_token=secrets.token_urlsafe(16), slot_offer_id=slot[0] if slot else None,
+            slot_starts_at=slot[1] if slot else None,
         )  # fmt: skip
         session.add(seat)
         session.flush()
@@ -687,6 +719,7 @@ def cancel_booking(session: Db, booking: Booking, *, reason: str = "staff") -> B
     events.publish(session, ev.BookingCancelled(**_event_fields(booking), cancel_reason=reason), booking.id)
     seat = session.scalar(select(Session).where(Session.booking_id == booking.id))
     if seat is not None:
+        seat.slot_offer_id = seat.slot_starts_at = None  # uq_session_slot: a cancelled slot can be taken again
         events.publish(
             session,
             ev.SessionCancelled(session_id=seat.id, booking_id=booking.id, location_id=booking.location_id),
@@ -766,9 +799,13 @@ def reserve_seat(session: Db, session_id: UUID, n: int = 1) -> Session:
 
 
 def release_seat(session: Db, session_id: UUID, n: int = 1) -> Session:
+    """Give seats back. When the last seat of a slot-offer session goes, the session is cancelled so the time
+    returns to the window (data model 4.3, step 4)."""
     seat = _seat(session, session_id)
     seat.booked_count = max(seat.booked_count - n, 0)
     session.flush()
+    if seat.slot_offer_id is not None and seat.booked_count == 0:
+        cancel_booking(session, session.get(Booking, seat.booking_id), reason="other")
     return seat
 
 
@@ -967,6 +1004,10 @@ def _key(kind: str, key: str) -> str:
     return BLOCK if kind == "block" else key
 
 
+def _type_id(template: dict) -> UUID | None:
+    return UUID(template["reservation_type_id"]) if template.get("reservation_type_id") else None
+
+
 def _resource_ids(session: Db, booking: Booking) -> list[UUID]:
     return [row.resource_id for row in _booked(session, [booking.id])[booking.id]]
 
@@ -974,7 +1015,10 @@ def _resource_ids(session: Db, booking: Booking) -> list[UUID]:
 def _own(session: Db, principal: Principal, booking_id: UUID, key: str, *, lock: bool = True) -> Booking:
     """Load + authorize for a write on one booking."""
     booking = _load(session, principal, Booking, booking_id, lock=lock)
-    _authorize(session, principal, _key(booking.kind, key), booking.location_id, _resource_ids(session, booking))
+    _authorize(
+        session, principal, _key(booking.kind, key), booking.location_id, _resource_ids(session, booking),
+        booking.reservation_type_id,
+    )  # fmt: skip
     return booking
 
 
@@ -1022,8 +1066,9 @@ def _template(session: Db, principal: Principal, data: dict) -> dict:
     location_id = _location(session, principal, data["location_id"])
     template = template_for(session, location_id, data, principal.staff_user_id)
     _authorize(
-        session, principal, _key(template["kind"], CREATE), location_id, [UUID(r) for r, _ in template["resources"]]
-    )
+        session, principal, _key(template["kind"], CREATE), location_id, [UUID(r) for r, _ in template["resources"]],
+        _type_id(template),
+    )  # fmt: skip
     if data.get("override_policy"):
         authorize(principal, OVERRIDE, location_id=location_id)
     _check_free_flag(principal, location_id, (data.get("session") or {}).get("allows_free_booking"), False)
@@ -1080,16 +1125,18 @@ def _from_template(session: Db, template: dict, starts_at: datetime, ends_at: da
 
 
 def create_booking_command(session: Db, principal: Principal, data: dict, *, preview: bool = False) -> dict:
-    """Staff create of a session or time block, single or recurring (SCH-07, SCH-08, SCH-09)."""
+    """Staff create of a session or time block, single or recurring (SCH-07, SCH-08, SCH-09). Occurrences
+    outside the facility hours are booked and reported in `warnings` (owner decision, question 19)."""
     template = _template(session, principal, data)
     return book(
-        session, template, data, principal.staff_user_id, preview=preview, audit_key=_key(template["kind"], CREATE)
-    )
+        session, template, data, principal.staff_user_id, preview=preview, audit_key=_key(template["kind"], CREATE),
+        warn_hours=True,
+    )  # fmt: skip
 
 
 def book(
     session: Db, template: dict, data: dict, staff_user_id: UUID | None, *, preview: bool = False,
-    audit_key: str | None = None,
+    audit_key: str | None = None, warn_hours: bool = False,
 ) -> dict:  # fmt: skip
     """Internal: write a single booking or start a series from a validated template. Above SYNC_LIMIT
     occurrences the pass is handed to the worker (`status_url` set, `booking` None)."""
@@ -1098,8 +1145,9 @@ def book(
     rule = data.get("recurrence") or {"pattern": "single", "range_type": "count", "occurrence_limit": 1}
     if rule["pattern"] == "single":
         occurrences = [(0, rec.local_parts(data["starts_at"], zone)[0], data["starts_at"], data["ends_at"])]
+        warnings = hours_warnings(session, location_id, occurrences) if warn_hours else []
         if preview:
-            return _preview(_probe(session, template, occurrences))
+            return _preview(_probe(session, template, occurrences)) | {"warnings": warnings}
         booking = _from_template(session, template, data["starts_at"], data["ends_at"])
         if audit_key:
             audit.record(session, audit_key, booking, location_id=location_id, changes={"kind": [None, booking.kind]})
@@ -1110,6 +1158,7 @@ def book(
             "conflict_count": 0,
             "results": [],
             "status_url": None,
+            "warnings": warnings,
         }
 
     day, start = rec.local_parts(data["starts_at"], zone)
@@ -1123,8 +1172,9 @@ def book(
         until_on=rule.get("until_on") if rule["range_type"] == "until" else None, template=template,
     )  # fmt: skip
     occurrences = _occurrences(session, row, location_id)
+    warnings = hours_warnings(session, location_id, occurrences) if warn_hours else []
     if preview:
-        return _preview(_probe(session, template, occurrences))
+        return _preview(_probe(session, template, occurrences)) | {"warnings": warnings}
     series = BookingSeries(
         location_id=location_id, kind=template["kind"], label=data.get("series_label"),
         created_by_staff_user_id=staff_user_id,
@@ -1139,7 +1189,48 @@ def book(
             session, audit_key, series, location_id=location_id,
             changes={"pattern": [None, row.pattern], "requested_count": [None, len(occurrences)]},
         )  # fmt: skip
-    return _start_pass(session, staff_user_id, series, row, occurrences, data.get("on_conflict") or "abort")
+    result = _start_pass(session, staff_user_id, series, row, occurrences, data.get("on_conflict") or "abort")
+    return result | {"warnings": warnings}
+
+
+def hours_warnings(session: Db, location_id: UUID, occurrences) -> list[dict]:
+    """Staff may book outside the facility hours (ADR 0004 section 7); they get a dismissible warning instead.
+    `occurrences` are (index, local date, starts_at, ends_at). A weekday with no hours row is open."""
+    zone = _zone(session, location_id)
+    hours = {
+        d.weekday: d
+        for d in platform.service.get_facility_hours(session, system_principal("scheduling.hours"), location_id)["days"]
+    }
+
+    def span(day: date) -> tuple[datetime, datetime] | None:
+        hour = hours.get(day.isoweekday())
+        if hour is None:
+            return _between(day, "00:00", "24:00", zone)
+        if hour.is_closed or not (hour.opens_time and hour.closes_time):
+            return None
+        return _between(day, hour.opens_time, hour.closes_time, zone)
+
+    outside = []
+    for _, _, starts_at, ends_at in occurrences:
+        first = day = starts_at.astimezone(zone).date()
+        cursor = starts_at  # a booking across midnight is inside when each day's hours meet the next one's
+        while (open_ := span(day)) is not None and open_[0] <= cursor < open_[1] and ends_at > open_[1]:
+            cursor, day = open_[1], day + timedelta(days=1)
+        if open_ is None or not (open_[0] <= cursor and ends_at <= open_[1]):
+            outside.append(first)
+    if not outside:
+        return []
+    detail = (
+        f"Outside opening hours on {outside[0].isoformat()}."
+        if len(outside) == 1
+        else f"{len(outside)} occurrences are outside opening hours."
+    )
+    return [{"code": OUTSIDE_HOURS, "detail": detail, "count": len(outside)}]
+
+
+def _between(day: date, opens: str, closes: str, zone: ZoneInfo) -> tuple[datetime, datetime]:
+    (open_time, _), (close_time, extra) = rec.parse_wall(opens), rec.parse_wall(closes)
+    return rec.localize(day, open_time, zone), rec.localize(day + timedelta(days=extra), close_time, zone)
 
 
 # --- series ------------------------------------------------------------------------------------------------
@@ -1422,10 +1513,11 @@ def add_series_rule(session: Db, principal: Principal, series_id: UUID, data: di
 
 def add_rule(
     session: Db, series_id: UUID, data: dict, staff_user_id: UUID | None, *, principal: Principal | None = None,
-    key: str = UPDATE_SERIES,
+    key: str = UPDATE_SERIES, template_rule: BookingSeriesRule | None = None, extra_changes: dict | None = None,
+    sync_only: bool = False,
 ) -> dict:  # fmt: skip
     """Internal (no gate unless `principal` is given; `key` gates and audits): add a pass to a series, copying
-    its first template, so an owner's source hook runs for the new occurrences too (rentals RNT-04 "add
+    its first template (or `template_rule`'s), so an owner's source hook runs for the new occurrences too (rentals RNT-04 "add
     more"). The copy never carries the policy override or the original creator over (S-03)."""
     series = session.execute(select(BookingSeries).where(BookingSeries.id == series_id).with_for_update()).scalar_one()
     rules = session.scalars(
@@ -1433,13 +1525,15 @@ def add_rule(
         .where(BookingSeriesRule.booking_series_id == series.id)
         .order_by(BookingSeriesRule.sequence)
     ).all()
-    template = dict(rules[0].template)
+    template = dict((template_rule or rules[0]).template)
     if data.get("resources"):
         ordered = sorted(data["resources"], key=lambda r: r.get("role") != "primary")
         rows = _resolve_resources(session, series.location_id, [r["resource_id"] for r in ordered], False)
         template["resources"] = [[str(resource_id), role] for resource_id, role in rows]
     if principal is not None:
-        _authorize(session, principal, key, series.location_id, [UUID(r) for r, _ in template["resources"]])
+        _authorize(
+            session, principal, key, series.location_id, [UUID(r) for r, _ in template["resources"]], _type_id(template)
+        )
     override = bool(data.get("override_policy")) and principal is not None
     if override:
         authorize(principal, OVERRIDE, location_id=series.location_id)
@@ -1456,13 +1550,66 @@ def add_rule(
         until_on=rule.get("until_on") if rule["range_type"] == "until" else None, template=template,
     )  # fmt: skip
     occurrences = _occurrences(session, row, series.location_id)
+    if sync_only and len(occurrences) > SYNC_LIMIT:
+        raise ValidationFailed(
+            f"A pattern change books at most {SYNC_LIMIT} occurrences; add a further pass for the rest.",
+            pointer="/rule/occurrence_limit",
+        )
     if data.get("preview"):
         return {"preview": _preview(_probe(session, template, occurrences))}
     row.requested_count = len(occurrences)
     session.add(row)
     session.flush()
-    audit.record(session, key, series, location_id=series.location_id, changes={"rule_added": [None, row.sequence]})
+    audit.record(
+        session, key, series, location_id=series.location_id,
+        changes={"rule_added": [None, row.sequence]} | (extra_changes or {}),
+    )  # fmt: skip
     return _start_pass(session, staff_user_id, series, row, occurrences, data.get("on_conflict") or "abort")
+
+
+def change_series_rule(session: Db, principal: Principal, series_id: UUID, rule_id: UUID, data: dict) -> dict:
+    """Change an existing pass's pattern (SCH-09): its live occurrences from `start_on` are cancelled and a new
+    pass with the new pattern and the old pass's attributes is added, in one command (ADR 0004 section 6).
+    `preview` runs both in a savepoint and rolls back, so the new pass is probed without the old holds."""
+    series = _series(session, principal, series_id, UPDATE_SERIES, lock=True)
+    rule = session.get(BookingSeriesRule, rule_id)
+    if rule is None or rule.booking_series_id != series.id:
+        raise NotFound()
+    if data["start_on"] < platform.service.location_today(session, series.location_id):
+        raise ValidationFailed("A pattern change starts today or later.", pointer="/start_on")
+    targets = list(
+        session.scalars(
+            select(Booking)
+            .where(
+                Booking.booking_series_rule_id == rule.id,
+                Booking.status != "cancelled",
+                Booking.occurrence_on >= data["start_on"],
+            )
+            .order_by(Booking.starts_at, Booking.id)
+            .with_for_update()
+        )
+    )
+    booked = _booked(session, [b.id for b in targets])
+    for booking in targets:  # the old occurrences are cancelled, so the caller needs the delete key too
+        for key in (UPDATE_SERIES, DELETE_SERIES):
+            _authorize(
+                session, principal, key, series.location_id, [r.resource_id for r in booked[booking.id]],
+                booking.reservation_type_id,
+            )  # fmt: skip
+    outer = session.begin_nested()
+    try:
+        for booking in targets:
+            cancel_booking(session, booking, reason="series_edit")
+        result = add_rule(
+            session, series.id, data, principal.staff_user_id, principal=principal, template_rule=rule,
+            extra_changes={"rule_replaced": [None, rule.sequence], "cancelled_count": [None, len(targets)]},
+            sync_only=True,
+        )  # fmt: skip
+    except BaseException:
+        outer.rollback()
+        raise
+    outer.rollback() if data.get("preview") else outer.commit()
+    return result | {"cancelled_count": len(targets)}
 
 
 def _scope(session: Db, series: BookingSeries, scope: dict) -> list[Booking]:
@@ -1532,11 +1679,15 @@ def _apply_patch(
         resource_rows = _resolve_resources(session, series.location_id, [r["resource_id"] for r in ordered], False)
     if "reservation_type_id" in patch:
         _reservation_type(session, series.location_id, series.kind, patch["reservation_type_id"])
+        _check_grant(session, principal, UPDATE_SERIES, patch["reservation_type_id"])
     if seats_patch.get("capacity") is not None:
         authorize(principal, CAPACITY, location_id=series.location_id)
     booked = _booked(session, [b.id for b in targets])
     for booking in targets:
-        _authorize(session, principal, UPDATE_SERIES, series.location_id, [r.resource_id for r in booked[booking.id]])
+        _authorize(
+            session, principal, UPDATE_SERIES, series.location_id, [r.resource_id for r in booked[booking.id]],
+            booking.reservation_type_id,
+        )  # fmt: skip
     timing = any(patch.get(key) is not None for key in _TIMING)
     if timing:
         _release_holds(session, [b.id for b in targets])
@@ -1632,6 +1783,8 @@ def cancel_series(session: Db, principal: Principal, series_id: UUID, data: dict
     """Scoped soft cancel (SCH-11): one cancellation event per occurrence so owners can react."""
     series = _series(session, principal, series_id, DELETE_SERIES, lock=True)
     targets = _scope(session, series, data["scope"])
+    for type_id in {b.reservation_type_id for b in targets}:
+        _check_grant(session, principal, DELETE_SERIES, type_id)
     if not data.get("preview"):
         for booking in targets:
             cancel_booking(session, booking, reason=data.get("reason") or "staff")
@@ -1657,6 +1810,7 @@ def update_booking_command(session: Db, principal: Principal, booking_id: UUID, 
         raise Conflict("A cancelled booking cannot be edited.")
     if "reservation_type_id" in data:
         _reservation_type(session, booking.location_id, booking.kind, data["reservation_type_id"])
+        _check_grant(session, principal, UPDATE, data["reservation_type_id"])
     if "block_kind" in data and booking.kind != "block":
         raise ValidationFailed("Only a time block has a block kind.", pointer="/block_kind")
     rebuffer = any(
@@ -1698,7 +1852,8 @@ def reschedule_command(session: Db, principal: Principal, booking_id: UUID, data
         session, _key(booking.kind, UPDATE), booking, location_id=booking.location_id,
         changes={"starts_at": [_iso(before[0]), _iso(booking.starts_at)], "ends_at": [_iso(before[1]), _iso(booking.ends_at)]},
     )  # fmt: skip
-    return _view(session, booking)
+    span = [(0, booking.occurrence_on, booking.starts_at, booking.ends_at)]
+    return _view(session, booking) | {"warnings": hours_warnings(session, booking.location_id, span)}
 
 
 def cancel_command(session: Db, principal: Principal, booking_id: UUID, data: dict) -> dict:
@@ -1744,7 +1899,9 @@ def get_session_view(session: Db, principal: Principal, session_id: UUID) -> dic
 def update_session(session: Db, principal: Principal, session_id: UUID, data: dict) -> dict:
     seat = _load(session, principal, Session, session_id, lock=True)
     booking = session.get(Booking, seat.booking_id)
-    _authorize(session, principal, SESSION, seat.location_id, _resource_ids(session, booking))
+    _authorize(
+        session, principal, SESSION, seat.location_id, _resource_ids(session, booking), booking.reservation_type_id
+    )
     _check_free_flag(principal, seat.location_id, data.get("allows_free_booking"), seat.allows_free_booking)
     _apply(seat, data)
     audit.record(session, SESSION, seat, location_id=seat.location_id, changes=audit.diff(seat))
@@ -1758,6 +1915,8 @@ def change_capacity(session: Db, principal: Principal, session_ids: list[UUID], 
     seats = [_load(session, principal, Session, session_id) for session_id in dict.fromkeys(session_ids)]
     for location_id in {seat.location_id for seat in seats}:
         authorize(principal, CAPACITY, location_id=location_id)
+    for seat in seats:
+        _check_grant(session, principal, CAPACITY, session.get(Booking, seat.booking_id).reservation_type_id)
     results = set_capacity(session, [seat.id for seat in seats], capacity)
     for seat, result in zip(sorted(seats, key=lambda s: s.id), results, strict=True):
         if result["status"] == "ok":
@@ -1818,7 +1977,7 @@ def get_calendar(
         stmt = stmt.where(Booking.kind.in_(kinds))
     if reservation_type_ids:
         stmt = stmt.where(Booking.reservation_type_id.in_(reservation_type_ids))
-    can_edit = principal.has(UPDATE)
+    can_edit, denied = principal.has(UPDATE), _denied_types(session, principal)
     mine = (
         platform.service.linked_resource_id(session, principal.staff_user_id)
         if principal.permissions.get(UPDATE) == "own"
@@ -1835,7 +1994,9 @@ def get_calendar(
             "client_id": b.client_id, "booking_series_id": b.booking_series_id, "capacity": row.capacity,
             "booked_count": row.booked_count,
             "fill": _fill(row.capacity, row.booked_count) if row.capacity is not None else None,
-            "version": b.version, "can_edit": can_edit and (principal.permissions.get(UPDATE) != "own" or b.id in own_bookings),
+            "version": b.version,
+            "can_edit": can_edit and b.reservation_type_id not in denied
+            and (principal.permissions.get(UPDATE) != "own" or b.id in own_bookings),
         }
         for row in rows
         for b in [row.Booking]
@@ -1845,9 +2006,16 @@ def get_calendar(
         .where(ReservationType.location_id == location_id, ReservationType.is_active)
         .order_by(ReservationType.sort_order, ReservationType.name)
     )
+    settings = settings_for(session, location_id)
+    opened = _open_ranges(session, location_id, [c.id for c in columns], start, end)
     return {
         "location_id": location_id, "time_zone": _zone(session, location_id).key, "from": start, "to": end,
-        "calendar_slot_min": settings_for(session, location_id).calendar_slot_min,
+        "calendar_slot_min": settings.calendar_slot_min, "drag_drop_default": settings.drag_drop_default,
+        "resource_hours": [
+            {"resource_id": rid, "open": [{"starts_at": s, "ends_at": e} for s, e in ranges]}
+            for rid, (has_windows, ranges) in opened.items()
+            if has_windows
+        ],
         "facility_hours": platform.service.get_facility_hours(session, principal, location_id)["days"],
         "resources": columns, "entries": entries,
         "blackouts": [_blackout_view(row) for row in blackouts_between(session, location_id, start, end)],
@@ -1872,6 +2040,40 @@ def get_availability(
     return free_ranges(session, location_id, start, end, resource_ids=resource_ids, min_free_min=min_free_min)
 
 
+def _days(start: datetime, end: datetime, zone: ZoneInfo) -> list[date]:
+    first, last = start.astimezone(zone).date() - timedelta(days=1), end.astimezone(zone).date()
+    return [first + timedelta(days=offset) for offset in range((last - first).days + 1)]
+
+
+def _window_ranges(day: date, window, zone: ZoneInfo) -> tuple[datetime, datetime] | None:
+    if not slots.window_fires_on(day, window.starts_on, window.ends_on, window.weekdays, window.interval_weeks):
+        return None
+    return _between(day, window.start_time, window.end_time, zone)
+
+
+def _open_ranges(session: Db, location_id: UUID, ids: list[UUID], start: datetime, end: datetime) -> dict:
+    """resource id -> (has windows, open ranges clipped to [start, end)): its availability windows, else the
+    facility hours (a weekday without hours is open all day)."""
+    zone = _zone(session, location_id)
+    days = _days(start, end, zone)
+    windows = resources.service.windows_for(session, ids)
+    principal = system_principal("scheduling.free_ranges")
+    hours = {d.weekday: d for d in platform.service.get_facility_hours(session, principal, location_id)["days"]}
+    result = {}
+    for resource_id in ids:
+        open_, rules = [], windows.get(resource_id)
+        for day in days:
+            if rules:
+                open_ += [r for w in rules if (r := _window_ranges(day, w, zone))]
+            elif (hour := hours.get(day.isoweekday())) is None:
+                open_.append(_between(day, "00:00", "24:00", zone))
+            elif not hour.is_closed and hour.opens_time and hour.closes_time:
+                open_.append(_between(day, hour.opens_time, hour.closes_time, zone))
+        clipped = sorted((max(s, start), min(e, end)) for s, e in open_ if e > start and s < end)
+        result[resource_id] = (bool(rules), clipped)
+    return result
+
+
 def free_ranges(
     session: Db, location_id: UUID, start: datetime, end: datetime, *, resource_ids: list[UUID] | None = None,
     min_free_min: int = 15,
@@ -1879,10 +2081,8 @@ def free_ranges(
     """Internal (no gate): the free time of get_availability, also used by rentals' online search. Every
     closure counts; holds of checkouts whose clock ran out do not count as busy."""
     columns, zone = _columns(session, location_id, None, resource_ids), _zone(session, location_id)
-    principal = system_principal("scheduling.free_ranges")
     ids = [c.id for c in columns]
-    windows = resources.service.windows_for(session, ids)
-    hours = {d.weekday: d for d in platform.service.get_facility_hours(session, principal, location_id)["days"]}
+    opened = _open_ranges(session, location_id, ids, start, end)
     busy: dict[UUID, list] = {resource_id: [] for resource_id in ids}
     held = session.execute(
         select(ResourceHold.resource_id, ResourceHold.during).where(
@@ -1894,30 +2094,9 @@ def free_ranges(
     for resource_id, during in held:
         busy[resource_id].append((during.lower, during.upper))
     closed = [(b.during.lower, b.during.upper) for b in blackouts_between(session, location_id, start, end)]
-    first, last = start.astimezone(zone).date() - timedelta(days=1), end.astimezone(zone).date()
-    days = [first + timedelta(days=offset) for offset in range((last - first).days + 1)]
-
-    def between(day: date, opens: str, closes: str):
-        (open_time, _), (close_time, extra) = rec.parse_wall(opens), rec.parse_wall(closes)
-        return rec.localize(day, open_time, zone), rec.localize(day + timedelta(days=extra), close_time, zone)
-
     result = []
     for column in columns:
-        open_ = []
-        for day in days:
-            rules = windows.get(column.id)
-            if rules:
-                open_ += [
-                    between(day, w.start_time, w.end_time)
-                    for w in rules
-                    if slots.window_fires_on(day, w.starts_on, w.ends_on, w.weekdays, w.interval_weeks)
-                ]
-            elif (hour := hours.get(day.isoweekday())) is None:
-                open_.append(between(day, "00:00", "24:00"))  # no hours configured: always open
-            elif not hour.is_closed and hour.opens_time and hour.closes_time:
-                open_.append(between(day, hour.opens_time, hour.closes_time))
-        clipped = [(max(s, start), min(e, end)) for s, e in open_]
-        free = slots.subtract(clipped, busy[column.id] + closed, min_free_min)
+        free = slots.subtract(opened[column.id][1], busy[column.id] + closed, min_free_min)
         result.append({"resource_id": column.id, "free": [{"starts_at": s, "ends_at": e} for s, e in free]})
     return {"location_id": location_id, "time_zone": zone.key, "from": start, "to": end, "resources": result}
 

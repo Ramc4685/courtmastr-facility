@@ -4407,6 +4407,14 @@
               }
             ],
             "title": "Status Url"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/HoursWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
           }
         },
         "required": [
@@ -4679,6 +4687,14 @@
           "version": {
             "title": "Version",
             "type": "integer"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/HoursWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
           }
         },
         "required": [
@@ -6017,6 +6033,15 @@
             "title": "Calendar Slot Min",
             "type": "integer"
           },
+          "drag_drop_default": {
+            "enum": [
+              "ask",
+              "reschedule",
+              "move_enrollment"
+            ],
+            "title": "Drag Drop Default",
+            "type": "string"
+          },
           "entries": {
             "items": {
               "$ref": "#/components/schemas/CalendarEntry"
@@ -6044,6 +6069,13 @@
             "title": "Location Id",
             "type": "string"
           },
+          "resource_hours": {
+            "items": {
+              "$ref": "#/components/schemas/ResourceHours"
+            },
+            "title": "Resource Hours",
+            "type": "array"
+          },
           "resources": {
             "items": {
               "$ref": "#/components/schemas/ResourceOut"
@@ -6067,6 +6099,8 @@
           "from",
           "to",
           "calendar_slot_min",
+          "drag_drop_default",
+          "resource_hours",
           "facility_hours",
           "resources",
           "entries",
@@ -21567,6 +21601,31 @@
         "title": "HoursDay",
         "type": "object"
       },
+      "HoursWarning": {
+        "description": "A dismissible notice: the booking was made, but outside the facility hours (owner decision, question 19).",
+        "properties": {
+          "code": {
+            "const": "outside-opening-hours",
+            "title": "Code",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "detail",
+          "count"
+        ],
+        "title": "HoursWarning",
+        "type": "object"
+      },
       "InstalmentIn": {
         "additionalProperties": false,
         "properties": {
@@ -27630,6 +27689,26 @@
         "title": "OnboardingLink",
         "type": "object"
       },
+      "OpenRange": {
+        "properties": {
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "starts_at",
+          "ends_at"
+        ],
+        "title": "OpenRange",
+        "type": "object"
+      },
       "OpenTaskCount": {
         "properties": {
           "open_count": {
@@ -32813,6 +32892,26 @@
           "page"
         ],
         "title": "Page[ShiftOut]",
+        "type": "object"
+      },
+      "Page_SlotOfferOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SlotOfferOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[SlotOfferOut]",
         "type": "object"
       },
       "Page_SportOut_": {
@@ -50504,6 +50603,29 @@
         "title": "ResourceGroupUpdate",
         "type": "object"
       },
+      "ResourceHours": {
+        "description": "When a resource with availability windows (a trainer) is available; the rest of its column is shaded.",
+        "properties": {
+          "open": {
+            "items": {
+              "$ref": "#/components/schemas/OpenRange"
+            },
+            "title": "Open",
+            "type": "array"
+          },
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_id",
+          "open"
+        ],
+        "title": "ResourceHours",
+        "type": "object"
+      },
       "ResourceInput": {
         "additionalProperties": false,
         "properties": {
@@ -53139,6 +53261,14 @@
               }
             ],
             "title": "Status Url"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/HoursWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
           }
         },
         "required": [
@@ -53285,9 +53415,157 @@
               }
             ],
             "title": "Status Url"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/HoursWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
           }
         },
         "title": "SeriesRuleAdded",
+        "type": "object"
+      },
+      "SeriesRuleChange": {
+        "additionalProperties": false,
+        "description": "A new pattern for an existing pass, taking over from `start_on` (today or later).",
+        "properties": {
+          "end_day_offset": {
+            "default": 0,
+            "maximum": 6.0,
+            "minimum": 0.0,
+            "title": "End Day Offset",
+            "type": "integer"
+          },
+          "end_time": {
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "End Time",
+            "type": "string"
+          },
+          "on_conflict": {
+            "default": "abort",
+            "enum": [
+              "skip",
+              "abort"
+            ],
+            "title": "On Conflict",
+            "type": "string"
+          },
+          "override_policy": {
+            "default": false,
+            "title": "Override Policy",
+            "type": "boolean"
+          },
+          "preview": {
+            "default": false,
+            "title": "Preview",
+            "type": "boolean"
+          },
+          "rule": {
+            "$ref": "#/components/schemas/RecurrenceRule"
+          },
+          "start_on": {
+            "format": "date",
+            "title": "Start On",
+            "type": "string"
+          },
+          "start_time": {
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Start Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start_on",
+          "start_time",
+          "end_time",
+          "rule"
+        ],
+        "title": "SeriesRuleChange",
+        "type": "object"
+      },
+      "SeriesRuleChanged": {
+        "properties": {
+          "booking": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BookingOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "booking_series_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booking Series Id"
+          },
+          "cancelled_count": {
+            "title": "Cancelled Count",
+            "type": "integer"
+          },
+          "conflict_count": {
+            "default": 0,
+            "title": "Conflict Count",
+            "type": "integer"
+          },
+          "created_count": {
+            "default": 0,
+            "title": "Created Count",
+            "type": "integer"
+          },
+          "preview": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SeriesPreview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "results": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/OccurrenceResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "status_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Url"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/HoursWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "cancelled_count"
+        ],
+        "title": "SeriesRuleChanged",
         "type": "object"
       },
       "SeriesRuleOut": {
@@ -54409,6 +54687,403 @@
           "code"
         ],
         "title": "Skipped",
+        "type": "object"
+      },
+      "Slot": {
+        "properties": {
+          "booked_count": {
+            "title": "Booked Count",
+            "type": "integer"
+          },
+          "booking_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booking Id"
+          },
+          "capacity": {
+            "title": "Capacity",
+            "type": "integer"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "free",
+              "booked",
+              "full",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "starts_at",
+          "ends_at",
+          "status",
+          "session_id",
+          "booking_id",
+          "capacity",
+          "booked_count"
+        ],
+        "title": "Slot",
+        "type": "object"
+      },
+      "SlotBook": {
+        "additionalProperties": false,
+        "properties": {
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "starts_at"
+        ],
+        "title": "SlotBook",
+        "type": "object"
+      },
+      "SlotList": {
+        "properties": {
+          "slot_offer_id": {
+            "format": "uuid",
+            "title": "Slot Offer Id",
+            "type": "string"
+          },
+          "slots": {
+            "items": {
+              "$ref": "#/components/schemas/Slot"
+            },
+            "title": "Slots",
+            "type": "array"
+          }
+        },
+        "required": [
+          "slot_offer_id",
+          "slots"
+        ],
+        "title": "SlotList",
+        "type": "object"
+      },
+      "SlotOfferCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "additional_resource_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Additional Resource Ids",
+            "type": "array"
+          },
+          "allows_free_booking": {
+            "default": false,
+            "title": "Allows Free Booking",
+            "type": "boolean"
+          },
+          "availability_window_id": {
+            "format": "uuid",
+            "title": "Availability Window Id",
+            "type": "string"
+          },
+          "capacity": {
+            "default": 1,
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Capacity",
+            "type": "integer"
+          },
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_self_bookable": {
+            "default": true,
+            "title": "Is Self Bookable",
+            "type": "boolean"
+          },
+          "public_title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Public Title"
+          },
+          "reservation_type_id": {
+            "format": "uuid",
+            "title": "Reservation Type Id",
+            "type": "string"
+          },
+          "slot_min": {
+            "maximum": 480.0,
+            "minimum": 5.0,
+            "multipleOf": 5.0,
+            "title": "Slot Min",
+            "type": "integer"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "availability_window_id",
+          "reservation_type_id",
+          "slot_min"
+        ],
+        "title": "SlotOfferCreate",
+        "type": "object"
+      },
+      "SlotOfferOut": {
+        "properties": {
+          "additional_resource_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Additional Resource Ids",
+            "type": "array"
+          },
+          "allows_free_booking": {
+            "title": "Allows Free Booking",
+            "type": "boolean"
+          },
+          "availability_window_id": {
+            "format": "uuid",
+            "title": "Availability Window Id",
+            "type": "string"
+          },
+          "capacity": {
+            "title": "Capacity",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_self_bookable": {
+            "title": "Is Self Bookable",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "public_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Public Title"
+          },
+          "reservation_type_id": {
+            "format": "uuid",
+            "title": "Reservation Type Id",
+            "type": "string"
+          },
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "slot_min": {
+            "title": "Slot Min",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "availability_window_id",
+          "resource_id",
+          "reservation_type_id",
+          "slot_min",
+          "capacity",
+          "title",
+          "public_title",
+          "is_self_bookable",
+          "allows_free_booking",
+          "additional_resource_ids",
+          "is_active"
+        ],
+        "title": "SlotOfferOut",
+        "type": "object"
+      },
+      "SlotOfferUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "additional_resource_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Additional Resource Ids"
+          },
+          "allows_free_booking": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allows Free Booking"
+          },
+          "capacity": {
+            "anyOf": [
+              {
+                "maximum": 1000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "is_self_bookable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Self Bookable"
+          },
+          "public_title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Public Title"
+          },
+          "reservation_type_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reservation Type Id"
+          },
+          "slot_min": {
+            "anyOf": [
+              {
+                "maximum": 480.0,
+                "minimum": 5.0,
+                "multipleOf": 5.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Min"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "title": "SlotOfferUpdate",
         "type": "object"
       },
       "SoldByIn": {
@@ -59164,6 +59839,54 @@
           "name"
         ],
         "title": "TypeCreate",
+        "type": "object"
+      },
+      "TypeGrants": {
+        "description": "Staff allowed to book a reservation type (SCH-05). Not restricted = every staff user with the keys.",
+        "properties": {
+          "is_restricted": {
+            "title": "Is Restricted",
+            "type": "boolean"
+          },
+          "reservation_type_id": {
+            "format": "uuid",
+            "title": "Reservation Type Id",
+            "type": "string"
+          },
+          "staff_user_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Staff User Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "reservation_type_id",
+          "is_restricted",
+          "staff_user_ids"
+        ],
+        "title": "TypeGrants",
+        "type": "object"
+      },
+      "TypeGrantsReplace": {
+        "additionalProperties": false,
+        "properties": {
+          "staff_user_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 500,
+            "title": "Staff User Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "staff_user_ids"
+        ],
+        "title": "TypeGrantsReplace",
         "type": "object"
       },
       "TypeOut": {
@@ -66156,6 +66879,87 @@
           }
         },
         "summary": "Get Booking Series Rule",
+        "tags": [
+          "scheduling"
+        ]
+      },
+      "patch": {
+        "description": "Change a pass's pattern from `start_on`: its later occurrences are cancelled and the new pattern is\nbooked in one command. `preview: true` returns the dry run (new occurrences and the cancel count) only.",
+        "operationId": "updateBookingSeriesRule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "booking_series_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Booking Series Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "rule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rule Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeriesRuleChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesRuleChanged"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Booking Series Rule",
         "tags": [
           "scheduling"
         ]
@@ -110643,6 +111447,140 @@
         ]
       }
     },
+    "/api/v1/reservation-types/{reservation_type_id}/grants": {
+      "get": {
+        "description": "Staff allowed to book this type (SCH-05). Not restricted means every staff user with the booking keys.",
+        "operationId": "listReservationTypeGrants",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "reservation_type_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Reservation Type Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TypeGrants"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Reservation Type Grants",
+        "tags": [
+          "scheduling"
+        ]
+      },
+      "put": {
+        "description": "Restrict booking this type to these staff users; an empty list opens it to all staff again.",
+        "operationId": "replaceReservationTypeGrants",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "reservation_type_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Reservation Type Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TypeGrantsReplace"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TypeGrants"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Replace Reservation Type Grants",
+        "tags": [
+          "scheduling"
+        ]
+      }
+    },
     "/api/v1/reservation-types/{reservation_type_id}/session-booking-policy": {
       "delete": {
         "operationId": "deleteSessionBookingPolicyOverride",
@@ -115866,6 +116804,446 @@
         "summary": "Cancel Shift",
         "tags": [
           "staff"
+        ]
+      }
+    },
+    "/api/v1/slot-offers": {
+      "get": {
+        "description": "Filters: location_id, reservation_type_id, availability_window_id, is_active; resource_id (the window's).",
+        "operationId": "listSlotOffers",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_SlotOfferOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Slot Offers",
+        "tags": [
+          "scheduling"
+        ]
+      },
+      "post": {
+        "description": "Offer an availability window as bookable slots of fixed length (SCH-07 split into slots, SCH-18).",
+        "operationId": "createSlotOffer",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SlotOfferCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlotOfferOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Slot Offer",
+        "tags": [
+          "scheduling"
+        ]
+      }
+    },
+    "/api/v1/slot-offers/{slot_offer_id}": {
+      "patch": {
+        "operationId": "updateSlotOffer",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slot_offer_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Slot Offer Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SlotOfferUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlotOfferOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Slot Offer",
+        "tags": [
+          "scheduling"
+        ]
+      }
+    },
+    "/api/v1/slot-offers/{slot_offer_id}/slots": {
+      "get": {
+        "description": "Derived slots over at most 42 days (default: the next 7): free, booked, full or unavailable.",
+        "operationId": "listSlotOfferSlots",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slot_offer_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Slot Offer Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlotList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Slot Offer Slots",
+        "tags": [
+          "scheduling"
+        ]
+      },
+      "post": {
+        "description": "Take one slot: its session is created (or the existing one returned) so clients can be registered.",
+        "operationId": "bookSlotOfferSlot",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slot_offer_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Slot Offer Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SlotBook"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Book Slot Offer Slot",
+        "tags": [
+          "scheduling"
         ]
       }
     },

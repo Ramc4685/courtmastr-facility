@@ -205,6 +205,7 @@ def populate(client, tenant) -> SimpleNamespace:
         client, headers, post, location["id"], person["id"], space["resource_id"], category_id, tax_id
     )
     space |= _populate_staff(client, headers, post, location["id"], invited["id"], space["trainer_resource_id"])
+    space |= _populate_slots(client, headers, post, location["id"], invited["id"], space)
     space |= _populate_assessments(client, headers, post, location["id"], person["id"])
     space |= _populate_programs(client, headers, post, location["id"], person["id"], space, category_id)
     space |= _populate_access(client, headers, post, tenant, location["id"], person["id"], space)
@@ -586,6 +587,22 @@ def _populate_space(client, tenant, headers, post, location_id, client_id) -> di
         "run_id": long_pass["status_url"].rsplit("/", 1)[1], "schedule_session_id": seat,
         "enrollment_id": enrollment["id"], "waitlist_entry_id": waiting["id"],
     }  # fmt: skip
+
+
+def _populate_slots(client, headers, post, location_id, staff_user_id, space) -> dict:
+    """Phase 10 chip A: a slot offer on the coach's window with an extra resource and one taken slot (a session
+    with slot_offer_id), and a reservation type restricted to one staff user (reservation_type_grant)."""
+    lesson = post("/reservation-types", {"location_id": location_id, "name": "Private lesson", "default_capacity": 1})
+    granted = client.put(
+        f"/api/v1/reservation-types/{lesson['id']}/grants", headers=headers, json={"staff_user_ids": [staff_user_id]}
+    )
+    assert granted.status_code == 200, granted.text
+    offer = post("/slot-offers", {
+        "availability_window_id": space["availability_window_id"], "reservation_type_id": lesson["id"], "slot_min": 30,
+        "additional_resource_ids": [space["resource_id"]],
+    })  # fmt: skip
+    post(f"/slot-offers/{offer['id']}/slots", {"starts_at": "2030-01-02T15:00:00Z"})
+    return {"slot_offer_id": offer["id"]}
 
 
 def _populate_programs(client, headers, post, location_id, client_id, space, category_id) -> dict:

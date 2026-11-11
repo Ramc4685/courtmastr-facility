@@ -74,6 +74,7 @@ CLIENT_OR_TENANT_ROUTES = {
         updateRevenueCategory updateRole updateStaffUser updateTag updateTax updateTaxRate updateTenderType
         addStaffHourlyRate deleteStaffHourlyRate getCommissionRules listPayRates listStaffHourlyRates
         putCommissionRules putDefaultPayRate
+        listReservationTypeGrants replaceReservationTypeGrants
         createAssessmentField updateAssessmentField updateAssessmentTemplate
     """.split())
     # Integrations (module 16): T keys; the service limits a location-bound admin to their own endpoints and to

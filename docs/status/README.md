@@ -60,13 +60,13 @@ Lane detail: `02-resources-scheduling.md`, `02-resources-scheduling-web.md`.
 
 | Priority | Total | Done | Partial | Not built |
 |---|---|---|---|---|
-| P0 | 16 | 9 | 7 | 0 |
-| P1 | 12 | 4 | 0 | 8 |
+| P0 | 16 | 16 | 0 | 0 |
+| P1 | 12 | 5 | 0 | 7 |
 | P2 | 2 | 0 | 0 | 2 |
 
 | Feature | Priority | Status | What is missing, or where it changed at integration |
 |---|---|---|---|
-| RES-01 Location profile and operational settings | P0 | partial | Edits calendar increment, default buffers, checkout clock and series limit. The profile itself is module 1's Locations screen. The drag-and-drop default is stored but the calendar does not read it: dragging is always on for... |
+| RES-01 Location profile and operational settings | P0 | done | Edits calendar increment, default buffers, checkout clock and series limit; the profile itself is module 1's Locations screen. The calendar reads the stored drag-and-drop default (phase 10): move at once, confirm first, or drag off. |
 | RES-02 Facility hours | P0 | done |  |
 | RES-03 Venues and sub-venues | P0 | done |  |
 | RES-04 Schedule groups | P0 | done |  |
@@ -77,22 +77,22 @@ Lane detail: `02-resources-scheduling.md`, `02-resources-scheduling-web.md`.
 | RES-09 Padlock inventory | P2 | not built | No API. |
 | SCH-01 Calendar views and navigation | P0 | done |  |
 | SCH-02 Reservation types | P0 | done |  |
-| SCH-03 Type online-booking options | P0 | partial | Per-type defaults and per-session flags. The API has no full online-policy row yet (API partial). |
+| SCH-03 Type online-booking options | P0 | done | Per-type defaults and per-session flags here; the full online policy per type (listing mode, booking window, cut-offs, allowed packages) is programs' booking policy (location default plus type override), linked from the types tab. |
 | SCH-04 Reservation categories | P1 | done |  |
-| SCH-05 Type permissions per staff user | P1 | not built | No API. |
+| SCH-05 Type permissions per staff user | P1 | done | Phase 10: `reservation_type_grant`; "Who can book" on each type. No rows = open to all who may book; owners exempt. Checked on every booking write, not on reads or programs enrolment. |
 | SCH-06 Colour coding, fill and legend | P1 | done |  |
-| SCH-07 Create a bookable session | P0 | partial | Single or repeating, with capacity and flags. Splitting a session into slots is not built (API partial). |
+| SCH-07 Create a bookable session | P0 | done | Single or repeating, with capacity and flags. Phase 10: an availability window can be offered as fixed-length slots (`slot_offer`); taking a slot creates its session. Portal slot booking is programs' to wire. |
 | SCH-08 Time blocks | P0 | done |  |
-| SCH-09 Recurrence with preview | P0 | partial | Supports daily, weekly, monthly (by date or weekday) and yearly, with an interval, ending by count or by date. The preview lists each occurrence as free, conflicting or closed. Changing an existing series rule (`POST... |
-| SCH-10 Edit and mass-edit a series | P0 | partial | Scopes this, following and all, with "skip conflicts". The API's `selected` and `date_range` scopes have no screen. |
-| SCH-11 Delete with series scopes | P0 | partial | Cancels this, following or all. There is no multi-select delete mode on the calendar. |
+| SCH-09 Recurrence with preview | P0 | done | Daily, weekly, monthly (date or weekday) and yearly, with interval and end; per-occurrence preview. Phase 10: "Change pattern" replaces a series rule from a chosen day, with the same preview (cancelled count plus new occurrences). |
+| SCH-10 Edit and mass-edit a series | P0 | done | Scopes this, following, all, picked occurrences and a date range (phase 10), with "skip conflicts". |
+| SCH-11 Delete with series scopes | P0 | done | Cancels this, following, all, picked or a date range; phase 10 adds "Select to cancel" on the calendar (pick several, cancel together). |
 | SCH-12 Conflicts and drag rescheduling | P0 | done |  |
 | SCH-13 Multi-resource reservations | P0 | done |  |
 | SCH-14 Buffer times | P1 | done |  |
 | SCH-15 Sub-venues | P1 | done |  |
 | SCH-16 Direct registration link | P1 | not built | No API. |
 | SCH-17 Shared bookings | P1 | not built | Needs modules 4 and 5. |
-| SCH-18 Trainer availability | P0 | partial | Add, pause, resume and remove weekly windows. The calendar does not shade a trainer's off-hours (API partial). |
+| SCH-18 Trainer availability | P0 | done | Weekly windows; phase 10 shades a trainer's off-hours on the day view and offers windows as bookable slots (with an optional extra resource). |
 | SCH-19 Staff calendar sync | P1 | not built |  |
 | SCH-20 Embedded public schedule | P1 | not built |  |
 | SCH-21 Merge series | P2 | not built |  |
