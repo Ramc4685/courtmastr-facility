@@ -3,6 +3,7 @@
 import os
 from functools import cache
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlsplit
 
 import yaml
@@ -110,9 +111,23 @@ class Audit(BaseModel):
     retention_days_long: int
 
 
+class S3(BaseModel):
+    """S3-compatible bucket (AWS S3, Fly Tigris, MinIO). Keys come from the environment only (.env.example)."""
+
+    bucket: str = "facilityhub"
+    endpoint_url: str | None = None  # None means AWS; MinIO and Tigris give one
+    region: str = "us-east-1"
+    path_style: bool = False  # MinIO needs path-style addressing
+
+
 class Storage(BaseModel):
+    adapter: Literal["local", "s3"] = "local"
     local_dir: str = "var/storage"  # relative to the repository root
     max_upload_bytes: int = 20_971_520  # scanned documents and attachments (security-baseline 8.2)
+    s3: S3 = S3()
+    scanner: Literal["noop", "clamd"] = "noop"  # noop is refused outside dev and test
+    clamd_host: str = "127.0.0.1"
+    clamd_port: int = 53310
 
 
 class Settings(BaseModel):
@@ -185,4 +200,6 @@ def get_settings() -> Settings:
         raise RuntimeError("outside dev and test, integrations.webhook_allow_localhost must be false (SSRF guard)")
     if env not in ("dev", "test") and settings.payments.provider == "fake":
         raise RuntimeError("outside dev and test, payments.provider must not be fake: it takes no real money")
+    if env not in ("dev", "test") and settings.storage.scanner == "noop":
+        raise RuntimeError("outside dev and test, storage.scanner must not be noop: uploads must be malware-scanned")
     return settings

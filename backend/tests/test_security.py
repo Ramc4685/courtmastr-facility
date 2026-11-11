@@ -24,6 +24,7 @@ ANONYMOUS = {
     "/webhooks/{provider}",  # authenticated by the provider's signature, not a session
     # authenticated by the paired device's kiosk cookie (pairing: the single-use code), not a session
     "/kiosk/pair", "/kiosk/config", "/kiosk/lookups", "/kiosk/check-ins", "/kiosk/exit",
+    "/files/{tenant_id}/{file_id}",  # authenticated by the URL's signature, issued after a permission check
 }  # fmt: skip
 
 

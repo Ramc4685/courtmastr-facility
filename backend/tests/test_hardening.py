@@ -127,7 +127,9 @@ def test_fake_payments_are_refused_outside_dev_and_test(monkeypatch, tmp_path):
     monkeypatch.setenv("FH_ENV", "prod")
     with pytest.raises(RuntimeError, match="payments.provider"):
         get_settings.__wrapped__()
-    (tmp_path / "app.prod.yaml").write_text("email:\n  log_links: false\npayments:\n  provider: none\n")
+    (tmp_path / "app.prod.yaml").write_text(
+        "email:\n  log_links: false\npayments:\n  provider: none\nstorage:\n  scanner: clamd\n"
+    )
     assert get_settings.__wrapped__().payments.provider == "none"
 
 

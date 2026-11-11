@@ -53,3 +53,8 @@ audit:
 storage:
   local_dir: var/storage              # relative to the repository root (git-ignored)
   max_upload_bytes: 20971520          # the one route that takes file bytes (scanned documents, 20 MiB)
+  adapter: local                      # local | s3 (AWS S3, Fly Tigris, MinIO; keys from FH_S3_* env vars)
+  s3: {bucket: facilityhub, endpoint_url: null, region: us-east-1, path_style: false}
+  scanner: noop                       # noop | clamd. Refused outside dev and test: production must scan uploads
+  clamd_host: 127.0.0.1
+  clamd_port: 53310                   # docker compose --profile scan (ClamAV)
