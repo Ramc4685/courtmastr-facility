@@ -223,6 +223,8 @@ def get_type(session: Db, principal: Principal, type_id: UUID) -> ReservationTyp
 def create_type(session: Db, principal: Principal, data: dict) -> ReservationType:
     _location(session, principal, data["location_id"])
     authorize(principal, TYPES)
+    # a seat inherits this default, so setting it is the free_book decision itself (backlog 28)
+    _check_free_flag(principal, data["location_id"], data.get("default_allows_free_booking"), False)
     _check_category(
         session, data["location_id"], data.get("reservation_category_id"), "/reservation_category_id", top_only=False
     )
@@ -237,6 +239,9 @@ def update_type(session: Db, principal: Principal, type_id: UUID, data: dict) ->
     """Edits change only what is created afterwards: existing bookings and sessions keep their copies."""
     row = _load(session, principal, ReservationType, type_id)
     authorize(principal, TYPES)
+    _check_free_flag(
+        principal, row.location_id, data.get("default_allows_free_booking"), row.default_allows_free_booking
+    )
     if "reservation_category_id" in data:
         _check_category(
             session, row.location_id, data["reservation_category_id"], "/reservation_category_id", top_only=False

@@ -173,6 +173,30 @@ def test_merge_never_carries_acting_rights(client, tenant, owner, location_id, m
         assert rows == []
 
 
+def test_merge_of_two_portal_records_keeps_guardians_apart(client, tenant, owner, location_id, mailbox):
+    """Backlog 29: two portal-created records with different guardians; neither guardian may gain the other's."""
+    types = _types(client, owner)
+    born = date(2016, 4, 4).isoformat()
+    child = {
+        "relationship_type_id": types["parent_of"]["id"],
+        "first_name": "Sam",
+        "last_name": "Lee",
+        "birth_on": born,
+    }
+    mum = new_client(client, owner, location_id, first_name="Mia", primary_email="mia@example.com")
+    stranger = new_client(client, owner, location_id, first_name="Rex", primary_email="rex@example.com")
+    real = client.post(f"{API}/portal/dependents", headers=_portal(client, tenant, owner, mum, mailbox), json=child)
+    fake = client.post(
+        f"{API}/portal/dependents", headers=_portal(client, tenant, owner, stranger, mailbox), json=child
+    )
+    real, fake = real.json(), fake.json()
+    body = {"merged_client_ids": [real["id"]]}
+    check = client.post(f"{API}/clients/{fake['id']}/merge-precheck", headers=owner, json=body).json()
+    assert check["can_merge"] is False and "survivor-has-other-managers" in {b["code"] for b in check["blockers"]}
+    refused = client.post(f"{API}/clients/{fake['id']}/merge", headers=owner, json=body)
+    assert (refused.status_code, refused.json()["code"]) == (409, "merge-blocked")
+
+
 def test_merge_log_holds_no_personal_values(client, tenant, owner, location_id):
     keep = new_client(client, owner, location_id, first_name="Lee", last_name="Ray")
     lose = new_client(client, owner, location_id, first_name="Lee", last_name="Ray", birth_on="1980-02-02",

@@ -67,3 +67,21 @@ def test_tenant_wide_settings_need_every_location(client, owner, tenant):
     assert denied.status_code == 403 and denied.json()["required"] == "platform.location.update"
     ok(client.patch(f"{url}?location_id={f.location}", headers=manager, json={"calendar_slot_min": 30}), 200)
     assert ok(client.patch(url, headers=owner, json={"calendar_slot_min": 15}), 200)["calendar_slot_min"] == 15
+
+
+def test_free_default_of_a_type_needs_free_book(client, owner, tenant):
+    """Backlog 28: seats inherit a type's free default, so setting that default is gated like the flag itself."""
+    f = facility(client, owner)
+    email, user_id = add_staff(tenant, "admin", location_ids=[f.location])
+    deny = {"grants": [{"permission_key": FREE, "is_allowed": False}]}
+    assert client.put(f"{API}/staff-users/{user_id}/permission-overrides", headers=owner, json=deny).status_code == 200
+    admin = login(client, tenant, email)
+    types = f"{API}/reservation-types"
+    new = {"location_id": f.location, "name": "Open play", "default_allows_free_booking": True}
+    denied = client.post(types, headers=admin, json=new)
+    assert denied.status_code == 403 and denied.json()["required"] == FREE
+    paid = ok(client.post(types, headers=admin, json=new | {"default_allows_free_booking": False}))
+    edit = client.patch(f"{types}/{paid['id']}", headers=admin, json={"default_allows_free_booking": True})
+    assert edit.status_code == 403 and edit.json()["required"] == FREE
+    ok(client.patch(f"{types}/{paid['id']}", headers=admin, json={"name": "Paid play"}), 200)
+    ok(client.patch(f"{types}/{paid['id']}", headers=owner, json={"default_allows_free_booking": True}), 200)

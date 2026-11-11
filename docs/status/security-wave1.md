@@ -33,7 +33,18 @@ commit report: lint clean, 2462 tests passing on the branch, `web-check` clean, 
 
 - Backlog 3: dropping `facilityhub_fixauthz` and `facilityhub_test_fixauthz` needs the owner's approval; a
   `session.established_by` column was not started.
-- Backlog 28 (effective `allows_free_booking` default from the reservation type) is outside the spec batches;
-  verify it and fix separately if not already covered.
 - `make web-e2e` was not run.
+
+## Follow-ups closed on main after landing
+
+- Backlog 28: setting a reservation type's `default_allows_free_booking` (create or update) now needs
+  `scheduling.enrollment.free_book` at the type's location, because every seat of that type inherits it.
+  Booking a seat of a free-by-default type stays allowed: whoever made the type free already held the
+  permission. Test: `scheduling/tests/test_hardening.py::test_free_default_of_a_type_needs_free_book`.
+- Backlog 29: merge is blocked (`survivor-has-other-managers`) when the loser has its own managers or
+  guardians and the survivor has ones the loser lacks, so two portal-created records under different
+  guardians cannot be merged into one guardian's reach. A loser nobody acts for (a desk duplicate) still
+  merges. Test: `test_merge_of_two_portal_records_keeps_guardians_apart`.
+- Backlog 26: every `Idempotency-Key` header already carried `KEY_PATTERN`; a test now enforces it
+  (`tests/test_idempotency_headers.py`). Backlog 27 was closed in `4969dfc`.
 - Staff relationships left `pending` no longer count as a payer or bill-to (behaviour change).

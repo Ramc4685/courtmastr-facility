@@ -127,6 +127,13 @@ def _blockers(session: Session, survivor: Client, losers: list[Client]) -> list[
             blockers.append({"context": "clients", "client_id": loser.id, "code": "survivor-portal-created",
                              "detail": "A record created in the portal cannot absorb one created by staff; "
                                        "keep the staff record as the survivor."})  # fmt: skip
+        loser_holders = _holders(session, loser.id)
+        if loser_holders and _holders(session, survivor.id) - loser_holders:
+            # the loser is someone else's dependent: its guardian loses it, the survivor's gains it (backlog 29).
+            # A loser nobody acts for is a desk duplicate of the same person, and merges as before.
+            blockers.append({"context": "clients", "client_id": loser.id, "code": "survivor-has-other-managers",
+                             "detail": "Each record has its own managers or guardians; remove the access that "
+                                       "should not carry over first."})  # fmt: skip
         for handler in HANDLERS.values():
             for b in handler.precheck(session, loser.id, survivor.id) if handler.precheck else []:
                 blockers.append({"context": handler.context, "client_id": loser.id, **b})
@@ -158,6 +165,14 @@ def _carried_rights(session: Session, loser_id: UUID) -> tuple[list[ClientPortal
         )
     ]
     return access, rels
+
+
+def _holders(session: Session, client_id: UUID) -> set[tuple[str, UUID]]:
+    """Everyone with acting rights over a client: manager logins and the other side of acting relationships."""
+    access, rels = _carried_rights(session, client_id)
+    return {("identity", a.identity_id) for a in access} | {
+        ("client", r.to_client_id if r.from_client_id == client_id else r.from_client_id) for r in rels
+    }
 
 
 def _review(session: Session, losers: list[Client]) -> list[dict]:
