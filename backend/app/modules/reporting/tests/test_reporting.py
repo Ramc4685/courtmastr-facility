@@ -221,6 +221,11 @@ def test_coaches_see_only_their_own_sessions_and_no_other_family(client, tenant,
     assert attendance["row_count"] == 0  # no linked trainer resource: nothing is theirs
     assert code(run(client, coach, "time_clock", period="last_30_days")[0], 403) == "permission-denied"
     assert code(run(client, coach, "deposits")[0], 403) == "permission-denied"
+    # a run built with every row (reach since narrowed to own) is no longer theirs to read
+    with tenant_session(tenant.id) as session:
+        built = session.get(ReportRun, attendance["id"])
+        built.params = {**built.params, "scope": {"own_only": False, "own_resource_id": None}}
+    assert code(client.get(f"{API}/report-runs/{attendance['id']}/rows", headers=coach), 404) == "not-found"
 
 
 def test_expired_results_are_gone(client, tenant, owner, world):

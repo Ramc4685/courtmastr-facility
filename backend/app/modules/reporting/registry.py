@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import false, func, or_, select
 from sqlalchemy.orm import Session
 
+from app.core.errors import ValidationFailed
 from app.modules.reporting import views as v
 from app.modules.reporting.domain import periods
 
@@ -67,10 +68,19 @@ class ReportSpec:
         return issubclass(self.params, RangeParams)
 
 
+MAX_ROWS = 50_000  # rows in one snapshot (summary plus detail); a larger ask must narrow dates or locations
+
+
+def too_large() -> ValidationFailed:
+    return ValidationFailed(f"More than {MAX_ROWS} rows: narrow the dates or locations", code="report-too-large")
+
+
 def _loc(stmt, view, scope: Scope):
+    """Every report query goes through here: the caller's locations in the WHERE clause, and a row cap in SQL so
+    an oversized report fails on MAX_ROWS + 1 fetched rows (the service rejects it) instead of loading them all."""
     if scope.location_ids is not None:
         stmt = stmt.where(view.c.location_id.in_(scope.location_ids))
-    return stmt
+    return stmt.limit(MAX_ROWS + 1)
 
 
 def _sum(column, name: str):
@@ -237,6 +247,8 @@ def _open_invoices(session: Session, p: OpenInvoiceParams, scope: Scope) -> dict
         .where(i.status != "voided", i.invoice_on <= cut).order_by(i.client_name, i.due_on, i.number),
         v.invoice, scope,
     )).all()  # fmt: skip
+    if len(found) > MAX_ROWS:
+        raise too_large()  # rows are filtered below, so the service's count would miss the cap
     customers: dict[str, dict] = {}
     details = []
     for r in found:

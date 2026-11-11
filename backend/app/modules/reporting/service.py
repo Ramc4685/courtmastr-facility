@@ -22,12 +22,11 @@ from app.modules import platform
 from app.modules.reporting.domain import csv_file, periods
 from app.modules.reporting.events import ExportCompleted
 from app.modules.reporting.models import ExportJob, ReportRun, RunStatus, SavedReport
-from app.modules.reporting.registry import REGISTRY, ReportSpec, Scope
+from app.modules.reporting.registry import MAX_ROWS, REGISTRY, ReportSpec, Scope, too_large
 
 RUN_KEYS = tuple(sorted({spec.permission for spec in REGISTRY.values()}))
 EXPORT = "reporting.report.export"
 RETENTION = timedelta(days=7)
-MAX_ROWS = 50_000  # summary plus detail rows in one snapshot; larger asks must narrow the range
 ROWS_LIMIT = 1000
 
 CONSTRAINT_CODES["uq_saved_report_owner_name"] = "already-exists"
@@ -155,7 +154,13 @@ def _load_run(session: Session, principal: Principal, run_id: UUID) -> ReportRun
     run = session.get(ReportRun, run_id)
     if run is None or run.requested_by_staff_user_id != _staff(principal):
         raise NotFound()
-    authorize(principal, REGISTRY[run.report_key].permission)
+    spec = REGISTRY[run.report_key]
+    authorize(principal, spec.permission)
+    built = run.params.get("scope", {})
+    if principal.permissions.get(spec.permission) == "own":
+        own = platform.service.linked_resource_id(session, principal.staff_user_id)
+        if not built.get("own_only") or built.get("own_resource_id") != (str(own) if own else None):
+            raise NotFound()  # built with rows the caller's current reach no longer covers
     frozen = run.params.get("location_ids")
     if principal.location_ids is not None and (
         frozen is None or not {UUID(i) for i in frozen} <= principal.location_ids
@@ -189,8 +194,10 @@ def create_run(session: Session, principal: Principal, data: dict) -> dict:
     started = clock.now()
     result = spec.build(session, params, scope)
     if len(result["rows"]) + len(result["details"] or []) > MAX_ROWS:
-        raise ValidationFailed(f"More than {MAX_ROWS} rows: narrow the dates or locations", code="report-too-large")
+        raise too_large()
     frozen = params.model_dump(mode="json")
+    own = str(scope.own_resource_id) if scope.own_resource_id else None
+    frozen["scope"] = {"own_only": scope.own_only, "own_resource_id": own}  # re-checked on every read
     stored = platform.files.store(
         session, _snapshot(spec, result), purpose="report_result", content_type="application/json",
         uploaded_by=("staff", staff_user_id), original_name=f"{spec.key}.json",
