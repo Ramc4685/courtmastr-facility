@@ -87,4 +87,5 @@ BIL-23 public API (wave 8). The XLSX engine is Phase 12's; B builds PDF only.
 
 | Date | Chip | Event | Commit |
 |---|---|---|---|
-| 2026-11-11 | plan | written | |
+| 2026-11-11 | plan | written | ffdd151 |
+| 2026-11-11 | A, B | started by Phase 0 from 360a92d (A local_126f30cf, B local_8f674960) | |
