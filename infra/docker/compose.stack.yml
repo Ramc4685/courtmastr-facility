@@ -15,10 +15,10 @@ x-backend: &backend
   build: {context: ../.., dockerfile: infra/docker/backend.Dockerfile}
   restart: unless-stopped
   networks: [stack]
+  # Least privilege: the owner password reaches only `migrate`, S3 keys reach only what talks to S3.
   environment: &backend-env
     FH_ENV: production
-    FH_DB_OWNER_PASSWORD: ${FH_DB_OWNER_PASSWORD:?set in infra/docker/.env.stack}
-    FH_DB_APP_PASSWORD: ${FH_DB_APP_PASSWORD:?}
+    FH_DB_APP_PASSWORD: ${FH_DB_APP_PASSWORD:?set in infra/docker/.env.stack}
     FH_DB_PLATFORM_PASSWORD: ${FH_DB_PLATFORM_PASSWORD:?}
     FH_DATA_KEY: ${FH_DATA_KEY:?}
     FH_OPERATOR_TOKEN: ${FH_OPERATOR_TOKEN:-}
@@ -42,7 +42,7 @@ services:
     build: {context: ../.., dockerfile: infra/docker/web.Dockerfile}
     restart: unless-stopped
     networks:
-      stack: {ipv4_address: 172.29.77.10}   # the one address api.trusted_proxies believes (config/app.production.yaml)
+      stack: {ipv4_address: 172.29.77.250}   # the one address api.trusted_proxies believes (config/app.production.yaml)
     ports: ["127.0.0.1:${FH_STACK_HTTPS_PORT:-18443}:${FH_STACK_HTTPS_PORT:-18443}"]
     environment:
       HTTP_PORT: ${FH_STACK_HTTP_PORT:-18080}
@@ -77,11 +77,16 @@ services:
     <<: *backend
     restart: "no"
     command: [migrate]
+    environment: {FH_ENV: production, FH_DB_OWNER_PASSWORD: "${FH_DB_OWNER_PASSWORD:?}"}
     depends_on: {postgres: {condition: service_healthy}}
   s3-init:
     <<: *backend
     restart: "no"
     command: [s3-init]
+    environment:
+      FH_ENV: production
+      FH_S3_ACCESS_KEY_ID: ${FH_S3_ACCESS_KEY_ID:?}
+      FH_S3_SECRET_ACCESS_KEY: ${FH_S3_SECRET_ACCESS_KEY:?}
     depends_on: {s3: {condition: service_started}}
   postgres:
     image: postgres:16
@@ -128,7 +133,7 @@ services:
 networks:
   stack:
     name: fhstack_net
-    ipam: {config: [{subnet: 172.29.77.0/24}]}
+    ipam: {config: [{subnet: 172.29.77.0/24, ip_range: 172.29.77.0/25}]}   # dynamic addresses stay below .128; the proxy is pinned at .250
 volumes:
   pgdata: {name: fhstack_pgdata}
   redisdata: {name: fhstack_redisdata}

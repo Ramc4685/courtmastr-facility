@@ -1,0 +1,51 @@
+# EXAMPLE ONLY: nothing here has been run, no Fly account or app exists, and `fly` was never called for this project.
+# Shape: two Fly apps. This one runs the backend image as four process groups; fly.web.toml runs the proxy and web
+# build. Postgres, Redis (Upstash) and the Tigris bucket are provisioned separately (docs/ops/deploy-fly.md).
+# Secrets are set with `fly secrets set` (FH_DB_APP_PASSWORD, FH_DB_PLATFORM_PASSWORD, FH_DATA_KEY, FH_S3_*), never here.
+app = "REPLACE-facilityhub-api"
+primary_region = "REPLACE-region"
+
+[build]
+  image = "REPLACE-registry/facilityhub-backend:REPLACE-tag"   # built and scanned by .github/workflows/deploy.yml
+
+[env]
+  FH_ENV = "production"
+
+# Non-secret settings overlay. Copy infra/docker/config/app.production.yaml next to this file as app.production.yaml
+# and change the hosts (Fly private DNS, <app>.internal / <app>.flycast), web_base_url, bucket endpoint and
+# api.trusted_proxies (the web app's private network address range).
+[[files]]
+  guest_path = "/srv/fh/config/app.production.yaml"
+  local_path = "app.production.yaml"
+
+# One image, four processes: the argument is the entrypoint command (infra/docker/entrypoint.sh).
+[processes]
+  api = "api"
+  worker = "worker"
+  relay = "relay"
+  scheduler = "scheduler"
+
+# Migrations are a separate, gated step in the deploy workflow, not a release_command.
+
+[http_service]
+  processes = ["api"]
+  internal_port = 8100
+  force_https = false          # only the proxy app is public; this service is reached over Fly's private network
+  auto_stop_machines = "off"   # the 99.9% target needs the API always on
+  min_machines_running = 2     # two machines in different hosts is what makes a single failure survivable
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/api/v1/health/live"
+    interval = "15s"
+    timeout = "3s"
+    grace_period = "20s"
+
+# Exactly one of each: the relay and the scheduler must not run twice (the relay is safe to duplicate because it uses
+# row locks, the scheduler's jobs are idempotent; one is still the intended shape).
+[[vm]]
+  processes = ["api"]
+  size = "REPLACE-size"
+[[vm]]
+  processes = ["worker", "relay", "scheduler"]
+  size = "REPLACE-size"

@@ -7,7 +7,7 @@ app:
   base_domain: localhost
 api:
   host: 0.0.0.0
-  trusted_proxies: ["172.29.77.10/32"]    # the proxy's pinned address on the stack network
+  trusted_proxies: ["172.29.77.250/32"]    # the proxy's pinned address on the stack network
 db:
   host: postgres
   port: 5432

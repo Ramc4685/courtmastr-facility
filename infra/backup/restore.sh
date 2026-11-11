@@ -22,9 +22,13 @@ if [ -n "$exists" ]; then
   [ "$mode" = "--drop-existing" ] || die "database $target exists; pass --drop-existing to replace it"
   psql_q -d postgres -c "DROP DATABASE \"$target\" WITH (FORCE)" >/dev/null
 fi
-# Roles: already-exists errors are expected and harmless; anything else shows in the output.
-pg psql -X -q -d postgres < "$work/globals.sql" 2>&1 | grep -v 'already exists' || true
+# Roles: only fh_* role statements from the archive are run, one per line, never anything else (no psql meta-commands,
+# no other SQL, no superuser role changes). Already-exists errors are expected; any other error stops the restore.
+grep -E '^(CREATE|ALTER) ROLE fh_[a-z_]+ |^GRANT fh_[a-z_]+ TO fh_[a-z_]+' "$work/globals.sql" > "$work/roles.sql" || true
+errors=$(pg psql -X -q -d postgres < "$work/roles.sql" 2>&1 | grep -v 'already exists' || true)
+[ -z "$errors" ] || die "role setup failed: $errors"
 owner=$(sed -n 's/^owner|//p' "$work/MANIFEST")
+case "$owner" in ''|[!A-Za-z_]*|*[!A-Za-z0-9_]*) die "manifest names an invalid database owner" ;; esac
 psql_q -d postgres -c "CREATE DATABASE \"$target\" OWNER \"$owner\"" >/dev/null
 pg pg_restore --exit-on-error --dbname="$target" < "$work/db.dump" || die "pg_restore failed"
 [ -z "${FH_RESTORE_MANIFEST_OUT:-}" ] || cp "$work/MANIFEST" "$FH_RESTORE_MANIFEST_OUT"

@@ -17,9 +17,9 @@ COPY --from=build /opt/venv /opt/venv
 WORKDIR /srv/fh
 COPY backend/ backend/
 COPY config/ config/
-COPY infra/docker/entrypoint.sh /usr/local/bin/fh
+COPY --chmod=0755 infra/docker/entrypoint.sh /usr/local/bin/fh
 COPY infra/docker/healthcheck.py infra/docker/s3-init.py /usr/local/bin/
-ENV PATH=/opt/venv/bin:$PATH PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 FH_ENV=production
+ENV PATH=/opt/venv/bin:$PATH PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/srv/fh/backend FH_ENV=production
 USER 10001
 WORKDIR /srv/fh/backend
 EXPOSE 8100

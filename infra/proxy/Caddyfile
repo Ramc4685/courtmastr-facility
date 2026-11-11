@@ -84,3 +84,9 @@
 		file_server
 	}
 }
+
+# Container healthcheck target: loopback only, plain HTTP, no TLS name to match.
+http://127.0.0.1:8081 {
+	bind 127.0.0.1
+	respond /healthz "ok" 200
+}

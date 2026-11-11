@@ -32,7 +32,7 @@ describe('changelog', () => {
   })
 
   it('ships a changelog with an Unreleased section on top', () => {
-    expect(RELEASES[0].title).toBe('Unreleased')
+    expect(RELEASES[0]?.title).toBe('Unreleased')
   })
 
   it('renders each release as a labelled list with bold text', () => {

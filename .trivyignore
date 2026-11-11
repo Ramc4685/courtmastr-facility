@@ -1,0 +1,5 @@
+# Reviewed exceptions for the deploy workflow's image scan. Each line: the CVE, why, and when to look again.
+# CVE-2026-78661: golang.org/x/net/html in the pinned Caddy binary (fixed in x/net 0.62.0). Caddy serves static files
+# and proxies; it does not parse untrusted HTML. No patched caddy:2-alpine existed on 2026-11-11. Remove this line
+# and bump the digest in infra/docker/web.Dockerfile when one ships (review by 2026-12-11).
+CVE-2026-78661
