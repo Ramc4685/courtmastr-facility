@@ -119,7 +119,7 @@ def test_visit_limit_counts_then_denies_and_override_records_an_uncounted_visit(
     tick()
     denied = ok(check_in(client, m.desk, m.body), 201)
     assert denied["check_in"]["result"] == "denied" and denied["check_in"]["denial_reason"] == "depleted"
-    assert {"code": "visits_depleted"} in denied["alerts"]
+    assert {"code": "visits_depleted", "action": "renew_membership"} in denied["alerts"]
     override = m.body | {"override": True, "override_reason": "Pays a drop-in"}
     assert check_in(client, m.desk, override).status_code == 403  # access.checkin.override_denial
     admitted = granted(client, owner, override)

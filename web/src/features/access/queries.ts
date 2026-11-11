@@ -10,6 +10,16 @@ export type AccessSettings = Schemas['AccessSettingsOut']
 export type AccessRule = Schemas['AccessRuleOut']
 export type AccessSchedule = Schemas['AccessScheduleOut']
 export type AccessMode = Schemas['ClientAccessOut']['access_mode']
+export type Station = Schemas['CheckInStationOut']
+export type IdCardTemplate = Schemas['IdCardTemplateOut']
+export type CardField = IdCardTemplate['shown_fields'][number]
+export const CARD_FIELD_LABEL: Record<CardField, string> = {
+  name: 'Name',
+  membership_number: 'Member number',
+  membership_type: 'Membership',
+  expires_on: 'Valid until',
+  date_of_birth: 'Date of birth',
+}
 
 /** Why entry was refused (check_in.denial_reason), in the front desk's words. */
 export const DENIAL_LABEL: Record<string, string> = {

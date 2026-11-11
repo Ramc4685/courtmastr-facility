@@ -7,7 +7,7 @@ from datetime import date, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field, StringConstraints
+from pydantic import AwareDatetime, Field, StringConstraints
 
 from app.core.schemas import In, Out, Page  # noqa: F401  (Page is used by the router as s.Page)
 
@@ -32,6 +32,7 @@ class CheckInCreate(In):
     channel: Literal["staff_window", "client_profile", "pos", "api"]
     override: bool = False
     override_reason: Reason | None = None
+    check_in_station_id: UUID | None = None
 
 
 class AccessEvaluateRequest(In):
@@ -42,6 +43,7 @@ class AccessEvaluateRequest(In):
 
 class CheckInAlertOut(Out):
     code: Code
+    action: Literal["take_payment", "renew_membership", "sign_waiver", "update_payment_method", "none"]
 
 
 class StaffAlertOut(Out):
@@ -97,6 +99,8 @@ class CheckInOut(Out):
     is_visit_consumed: bool
     alert_codes: list[str]
     attended: list[AttendedOut]
+    check_in_station_id: UUID | None
+    checked_out_at: datetime | None
 
 
 class CheckInRowOut(CheckInOut):
@@ -298,6 +302,99 @@ class KioskPairingCode(Out):
     kiosk_device_id: UUID
     pairing_code: str
     expires_at: datetime
+
+
+# --- check-in desk: stations, check-out, occupancy, booking, ID cards (CHK-04, CHK-07, CHK-12, MEM-19) --------
+
+CardField = Literal["name", "membership_number", "membership_type", "expires_on", "date_of_birth"]
+
+
+class CheckInStationCreate(In):
+    location_id: UUID
+    name: Name
+    is_active: bool = True
+
+
+class CheckInStationUpdate(In):
+    name: Name | None = None
+    is_active: bool | None = None
+
+
+class CheckInStationOut(Out):
+    id: UUID
+    location_id: UUID
+    name: str
+    is_active: bool
+
+
+class CheckOutRequest(In):
+    checked_out_at: AwareDatetime | None = None  # default now; between the check-in and now
+
+
+class CheckInAttendanceCreate(In):
+    session_id: UUID
+    client_package_id: UUID | None = None
+
+
+class OccupancyPersonOut(Out):
+    check_in_id: UUID
+    client_id: UUID
+    client_name: str
+    checked_in_at: datetime
+    check_in_station_id: UUID | None
+    station_name: str | None
+
+
+class OccupancyStationOut(Out):
+    check_in_station_id: UUID | None
+    station_name: str | None
+    count: int
+
+
+class OccupancyOut(Out):
+    location_id: UUID
+    local_on: date
+    count: int
+    by_station: list[OccupancyStationOut]
+    present: list[OccupancyPersonOut]  # the newest OCCUPANCY_LIMIT people in
+    is_capped: bool  # true when count is larger than present
+
+
+class IdCardTemplateCreate(In):
+    location_id: UUID | None = None  # none: every location
+    name: Name
+    shown_fields: list[CardField] = Field(min_length=1, max_length=5)
+    has_photo: bool = True
+    is_default: bool = False
+
+
+class IdCardTemplateUpdate(In):
+    name: Name | None = None
+    shown_fields: list[CardField] | None = Field(None, min_length=1, max_length=5)
+    has_photo: bool | None = None
+    is_default: bool | None = None
+
+
+class IdCardTemplateOut(Out):
+    id: UUID | None  # none: the built-in card
+    location_id: UUID | None
+    name: str
+    shown_fields: list[CardField]
+    has_photo: bool
+    is_default: bool
+
+
+class IdCardFieldOut(Out):
+    field: CardField
+    value: str | None
+
+
+class ClientIdCardOut(Out):
+    client_id: UUID
+    template: IdCardTemplateOut
+    fields: list[IdCardFieldOut]
+    code_value: str | None
+    photo_url: str | None
 
 
 # --- the kiosk -----------------------------------------------------------------------------------------------

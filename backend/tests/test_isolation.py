@@ -87,6 +87,10 @@ _BODIES = {
     "setClientAccessMode": {"access_mode": "always_admit", "reason": "Isolation"},
     "updateAccessSchedule": {"name": "Renamed"},
     "putMembershipTypeAccess": {"access_schedule_id": None, "location_ids": []},
+    # check-in desk (phase 10 chip C)
+    "updateCheckInStation": {"name": "Renamed"},
+    "updateIdCardTemplate": {"name": "Renamed"},
+    "createCheckInAttendance": lambda a: {"session_id": a.schedule_session_id},
     "replaceFacilityHours": {"days": WEEK},
     "updateStaffUser": {"first_name": "Renamed"},
     "assignStaffRole": "role",

@@ -13,6 +13,13 @@ from datetime import timedelta
 # Attendance is auto-marked for sessions starting this long before or after a staff check-in (CHK-01); a
 # location's access settings may change it (CHK-02).
 STAFF_EARLY, STAFF_LATE = timedelta(hours=3), timedelta(hours=5)
+# Booking a session from the window (CHK-04): one that started up to an hour ago or starts in the next four.
+BOOK_EARLY, BOOK_LATE = timedelta(hours=1), timedelta(hours=4)
+# What the window offers to clear an alert (CHK-21); anything else has no remedy at the desk.
+ALERT_ACTION = {
+    "balance_due": "take_payment", "waiver_unsigned": "sign_waiver", "membership_expired": "renew_membership",
+    "visits_depleted": "renew_membership", "payment_method_expired": "update_payment_method",
+}  # fmt: skip
 # Alert catalogue, highest priority first (data-model-money, kiosk_settings).
 ALERTS = (
     "client_disabled", "access_denied", "membership_suspended", "membership_frozen", "membership_expired",

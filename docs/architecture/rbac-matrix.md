@@ -451,6 +451,7 @@ gating of cart price/quantity edits": permission wins over the Classic preferenc
 | `access.checkin.read_full_details` | L | H | | Y | Y | - | - | - | - | - | CHK-02 ("Full Details on Check-in") |
 | `access.checkin.override_denial` | L | P | | Y | Y | - | - | - | - | - | CHK-08, CHK-21 |
 | `access.checkin.delete` | L | | | Y | Y | - | - | - | - | - | MEM-20 (restores a visit) |
+| `access.checkin.check_out` | L | | | Y | Y | Y | - | - | - | - | CHK-07 (check a client out) |
 | `access.credential.assign` | C | | | Y | Y | Y | - | - | - | - | CHK-11, CHK-12, MEM-19 |
 | `access.kiosk.launch` | L | | | Y | Y | Y | - | - | - | - | CHK-05 |
 | `access.kiosk.manage` | L | K | | Y | Y | - | - | - | - | - | CHK-05 (register and revoke devices) |

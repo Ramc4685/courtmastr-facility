@@ -26,6 +26,14 @@ Migration `1021_access_rules` (phase 10 chip B) adds:
 | `membership_type_location` | locations a membership type is limited to (CHK-10): no rows admits everywhere; rows restrict to them plus the contract's own location |
 | `kiosk_match` | single-use kiosk lookup tokens: hash, device, client, expiry (migration 1022) |
 
+Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
+
+| Table or column | Holds |
+|---|---|
+| `check_in_station` | a named check-in point at a location (CHK-07), unique name per location, active flag |
+| `check_in.check_in_station_id`, `check_in.checked_out_at` | the station a staff check-in was taken at; when the visit was closed (never on a denied row, never before the check-in) |
+| `id_card_template` | a member card layout (CHK-12): fields from a fixed list (`CARD_FIELDS`, enforced by a CHECK), photo slot, one default per location and one tenant-wide (`location_id` null) |
+
 ## How it works
 
 - **Decision.** `domain/evaluate.py` is a pure function over the client's facts, in this order: a disabled client
@@ -70,6 +78,30 @@ Migration `1021_access_rules` (phase 10 chip B) adds:
   check-in window and the kiosk and routes them to the lookup.
 - **History (CHK-18, CHK-19).** Recent check-ins per location; per-client history on its own screen and as a tab
   of the client profile, with CSV export.
+- **Remediation at the window (CHK-21).** Every alert on the staff status card carries an `action`
+  (`take_payment`, `sign_waiver`, `renew_membership`, `update_payment_method`, `none`; `domain.evaluate.ALERT_ACTION`).
+  The window offers "Take payment" (billing's `TakePaymentDialog`, each tender under `billing.payment.take`, posted
+  for the client on the card, then `POST /clients/{id}/account-credit/apply` under `billing.credit.apply`) and
+  "Collect waiver signature" (documents' `ClientDocumentsTab` under its own keys), then re-evaluates. Access adds no
+  money or signature command, so billing's payer rules and documents' rules apply unchanged. The kiosk never offers it.
+- **Book or sell from the window (CHK-04).** After a granted check-in the window offers "Book a session":
+  `POST /check-ins/{id}/attendances` (router key `scheduling.enrollment.create`, the check-in's location) checks the
+  visit is today and not denied and the session is confirmed, at the same location and starts from 1 hour ago to
+  4 hours ahead (`BOOK_EARLY`, `BOOK_LATE`); then `programs.service.create_enrollment` books it with the caller as
+  principal, so its own gates (reach, the SCH-05 grant, free booking, the package) apply, and the place is marked
+  attended with `was_auto_booked`. "Sell a package" is the packages `SellPackageDialog`.
+- **Stations, check-out and occupancy (CHK-07).** Stations are managed under `access.settings.manage`; a staff
+  check-in may name an active station of its location (422 otherwise); kiosk check-ins have none.
+  `POST /check-ins/{id}/check-out` (`access.checkin.check_out`) closes every open entry of the client at that
+  location today (a repeat scan is the same visit), audited and published per row. `GET /occupancy` lists the
+  latest open entry per client today, the count and the count per station; the screen polls every 30 seconds.
+- **Member card (CHK-12, MEM-19).** `GET /clients/{id}/id-card` (`access.credential.assign`) returns the
+  template (the named one, else the location's default, the tenant's, then a built-in name and number card), only
+  the fields it shows, and the barcode value (member number, else the newest active barcode credential). The
+  birth date needs `clients.client.read_sensitive` and the expiry follows the location's hidden details unless
+  the caller holds `access.checkin.read_full_details` (null otherwise, as on the status card). Booking from a
+  check-in marks only the session just booked, and refuses a checked-out visit (409 `already-checked-out`). The
+  browser draws a Code 128 barcode as SVG (`web/src/features/access/code128.ts`) and prints only the card.
 - **Merge and erasure.** A client merge repoints check-ins and credentials and keeps the stricter access mode
   (always deny, then normal, then always admit); erasure revokes credentials and keeps the check-in rows (they are
   the facility's attendance record). Both drop the client's open kiosk match tokens.
@@ -99,9 +131,23 @@ Migration `1021_access_rules` (phase 10 chip B) adds:
 - Without `access.checkin.read_full_details` the check-in card returns no balance amount and no membership end
   date or visit count. The `balance_due` alert still shows. A location's access settings may hide further fields.
 - Marking a booking arrived does not change the booking's status or settle package credits.
+- **A visit never checked out ends at local midnight.** It is open only while its `local_on` is the location's
+  today, derived at read time: no job and no write. Checking out yesterday's visit is 409 `visit-ended`.
+- "Who is in" is `GET /occupancy` only (it knows the location's today); `GET /check-ins` has no open filter. The
+  list shows the newest 500 people in (`is_capped`), while `count` and `by_station` stay exact.
+- Check-out takes an optional time between the check-in and now (staff correcting a forgotten one).
+- The printed card has a Code 128 barcode only, no QR: a hand-written encoder of a few lines instead of a new
+  web dependency, and every scanner at the desk reads Code 128. Only printable ASCII values print.
+- Card layout is the field list, its fixed order and the photo slot; there is no tenant CSS or HTML.
+- The photo slot shows a placeholder: `photo_url` is always null until chip F adds `client.photo_file_id`. To
+  wire it, set `photo_url` in `desk.client_id_card` to F's permission-checked photo route for the client when
+  `client.photo_file_id` is set (the web already renders `photo_url` as an image).
+- Station and card-layout changes publish `access.check_in_station.changed` and `access.id_card_template.changed`.
+- A tenant-wide card layout needs `access.settings.manage` at every location; a location-limited manager sees it
+  and its own locations' layouts only.
 
 ## Deferred (P1 and later)
 
-CHK-04 booking a session or package from the check-in window; CHK-07 stations, check-out and the occupancy
-dashboard; CHK-12 ID card templates; CHK-20 summary analytics; CHK-21 at-check-in remediation (pay or sign from the window). CHK-15 and CHK-16 (RFID, biometric,
+CHK-20 summary analytics. CHK-21 "renew membership" and "update payment method" have no button at the window yet (staff open the
+client profile from the name on the status card); a QR on the printed card is not built. CHK-15 and CHK-16 (RFID, biometric,
 door hardware) wait for the v2 adapters; CHK-17 (vaccine flag) is P2. The wallet pass part of CHK-13 is deferred.

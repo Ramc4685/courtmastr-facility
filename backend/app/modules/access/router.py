@@ -19,8 +19,8 @@ from app.core.idempotency import KEY_PATTERN, Replay, begin, idempotency
 from app.core.pagination import ListQuery, list_query
 from app.core.ratelimit import _redis, rate_limit
 from app.core.settings import get_settings
+from app.modules.access import desk, service
 from app.modules.access import schemas as s
-from app.modules.access import service
 from app.modules.access.models import KioskDevice
 
 router = APIRouter(
@@ -208,6 +208,73 @@ def list_membership_type_access(ctx: Staff):
 @router.put("/membership-types/{membership_type_id}/access", response_model=s.MembershipTypeAccessOut)
 def put_membership_type_access(membership_type_id: UUID, body: s.MembershipTypeAccessWrite, ctx: Rules):
     return service.put_membership_type_access(ctx.session, ctx.principal, membership_type_id, body.model_dump())
+
+
+# --- check-in desk (CHK-04, CHK-07, CHK-12, MEM-19) ----------------------------------------------------------
+
+CheckOut = Annotated[Ctx, Depends(require("access.checkin.check_out"))]
+Enroll = Annotated[Ctx, Depends(require("scheduling.enrollment.create"))]
+
+
+@router.get("/check-in-stations", response_model=s.Page[s.CheckInStationOut])
+def list_check_in_stations(location_id: Annotated[UUID, Query()], ctx: Staff):
+    """The named check-in points of a location (CHK-07)."""
+    return {"data": desk.list_stations(ctx.session, _staff(ctx).principal, location_id), "page": _EMPTY}
+
+
+@router.post("/check-in-stations", response_model=s.CheckInStationOut, status_code=201)
+def create_check_in_station(body: s.CheckInStationCreate, ctx: Settings):
+    return desk.create_station(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.patch("/check-in-stations/{check_in_station_id}", response_model=s.CheckInStationOut)
+def update_check_in_station(check_in_station_id: UUID, body: s.CheckInStationUpdate, ctx: Settings):
+    return desk.update_station(ctx.session, ctx.principal, check_in_station_id, body.model_dump(exclude_unset=True))
+
+
+@router.post("/check-ins/{check_in_id}/check-out", response_model=s.CheckInOut)
+def check_out(check_in_id: UUID, ctx: CheckOut, body: s.CheckOutRequest | None = None):
+    """End the client's visit at the location (CHK-07); a visit never checked out ends at local midnight."""
+    row = desk.check_out(ctx.session, ctx.principal, check_in_id, body.model_dump() if body else {})
+    return service.check_in_view(ctx.session, row)
+
+
+@router.post("/check-ins/{check_in_id}/attendances", response_model=s.CheckInOut, status_code=201)
+def create_check_in_attendance(check_in_id: UUID, body: s.CheckInAttendanceCreate, ctx: Enroll):
+    """Book the checked-in client into a session starting soon and mark it attended (CHK-04)."""
+    row = desk.book_session(ctx.session, ctx.principal, check_in_id, body.model_dump())
+    return service.check_in_view(ctx.session, row)
+
+
+@router.get("/occupancy", response_model=s.OccupancyOut)
+def get_occupancy(location_id: Annotated[UUID, Query()], ctx: Read):
+    """Who is in now, the count and the count per station, in the location's day (CHK-07)."""
+    return desk.occupancy(ctx.session, ctx.principal, location_id)
+
+
+@router.get("/id-card-templates", response_model=s.Page[s.IdCardTemplateOut])
+def list_id_card_templates(ctx: Staff):
+    """Member card layouts: tenant-wide and the caller's locations (CHK-12)."""
+    return {"data": desk.list_templates(ctx.session, _staff(ctx).principal), "page": _EMPTY}
+
+
+@router.post("/id-card-templates", response_model=s.IdCardTemplateOut, status_code=201)
+def create_id_card_template(body: s.IdCardTemplateCreate, ctx: Settings):
+    return desk.create_template(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.patch("/id-card-templates/{id_card_template_id}", response_model=s.IdCardTemplateOut)
+def update_id_card_template(id_card_template_id: UUID, body: s.IdCardTemplateUpdate, ctx: Settings):
+    return desk.update_template(ctx.session, ctx.principal, id_card_template_id, body.model_dump(exclude_unset=True))
+
+
+@router.get("/clients/{client_id}/id-card", response_model=s.ClientIdCardOut)
+def get_client_id_card(
+    client_id: UUID, ctx: Assign, location_id: Annotated[UUID | None, Query()] = None,
+    id_card_template_id: Annotated[UUID | None, Query()] = None,
+):  # fmt: skip
+    """The printable member card with the value its barcode encodes (MEM-19)."""
+    return desk.client_id_card(ctx.session, ctx.principal, client_id, location_id, id_card_template_id)
 
 
 # --- portal app cards (CHK-13) -------------------------------------------------------------------------------

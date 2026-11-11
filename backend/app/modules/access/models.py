@@ -1,7 +1,8 @@
 """access tables (docs/architecture/data-model-money.md section 3): the check-in log and its attendance marks,
 credentials, kiosk devices and kiosk settings (module 10), and the access rules of Phase 10 chip B: check-in
 settings, rule outcomes, client access mode, time-of-day schedules and membership-type access (CHK-02, CHK-08,
-CHK-09, CHK-10). Stations and ID card templates are not created yet."""
+CHK-09, CHK-10), and the check-in desk of chip C: stations and check-out (CHK-07) and ID card templates (CHK-12,
+MEM-19)."""
 
 from datetime import date, datetime
 from enum import StrEnum
@@ -84,6 +85,8 @@ class AccessMode(StrEnum):
 
 # Status-card fields a location may hide from staff without access.checkin.read_full_details (CHK-02).
 DETAIL_FIELDS = ("balance_due", "membership_dates", "visit_counts", "staff_notes")
+# What an ID card may print (CHK-12): a fixed list, so a template is data, never markup or CSS.
+CARD_FIELDS = ("name", "membership_number", "membership_type", "expires_on", "date_of_birth")
 
 
 class CheckIn(TenantOwned, Timestamps, Base):
@@ -104,8 +107,19 @@ class CheckIn(TenantOwned, Timestamps, Base):
         CheckConstraint("(result = 'granted') = (denial_reason IS NULL)", name="denial"),
         CheckConstraint("(result = 'granted_override') = (override_by_staff_user_id IS NOT NULL)", name="override"),
         CheckConstraint("NOT is_visit_consumed OR result <> 'denied'", name="visit"),
+        CheckConstraint(
+            "checked_out_at IS NULL OR (checked_out_at >= checked_in_at AND result <> 'denied')", name="out"
+        ),
+        *tfk("check_in_station_id", "check_in_station"),
         Index("ix_check_in_recent", "tenant_id", "location_id", text("checked_in_at DESC"), text("id DESC")),
         Index("ix_check_in_client", "tenant_id", "client_id", text("checked_in_at DESC")),
+        Index(
+            "ix_check_in_open",
+            "tenant_id",
+            "location_id",
+            "local_on",
+            postgresql_where=text("checked_out_at IS NULL AND result <> 'denied'"),
+        ),  # fmt: skip
     )
 
     client_id: Mapped[UUID]
@@ -124,6 +138,51 @@ class CheckIn(TenantOwned, Timestamps, Base):
     is_visit_consumed: Mapped[bool] = mapped_column(server_default=text("false"))
     alert_codes: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"), info={"audit": "value"})
     created_by_staff_user_id: Mapped[UUID | None]
+    check_in_station_id: Mapped[UUID | None]  # CHK-07: the station the staff window recorded
+    checked_out_at: Mapped[datetime | None]  # CHK-07: null is "still in" for the check-in's own local day only
+
+
+class CheckInStation(TenantOwned, Timestamps, Base):
+    """A named check-in point at a location (CHK-07): the front desk, the pool door. Occupancy counts by it."""
+
+    __tablename__ = "check_in_station"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", index=False),
+        UniqueConstraint("tenant_id", "location_id", "name", name="uq_check_in_station_name"),
+    )
+
+    location_id: Mapped[UUID]
+    name: Mapped[str] = mapped_column(info={"audit": "value"})
+    is_active: Mapped[bool] = mapped_column(server_default=text("true"))
+
+
+class IdCardTemplate(TenantOwned, Timestamps, Base):
+    """What a printed member card shows (CHK-12, MEM-19): fields from CARD_FIELDS, a photo slot or not. The browser
+    lays it out; nothing per printed card is stored. A null location is every location."""
+
+    __tablename__ = "id_card_template"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location"),
+        CheckConstraint(
+            "shown_fields <@ ARRAY[" + ", ".join(f"'{f}'" for f in CARD_FIELDS) + "]::text[]", name="shown_fields"
+        ),
+        Index(
+            "uq_id_card_template_default",
+            "tenant_id",
+            "location_id",
+            unique=True,
+            postgresql_where=text("is_default"),
+            postgresql_nulls_not_distinct=True,
+        ),  # fmt: skip
+    )
+
+    location_id: Mapped[UUID | None]
+    name: Mapped[str] = mapped_column(info={"audit": "value"})
+    shown_fields: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), server_default=text("'{name,membership_number}'"), info={"audit": "value"}
+    )
+    has_photo: Mapped[bool] = mapped_column(server_default=text("true"))
+    is_default: Mapped[bool] = mapped_column(server_default=text("false"))
 
 
 class CheckInAttendance(TenantOwned, Timestamps, Base):

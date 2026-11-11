@@ -850,9 +850,14 @@ def _populate_access(client, headers, post, tenant, location_id, client_id, spac
             kiosk_device_id=device["kiosk_device_id"], client_id=client_id, token_hash=f"pop-{uuid4().hex}",
             expires_at=clock.now(),
         ))  # fmt: skip
+    # check-in desk (phase 10 chip C): a station and a location's ID card template
+    station = post("/check-in-stations", {"location_id": location_id, "name": "Main desk"})
+    card = post("/id-card-templates", {"location_id": location_id, "name": "Member card",
+                                       "shown_fields": ["name", "membership_number"], "is_default": True})  # fmt: skip
     return {
         "credential_id": credential["id"], "check_in_id": checked["check_in"]["id"],
-        "kiosk_device_id": device["kiosk_device_id"],
+        "kiosk_device_id": device["kiosk_device_id"], "check_in_station_id": station["id"],
+        "id_card_template_id": card["id"],
     }  # fmt: skip
 
 

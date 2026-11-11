@@ -9229,6 +9229,17 @@
       },
       "CheckInAlertOut": {
         "properties": {
+          "action": {
+            "enum": [
+              "take_payment",
+              "renew_membership",
+              "sign_waiver",
+              "update_payment_method",
+              "none"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
           "code": {
             "enum": [
               "client_disabled",
@@ -9250,9 +9261,37 @@
           }
         },
         "required": [
-          "code"
+          "code",
+          "action"
         ],
         "title": "CheckInAlertOut",
+        "type": "object"
+      },
+      "CheckInAttendanceCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_package_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Package Id"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "CheckInAttendanceCreate",
         "type": "object"
       },
       "CheckInClientOut": {
@@ -9350,6 +9389,18 @@
             ],
             "title": "Channel",
             "type": "string"
+          },
+          "check_in_station_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Check In Station Id"
           },
           "client_id": {
             "anyOf": [
@@ -9483,10 +9534,34 @@
             "title": "Channel",
             "type": "string"
           },
+          "check_in_station_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Check In Station Id"
+          },
           "checked_in_at": {
             "format": "date-time",
             "title": "Checked In At",
             "type": "string"
+          },
+          "checked_out_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked Out At"
           },
           "client_id": {
             "format": "uuid",
@@ -9608,7 +9683,9 @@
           "membership_contract_id",
           "is_visit_consumed",
           "alert_codes",
-          "attended"
+          "attended",
+          "check_in_station_id",
+          "checked_out_at"
         ],
         "title": "CheckInOut",
         "type": "object"
@@ -9657,10 +9734,34 @@
             "title": "Channel",
             "type": "string"
           },
+          "check_in_station_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Check In Station Id"
+          },
           "checked_in_at": {
             "format": "date-time",
             "title": "Checked In At",
             "type": "string"
+          },
+          "checked_out_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked Out At"
           },
           "client_id": {
             "format": "uuid",
@@ -9787,9 +9888,118 @@
           "is_visit_consumed",
           "alert_codes",
           "attended",
+          "check_in_station_id",
+          "checked_out_at",
           "client_name"
         ],
         "title": "CheckInRowOut",
+        "type": "object"
+      },
+      "CheckInStationCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location_id",
+          "name"
+        ],
+        "title": "CheckInStationCreate",
+        "type": "object"
+      },
+      "CheckInStationOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "name",
+          "is_active"
+        ],
+        "title": "CheckInStationOut",
+        "type": "object"
+      },
+      "CheckInStationUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "CheckInStationUpdate",
+        "type": "object"
+      },
+      "CheckOutRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "checked_out_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked Out At"
+          }
+        },
+        "title": "CheckOutRequest",
         "type": "object"
       },
       "CheckoutCreate": {
@@ -10826,6 +11036,56 @@
           "is_consent_missing"
         ],
         "title": "ClientDocumentStatusOut",
+        "type": "object"
+      },
+      "ClientIdCardOut": {
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "code_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Value"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/IdCardFieldOut"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          },
+          "template": {
+            "$ref": "#/components/schemas/IdCardTemplateOut"
+          }
+        },
+        "required": [
+          "client_id",
+          "template",
+          "fields",
+          "code_value",
+          "photo_url"
+        ],
+        "title": "ClientIdCardOut",
         "type": "object"
       },
       "ClientListItem": {
@@ -22254,6 +22514,222 @@
         "title": "HoursWarning",
         "type": "object"
       },
+      "IdCardFieldOut": {
+        "properties": {
+          "field": {
+            "enum": [
+              "name",
+              "membership_number",
+              "membership_type",
+              "expires_on",
+              "date_of_birth"
+            ],
+            "title": "Field",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "field",
+          "value"
+        ],
+        "title": "IdCardFieldOut",
+        "type": "object"
+      },
+      "IdCardTemplateCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "has_photo": {
+            "default": true,
+            "title": "Has Photo",
+            "type": "boolean"
+          },
+          "is_default": {
+            "default": false,
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "shown_fields": {
+            "items": {
+              "enum": [
+                "name",
+                "membership_number",
+                "membership_type",
+                "expires_on",
+                "date_of_birth"
+              ],
+              "type": "string"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Shown Fields",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "shown_fields"
+        ],
+        "title": "IdCardTemplateCreate",
+        "type": "object"
+      },
+      "IdCardTemplateOut": {
+        "properties": {
+          "has_photo": {
+            "title": "Has Photo",
+            "type": "boolean"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "is_default": {
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "shown_fields": {
+            "items": {
+              "enum": [
+                "name",
+                "membership_number",
+                "membership_type",
+                "expires_on",
+                "date_of_birth"
+              ],
+              "type": "string"
+            },
+            "title": "Shown Fields",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "name",
+          "shown_fields",
+          "has_photo",
+          "is_default"
+        ],
+        "title": "IdCardTemplateOut",
+        "type": "object"
+      },
+      "IdCardTemplateUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "has_photo": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Has Photo"
+          },
+          "is_default": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Default"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "shown_fields": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "name",
+                    "membership_number",
+                    "membership_type",
+                    "expires_on",
+                    "date_of_birth"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 5,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shown Fields"
+          }
+        },
+        "title": "IdCardTemplateUpdate",
+        "type": "object"
+      },
       "InstalmentIn": {
         "additionalProperties": false,
         "properties": {
@@ -28118,6 +28594,146 @@
         "title": "NotificationRouteUpdate",
         "type": "object"
       },
+      "OccupancyOut": {
+        "properties": {
+          "by_station": {
+            "items": {
+              "$ref": "#/components/schemas/OccupancyStationOut"
+            },
+            "title": "By Station",
+            "type": "array"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "is_capped": {
+            "title": "Is Capped",
+            "type": "boolean"
+          },
+          "local_on": {
+            "format": "date",
+            "title": "Local On",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "present": {
+            "items": {
+              "$ref": "#/components/schemas/OccupancyPersonOut"
+            },
+            "title": "Present",
+            "type": "array"
+          }
+        },
+        "required": [
+          "location_id",
+          "local_on",
+          "count",
+          "by_station",
+          "present",
+          "is_capped"
+        ],
+        "title": "OccupancyOut",
+        "type": "object"
+      },
+      "OccupancyPersonOut": {
+        "properties": {
+          "check_in_id": {
+            "format": "uuid",
+            "title": "Check In Id",
+            "type": "string"
+          },
+          "check_in_station_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Check In Station Id"
+          },
+          "checked_in_at": {
+            "format": "date-time",
+            "title": "Checked In At",
+            "type": "string"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_name": {
+            "title": "Client Name",
+            "type": "string"
+          },
+          "station_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Station Name"
+          }
+        },
+        "required": [
+          "check_in_id",
+          "client_id",
+          "client_name",
+          "checked_in_at",
+          "check_in_station_id",
+          "station_name"
+        ],
+        "title": "OccupancyPersonOut",
+        "type": "object"
+      },
+      "OccupancyStationOut": {
+        "properties": {
+          "check_in_station_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Check In Station Id"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "station_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Station Name"
+          }
+        },
+        "required": [
+          "check_in_station_id",
+          "station_name",
+          "count"
+        ],
+        "title": "OccupancyStationOut",
+        "type": "object"
+      },
       "OccurrenceResult": {
         "properties": {
           "booking_id": {
@@ -31929,6 +32545,26 @@
         "title": "Page[CheckInRowOut]",
         "type": "object"
       },
+      "Page_CheckInStationOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CheckInStationOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[CheckInStationOut]",
+        "type": "object"
+      },
       "Page_ClientDocumentOut_": {
         "properties": {
           "data": {
@@ -32387,6 +33023,26 @@
           "page"
         ],
         "title": "Page[HistoryOut]",
+        "type": "object"
+      },
+      "Page_IdCardTemplateOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/IdCardTemplateOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[IdCardTemplateOut]",
         "type": "object"
       },
       "Page_InvoiceOut_": {
@@ -70996,6 +71652,201 @@
         ]
       }
     },
+    "/api/v1/check-in-stations": {
+      "get": {
+        "description": "The named check-in points of a location (CHK-07).",
+        "operationId": "listCheckInStations",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_CheckInStationOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Check In Stations",
+        "tags": [
+          "access"
+        ]
+      },
+      "post": {
+        "operationId": "createCheckInStation",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckInStationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckInStationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Check In Station",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/check-in-stations/{check_in_station_id}": {
+      "patch": {
+        "operationId": "updateCheckInStation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "check_in_station_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Check In Station Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckInStationUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckInStationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Check In Station",
+        "tags": [
+          "access"
+        ]
+      }
+    },
     "/api/v1/check-ins": {
       "get": {
         "description": "Recent check-ins (CHK-18) and a client's history (CHK-19). Filters: location_id, client_id, result,\nchannel, local_on, checked_in_at[gte|lte].",
@@ -71316,6 +72167,159 @@
           }
         },
         "summary": "Get Check In",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/check-ins/{check_in_id}/attendances": {
+      "post": {
+        "description": "Book the checked-in client into a session starting soon and mark it attended (CHK-04).",
+        "operationId": "createCheckInAttendance",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "check_in_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Check In Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckInAttendanceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckInOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Check In Attendance",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/check-ins/{check_in_id}/check-out": {
+      "post": {
+        "description": "End the client's visit at the location (CHK-07); a visit never checked out ends at local midnight.",
+        "operationId": "checkOut",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "check_in_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Check In Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CheckOutRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckInOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Check Out",
         "tags": [
           "access"
         ]
@@ -76614,6 +77618,103 @@
         "summary": "Enable Client",
         "tags": [
           "clients"
+        ]
+      }
+    },
+    "/api/v1/clients/{client_id}/id-card": {
+      "get": {
+        "description": "The printable member card with the value its barcode encodes (MEM-19).",
+        "operationId": "getClientIdCard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Client Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Location Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "id_card_template_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Id Card Template Id"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientIdCardOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Client Id Card",
+        "tags": [
+          "access"
         ]
       }
     },
@@ -85995,6 +87096,191 @@
         ]
       }
     },
+    "/api/v1/id-card-templates": {
+      "get": {
+        "description": "Member card layouts: tenant-wide and the caller's locations (CHK-12).",
+        "operationId": "listIdCardTemplates",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_IdCardTemplateOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Id Card Templates",
+        "tags": [
+          "access"
+        ]
+      },
+      "post": {
+        "operationId": "createIdCardTemplate",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdCardTemplateCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdCardTemplateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Id Card Template",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/id-card-templates/{id_card_template_id}": {
+      "patch": {
+        "operationId": "updateIdCardTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id_card_template_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Id Card Template Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdCardTemplateUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdCardTemplateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Id Card Template",
+        "tags": [
+          "access"
+        ]
+      }
+    },
     "/api/v1/integration-adapters": {
       "get": {
         "description": "Each integration port with its adapter and whether it is connected, simulated or not configured.",
@@ -93655,6 +94941,69 @@
         "summary": "Update Notification Route",
         "tags": [
           "engagement"
+        ]
+      }
+    },
+    "/api/v1/occupancy": {
+      "get": {
+        "description": "Who is in now, the count and the count per station, in the location's day (CHK-07).",
+        "operationId": "getOccupancy",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OccupancyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Occupancy",
+        "tags": [
+          "access"
         ]
       }
     },

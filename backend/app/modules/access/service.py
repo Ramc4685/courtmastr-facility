@@ -20,9 +20,10 @@ from app.core.auth.passwords import hash_password, verify_password
 from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
 from app.modules import billing, clients, documents, memberships, platform, programs, scheduling
+from app.modules.access import desk
 from app.modules.access import events as ev
 from app.modules.access.domain import cards
-from app.modules.access.domain.evaluate import DEFAULT_RULES, Decision, Facts, evaluate, in_schedule
+from app.modules.access.domain.evaluate import ALERT_ACTION, DEFAULT_RULES, Decision, Facts, evaluate, in_schedule
 from app.modules.access.models import (
     AccessRule,
     AccessSchedule,
@@ -200,7 +201,7 @@ def _visible(session: Session, principal: Principal, card: dict, location_id: UU
 
 
 def _alerts(decision: Decision) -> list[dict]:
-    return [{"code": code} for code in decision.alerts]
+    return [{"code": code, "action": ALERT_ACTION.get(code, "none")} for code in decision.alerts]
 
 
 # --- check in ------------------------------------------------------------------------------------------------
@@ -210,6 +211,7 @@ def _check_in(
     session: Session, *, client, location_id: UUID, channel: str, identified_by: str, credential: Credential | None,
     staff_user_id: UUID | None = None, kiosk: KioskDevice | None = None, override: bool = False,
     override_reason: str | None = None, window: tuple[timedelta, timedelta] | None = None,
+    station_id: UUID | None = None,
 ) -> tuple[CheckIn, Decision, dict]:  # fmt: skip
     """Shared by every channel: decide, write the log row, count the visit and mark attendance, one transaction.
     The caller has already gated `override`."""
@@ -224,7 +226,7 @@ def _check_in(
         denial_reason=decision.denial_reason, override_by_staff_user_id=staff_user_id if result == "granted_override" else None,
         override_reason=override_reason if result == "granted_override" else None,
         membership_contract_id=facts.membership_contract_id, alert_codes=decision.alerts,
-        created_by_staff_user_id=staff_user_id,
+        created_by_staff_user_id=staff_user_id, check_in_station_id=station_id,
     )  # fmt: skip
     session.add(row)
     session.flush()
@@ -304,11 +306,12 @@ def create_check_in(session: Session, principal: Principal, data: dict) -> dict:
         authorize(principal, OVERRIDE, location_id=location_id)
         if not (data.get("override_reason") or "").strip():
             raise ValidationFailed("Say why the denial is overridden.", pointer="/override_reason")
+    station_id = desk.station_for_check_in(session, data.get("check_in_station_id"), location_id)
     identified = "credential" if credential or data.get("credential_value") else "client_record"
     row, decision, card = _check_in(
         session, client=client, location_id=location_id, channel=data["channel"], identified_by=identified,
         credential=credential, staff_user_id=principal.staff_user_id, override=bool(data.get("override")),
-        override_reason=data.get("override_reason"),
+        override_reason=data.get("override_reason"), station_id=station_id,
     )  # fmt: skip
     card = _visible(session, principal, card, location_id)
     return {"check_in": check_in_view(session, row), "alerts": _alerts(decision), "client": card}
@@ -355,6 +358,7 @@ def list_check_ins(session: Session, principal: Principal, query: ListQuery) -> 
         filter_fields={
             "location_id": CheckIn.location_id, "client_id": CheckIn.client_id, "result": CheckIn.result,
             "channel": CheckIn.channel, "local_on": CheckIn.local_on, "checked_in_at": CheckIn.checked_in_at,
+            "check_in_station_id": CheckIn.check_in_station_id,
         },
     )  # fmt: skip
     names = {}

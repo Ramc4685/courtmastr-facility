@@ -18,7 +18,11 @@ Date: 2026-11-10. Lane `claude/zen-villani-chk`. Module README: `backend/app/mod
 | CHK-08 | Access policy and client access mode | P1 | done | per-location rule per membership condition; normal / always admit / always deny with its own key and a reason |
 | CHK-09 | Time-of-day schedules | P1 | done | named weekly schedules per membership type, evaluated in the location's IANA zone |
 | CHK-10 | Cross-location access | P1 | done | no locations = everywhere; listed locations (plus where it was sold) restrict it |
-| CHK-04, 07, 12, 20, 21 | | P1 | not built | see README "Deferred" |
+| CHK-04 | Book or sell from the check-in window | P1 | done | book a session starting from 1 h ago to 4 h ahead through `programs.create_enrollment` (its gates), marked attended; sell a package with the packages dialog (phase 10 chip C) |
+| CHK-07 | Stations, check-out, occupancy | P1 | done | named stations per location; check-out closes the visit; live "Who is in" per location and station; an open visit ends at local midnight |
+| CHK-12 | ID card templates | P1 | done | fields from a fixed list, photo slot, a default per location or tenant; no tenant CSS or HTML |
+| CHK-21 | Remediation at check-in | P1 | done | each alert carries its action; the window takes the payment and the waiver signature through billing's and documents' own routes and keys, then re-evaluates; staff window only |
+| CHK-20 | | P1 | not built | see README "Deferred" |
 | CHK-15, 16 | | v2-adapter | not built | |
 | CHK-17 | | P2 | not built | |
 

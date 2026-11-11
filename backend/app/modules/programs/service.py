@@ -640,17 +640,18 @@ def lapse_offers(session: Db) -> int:
 
 def mark_attended_by_check_in(
     session: Db, *, client_id: UUID, location_id: UUID, at, early: timedelta, late: timedelta,
-    source: str = "check_in", staff_user_id: UUID | None = None,
+    source: str = "check_in", staff_user_id: UUID | None = None, session_id: UUID | None = None,
 ) -> list[tuple[UUID, UUID]]:  # fmt: skip
     """Internal (access, CHK-01, CHK-05): mark attended the client's unmarked session places at the location
-    whose session starts from `early` before to `late` after `at`. Credits and events follow as for a staff
-    mark. Returns (enrollment id, session id) per place marked."""
+    whose session starts from `early` before to `late` after `at` (only `session_id` when given). Credits and
+    events follow as for a staff mark. Returns (enrollment id, session id) per place marked."""
     rows = session.scalars(
         select(Enrollment)
         .outerjoin(Attendance, (Attendance.enrollment_id == Enrollment.id) & (Attendance.session_id == Enrollment.session_id))
         .where(
             Enrollment.client_id == client_id, Enrollment.location_id == location_id,
             Enrollment.status == "enrolled", Enrollment.target_kind == "session", Attendance.id.is_(None),
+            *([Enrollment.session_id == session_id] if session_id else []),
         )
         .order_by(Enrollment.enrolled_at.desc())
         .limit(50)  # shortcut: newest 50 unmarked places; enough for one visit, revisit if rosters stay unmarked

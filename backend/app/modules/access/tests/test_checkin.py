@@ -48,7 +48,9 @@ def test_staff_check_in_records_alerts_and_shows_in_the_log(client, tenant, owne
     done = ok(check_in(client, f.desk, {"client_id": f.person["id"], "location_id": f.loc}), 201)
     row = done["check_in"]
     assert row["result"] == "granted" and row["identified_by"] == "client_record"
-    assert {"code": "waiver_unsigned"} in done["alerts"] and done["client"]["membership"] is None
+    assert {"code": "waiver_unsigned", "action": "sign_waiver"} in done["alerts"] and done["client"][
+        "membership"
+    ] is None
     assert ok(client.get(f"{API}/check-ins/{row['id']}", headers=f.desk))["id"] == row["id"]
     page = ok(client.get(f"{API}/check-ins?client_id={f.person['id']}", headers=f.desk))
     assert [r["id"] for r in page["data"]] == [row["id"]] and page["data"][0]["client_name"]

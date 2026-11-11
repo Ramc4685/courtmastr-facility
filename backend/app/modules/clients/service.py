@@ -1195,3 +1195,9 @@ def find_by_last_name_prefix(session: Session, prefix: str, limit: int) -> list[
             .limit(limit)
         )
     )  # fmt: skip
+
+
+def display_names(session: Session, client_ids: list[UUID]) -> dict[UUID, str]:
+    """Internal: "first last" for each id, in one read (access occupancy)."""
+    rows = session.execute(select(Client.id, Client.first_name, Client.last_name).where(Client.id.in_(client_ids)))
+    return {row.id: f"{row.first_name} {row.last_name}" for row in rows}

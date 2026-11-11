@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import { Badge } from '../../components/Badge'
@@ -13,7 +13,8 @@ import { useAuth } from '../../lib/auth'
 import { formatDateTime, formatMoney } from '../../lib/format'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { LocationSelect, useWorkingLocation } from '../scheduling/location'
-import { ALERT_LABEL, CHANNEL, DENIAL_LABEL, MODE_LABEL, RESULT, type AccessMode, type CheckIn, type Decision } from './queries'
+import { LastCheckIn, RemedyActions, StationSelect } from './DeskPanels'
+import { ALERT_LABEL, CHANNEL, DENIAL_LABEL, MODE_LABEL, RESULT, type AccessMode, type CheckIn, type CheckInResult, type Decision } from './queries'
 import { useScanBurst } from './useScanBurst'
 import { ClientPhotoById } from '../clients/ClientFiles' // CLI-12 photo on the staff status card (never the kiosk)
 
@@ -29,7 +30,10 @@ export function CheckInPage() {
   const [picked, setPicked] = useState<ClientSummary | null>(null)
   const [typed, setTyped] = useState('')
   const [reason, setReason] = useState('')
+  const [stationId, setStationId] = useState('')
+  const [last, setLast] = useState<CheckInResult | null>(null)
   const locationId = location?.id ?? ''
+  useEffect(() => setStationId(''), [locationId]) // a station belongs to one location
 
   const decision = useQuery({
     queryKey: ['check-in', 'evaluate', locationId, subject],
@@ -40,13 +44,18 @@ export function CheckInPage() {
   const checkIn = useMutation({
     mutationFn: (override: boolean) =>
       api.post('/api/v1/check-ins', {
-        body: { ...subject, location_id: locationId, channel: 'staff_window', override, override_reason: override ? reason : undefined },
+        body: {
+          ...subject, location_id: locationId, channel: 'staff_window', override, override_reason: override ? reason : undefined,
+          check_in_station_id: stationId || undefined,
+        },
       }),
     onSuccess: (done) => {
       const name = done.client.display_name
       const denied = done.check_in.result === 'denied'
       toast(denied ? 'error' : 'success', denied ? `${name}: entry denied and recorded.` : `${name} is checked in.`)
       qc.invalidateQueries({ queryKey: ['check-ins'] })
+      qc.invalidateQueries({ queryKey: ['occupancy'] })
+      setLast(done)
       clear()
     },
     onError: (e) => toast('error', e instanceof ApiError ? e.message : 'Check-in failed.'),
@@ -79,6 +88,8 @@ export function CheckInPage() {
         actions={
           <>
             <Link className="text-primary underline" to="/check-in/history">Client history</Link>
+            {can('access.checkin.read') && <Link className="text-primary underline" to="/check-in/occupancy">Who is in</Link>}
+            {can('access.settings.manage') && <Link className="text-primary underline" to="/check-in/desk-setup">Stations and cards</Link>}
             {(can('access.settings.manage') || can('access.kiosk.launch')) && <Link className="text-primary underline" to="/check-in/kiosks">Kiosks</Link>}
             {(can('access.rule.manage') || can('access.settings.manage')) && <Link className="text-primary underline" to="/check-in/access">Access rules</Link>}
           </>
@@ -88,6 +99,7 @@ export function CheckInPage() {
         <Card title="Find the client">
           <div className="space-y-4">
             <LocationSelect className="w-full" />
+            <StationSelect locationId={locationId} value={stationId} onChange={setStationId} />
             <form onSubmit={submitTyped} className="flex items-end gap-2">
               <Input className="flex-1" label="Card or member number" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
               <Button type="submit" variant="secondary">Look up</Button>
@@ -113,6 +125,7 @@ export function CheckInPage() {
             <ErrorState error={decision.error} />
           ) : (
             <StatusCard
+              locationId={locationId}
               decision={decision.data}
               busy={checkIn.isPending}
               canOverride={can('access.checkin.override_denial')}
@@ -124,13 +137,14 @@ export function CheckInPage() {
           )}
         </Card>
       </div>
+      {last && locationId && <LastCheckIn key={last.check_in.id} result={last} locationId={locationId} timeZone={location?.time_zone} onDismiss={() => setLast(null)} />}
       {locationId && <RecentCheckIns locationId={locationId} timeZone={location?.time_zone} />}
     </>
   )
 }
 
-function StatusCard({ decision, busy, canOverride, reason, onReason, onCheckIn, onClear }: {
-  decision: Decision; busy: boolean; canOverride: boolean; reason: string
+function StatusCard({ locationId, decision, busy, canOverride, reason, onReason, onCheckIn, onClear }: {
+  locationId: string; decision: Decision; busy: boolean; canOverride: boolean; reason: string
   onReason: (v: string) => void; onCheckIn: (override: boolean) => void; onClear: () => void
 }) {
   const c = decision.client
@@ -180,6 +194,7 @@ function StatusCard({ decision, busy, canOverride, reason, onReason, onCheckIn, 
           ))}
         </ul>
       )}
+      <RemedyActions decision={decision} locationId={locationId} />
       <div className="flex flex-wrap items-end gap-2">
         {decision.would_grant ? (
           <Button onClick={() => onCheckIn(false)} loading={busy}>Check in</Button>

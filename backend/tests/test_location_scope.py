@@ -51,6 +51,7 @@ CLIENT_OR_TENANT_ROUTES = {
         getAssessmentResult updateAssessmentResult
         assignCredential revokeClientAppCards revokeCredential
         getClientAccessMode setClientAccessMode
+        getClientIdCard
     """.split()),
     "tenant": set("""
         addTaxRate releaseSuppression approveClientRelationship archiveDocumentTemplate archiveLocation assignClientMemberNumber

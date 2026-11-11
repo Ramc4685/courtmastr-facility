@@ -1567,6 +1567,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/check-in-stations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Check In Stations
+         * @description The named check-in points of a location (CHK-07).
+         */
+        get: operations["listCheckInStations"];
+        put?: never;
+        /** Create Check In Station */
+        post: operations["createCheckInStation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/check-in-stations/{check_in_station_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Check In Station */
+        patch: operations["updateCheckInStation"];
+        trace?: never;
+    };
     "/api/v1/check-ins": {
         parameters: {
             query?: never;
@@ -1623,6 +1661,46 @@ export interface paths {
         get: operations["getCheckIn"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/check-ins/{check_in_id}/attendances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Check In Attendance
+         * @description Book the checked-in client into a session starting soon and mark it attended (CHK-04).
+         */
+        post: operations["createCheckInAttendance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/check-ins/{check_in_id}/check-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check Out
+         * @description End the client's visit at the location (CHK-07); a visit never checked out ends at local midnight.
+         */
+        post: operations["checkOut"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2633,6 +2711,26 @@ export interface paths {
         put?: never;
         /** Enable Client */
         post: operations["enableClient"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/id-card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Client Id Card
+         * @description The printable member card with the value its barcode encodes (MEM-19).
+         */
+        get: operations["getClientIdCard"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4314,6 +4412,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/id-card-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Id Card Templates
+         * @description Member card layouts: tenant-wide and the caller's locations (CHK-12).
+         */
+        get: operations["listIdCardTemplates"];
+        put?: never;
+        /** Create Id Card Template */
+        post: operations["createIdCardTemplate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/id-card-templates/{id_card_template_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Id Card Template */
+        patch: operations["updateIdCardTemplate"];
+        trace?: never;
+    };
     "/api/v1/integration-adapters": {
         parameters: {
             query?: never;
@@ -5773,6 +5909,26 @@ export interface paths {
         head?: never;
         /** Update Notification Route */
         patch: operations["updateNotificationRoute"];
+        trace?: never;
+    };
+    "/api/v1/occupancy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Occupancy
+         * @description Who is in now, the count and the count per station, in the location's day (CHK-07).
+         */
+        get: operations["getOccupancy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/officials": {
@@ -15013,10 +15169,25 @@ export interface components {
         /** CheckInAlertOut */
         CheckInAlertOut: {
             /**
+             * Action
+             * @enum {string}
+             */
+            action: "take_payment" | "renew_membership" | "sign_waiver" | "update_payment_method" | "none";
+            /**
              * Code
              * @enum {string}
              */
             code: "client_disabled" | "access_denied" | "membership_suspended" | "membership_frozen" | "membership_expired" | "visits_depleted" | "balance_due" | "waiver_unsigned" | "payment_method_expired" | "staff_note" | "birthday" | "photo_missing" | "over_daily_limit";
+        };
+        /** CheckInAttendanceCreate */
+        CheckInAttendanceCreate: {
+            /** Client Package Id */
+            client_package_id?: string | null;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
         };
         /**
          * CheckInClientOut
@@ -15053,6 +15224,8 @@ export interface components {
              * @enum {string}
              */
             channel: "staff_window" | "client_profile" | "pos" | "api";
+            /** Check In Station Id */
+            check_in_station_id?: string | null;
             /** Client Id */
             client_id?: string | null;
             /** Credential Value */
@@ -15094,11 +15267,15 @@ export interface components {
             attended: components["schemas"]["AttendedOut"][];
             /** Channel */
             channel: string;
+            /** Check In Station Id */
+            check_in_station_id: string | null;
             /**
              * Checked In At
              * Format: date-time
              */
             checked_in_at: string;
+            /** Checked Out At */
+            checked_out_at: string | null;
             /**
              * Client Id
              * Format: uuid
@@ -15153,11 +15330,15 @@ export interface components {
             attended: components["schemas"]["AttendedOut"][];
             /** Channel */
             channel: string;
+            /** Check In Station Id */
+            check_in_station_id: string | null;
             /**
              * Checked In At
              * Format: date-time
              */
             checked_in_at: string;
+            /** Checked Out At */
+            checked_out_at: string | null;
             /**
              * Client Id
              * Format: uuid
@@ -15198,6 +15379,50 @@ export interface components {
             override_reason: string | null;
             /** Result */
             result: string;
+        };
+        /** CheckInStationCreate */
+        CheckInStationCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+        };
+        /** CheckInStationOut */
+        CheckInStationOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+        };
+        /** CheckInStationUpdate */
+        CheckInStationUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+        };
+        /** CheckOutRequest */
+        CheckOutRequest: {
+            /** Checked Out At */
+            checked_out_at?: string | null;
         };
         /** CheckoutCreate */
         CheckoutCreate: {
@@ -15499,6 +15724,21 @@ export interface components {
             waiver_override_note: string | null;
             /** Waiver Valid Until On */
             waiver_valid_until_on: string | null;
+        };
+        /** ClientIdCardOut */
+        ClientIdCardOut: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Code Value */
+            code_value: string | null;
+            /** Fields */
+            fields: components["schemas"]["IdCardFieldOut"][];
+            /** Photo Url */
+            photo_url: string | null;
+            template: components["schemas"]["IdCardTemplateOut"];
         };
         /** ClientListItem */
         ClientListItem: {
@@ -18929,6 +19169,61 @@ export interface components {
             /** Detail */
             detail: string;
         };
+        /** IdCardFieldOut */
+        IdCardFieldOut: {
+            /**
+             * Field
+             * @enum {string}
+             */
+            field: "name" | "membership_number" | "membership_type" | "expires_on" | "date_of_birth";
+            /** Value */
+            value: string | null;
+        };
+        /** IdCardTemplateCreate */
+        IdCardTemplateCreate: {
+            /**
+             * Has Photo
+             * @default true
+             */
+            has_photo: boolean;
+            /**
+             * Is Default
+             * @default false
+             */
+            is_default: boolean;
+            /** Location Id */
+            location_id?: string | null;
+            /** Name */
+            name: string;
+            /** Shown Fields */
+            shown_fields: ("name" | "membership_number" | "membership_type" | "expires_on" | "date_of_birth")[];
+        };
+        /** IdCardTemplateOut */
+        IdCardTemplateOut: {
+            /** Has Photo */
+            has_photo: boolean;
+            /** Id */
+            id: string | null;
+            /** Is Default */
+            is_default: boolean;
+            /** Location Id */
+            location_id: string | null;
+            /** Name */
+            name: string;
+            /** Shown Fields */
+            shown_fields: ("name" | "membership_number" | "membership_type" | "expires_on" | "date_of_birth")[];
+        };
+        /** IdCardTemplateUpdate */
+        IdCardTemplateUpdate: {
+            /** Has Photo */
+            has_photo?: boolean | null;
+            /** Is Default */
+            is_default?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Shown Fields */
+            shown_fields?: ("name" | "membership_number" | "membership_type" | "expires_on" | "date_of_birth")[] | null;
+        };
         /** InstalmentIn */
         InstalmentIn: {
             /** Amount Minor */
@@ -20740,6 +21035,60 @@ export interface components {
             /** Staff User Ids */
             staff_user_ids?: string[] | null;
         };
+        /** OccupancyOut */
+        OccupancyOut: {
+            /** By Station */
+            by_station: components["schemas"]["OccupancyStationOut"][];
+            /** Count */
+            count: number;
+            /** Is Capped */
+            is_capped: boolean;
+            /**
+             * Local On
+             * Format: date
+             */
+            local_on: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Present */
+            present: components["schemas"]["OccupancyPersonOut"][];
+        };
+        /** OccupancyPersonOut */
+        OccupancyPersonOut: {
+            /**
+             * Check In Id
+             * Format: uuid
+             */
+            check_in_id: string;
+            /** Check In Station Id */
+            check_in_station_id: string | null;
+            /**
+             * Checked In At
+             * Format: date-time
+             */
+            checked_in_at: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Name */
+            client_name: string;
+            /** Station Name */
+            station_name: string | null;
+        };
+        /** OccupancyStationOut */
+        OccupancyStationOut: {
+            /** Check In Station Id */
+            check_in_station_id: string | null;
+            /** Count */
+            count: number;
+            /** Station Name */
+            station_name: string | null;
+        };
         /** OccurrenceResult */
         OccurrenceResult: {
             /** Booking Id */
@@ -21840,6 +22189,12 @@ export interface components {
             data: components["schemas"]["CheckInRowOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[CheckInStationOut] */
+        Page_CheckInStationOut_: {
+            /** Data */
+            data: components["schemas"]["CheckInStationOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[ClientDocumentOut] */
         Page_ClientDocumentOut_: {
             /** Data */
@@ -21976,6 +22331,12 @@ export interface components {
         Page_HistoryOut_: {
             /** Data */
             data: components["schemas"]["HistoryOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[IdCardTemplateOut] */
+        Page_IdCardTemplateOut_: {
+            /** Data */
+            data: components["schemas"]["IdCardTemplateOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[InvoiceOut] */
@@ -35726,6 +36087,114 @@ export interface operations {
             };
         };
     };
+    listCheckInStations: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CheckInStationOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createCheckInStation: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckInStationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckInStationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateCheckInStation: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                check_in_station_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckInStationUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckInStationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listCheckIns: {
         parameters: {
             query?: {
@@ -35854,6 +36323,82 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckInOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createCheckInAttendance: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                check_in_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckInAttendanceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckInOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    checkOut: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                check_in_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CheckOutRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -38552,6 +39097,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClientOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getClientIdCard: {
+        parameters: {
+            query?: {
+                location_id?: string | null;
+                id_card_template_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientIdCardOut"];
                 };
             };
             /** @description Validation Error */
@@ -43097,6 +43679,112 @@ export interface operations {
             };
         };
     };
+    listIdCardTemplates: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_IdCardTemplateOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createIdCardTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdCardTemplateCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdCardTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateIdCardTemplate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                id_card_template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdCardTemplateUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdCardTemplateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listIntegrationAdapters: {
         parameters: {
             query?: never;
@@ -46835,6 +47523,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotificationRouteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getOccupancy: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OccupancyOut"];
                 };
             };
             /** @description Validation Error */
