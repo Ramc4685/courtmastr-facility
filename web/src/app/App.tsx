@@ -35,6 +35,10 @@ import { StaffUsersPage } from '../features/platform/StaffUsersPage'
 import { TenantSettingsPage } from '../features/platform/TenantSettingsPage'
 import { RentalSetupPage } from '../features/rentals/RentalSetupPage'
 import { RentalsPage } from '../features/rentals/RentalsPage'
+import { BasketPage } from '../features/programs/BasketPage'
+import { BookingPolicyPage } from '../features/programs/BookingPolicyPage'
+import { ProgramPage } from '../features/programs/ProgramPage'
+import { ProgramsPage } from '../features/programs/ProgramsPage'
 import { ResourcesPage } from '../features/resources/ResourcesPage'
 import { CalendarPage } from '../features/scheduling/CalendarPage'
 import { SetupPage } from '../features/scheduling/SetupPage'
@@ -54,6 +58,10 @@ import { RegisterPage, RegisterPickerPage } from '../features/pos/RegisterPage'
 import { PosReceiptPage, SaleDetailPage, SalesPage } from '../features/pos/SalesPage'
 import { PosSetupPage } from '../features/pos/SetupPage'
 import { PosLayout } from '../features/pos/shared'
+import { CheckInPage } from '../features/access/CheckInPage'
+import { HistoryPage as CheckInHistoryPage } from '../features/access/HistoryPage'
+import { KioskPage } from '../features/access/KioskPage'
+import { KioskSetupPage } from '../features/access/KioskSetupPage'
 import { AppFrame } from './AppFrame'
 import { RequireClient, RequirePermission, RequireStaff } from './guards'
 
@@ -80,6 +88,7 @@ export function AppRoutes() {
       <Route path="/sign" element={<PublicSignPage />} />
       <Route path="/unsubscribe" element={<UnsubscribePage />} />
       <Route path="/portal/*" element={<RequireClient><PortalApp /></RequireClient>} />
+      <Route path="/kiosk" element={<KioskPage />} />
       <Route path="/billing/invoices/:id/document" element={<RequireStaff><RequirePermission permission="billing.invoice.read"><InvoiceDocumentPage /></RequirePermission></RequireStaff>} />
       <Route path="/billing/payments/:id/receipt" element={<RequireStaff><RequirePermission permission="billing.payment.read"><ReceiptPage /></RequirePermission></RequireStaff>} />
       <Route path="/pos/sales/:id/receipt" element={<RequireStaff><RequirePermission permission="pos.sale.read"><PosReceiptPage /></RequirePermission></RequireStaff>} />
@@ -139,6 +148,13 @@ export function AppRoutes() {
         <Route path="scheduling/setup" element={<SetupPage />} />
         <Route path="rentals" element={<RequirePermission permission="scheduling.booking.read"><RentalsPage /></RequirePermission>} />
         <Route path="rentals/setup" element={<RentalSetupPage />} />
+        <Route path="programs" element={<RequirePermission permission="programs.registration.read"><ProgramsPage /></RequirePermission>} />
+        <Route path="programs/register" element={<RequirePermission permission="programs.registration.create"><BasketPage /></RequirePermission>} />
+        <Route path="programs/booking-policies" element={<RequirePermission permission="programs.registration_config.manage"><BookingPolicyPage /></RequirePermission>} />
+        <Route path="programs/:id" element={<RequirePermission permission="programs.registration.read"><ProgramPage /></RequirePermission>} />
+        <Route path="check-in" element={<RequirePermission permission="access.checkin.create"><CheckInPage /></RequirePermission>} />
+        <Route path="check-in/history" element={<RequirePermission permission="access.checkin.read"><CheckInHistoryPage /></RequirePermission>} />
+        <Route path="check-in/kiosks" element={<KioskSetupPage />} />
         {import.meta.env.DEV && (
           <Route path="dev/client-picker" element={<RequirePermission permission="clients.client.read"><ClientPickerDemo /></RequirePermission>} />
         )}

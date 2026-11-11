@@ -112,3 +112,7 @@ export const RENTAL_TONE: Record<string, Tone> = { tentative: 'warning', confirm
 export const CONTRACT_TONE: Record<string, Tone> = { upcoming: 'info', active: 'success', frozen: 'warning', suspended: 'danger', expired: 'neutral', cancelled: 'neutral' }
 export const PACKAGE_TONE: Record<string, Tone> = { active: 'success', exhausted: 'warning', expired: 'neutral', removed: 'neutral' }
 export const label = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ')
+
+/** The signed-in person and the dependents they may book for (programs and sessions pages). */
+export const usePortalClients = () => useQuery({ queryKey: ['portal', 'clients'], queryFn: () => api.get('/api/v1/portal/clients') })
+export const clientName = displayName

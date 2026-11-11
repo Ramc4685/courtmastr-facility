@@ -39,6 +39,6 @@ describe('SessionPanel', SCREEN, () => {
     await userEvent.click(await screen.findByRole('option', { name: /Katherine Johnson/ }))
     await userEvent.click(screen.getByRole('button', { name: 'Register' }))
     expect(await screen.findByText('The session is full. Add the client to the waitlist instead.')).toBeInTheDocument()
-    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ client_id: 'c9', session_id: 'ss1', client_package_id: null })
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ client_id: 'c9', session_id: 'ss1', client_package_id: null, program_fee_ids: [] })
   })
 })

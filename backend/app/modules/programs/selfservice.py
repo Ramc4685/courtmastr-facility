@@ -1,0 +1,354 @@
+"""Client self-service for sessions (CLS-09) and the booking policy behind it, plus the portal side of the
+waitlist (CLS-06, REG-09). Portal and mobile call the same service; every check runs here, server-side.
+
+Policy: one complete default row per location, and per-reservation-type overrides whose null fields inherit
+it. A location with no default row uses `BUILT_IN` (module README). The acting client is the signed-in
+identity's own record or someone it may book for (`can_act_for(..., "book")`); anything else is 404.
+"""
+
+from datetime import timedelta
+from uuid import UUID
+
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session as Db
+
+from app.core import audit, clock
+from app.core.auth import Principal, authorize
+from app.core.errors import Conflict, NotFound, ValidationFailed
+from app.core.pagination import ListQuery, paginate
+from app.modules import clients, memberships, platform, scheduling
+from app.modules.programs import groups, service
+from app.modules.programs.models import Enrollment, SessionBookingPolicy, WaitlistEntry
+
+POLICY = groups.CONFIG  # shortcut: engagement.portal_settings.manage arrives with module 14 (README)
+FIELDS = (
+    "listing_mode", "requires_active_membership", "visible_range_days", "hides_full_sessions",
+    "booking_cutoff_minutes", "allows_self_cancel", "cancel_notice_minutes", "waitlist_mode",
+)  # fmt: skip
+BUILT_IN = {
+    "listing_mode": "bookable", "requires_active_membership": False, "visible_range_days": 30,
+    "hides_full_sessions": False, "booking_cutoff_minutes": 0, "allows_self_cancel": True,
+    "cancel_notice_minutes": 0, "waitlist_mode": "auto_promote",
+}  # fmt: skip
+
+
+# --- policy (staff) -------------------------------------------------------------------------------------------
+
+
+def _policy_row(session: Db, location_id: UUID, reservation_type_id: UUID | None) -> SessionBookingPolicy | None:
+    p = SessionBookingPolicy
+    match = (
+        p.reservation_type_id.is_(None) if reservation_type_id is None else p.reservation_type_id == reservation_type_id
+    )
+    return session.scalar(select(p).where(p.location_id == location_id, match))
+
+
+def effective(session: Db, location_id: UUID, reservation_type_id: UUID | None) -> dict:
+    """The policy a session of this type at this location runs under."""
+    found = dict(BUILT_IN)
+    for row in (
+        _policy_row(session, location_id, None),
+        reservation_type_id and _policy_row(session, location_id, reservation_type_id),
+    ):
+        if row:
+            found |= {k: getattr(row, k) for k in FIELDS if getattr(row, k) is not None}
+    return found
+
+
+def list_policies(session: Db, principal: Principal, location_id: UUID) -> list[SessionBookingPolicy]:
+    authorize(principal, POLICY, location_id=location_id)
+    p = SessionBookingPolicy
+    stmt = select(p).where(p.location_id == location_id).order_by(p.reservation_type_id.nulls_first(), p.id)
+    return list(session.scalars(stmt))
+
+
+def _put(session: Db, location_id: UUID, reservation_type_id: UUID | None, data: dict) -> SessionBookingPolicy:
+    row = _policy_row(session, location_id, reservation_type_id)
+    if row is None:
+        row = SessionBookingPolicy(location_id=location_id, reservation_type_id=reservation_type_id)
+        session.add(row)
+    for key in FIELDS:
+        setattr(row, key, data.get(key))
+    changes = audit.diff(row)
+    session.flush()  # fk_session_booking_policy_reservation_type: an unknown type is 422
+    audit.record(session, POLICY, row, location_id=location_id, changes=changes)
+    return row
+
+
+def put_default(session: Db, principal: Principal, location_id: UUID, data: dict) -> SessionBookingPolicy:
+    platform.service.get_location(session, principal, location_id)  # unknown or out of scope: 404
+    authorize(principal, POLICY, location_id=location_id)
+    return _put(session, location_id, None, data)
+
+
+def _type_location(session: Db, principal: Principal, reservation_type_id: UUID) -> UUID:
+    """The type's own location, gated: a type outside the caller's locations is 404."""
+    location_id = scheduling.service.type_location(session, reservation_type_id)
+    authorize(principal, POLICY, location_id=location_id)
+    return location_id
+
+
+def put_override(session: Db, principal: Principal, reservation_type_id: UUID, data: dict) -> SessionBookingPolicy:
+    """Per-type rules at the type's location; a null field inherits the location default."""
+    return _put(session, _type_location(session, principal, reservation_type_id), reservation_type_id, data)
+
+
+def delete_override(session: Db, principal: Principal, reservation_type_id: UUID) -> None:
+    location_id = _type_location(session, principal, reservation_type_id)
+    row = _policy_row(session, location_id, reservation_type_id)
+    if row is None:
+        raise NotFound()
+    audit.record(session, POLICY, row, location_id=location_id, changes={"deleted": [False, True]})
+    session.delete(row)
+    session.flush()
+
+
+# --- portal: who acts ------------------------------------------------------------------------------------------
+
+
+def _identity(principal: Principal) -> UUID:
+    if principal.kind != "client" or principal.identity_id is None:
+        raise NotFound()
+    return principal.identity_id
+
+
+def acting_client(session: Db, principal: Principal, client_id: UUID | None, capability: str = "book") -> UUID:
+    identity = _identity(principal)
+    if client_id is None:
+        own = clients.service.client_ids_for_identity(session, identity)
+        if not own:
+            raise NotFound()
+        client_id = own[0]
+    if clients.households.can_act_for(session, identity, client_id, capability) is None:
+        raise NotFound()
+    return client_id
+
+
+# --- portal: listing and booking (CLS-09) ---------------------------------------------------------------------
+
+
+def _verdict(session: Db, seat: dict, policy: dict, client_id: UUID, member: bool | None) -> str | None:
+    """Why the client may not book this session now, or None."""
+    if policy["listing_mode"] == "list_only":
+        return "list-only"
+    if not seat["is_self_bookable"]:
+        return "not-self-bookable"
+    if seat["starts_at"] - clock.now() < timedelta(minutes=policy["booking_cutoff_minutes"]):
+        return "cutoff-passed"
+    if policy["requires_active_membership"] and not (
+        member if member is not None else memberships.service.is_member(session, client_id)
+    ):
+        return "members-only"
+    if seat["booked_count"] >= seat["capacity"]:
+        return "full"
+    return None
+
+
+def list_listings(session: Db, principal: Principal, client_id: UUID | None, filters: dict) -> list[dict]:
+    """Sessions the client may see, each with whether it can book or queue now and why not. The window is
+    clamped to the longest visible range of the policies involved, then per session to its own."""
+    subject = acting_client(session, principal, client_id)
+    now = clock.now()
+    starts_from = max(filters.get("starts_from") or now, now)
+    starts_before = filters.get("starts_before") or now + timedelta(days=730)
+    seats = scheduling.service.session_window(
+        session, starts_from, min(starts_before, now + timedelta(days=730)),
+        location_id=filters.get("location_id"), reservation_type_id=filters.get("reservation_type_id"),
+        resource_id=filters.get("resource_id"),
+    )  # fmt: skip
+    member = memberships.service.is_member(session, subject)
+    out, cache = [], {}
+    for seat in seats:
+        key = (seat["location_id"], seat["reservation_type_id"])
+        policy = cache.get(key) or cache.setdefault(key, effective(session, *key))
+        if policy["listing_mode"] in ("hidden", "unlisted"):
+            continue
+        if seat["starts_at"] >= now + timedelta(days=policy["visible_range_days"]):
+            continue
+        reason = _verdict(session, seat, policy, subject, member)
+        if reason == "full" and policy["hides_full_sessions"]:
+            continue
+        out.append(
+            {
+                "session_id": seat["id"], "location_id": seat["location_id"],
+                "title": seat["public_title"] or seat["title"], "starts_at": seat["starts_at"],
+                "ends_at": seat["ends_at"], "spots_left": max(seat["capacity"] - seat["booked_count"], 0),
+                "is_bookable": reason is None,
+                "can_join_waitlist": reason == "full" and policy["waitlist_mode"] != "disabled",
+                "reason": reason,
+            }
+        )  # fmt: skip
+    return out
+
+
+def _bookable_seat(session: Db, session_id: UUID, client_id: UUID) -> tuple[dict, dict]:
+    try:
+        seat = scheduling.service.get_session(session, session_id)
+    except NotFound:
+        raise ValidationFailed("Unknown session.", pointer="/session_id") from None
+    policy = effective(session, seat["location_id"], seat["reservation_type_id"])
+    hidden = policy["listing_mode"] == "hidden"  # unlisted stays bookable by direct link
+    beyond = seat["starts_at"] >= clock.now() + timedelta(days=policy["visible_range_days"])
+    if seat["status"] != "confirmed" or hidden or beyond:
+        raise ValidationFailed("Unknown session.", pointer="/session_id")
+    return seat, policy
+
+
+def portal_enroll(session: Db, principal: Principal, data: dict) -> Enrollment:
+    """Book a session with a package or, where the session allows it, free (CLS-09). Errors: policy-violation
+    with the reason, capacity-full, already-enrolled, entitlement-not-eligible, package refusals."""
+    subject = acting_client(session, principal, data["client_id"])
+    clients.service.require_active(session, subject)
+    seat, policy = _bookable_seat(session, data["session_id"], subject)
+    reason = _verdict(session, seat, policy, subject, None)
+    if reason == "full":
+        raise Conflict("The session is full.", code="capacity-full")
+    if reason is not None:
+        raise Conflict("This session cannot be booked online now.", code="policy-violation", reason=reason)
+    package_id = data.get("client_package_id")
+    if package_id is None and not seat["allows_free_booking"]:
+        raise Conflict("Choose a package to book this session with.", code="entitlement-not-eligible")
+    row = service._enroll(session, seat, subject, "portal", package_id)
+    audit.record(
+        session, service.ENROLL, row, location_id=row.location_id, changes={"session_id": [None, str(seat["id"])]}
+    )
+    return row
+
+
+def _own_row(session: Db, principal: Principal, model, row_id: UUID):
+    row = session.get(model, row_id)
+    identity = _identity(principal)
+    if row is None or clients.households.can_act_for(session, identity, row.client_id, "book") is None:
+        raise NotFound()
+    return row
+
+
+def portal_cancel(session: Db, principal: Principal, enrollment_id: UUID) -> Enrollment:
+    """Cancel one's own session booking. Early or late is the server's call from the policy notice period;
+    a policy without self-cancel refuses. Group registrations are cancelled by staff."""
+    row = _own_row(session, principal, Enrollment, enrollment_id)
+    if row.session_id is None or row.status != "enrolled":
+        raise Conflict("Only a session booking can be cancelled here.", code="invalid-state-transition")
+    seat = scheduling.service.get_session(session, row.session_id)
+    policy = effective(session, seat["location_id"], seat["reservation_type_id"])
+    if not policy["allows_self_cancel"] or seat["starts_at"] <= clock.now():
+        raise Conflict("This booking cannot be cancelled online.", code="policy-violation", reason="no-self-cancel")
+    late = seat["starts_at"] - clock.now() < timedelta(minutes=policy["cancel_notice_minutes"])
+    service._cancel(session, row, "late" if late else "early")
+    row.cancelled_by_actor_type = "client"
+    audit.record(
+        session, service.CANCEL, row, location_id=row.location_id, changes={"status": ["enrolled", "cancelled"]}
+    )
+    service.promote_waitlist(session, row.session_id)
+    return row
+
+
+def portal_list_enrollments(session: Db, principal: Principal, query: ListQuery) -> dict:
+    """The schedule of the identity and everyone it may book for."""
+    ids = clients.households.actable_client_ids(session, _identity(principal))
+    e = Enrollment
+    filters = {k: v for k, v in query.filters.items() if k in ("status", "target_kind", "client_id")}
+    query = ListQuery(query.limit, query.cursor, query.sort, query.include_total, query.q, filters)
+    return paginate(
+        session, select(e).where(e.client_id.in_(ids)), query, id_column=e.id,
+        sort_fields={"created_at": e.created_at}, default_sort="-created_at",
+        filter_fields={"status": e.status, "target_kind": e.target_kind, "client_id": e.client_id},
+    )  # fmt: skip
+
+
+# --- portal: waitlist ------------------------------------------------------------------------------------------
+
+
+def _position(session: Db, entry: WaitlistEntry) -> int | None:
+    if entry.status not in ("waiting", "offered"):
+        return None
+    w = WaitlistEntry
+    target = w.session_id == entry.session_id if entry.session_id else w.program_group_id == entry.program_group_id
+    return session.scalar(
+        select(func.count()).where(
+            target, w.status.in_(("waiting", "offered")),
+            (w.queued_at < entry.queued_at) | ((w.queued_at == entry.queued_at) & (w.id <= entry.id)),
+        )
+    )  # fmt: skip
+
+
+def entry_view(session: Db, entry: WaitlistEntry) -> dict:
+    return {c.key: getattr(entry, c.key) for c in WaitlistEntry.__table__.columns} | {
+        "position": _position(session, entry)
+    }
+
+
+def portal_list_waitlist(session: Db, principal: Principal) -> list[dict]:
+    ids = clients.households.actable_client_ids(session, _identity(principal))
+    rows = session.scalars(
+        select(WaitlistEntry)
+        .where(WaitlistEntry.client_id.in_(ids), WaitlistEntry.status.in_(("waiting", "offered")))
+        .order_by(WaitlistEntry.queued_at, WaitlistEntry.id)
+        .limit(200)
+    )
+    return [entry_view(session, row) for row in rows]
+
+
+def portal_join(session: Db, principal: Principal, data: dict) -> WaitlistEntry:
+    """Queue for a full session (its policy's waitlist mode) or a full published program (the program's)."""
+    subject = acting_client(session, principal, data["client_id"])
+    clients.service.require_active(session, subject)
+    if data.get("program_group_id"):
+        group, config = groups.published_group(session, data["program_group_id"])
+        state = groups.registration_state(session, group, config)
+        if state != "full_waitlist":
+            code = "session-has-space" if state == "open" else "registration-closed"
+            raise Conflict("This program's waitlist is not open.", code=code, registration_state=state)
+        ids = [data["program_fee_id"]] if data.get("program_fee_id") else []
+        fees = groups.chosen_fees(session, group, ids, online=True, pointer="/program_fee_id")
+        payer = clients.service.client_ids_for_identity(session, _identity(principal))[0]  # money: the login's own
+        entry = groups.join_waitlist(session, group, subject, channel="portal", fees=fees, payer_client_id=payer)
+    else:
+        seat, policy = _bookable_seat(session, data["session_id"], subject)
+        if policy["waitlist_mode"] == "disabled":
+            raise Conflict("This session has no waitlist.", code="waitlist-disabled")
+        reason = _verdict(session, seat, policy, subject, None)
+        if reason is None:
+            raise Conflict("The session still has space: book it instead.", code="session-has-space")
+        if reason != "full":  # the queue is for a full session the client could otherwise book
+            raise Conflict("This session cannot be booked online now.", code="policy-violation", reason=reason)
+        if session.scalar(
+            select(Enrollment.id).where(
+                Enrollment.session_id == seat["id"], Enrollment.client_id == subject, Enrollment.status == "enrolled"
+            )
+        ):
+            raise Conflict("Already booked.", code="already-enrolled")
+        entry = WaitlistEntry(
+            location_id=seat["location_id"], client_id=subject, target_kind="session", session_id=seat["id"],
+            mode=policy["waitlist_mode"], channel="portal", queued_at=clock.now(),
+        )  # fmt: skip
+        session.add(entry)
+        session.flush()  # uq_waitlist_entry_session_client
+    audit.record(session, service.WAITLIST, entry, location_id=entry.location_id, changes={"status": [None, "waiting"]})
+    return entry
+
+
+def portal_leave(session: Db, principal: Principal, entry_id: UUID) -> None:
+    entry = _own_row(session, principal, WaitlistEntry, entry_id)
+    if entry.status in ("waiting", "offered"):
+        was, entry.status, entry.removed_reason = entry.status, "removed", "client"
+        audit.record(
+            session, service.WAITLIST, entry, location_id=entry.location_id, changes={"status": [was, "removed"]}
+        )
+        session.flush()
+
+
+def portal_claim(session: Db, principal: Principal, entry_id: UUID, data: dict) -> WaitlistEntry:
+    """Claim an offered seat (open-offer mode): the first valid claim under the seat lock wins."""
+    entry = _own_row(session, principal, WaitlistEntry, entry_id)
+    if entry.session_id is None:
+        raise Conflict("Program waitlists are promoted by staff.", code="invalid-state-transition")
+    seat, policy = _bookable_seat(session, entry.session_id, entry.client_id)
+    reason = _verdict(session, seat, policy, entry.client_id, None)
+    if reason not in (None, "full"):  # the policy may have changed since the client queued
+        raise Conflict("This session cannot be booked online now.", code="policy-violation", reason=reason)
+    service.claim_offer(session, entry, data.get("client_package_id"))
+    audit.record(
+        session, service.WAITLIST, entry, location_id=entry.location_id, changes={"status": ["offered", "promoted"]}
+    )
+    return entry

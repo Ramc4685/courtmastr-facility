@@ -891,6 +891,67 @@ def booking_ids(*, client_id=None, client_ids=None, status=None, series_id=None,
     return stmt
 
 
+def sessions_with_resource(resource_id: UUID, session_ids):
+    """Internal: a SELECT of the session ids (out of `session_ids`, a SELECT) whose booking uses the resource; the
+    `own` reach of a coach over another context's records that hang off sessions (programs)."""
+    return (
+        select(Session.id)
+        .join(BookingResource, BookingResource.booking_id == Session.booking_id)
+        .where(Session.id.in_(session_ids), BookingResource.resource_id == resource_id)
+    )
+
+
+def series_sessions(session: Db, series_id: UUID, starts_from) -> list[UUID]:
+    """Internal: the confirmed session ids of a series starting at or after `starts_from`, earliest first
+    (programs' multi-session enrolment, CLS-02)."""
+    return list(
+        session.scalars(
+            select(Session.id)
+            .join(Booking, Booking.id == Session.booking_id)
+            .where(
+                Booking.booking_series_id == series_id, Booking.status == "confirmed", Booking.starts_at >= starts_from
+            )
+            .order_by(Booking.starts_at, Session.id)
+        )
+    )
+
+
+def type_location(session: Db, type_id: UUID) -> UUID:
+    """Internal: the location a reservation type belongs to, or NotFound (programs' booking policy overrides)."""
+    row = session.get(ReservationType, type_id)
+    if row is None:
+        raise NotFound()
+    return row.location_id
+
+
+def session_window(
+    session: Db, starts_from, starts_before, *, location_id=None, reservation_type_id=None, resource_id=None,
+    limit: int = 500,
+) -> list[dict]:  # fmt: skip
+    """Internal: confirmed, self-bookable sessions starting in [starts_from, starts_before), earliest first, as
+    session views (programs' portal listing, CLS-09). Capped at `limit`."""
+    stmt = (
+        select(Session)
+        .join(Booking, Booking.id == Session.booking_id)
+        .where(
+            Booking.status == "confirmed", Session.is_self_bookable, Booking.starts_at >= starts_from,
+            Booking.starts_at < starts_before,
+        )
+        .order_by(Booking.starts_at, Session.id)
+        .limit(limit)
+    )  # fmt: skip
+    if location_id is not None:
+        stmt = stmt.where(Session.location_id == location_id)
+    if reservation_type_id is not None:
+        stmt = stmt.where(Booking.reservation_type_id == reservation_type_id)
+    if resource_id is not None:
+        stmt = stmt.where(
+            Booking.id.in_(select(BookingResource.booking_id).where(BookingResource.resource_id == resource_id))
+        )
+    seats = list(session.scalars(stmt))
+    return _session_views(session, seats) if seats else []
+
+
 def series_scope(session: Db, series_id: UUID, scope: dict) -> list[Booking]:
     """Internal: the live, locked occurrences a series scope names (rentals' cancel over a scope)."""
     return _scope(session, session.get(BookingSeries, series_id), scope)

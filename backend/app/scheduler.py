@@ -17,8 +17,8 @@ from app.core.db.platform import platform_engine
 from app.core.jobs import broker
 
 log = logging.getLogger(__name__)
-EVERY_MINUTE = ("expire_checkout_holds", "send_due_messages")
-EVERY_HOUR = ("billing_daily", "run_membership_day", "run_package_day", "sweep_documents")
+EVERY_MINUTE = ("expire_checkout_holds", "expire_registration_holds", "send_due_messages")
+EVERY_HOUR = ("billing_daily", "run_membership_day", "run_package_day", "sweep_documents", "auto_archive_programs")
 
 
 def active_tenants() -> list[str]:

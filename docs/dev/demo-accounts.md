@@ -68,3 +68,9 @@ unused until memberships exist), $50 evenings 17:00-22:00, $55 on weekends, plus
 day" flat rate; 25% deposit online; 24-hour cut-off with a 50% late-cancel fee. Morgan Member has a weekly
 Tuesday 19:00 rental on Court 3 (four weeks, billed on one invoice), Riley Reyes has an unbilled Thursday
 rental in the queue, and Jordan Okafor bought the **10-hour court pack** and used two hours of it on Friday.
+
+## Demo check-in (build module 10)
+
+At Downtown: barcode `DEMO-CARD-0001` belongs to Morgan Member (scan or type it on Check-in), two earlier
+check-ins show under Recent, and a "Front door kiosk" device is registered. To try the kiosk, open Check-in >
+Kiosks, create a pairing code, open `/kiosk` in another browser and enter it; "Mem" finds Morgan M.

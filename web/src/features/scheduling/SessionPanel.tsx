@@ -8,6 +8,8 @@ import { ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
+import { CancelDialog } from '../programs/CancelDialog'
+import { BatchBookDialog, MessageDialog, RebookDialog } from '../programs/SessionTools'
 
 type Attendance = Schemas['Participant']['attendance']
 const ATTENDANCE: { value: Attendance; label: string }[] = [
@@ -43,6 +45,9 @@ export function SessionPanel({ sessionId, canEdit }: { sessionId: string; canEdi
     setPackageId('')
   }
   const [capacity, setCapacity] = useState<string | null>(null)
+  const [tool, setTool] = useState<'batch' | 'message' | null>(null)
+  const [moving, setMoving] = useState<{ id: string; name: string } | null>(null)
+  const [removing, setRemoving] = useState<{ id: string; name: string } | null>(null)
   const [marks, setMarks] = useState<Record<string, Attendance>>({})
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['session', sessionId] })
@@ -51,7 +56,7 @@ export function SessionPanel({ sessionId, canEdit }: { sessionId: string; canEdi
   const fail = (e: Error) => toast('error', e.message)
 
   const enrol = useMutation({
-    mutationFn: (c: ClientSummary) => api.post('/api/v1/enrollments', { body: { client_id: c.id, session_id: sessionId, client_package_id: packageId || null } }),
+    mutationFn: (c: ClientSummary) => api.post('/api/v1/enrollments', { body: { client_id: c.id, session_id: sessionId, client_package_id: packageId || null, program_fee_ids: [] } }),
     onSuccess: () => {
       toast('success', `${client?.first_name ?? 'Client'} registered.`)
       pick(null)
@@ -66,14 +71,6 @@ export function SessionPanel({ sessionId, canEdit }: { sessionId: string; canEdi
       pick(null)
       refresh()
     },
-  })
-  const remove = useMutation({
-    mutationFn: (p: Schemas['Participant']) => api.post('/api/v1/enrollments/{enrollment_id}/cancel', { path: { enrollment_id: p.enrollment_id }, body: { cancel_kind: 'staff_removed' } }),
-    onSuccess: (_, p) => {
-      toast('success', `${p.client_name} removed.`)
-      refresh()
-    },
-    onError: fail,
   })
   const saveMarks = useMutation({
     mutationFn: () => api.put('/api/v1/sessions/{schedule_session_id}/attendance', { path: { schedule_session_id: sessionId }, body: { marks: Object.entries(marks).filter(([, s]) => s !== 'scheduled').map(([enrollment_id, status]) => ({ enrollment_id, status: status as 'attended' | 'no_show' | 'excused' })) } }),
@@ -210,9 +207,16 @@ export function SessionPanel({ sessionId, canEdit }: { sessionId: string; canEdi
                   </td>
                   <td className="py-2 text-right">
                     {can('scheduling.enrollment.cancel') && (
-                      <Button size="sm" variant="ghost" onClick={() => remove.mutate(p)} aria-label={`Remove ${p.client_name}`}>
-                        Remove
-                      </Button>
+                      <span className="flex justify-end gap-1">
+                        {can('scheduling.enrollment.create') && (
+                          <Button size="sm" variant="ghost" onClick={() => setMoving({ id: p.enrollment_id, name: p.client_name })} aria-label={`Move ${p.client_name} to another session`}>
+                            Move
+                          </Button>
+                        )}
+                        <Button size="sm" variant="ghost" onClick={() => setRemoving({ id: p.enrollment_id, name: p.client_name })} aria-label={`Remove ${p.client_name}`}>
+                          Remove
+                        </Button>
+                      </span>
                     )}
                   </td>
                 </tr>
@@ -225,6 +229,17 @@ export function SessionPanel({ sessionId, canEdit }: { sessionId: string; canEdi
             </Button>
           )}
         </form>
+      )}
+
+      {canEdit && can('scheduling.enrollment.create') && (
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="secondary" onClick={() => setTool('batch')}>
+            Book across sessions
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => setTool('message')}>
+            Message participants
+          </Button>
+        </div>
       )}
 
       {(can('scheduling.enrollment.create') || can('scheduling.waitlist.manage')) && (
@@ -285,6 +300,10 @@ export function SessionPanel({ sessionId, canEdit }: { sessionId: string; canEdi
           </ol>
         </div>
       )}
+      {tool === 'batch' && <BatchBookDialog sessionId={sessionId} onClose={() => setTool(null)} />}
+      {tool === 'message' && <MessageDialog sessionId={sessionId} onClose={() => setTool(null)} />}
+      {moving && <RebookDialog enrollmentId={moving.id} who={moving.name} sessionId={sessionId} onClose={() => setMoving(null)} />}
+      {removing && <CancelDialog enrollmentId={removing.id} who={`${removing.name}'s place`} showScope onClose={() => setRemoving(null)} onDone={refresh} />}
     </section>
   )
 }

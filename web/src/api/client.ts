@@ -70,6 +70,8 @@ const TENANT_SLUG: string | undefined =
 
 // Anonymous auth endpoints: a 401 there is an answer, not an expired session.
 const NO_REFRESH = ['/api/v1/auth/sign-in', '/api/v1/auth/refresh', '/api/v1/auth/magic-links/consume']
+// Kiosk routes authenticate with the device's kiosk cookie, never a staff session.
+NO_REFRESH.push('/api/v1/kiosk/pair', '/api/v1/kiosk/config', '/api/v1/kiosk/lookups', '/api/v1/kiosk/check-ins', '/api/v1/kiosk/exit')
 
 type Options = { path?: Record<string, string>; query?: Record<string, string | number | boolean | null | undefined>; body?: unknown; idempotencyKey?: string }
 

@@ -1,3 +1,5 @@
+import { ClientCheckIns } from '../access/HistoryPage'
+import { ProfileCheckInButton } from '../access/ProfileCheckIn'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -414,11 +416,15 @@ export function ClientProfilePage() {
           </span>
         }
         actions={
-          live &&
-          can('clients.client.disable') && (
-            <Button variant="secondary" loading={toggle.isPending} onClick={() => toggle.mutate(client.status === 'active' ? 'disable' : 'enable')}>
-              {client.status === 'active' ? 'Disable client' : 'Enable client'}
-            </Button>
+          live && (
+            <>
+              {can('access.checkin.create') && <ProfileCheckInButton clientId={client.id} />}
+              {can('clients.client.disable') && (
+                <Button variant="secondary" loading={toggle.isPending} onClick={() => toggle.mutate(client.status === 'active' ? 'disable' : 'enable')}>
+                  {client.status === 'active' ? 'Disable client' : 'Enable client'}
+                </Button>
+              )}
+            </>
           )
         }
       />
@@ -433,6 +439,7 @@ export function ClientProfilePage() {
           ...(can('memberships.contract.read') ? [{ id: 'memberships', label: 'Memberships', content: <ClientMembershipsTab client={client} /> }] : []),
           ...(can('packages.package.read') ? [{ id: 'packages', label: 'Packages', content: <ClientPackagesTab client={client} /> }] : []),
           ...(can('billing.invoice.read') ? [{ id: 'billing', label: 'Billing', content: <ClientBillingTab clientId={client.id} /> }] : []),
+          ...(can('access.checkin.read') ? [{ id: 'check-ins', label: 'Check-ins', content: <ClientCheckIns client={client} /> }] : []),
         ]}
       />
     </>

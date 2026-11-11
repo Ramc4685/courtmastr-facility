@@ -1169,3 +1169,29 @@ def activate_access_for_identity(session: Session, identity_id: UUID) -> None:
         .where(ClientPortalAccess.identity_id == identity_id, ClientPortalAccess.status == "invited")
         .values(status="active", activated_at=clock.now())
     )
+
+
+# --- check-in lookups (access, build module 10) -------------------------------------------------------------
+
+
+def find_by_member_number(session: Session, value: str) -> Client | None:
+    """Internal (access): the live client holding this member number, compared without case (scanned values)."""
+    return session.scalar(
+        select(Client).where(func.upper(Client.member_number) == value.upper(), Client.merged_into_id.is_(None))
+    )
+
+
+def find_by_last_name_prefix(session: Session, prefix: str, limit: int) -> list[Client]:
+    """Internal (kiosk name search): active, live clients whose last name starts with `prefix` (taken literally)."""
+    prefix = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return list(
+        session.scalars(
+            select(Client)
+            .where(
+                Client.last_name.ilike(f"{prefix}%", escape="\\"), Client.status == "active",
+                Client.merged_into_id.is_(None), Client.erased_at.is_(None),
+            )
+            .order_by(Client.last_name, Client.first_name, Client.id)
+            .limit(limit)
+        )
+    )  # fmt: skip

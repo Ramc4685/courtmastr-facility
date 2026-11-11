@@ -7,6 +7,7 @@ import app.core.audit  # noqa: F401  (table definitions)
 import app.core.events  # noqa: F401
 import app.core.idempotency  # noqa: F401
 import app.core.inbound_webhooks  # noqa: F401
+import app.modules.access.models  # noqa: F401
 import app.modules.billing.models  # noqa: F401
 import app.modules.clients.models  # noqa: F401
 import app.modules.documents.models  # noqa: F401

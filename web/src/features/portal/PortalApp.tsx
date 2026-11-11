@@ -13,12 +13,16 @@ import { InboxBadge, InboxPage } from './InboxPage'
 import { InvoicesPage } from './InvoicesPage'
 import { MembershipsPage } from './MembershipsPage'
 import { PackagesPage } from './PackagesPage'
+import { PortalPrograms } from './PortalPrograms'
+import { PortalSessions } from './PortalSessions'
 import { ProfilePage } from './ProfilePage'
 import { displayName, makePortalValue, PortalProvider, usePortal } from './shared'
 
 const NAV = [
   { to: '/portal', label: 'Home', end: true },
   { to: '/portal/bookings', label: 'Bookings' },
+  { to: '/portal/programs', label: 'Programs' },
+  { to: '/portal/sessions', label: 'Book a session' },
   { to: '/portal/memberships', label: 'Memberships' },
   { to: '/portal/packages', label: 'Packages' },
   { to: '/portal/invoices', label: 'Invoices' },
@@ -141,6 +145,8 @@ export function PortalApp() {
         <Routes>
           <Route index element={<HomePage />} />
           <Route path="bookings" element={<BookingsPage />} />
+          <Route path="programs" element={<PortalPrograms />} />
+          <Route path="sessions" element={<PortalSessions />} />
           <Route path="memberships" element={<MembershipsPage />} />
           <Route path="packages" element={<PackagesPage />} />
           <Route path="invoices" element={<InvoicesPage />} />
