@@ -25,12 +25,12 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Programs & registration', to: '/programs', permission: 'programs.registration.read', icon: 'clipboard' },
   { label: 'Booking policies', to: '/programs/booking-policies', permission: 'programs.registration_config.manage', icon: 'gear' },
   { label: 'Check-in', to: '/check-in', permission: 'access.checkin.create', icon: 'door' },
+  { label: 'Leagues & tournaments', to: '/leagues', permission: 'leagues.competition.manage', icon: 'trophy' },
   { label: 'Integrations', to: '/integrations', permission: 'integrations.connection.manage', icon: 'plug' },
 ]
 
 // Build modules 2-17 (docs/architecture/overview.md section 6).
 export const UPCOMING_NAV: NavItem[] = [
-  { label: 'Leagues & tournaments', icon: 'trophy' },
   { label: 'Staff time & pay', icon: 'clock' },
   { label: 'Fitness assessments', icon: 'pulse' },
   { label: 'Reports', icon: 'chart' },

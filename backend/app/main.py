@@ -19,6 +19,7 @@ def create_app() -> FastAPI:
     from app.modules.engagement.router import public as engagement_public
     from app.modules.engagement.router import router as engagement_router
     from app.modules.integrations.router import router as integrations_router
+    from app.modules.leagues.router import router as leagues_router
     from app.modules.memberships.router import public as memberships_public
     from app.modules.memberships.router import router as memberships_router
     from app.modules.packages.router import public as packages_public
@@ -55,6 +56,7 @@ def create_app() -> FastAPI:
 
     for each in (access_router, access_kiosk):
         app.include_router(each, prefix=API_PREFIX)
+    app.include_router(leagues_router, prefix=API_PREFIX)
     app.include_router(integrations_router, prefix=API_PREFIX)
     _document_auth(app)
     return app

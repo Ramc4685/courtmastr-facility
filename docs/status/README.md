@@ -361,6 +361,13 @@ Lane detail: `09-pos-inventory.md`.
 | POS-21 card-present terminals | v2-adapter | not built | `pos.terminal.*` keys registered only |
 | POS-22 reorder and reporting hooks | P1 | partial | Built: reorder, sales by employee, category, coupon, supplier, brand, product or register, daily register, and returns. Not built: the daily low-stock email and the `rpt_*` read models for the reporting module |
 | POS-23 partner POS lines | v2-adapter | not built |  |
+## Module 11: Leagues and tournaments
+
+Built to P0 on its own lane (`11-leagues.md` has the feature table). P0 11: 8 done, 3 partial (LGE-08 runs in
+the request and the screen offers one weekly window; LGE-09 has two of four bye modes; LGE-12 is single
+elimination only). Courts are booked only through `scheduling.service`; team fees bill through
+`billing.service`; the public schedule and standings have their own schemas.
+
 ## Known defects and gaps
 
 Cross-cutting:

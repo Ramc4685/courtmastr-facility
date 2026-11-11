@@ -74,3 +74,12 @@ rental in the queue, and Jordan Okafor bought the **10-hour court pack** and use
 At Downtown: barcode `DEMO-CARD-0001` belongs to Morgan Member (scan or type it on Check-in), two earlier
 check-ins show under Recent, and a "Front door kiosk" device is registered. To try the kiosk, open Check-in >
 Kiosks, create a pairing code, open `/kiosk` in another browser and enter it; "Mem" finds Morgan M.
+
+## Demo leagues (build module 11)
+
+At Downtown, **Wednesday Futsal** is an active, public league for the ten weeks starting next Monday. It has six
+teams: Morgan Member captains **Downtown Strikers**, whose $300 team fee is billed to Morgan (revenue category
+`PROGRAMS`), and five generated placeholders ("Team 1" to "Team 5") are ready to rename. The schedule runs
+Wednesdays 18:00-22:00 on Court 3, and its 15 games are booked on the calendar. The first game has a 4-2 result,
+so the standings are filled in. Rita Referee is the futsal official. The public schedule and standings are at
+`/api/v1/public/competitions` (send `X-Tenant-Slug: courtside-demo`) and on the web at `/leagues/public`.

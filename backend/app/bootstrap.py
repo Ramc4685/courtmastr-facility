@@ -45,6 +45,13 @@ def bootstrap() -> None:
     deps.set_authenticator(integrations.auth.authenticate, prefix="fhk")
     if settings.notifications.adapter != "noop":
         engagement.service.install_notifier()  # transactional notices go through the delivery log and suppressions
-    from app.modules import access, programs, rentals, resources, scheduling  # noqa: F401  (modules 2, 3, 10: same registration)
+    from app.modules import (  # noqa: F401  (build modules 2, 3, 10, 11: same registration)
+        access,
+        leagues,
+        programs,
+        rentals,
+        resources,
+        scheduling,
+    )
 
     _done = True

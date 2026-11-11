@@ -207,11 +207,13 @@ def populate(client, tenant) -> SimpleNamespace:
     space |= _populate_programs(client, headers, post, location["id"], person["id"], space, category_id)
     space |= _populate_access(client, headers, post, tenant, location["id"], person["id"], space)
     space |= _populate_engagement(client, tenant, post, location["id"], person["id"], identity_id)
+    leagues = _populate_leagues(client, headers, post, location["id"], person["id"], space["resource_id"], category_id)
     integration = _populate_integrations(client, headers, tenant, post, location, person)
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
         session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
         payment_id=payment["id"], revenue_category_id=category_id, tax_id=tax_id, **billing_ids, **people, **documents, **space,
+        **leagues,
         **integration,
     )  # fmt: skip
 
@@ -649,6 +651,54 @@ def _populate_rentals(client, headers, post, location_id, client_id, court_id, c
         "rental_plan_id": plan["id"],
         "purchase_id": purchase["id"],
     }
+
+
+def _populate_leagues(client, headers, post, location_id, client_id, court_id, category_id) -> dict:
+    """Build module 11: a row in every leagues table. A fee-paying league with four teams (one billed), a
+    roster place, an official, a committed schedule run (booked games), a result (standings) with the official
+    assigned, and a draft bracket."""
+    sport = post("/sports", {"name": "Futsal", "default_game_length_min": 60})
+    age = post("/age-groups", {"name": "Adult", "min_age": 18})
+    season = post("/seasons", {"name": "Spring 2031", "starts_on": "2031-04-01", "ends_on": "2031-06-30"})
+    league = post("/competitions", {
+        "location_id": location_id, "kind": "league", "name": "Wednesday Futsal", "sport_id": sport["id"],
+        "age_group_id": age["id"], "season_id": season["id"], "starts_on": "2031-04-01", "ends_on": "2031-06-30",
+        "is_public": True, "team_fee_minor": 30000, "revenue_category_id": category_id,
+    })  # fmt: skip
+    cid = league["id"]
+    post(f"/competitions/{cid}/activate", {})
+    first = post(f"/competitions/{cid}/teams", {"team": {"name": "Strikers"}, "bill_to_client_id": client_id})
+    post(f"/competitions/{cid}/teams/generate", {"count": 3})
+    roster = post(f"/competition-teams/{first['id']}/roster", {"client_id": client_id, "role": "captain"})
+    official = post("/officials", {
+        "location_id": location_id, "first_name": "Ref", "last_name": "One", "sport_ids": [sport["id"]],
+        "age_group_ids": [age["id"]],
+    })  # fmt: skip
+    run = post("/schedule-runs", {
+        "location_id": location_id, "competition_ids": [cid], "resource_ids": [court_id],
+        "time_slots": [{"weekday": 3, "starts_at": "18:00", "ends_at": "22:00", "resource_id": court_id}],
+        "starts_on": "2031-04-02", "ends_on": "2031-06-25",
+    })  # fmt: skip
+    post(f"/schedule-runs/{run['id']}/generate", {})
+    post(f"/schedule-runs/{run['id']}/commit", {})
+    games = client.get(f"/api/v1/schedule-runs/{run['id']}/games?status=scheduled", headers=headers).json()["data"]
+    game = games[0]
+    put = client.put(f"/api/v1/games/{game['id']}/officials", headers=headers,
+                     json={"assignments": [{"official_id": official["id"]}]})  # fmt: skip
+    assert put.status_code == 200, put.text
+    put = client.put(f"/api/v1/games/{game['id']}/result", headers=headers,
+                     json={"home": {"score": 3}, "away": {"score": 1}})  # fmt: skip
+    assert put.status_code == 200, put.text
+    standing = client.get(f"/api/v1/competitions/{cid}/standings", headers=headers).json()[0]
+    bracket = post(f"/competitions/{cid}/brackets", {"bracket_type": "single_elimination", "seed_source": "seeds"})
+    division = client.get(f"/api/v1/competitions/{cid}/divisions", headers=headers).json()[0]
+    return {
+        "sport_id": sport["id"], "age_group_id": age["id"], "season_id": season["id"], "competition_id": cid,
+        "division_id": division["id"], "team_id": first["team_id"], "competition_team_id": first["id"],
+        "roster_entry_id": roster["id"], "official_id": official["id"], "schedule_run_id": run["id"],
+        "game_id": game["id"], "standing_id": standing["id"], "bracket_id": bracket["id"],
+        "bracket_slot_id": bracket["slots"][0]["id"],
+    }  # fmt: skip
 
 
 @pytest.fixture(scope="session")
