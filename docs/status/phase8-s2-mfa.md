@@ -85,7 +85,7 @@ Load average was 40 to 48 throughout (sibling lanes running).
   with the variable empty. The 1,500-occurrence scheduling test is the known load-sensitive timing test
   (S1 notes the same). That full run predates the lockout fix in `f15acbc`; the platform suite (148 tests)
   was rerun after it and passes.
-- `make web-test`: 142 or 143 of 143, depending on the run. Each run lost one different first-render test to
+- `make web-test`: final run 143 of 143; earlier runs 142 of 143. Each run lost one different first-render test to
   load (`access.test.tsx`, then `app/auth.test.tsx`); each passes alone, and the access one now has the
   repo's 5 s cold-start allowance.
 - `make web-e2e`, once against the lane API: 22 of 32. All 32 sign-ins answered 200 (no challenge, no
@@ -96,3 +96,7 @@ Load average was 40 to 48 throughout (sibling lanes running).
   `clients.spec.ts` (axe color-contrast on the client list's muted text and success badge) and
   `integrations.spec.ts` (expects `GET /locations` with an API key to answer 200; `13b12dd` refuses API keys
   on keyless routes with 403).
+- Checked by hand in the browser on the lane (demo owner): enrol from `/account/security` (QR drawn,
+  pyotp code accepted, ten recovery codes shown once), sign out and back in with a code, then with the
+  step-up window ended, "Turn off" opened the step-up dialog, took a code and retried the delete. That pass
+  found the dialog's focus landing on Close (fixed in `0d3311a`). The lane demo owner was left with MFA off.
