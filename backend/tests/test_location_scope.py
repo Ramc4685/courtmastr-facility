@@ -32,13 +32,13 @@ _TABLES = {
     "template": "document_template",
 }  # fmt: skip
 # Writes under the client-following billing.payment.take that post to another location's books (M-04).
-LOCATION_BOUND_WRITES = {"markInvoicePaid", "cancelPayment"}
+LOCATION_BOUND_WRITES = {"markInvoicePaid", "cancelPayment", "confirmPayment"}
 # Reviewed: id routes whose key is client-following or tenant-wide, so a limited admin may reach them anywhere.
 # Backlog 18: billing.invoice.read/send and billing.payment.read stay client-following (spec section 6).
 CLIENT_OR_TENANT_ROUTES = {
     "client": set("""
         applyAccountCredit attachPaymentMethod clearClientDocumentPaperSigned clearWaiverOverride
-        confirmPayment createSetupIntent getAccountCredit getAutopayRun getCharge getClientBillingSummary
+        createSetupIntent getAccountCredit getAutopayRun getCharge getClientBillingSummary
         getClientDocument getClientDocumentFile getClientPackage getClientStatement
         getDocumentLocationSettings getDocumentTemplate getInvoice getInvoiceDocument getMembershipContract
         getMembershipPlan getPackagePlan getPackageSeries getPayment getPaymentSchedule getReceipt

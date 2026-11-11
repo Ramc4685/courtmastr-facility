@@ -122,6 +122,11 @@ def _load_pair(session: Session, survivor_id: UUID, loser_ids: list[UUID]) -> tu
 def _blockers(session: Session, survivor: Client, losers: list[Client]) -> list[dict]:
     blockers = []
     for loser in losers:
+        if survivor.created_via == "portal" and loser.created_via != "portal":
+            # the portal record's manager access would otherwise reach the real record's history (P-06)
+            blockers.append({"context": "clients", "client_id": loser.id, "code": "survivor-portal-created",
+                             "detail": "A record created in the portal cannot absorb one created by staff; "
+                                       "keep the staff record as the survivor."})  # fmt: skip
         for handler in HANDLERS.values():
             for b in handler.precheck(session, loser.id, survivor.id) if handler.precheck else []:
                 blockers.append({"context": handler.context, "client_id": loser.id, **b})

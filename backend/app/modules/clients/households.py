@@ -171,10 +171,10 @@ def _changed(session: Session, rel: ClientRelationship, action: str, changes: di
 def create_relationship(session: Session, principal: Principal, client_id: UUID, data: dict) -> dict:
     """Staff link (FAM-01): active at once. One live relationship per pair (uq_client_relationship_pair)."""
     authorize(principal, _MANAGE)
-    client = service.load(session, principal, client_id, "clients.client.read")
+    client = service.load(session, principal, client_id, _MANAGE)
     service._require_live(client)
     try:
-        other = service.load(session, principal, data["other_client_id"], "clients.client.read")
+        other = service.load(session, principal, data["other_client_id"], _MANAGE)
     except NotFound:
         raise ValidationFailed("Unknown client.", pointer="/other_client_id") from None
     if other.id == client.id or other.merged_into_id or other.erased_at:
@@ -194,12 +194,12 @@ def create_relationship(session: Session, principal: Principal, client_id: UUID,
 
 
 def _live_rel(session: Session, principal: Principal, rel_id: UUID) -> ClientRelationship:
-    """The relationship, 404 unless the caller reaches both parties."""
+    """The relationship, 404 unless the caller may manage relationships of both parties."""
     rel = session.get(ClientRelationship, rel_id)
     if rel is None:
         raise NotFound()
     for client_id in (rel.from_client_id, rel.to_client_id):
-        service.load(session, principal, client_id, "clients.client.read")
+        service.load(session, principal, client_id, _MANAGE)
     return rel
 
 

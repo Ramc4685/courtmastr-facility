@@ -12,7 +12,7 @@ from app.modules import billing, platform
 from app.modules.billing.tests.test_money import provider_payments
 from app.modules.memberships import service
 from app.modules.memberships.models import MembershipContract
-from app.modules.memberships.tests.support import API, charges, membership_plan, ok, tx, world
+from app.modules.memberships.tests.support import API, charges, membership_plan, ok, package_plan, tx, world
 from app.modules.memberships.tests.test_renewal_jobs import _member
 from conftest import add_staff, login, new_client, scalar
 
@@ -38,7 +38,7 @@ def shop(w, client, owner):
             session.info["actor"] = member
             return service.portal_buy(session, member, body, key or f"k-{uuid4().hex}")
 
-    return type("Shop", (), {"buy": staticmethod(buy), "today": today})
+    return type("Shop", (), {"buy": staticmethod(buy), "today": today, "member": member})
 
 
 def _contracts(w) -> int:
@@ -94,3 +94,18 @@ def test_sale_cannot_carry_what_the_seller_may_not_do(w, client, owner):
     ok(post(body()), 201)
     ok(post(body(sold_by_staff_user_id=str(front_id))), 201)  # crediting oneself is the default anyway
     ok(post(body(share_client_ids=[friend], sold_by_staff_user_id=str(other_id)), owner), 201)
+
+
+def test_a_key_spent_on_a_package_buys_no_membership(w, shop, client, owner):
+    """Problem 2 across routes: the Idempotency-Key that paid for a package does not also pay for a contract."""
+    from app.modules import packages
+
+    plan = package_plan(client, owner, w.tenant, online_sale_mode="paid_in_full")
+    key = f"k-{uuid4().hex}"
+    with tx(w.tenant) as session:
+        session.info["actor"] = shop.member
+        body = {"package_plan_id": UUID(plan["id"]), "location_id": UUID(w.location_id), "method_token": "tok_card_ok"}
+        assert packages.service.portal_buy(session, shop.member, body, key)["payment_status"] == "succeeded"
+    with pytest.raises(ValidationFailed) as reused:
+        shop.buy(key, method_token="tok_card_ok")
+    assert (reused.value.code, _contracts(w), provider_payments(w, key)) == ("idempotency-key-reused", 0, 1)

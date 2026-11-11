@@ -57,6 +57,8 @@ the portal member card, a scheduler for task reminders, derived system alerts, a
 - Merge never carries acting rights: the loser's manager access rows are revoked and its live relationships
   that grant acting rights (from either side) end. `merge-precheck` lists them under `review` so staff
   re-grant on purpose. Rights already held on the survivor's own record are untouched.
+  A portal-created record cannot survive a merge with a staff-created one (blocker `survivor-portal-created`):
+  the staff record must be the survivor, so a portal manager never inherits the real record's history.
 - A portal-created record matches as a duplicate on email only through a verified address.
 - `client_merge.backfilled_fields` stores field names only (`{field: true}`): the table is append-only and
   erasure cannot clear values. Rows written before this change exist only in demo tenants.

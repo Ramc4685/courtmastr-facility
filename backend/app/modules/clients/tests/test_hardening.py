@@ -155,6 +155,12 @@ def test_merge_never_carries_acting_rights(client, tenant, owner, location_id, m
             session, clients.service.get(session, victim["id"]), clients.service.get(session, fake["id"])
         )
         assert reasons == ["same_birth_date"]
+    # the reversed pair: the portal record may not survive and absorb the real one
+    reversed_pair = {"merged_client_ids": [victim["id"]]}
+    check = client.post(f"{API}/clients/{fake['id']}/merge-precheck", headers=owner, json=reversed_pair).json()
+    assert (check["can_merge"], [b["code"] for b in check["blockers"]]) == (False, ["survivor-portal-created"])
+    refused = client.post(f"{API}/clients/{fake['id']}/merge", headers=owner, json=reversed_pair)
+    assert (refused.status_code, refused.json()["code"]) == (409, "merge-blocked")
     check = client.post(f"{API}/clients/{victim['id']}/merge-precheck", headers=owner,
                         json={"merged_client_ids": [fake["id"]]}).json()  # fmt: skip
     assert sorted(i["kind"] for i in check["review"]) == ["portal_access", "relationship"]

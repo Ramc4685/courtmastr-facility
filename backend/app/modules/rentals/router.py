@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, current_ctx, public_session, require
-from app.core.idempotency import idempotency
+from app.core.idempotency import KEY_PATTERN, idempotency
 from app.core.pagination import ListQuery, list_query
 from app.modules.rentals import schemas as s
 from app.modules.rentals import service
@@ -28,7 +28,9 @@ Sell = Depends(require(service.SELL))
 Public = Annotated[Session, Depends(public_session)]
 Client = Annotated[Ctx, Depends(current_ctx)]
 # The parameter must be called idempotency_key: it then merges with the router-level optional header in OpenAPI.
-RequiredKey = Annotated[str, Header(min_length=8, max_length=255, description="Required; keys live 24 hours.")]
+RequiredKey = Annotated[
+    str, Header(min_length=8, max_length=255, pattern=KEY_PATTERN, description="Required; keys live 24 hours.")
+]
 
 
 # --- types and rates ---------------------------------------------------------------------------------------

@@ -917,13 +917,15 @@ def _plan(
 
 
 def related_clients(session: Session, client_ids: Iterable[UUID]) -> set[UUID]:
-    """Internal: these clients and everyone with a live (pending or active) relationship to one of them. The
-    people whose money may settle an item, and who an invoice may be billed to: a parent, never a stranger."""
+    """Internal: these clients and everyone with an active relationship to one of them. The people whose money
+    may settle an item, and who an invoice may be billed to: a parent, never a stranger. A pending request
+    (not yet accepted or approved) counts for nothing."""
     people = set(client_ids) - {None}
     return people | {
         other
         for person in people
         for rel in clients.households.relationships_of(session, person, live_only=True)
+        if rel.status == "active"
         for other in (rel.from_client_id, rel.to_client_id)
     }
 

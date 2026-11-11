@@ -210,3 +210,19 @@ def test_fake_provider_scripts_and_idempotency():
     assert refund("r2", 401).outcome == "failed"  # more than is left of the payment
     assert refund("r3", 400).outcome == "succeeded"
     assert refund("r4", 1, ref=pay("tok_card_declined", "k2").provider_payment_ref).outcome == "failed"
+
+
+def test_every_idempotency_key_header_has_the_key_pattern():
+    """Backlog 26: no route takes an Idempotency-Key that the shared pattern would refuse."""
+    from app.core.idempotency import KEY_PATTERN
+    from app.main import app
+
+    loose = [
+        (path, method)
+        for path, ops in app.openapi()["paths"].items()
+        for method, op in ops.items()
+        for param in op.get("parameters", [])
+        if param["name"].lower() == "idempotency-key"
+        and KEY_PATTERN not in {s.get("pattern") for s in [param["schema"], *param["schema"].get("anyOf", [])]}
+    ]
+    assert loose == []

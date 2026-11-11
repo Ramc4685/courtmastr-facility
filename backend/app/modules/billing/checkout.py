@@ -54,18 +54,21 @@ def secure_online_checkout(
                 code="payment-method-required",
             )  # fmt: skip
         earlier = service.find_payment(session, idempotency_key)
-        if earlier is not None and earlier.status in ("unknown", "initiated"):
-            # a retry after a timeout: ask the processor first, so the card is never charged twice
-            earlier = service.confirm_payment(session, earlier.id)
-            if is_secured(earlier):
-                return service.allocate(session, earlier.id, invoice_id=invoice.id)
+        if earlier is not None:
+            if earlier.client_id != client_id:
+                raise _key_reused()
+            if earlier.status in ("unknown", "initiated"):
+                # a retry after a timeout: ask the processor first, so the card is never charged twice
+                earlier = service.confirm_payment(session, earlier.id)
+            if is_secured(earlier):  # a replay: the key's money secures this sale only if it covers it
+                return _covering(session, invoice, service.allocate(session, earlier.id, invoice_id=invoice.id))
         payment = service.take_payment(
             session, client_id=client_id, location_id=location_id, amount_minor=invoice.balance_minor,
             tender_kind=tender_kind, method_token=method_token, payment_method_id=payment_method_id,
             idempotency_key=idempotency_key, origin="portal", invoice_id=invoice.id,
         )  # fmt: skip
         if is_secured(payment):
-            return payment
+            return _covering(session, invoice, payment)
         if payment.status in ("unknown", "initiated"):
             raise DomainError(
                 "The card processor did not answer; retry with the same Idempotency-Key.", status=503,
@@ -87,3 +90,16 @@ def secure_online_checkout(
             code="payment-method-required",
         )  # fmt: skip
     return None
+
+
+def _key_reused() -> ValidationFailed:
+    return ValidationFailed("This Idempotency-Key was used for another payment.", code="idempotency-key-reused")
+
+
+def _covering(session: Session, invoice: Invoice, payment: Payment) -> Payment:
+    """The payment, once the invoice is covered (settled or pending); a key whose money is spent buys nothing."""
+    session.flush()
+    session.refresh(invoice)
+    if invoice.status not in ("paid", "payment_pending"):
+        raise _key_reused()
+    return payment

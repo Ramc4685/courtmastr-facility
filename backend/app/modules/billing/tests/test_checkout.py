@@ -107,3 +107,31 @@ def test_nothing_due_now_needs_a_chargeable_method_on_file(shop):
         stored = methods.autopay_method(session, shop.client_id)
         assert stored is not None and stored.status == "active"
         assert _secure(session, shop, None, must_pay_now=False) is None  # the stored autopay method suffices
+
+
+def test_a_key_that_already_paid_secures_nothing(shop):
+    """Problem 2: a reused key's spent payment does not cover a second sale, nor another client's sale."""
+    ready(shop)
+    key = uuid4().hex
+    with work(shop.tenant) as session:
+        first = _invoice(session, shop, 100)
+        assert _secure(session, shop, first, method_token="tok_card_ok", idempotency_key=key).status == "succeeded"
+    with work(shop.tenant) as session, _Code(ValidationFailed, "idempotency-key-reused"):
+        _secure(session, shop, _invoice(session, shop, 90000), method_token="tok_card_ok", idempotency_key=key)
+    with work(shop.tenant) as session, _Code(ValidationFailed, "idempotency-key-reused"):
+        _secure(session, shop, _invoice(session, shop), client_id=uuid4(), method_token="tok_card_ok",
+                idempotency_key=key)  # fmt: skip
+    assert provider_payments(shop, key) == 1
+
+
+def test_a_recovered_payment_covers_only_what_it_paid_for(shop):
+    """Problem 2, timeout variant: a small payment recovered by key does not secure a bigger invoice."""
+    ready(shop)
+    key = uuid4().hex
+    with _Code(DomainError, "provider-unavailable"), work(shop.tenant) as session:
+        _secure(session, shop, _invoice(session, shop, 100), method_token="tok_card_unknown", idempotency_key=key)
+    with _Code(ValidationFailed, "idempotency-key-reused"), work(shop.tenant) as session:
+        _secure(session, shop, _invoice(session, shop, 90000), method_token="tok_card_unknown", idempotency_key=key)
+    with work(shop.tenant) as session:  # the refusal rolled back the sale and the recovery with it
+        assert session.scalar(select(Payment.status).where(Payment.idempotency_key == key)) == "initiated"
+    assert provider_payments(shop, key) == 1

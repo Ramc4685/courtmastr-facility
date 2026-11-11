@@ -63853,6 +63853,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -65062,6 +65063,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -66585,6 +66587,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -72057,6 +72060,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -73518,6 +73522,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }
@@ -73575,6 +73580,7 @@
               "description": "Required; keys live 24 hours.",
               "maxLength": 255,
               "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
               "title": "Idempotency-Key",
               "type": "string"
             }

@@ -2,9 +2,11 @@
 owner points it, and each move is checked at the location whose books it changes."""
 
 import pytest
+from sqlalchemy import update
 
-from app.modules.billing.tests.test_billing import API
+from app.modules.billing.tests.test_billing import API, work
 from app.modules.billing.tests.test_surface import Api, item
+from app.modules.clients.models import ClientRelationship
 from conftest import add_staff, login, new_client
 
 
@@ -22,6 +24,13 @@ def _relate(api, parent_id, kid_id) -> None:
     parent_of = next(t for t in api("GET", "/relationship-types") if t["code"] == "parent_of")
     api("POST", f"/clients/{parent_id}/relationships", {"other_client_id": str(kid_id),
                                                        "relationship_type_id": parent_of["id"]}, 201)  # fmt: skip
+
+
+def _set_link(shop, status) -> None:
+    with work(shop.tenant) as session:
+        session.execute(
+            update(ClientRelationship).where(ClientRelationship.to_client_id == shop.client_id).values(status=status)
+        )
 
 
 def test_money_never_pays_a_strangers_item(client, api, shop):
@@ -43,7 +52,10 @@ def test_money_never_pays_a_strangers_item(client, api, shop):
     api("POST", "/payments", walk_in | target, 422)  # a walk-in payment settles only items with no client
     assert api("GET", f"/invoices/{invoice['id']}")["balance_minor"] == 1083
 
-    _relate(api, stranger, shop.client_id)  # now the stranger is the shop client's parent
+    _relate(api, stranger, shop.client_id)
+    _set_link(shop, "pending")  # a request nobody accepted yet makes no payer
+    api("POST", f"/payments/{theirs['id']}/allocations", target, 422, "payer-mismatch")
+    _set_link(shop, "active")  # now the stranger is the shop client's parent
     applied = api("POST", f"/payments/{theirs['id']}/allocations", target)
     assert applied["unapplied_minor"] == 1500
     assert api("POST", "/payments", _cash(shop, stranger, 583, invoice_id=invoice["id"]), 201)["unapplied_minor"] == 0
@@ -58,6 +70,9 @@ def test_an_invoice_cannot_be_billed_to_a_stranger(client, api, shop):
     body = {"charge_ids": [owed], "bill_to_client_id": stranger, "is_autopay": True}
     api("POST", "/invoices", body, 422, "payer-not-related")
     _relate(api, stranger, shop.client_id)
+    _set_link(shop, "pending")
+    api("POST", "/invoices", body, 422, "payer-not-related")
+    _set_link(shop, "active")
     assert api("POST", "/invoices", body, 201)["bill_to_client_id"] == stranger
 
 
