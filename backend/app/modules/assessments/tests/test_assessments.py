@@ -84,16 +84,22 @@ def test_categories_and_fields_are_tenant_wide_definitions(client, tenant, owner
 def test_recording_rounds_values_and_keeps_them_out_of_the_audit_trail(client, tenant, owner, location_id):
     _, weight, plank = _setup(client, owner)
     person = new_client(client, owner, location_id)["id"]
-    result = _record(client, owner, person, location_id, "2031-01-06T15:00:00Z", [(weight["id"], "80.25"), (plank["id"], "61.5")])
+    result = _record(
+        client, owner, person, location_id, "2031-01-06T15:00:00Z", [(weight["id"], "80.25"), (plank["id"], "61.5")]
+    )
     values = {v["assessment_field_id"]: float(v["value"]) for v in result["values"]}
     assert values == {weight["id"]: 80.3, plank["id"]: 62}  # half-up to each field's decimal places
     assert result["recorded_by_staff_user_id"] == str(tenant.owner_id) and result["location_id"] == location_id
     assert scalar(tenant, select(func.count()).select_from(OutboxEvent)
                   .where(OutboxEvent.event_type == "assessments.result.recorded")) == 1  # fmt: skip
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
-        trail = [str(c) for c in session.scalars(select(AuditEvent.changes).where(AuditEvent.action.like("assessments.%")))]
+        trail = [
+            str(c) for c in session.scalars(select(AuditEvent.changes).where(AuditEvent.action.like("assessments.%")))
+        ]
     assert trail and not any("80.3" in c or "62" in c for c in trail)  # values are health data: flag only
-    twice = _record(client, owner, person, location_id, "2031-01-06T15:00:00Z", [(weight["id"], 1), (weight["id"], 2)], 422)
+    twice = _record(
+        client, owner, person, location_id, "2031-01-06T15:00:00Z", [(weight["id"], 1), (weight["id"], 2)], 422
+    )
     assert twice["errors"][0]["pointer"] == "/values"
     unknown = _record(client, owner, person, location_id, "2031-01-06T15:00:00Z", [(str(uuid4()), 1)], 422)
     assert unknown["errors"][0]["pointer"] == "/values/0/assessment_field_id"
@@ -105,23 +111,40 @@ def test_recording_rounds_values_and_keeps_them_out_of_the_audit_trail(client, t
     moved = ok(client.patch(f"{API}/assessment-results/{result['id']}", headers=owner,
                             json={"recorded_at": "2031-01-07T15:00:00Z", "note": "Re-weighed"}))  # fmt: skip
     assert moved["note"] == "Re-weighed" and len(moved["values"]) == 2  # values kept, their time moved
-    series = ok(client.get(f"{API}/assessment-series?client_id={person}&assessment_field_id[in]={weight['id']}", headers=owner))
+    series = ok(
+        client.get(f"{API}/assessment-series?client_id={person}&assessment_field_id[in]={weight['id']}", headers=owner)
+    )
     assert series["series"][0]["points"][0]["recorded_at"].startswith("2031-01-07")
     edited = ok(client.patch(f"{API}/assessment-results/{result['id']}", headers=owner,
                              json={"values": [{"assessment_field_id": weight["id"], "value": "79.94"}]}))  # fmt: skip
     assert [float(v["value"]) for v in edited["values"]] == [79.9]
-    assert client.get(f"{API}/assessment-series?client_id={person}&assessment_field_id[in]=nope", headers=owner).status_code == 422
+    assert (
+        client.get(
+            f"{API}/assessment-series?client_id={person}&assessment_field_id[in]=nope", headers=owner
+        ).status_code
+        == 422
+    )
 
 
 def test_history_summarises_each_field_newest_first(client, owner, location_id):
     _, weight, plank = _setup(client, owner)
     person = new_client(client, owner, location_id)["id"]
     for day, kg, secs in (("01", "82", 40), ("15", "80.5", 75), ("29", "81", 60)):
-        _record(client, owner, person, location_id, f"2031-01-{day}T15:00:00Z", [(weight["id"], kg), (plank["id"], secs)])
-    series = {s["assessment_field_id"]: s for s in ok(client.get(f"{API}/assessment-series?client_id={person}", headers=owner))["series"]}
+        _record(
+            client, owner, person, location_id, f"2031-01-{day}T15:00:00Z", [(weight["id"], kg), (plank["id"], secs)]
+        )
+    series = {
+        s["assessment_field_id"]: s
+        for s in ok(client.get(f"{API}/assessment-series?client_id={person}", headers=owner))["series"]
+    }
     w, p = series[weight["id"]], series[plank["id"]]
     assert [float(x["value"]) for x in w["points"]] == [81, 80.5, 82]
-    assert (float(w["latest_value"]), float(w["first_value"]), float(w["change"]), float(w["best_value"])) == (81, 82, -1, 80.5)
+    assert (float(w["latest_value"]), float(w["first_value"]), float(w["change"]), float(w["best_value"])) == (
+        81,
+        82,
+        -1,
+        80.5,
+    )
     assert float(p["best_value"]) == 75
     window = ok(client.get(f"{API}/assessment-series?client_id={person}&recorded_at[gte]=2031-01-10T00:00:00Z"
                            f"&recorded_at[lte]=2031-01-20T00:00:00Z", headers=owner))["series"]  # fmt: skip
@@ -135,12 +158,17 @@ def test_coach_reaches_only_their_own_clients_and_cannot_delete(client, tenant, 
     coach_email, coach_id = add_staff(tenant, "coach", location_ids=[location_id])
     coach = login(client, tenant, coach_email)
     mine = new_client(client, owner, location_id)["id"]
-    owners = client.put(f"{API}/clients/{mine}/owners", headers=owner, json={"default_trainer_staff_user_id": str(coach_id)})
+    owners = client.put(
+        f"{API}/clients/{mine}/owners", headers=owner, json={"default_trainer_staff_user_id": str(coach_id)}
+    )
     assert owners.status_code < 300, owners.text
     theirs = new_client(client, owner, location_id)["id"]
     recorded = _record(client, coach, mine, location_id, "2031-01-06T15:00:00Z", [(weight["id"], 70)])
     assert recorded["recorded_by_staff_user_id"] == str(coach_id)
-    assert _record(client, coach, theirs, location_id, "2031-01-06T15:00:00Z", [(weight["id"], 70)], 404)["code"] == "not-found"
+    assert (
+        _record(client, coach, theirs, location_id, "2031-01-06T15:00:00Z", [(weight["id"], 70)], 404)["code"]
+        == "not-found"
+    )
     other = _record(client, owner, theirs, location_id, "2031-01-06T15:00:00Z", [(weight["id"], 90)])
     assert client.get(f"{API}/assessment-results/{other['id']}", headers=coach).status_code == 404
     assert client.get(f"{API}/assessment-results?client_id={theirs}", headers=coach).status_code == 404
@@ -148,7 +176,9 @@ def test_coach_reaches_only_their_own_clients_and_cannot_delete(client, tenant, 
     assert client.delete(f"{API}/assessment-results/{recorded['id']}", headers=coach).status_code == 403
     ok(client.delete(f"{API}/assessment-results/{recorded['id']}", headers=owner), 204)
     assert client.get(f"{API}/assessment-results/{recorded['id']}", headers=owner).status_code == 404
-    deleted = scalar(tenant, select(func.count()).select_from(AuditEvent).where(AuditEvent.action == "assessments.assessment.delete"))
+    deleted = scalar(
+        tenant, select(func.count()).select_from(AuditEvent).where(AuditEvent.action == "assessments.assessment.delete")
+    )
     assert deleted == 1
 
 
@@ -178,7 +208,11 @@ def test_portal_shows_visible_fields_and_bests_only_when_sharing_is_on(client, t
     assert len(results) == 3 and all(len(r["values"]) == 1 for r in results)
     assert results[0]["values"][0]["field_name"] == "Weight" and "note" not in results[0]
     [best] = ok(client.get(f"{API}/portal/assessment-bests", headers=portal))
-    assert (float(best["best_value"]), best["best_recorded_at"][:10], float(best["latest_value"])) == (80, "2031-01-15", 81)
+    assert (float(best["best_value"]), best["best_recorded_at"][:10], float(best["latest_value"])) == (
+        80,
+        "2031-01-15",
+        81,
+    )
     stranger = new_client(client, owner, location_id)["id"]
     assert client.get(f"{API}/portal/assessment-results?client_id={stranger}", headers=portal).status_code == 404
     assert client.get(f"{API}/portal/assessment-bests", headers=owner).status_code in (403, 404)

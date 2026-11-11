@@ -7,7 +7,9 @@ _AD = {"admin": "all"}
 _MG = {"admin": "all", "manager": "all"}
 
 
-def _p(key: str, scope: Scope, label: str, flags: str = "", roles: dict[str, str] | None = None, own=False) -> Permission:
+def _p(
+    key: str, scope: Scope, label: str, flags: str = "", roles: dict[str, str] | None = None, own=False
+) -> Permission:
     return Permission(f"staff.{key}", scope, label, tuple(flags.split()), roles or {}, own)
 
 

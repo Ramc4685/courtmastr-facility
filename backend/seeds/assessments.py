@@ -23,12 +23,24 @@ def seed(session: Session) -> None:
     if session.scalar(select(AssessmentTemplate.id).where(AssessmentTemplate.name == "Fitness")) is not None:
         return
     downtown = session.execute(select(Location).where(Location.slug == "downtown")).scalar_one()
-    morgan = session.execute(select(Client).where(Client.first_name == "Morgan", Client.last_name == "Member")).scalar_one()
+    morgan = session.execute(
+        select(Client).where(Client.first_name == "Morgan", Client.last_name == "Member")
+    ).scalar_one()
     template = service.create_template(session, actor, {"name": "Fitness", "sort_order": 0})
     fields = [
-        service.create_field(session, actor, template["id"], {
-            "name": name, "decimal_places": places, "unit_label": unit, "better_direction": direction,
-            "is_client_visible": True, "sort_order": order})  # fmt: skip
+        service.create_field(
+            session,
+            actor,
+            template["id"],
+            {
+                "name": name,
+                "decimal_places": places,
+                "unit_label": unit,
+                "better_direction": direction,
+                "is_client_visible": True,
+                "sort_order": order,
+            },
+        )  # fmt: skip
         for order, (name, places, unit, direction) in enumerate(FIELDS)
     ]
     start = clock.now().replace(hour=15, minute=0, second=0, microsecond=0) - timedelta(days=60)

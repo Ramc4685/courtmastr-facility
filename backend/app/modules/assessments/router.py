@@ -47,7 +47,9 @@ def create_assessment_template(body: s.AssessmentTemplateCreate, ctx: Manage):
 
 @router.patch("/assessment-templates/{assessment_template_id}", response_model=s.AssessmentTemplateOut)
 def update_assessment_template(assessment_template_id: UUID, body: s.AssessmentTemplateUpdate, ctx: Manage):
-    return service.update_template(ctx.session, ctx.principal, assessment_template_id, body.model_dump(exclude_unset=True))
+    return service.update_template(
+        ctx.session, ctx.principal, assessment_template_id, body.model_dump(exclude_unset=True)
+    )
 
 
 @router.post("/assessment-templates/{assessment_template_id}/fields", response_model=s.AssessmentFieldOut,

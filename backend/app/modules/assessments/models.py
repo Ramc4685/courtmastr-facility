@@ -21,8 +21,13 @@ class BetterDirection(StrEnum):
 class AssessmentTemplate(TenantOwned, Timestamps, Base):
     __tablename__ = "assessment_template"
     __table_args__ = tenant_args(
-        Index("uq_assessment_template_name", "tenant_id", func.lower(text("name")), unique=True,
-              postgresql_where=text("is_active")),  # fmt: skip
+        Index(
+            "uq_assessment_template_name",
+            "tenant_id",
+            func.lower(text("name")),
+            unique=True,
+            postgresql_where=text("is_active"),
+        ),  # fmt: skip
     )
 
     name: Mapped[str] = mapped_column(Text, info={"audit": "value"})
@@ -36,8 +41,14 @@ class AssessmentField(TenantOwned, Timestamps, Base):
         *tfk("assessment_template_id", "assessment_template", index=False),
         enum_check("better_direction", BetterDirection),
         CheckConstraint("decimal_places BETWEEN 0 AND 6", name="decimal_places"),
-        Index("uq_assessment_field_name", "tenant_id", "assessment_template_id", func.lower(text("name")),
-              unique=True, postgresql_where=text("is_active")),  # fmt: skip
+        Index(
+            "uq_assessment_field_name",
+            "tenant_id",
+            "assessment_template_id",
+            func.lower(text("name")),
+            unique=True,
+            postgresql_where=text("is_active"),
+        ),  # fmt: skip
     )
 
     assessment_template_id: Mapped[UUID]
@@ -73,10 +84,22 @@ class AssessmentResultValue(TenantOwned, Timestamps, Base):
         *tfk("assessment_field_id", "assessment_field", index=False),
         *tfk("client_id", "client", index=False),
         UniqueConstraint("tenant_id", "assessment_result_id", "assessment_field_id"),
-        Index("ix_assessment_result_value_series", "tenant_id", "client_id", "assessment_field_id",
-              text("recorded_at DESC"), postgresql_include=["value"]),  # fmt: skip
-        Index("ix_assessment_result_value_cohort", "tenant_id", "assessment_field_id", text("recorded_at DESC"),
-              "client_id", postgresql_include=["value"]),  # fmt: skip
+        Index(
+            "ix_assessment_result_value_series",
+            "tenant_id",
+            "client_id",
+            "assessment_field_id",
+            text("recorded_at DESC"),
+            postgresql_include=["value"],
+        ),  # fmt: skip
+        Index(
+            "ix_assessment_result_value_cohort",
+            "tenant_id",
+            "assessment_field_id",
+            text("recorded_at DESC"),
+            "client_id",
+            postgresql_include=["value"],
+        ),  # fmt: skip
     )
 
     assessment_result_id: Mapped[UUID]

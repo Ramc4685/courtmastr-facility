@@ -33,8 +33,8 @@ from app.modules.staff.events import PayrollRunFinalized, TimeEntryClosed, Train
 from app.modules.staff.models import (
     CommissionRule,
     JobClassification,
-    PayrollRun,
     PayRate,
+    PayrollRun,
     PayStatement,
     PayStatementLine,
     Shift,
@@ -178,6 +178,8 @@ def update_payee(session: Session, principal: Principal, payee_id: UUID, data: d
     payee = _scoped(session, principal, StaffPayee, payee_id)
     authorize(principal, PAYEE_MANAGE, location_id=payee.location_id)
     if "staff_user_id" in data and data["staff_user_id"] != payee.staff_user_id:
+        # The linked login is who gets the payee's pay and commission, so relinking is a pay-rate change.
+        authorize(principal, PAY_MANAGE)
         if data["staff_user_id"] is None:
             if payee.kind == "salesperson":
                 raise ValidationFailed("A salesperson is a staff user.", pointer="/staff_user_id")
@@ -421,7 +423,9 @@ def _open_entry(session: Session, staff_user_id: UUID, *, lock: bool = False) ->
 
 def _punch_classifications(session: Session, staff_user_id: UUID, day: date) -> list[JobClassification]:
     rates = {key[1]: value for key, value in _hourly_rates(session, [staff_user_id]).items()}
-    rows = session.scalars(select(JobClassification).where(JobClassification.is_active).order_by(JobClassification.name))
+    rows = session.scalars(
+        select(JobClassification).where(JobClassification.is_active).order_by(JobClassification.name)
+    )
     return [row for row in rows if row.id in rates and pay.rate_on(rates[row.id], day) is not None]
 
 
@@ -433,8 +437,10 @@ def clock_state(session: Session, principal: Principal, location_id: UUID | None
     authorize(principal, PUNCH, location_id=location_id)
     if location_id is not None:
         _location(session, principal, location_id)
-    day = platform.service.location_today(session, location_id) if location_id else platform.service.earliest_today(
-        session
+    day = (
+        platform.service.location_today(session, location_id)
+        if location_id
+        else platform.service.earliest_today(session)
     )
     return {
         "open_entry": _entry_view(entry) if (entry := _open_entry(session, principal.staff_user_id)) else None,
@@ -454,7 +460,9 @@ def clock_in(session: Session, principal: Principal, data: dict) -> dict:
     authorize(principal, PUNCH, location_id=location_id)
     _active_classification(session, data["job_classification_id"])
     day = platform.service.location_today(session, location_id)
-    if data["job_classification_id"] not in {c.id for c in _punch_classifications(session, principal.staff_user_id, day)}:
+    if data["job_classification_id"] not in {
+        c.id for c in _punch_classifications(session, principal.staff_user_id, day)
+    }:
         raise ValidationFailed("You have no pay rate for that job.", pointer="/job_classification_id")
     if not _network_allowed(session, location_id):
         raise PermissionDenied("Clock in from the facility's network.", code="network-not-allowed")
@@ -774,6 +782,10 @@ def assign_instructor(session: Session, principal: Principal, session_id: UUID, 
         if payee.resource_id is None or not payee.is_active or payee.location_id != booking.location_id:
             raise ValidationFailed("Pick an active trainer at this location.", pointer="/staff_payee_id")
         keep.append(payee.resource_id)
+    if principal.permissions.get(SESSION_MANAGE) == "own" and (
+        payee_id is None or payee.resource_id != platform.service.linked_resource_id(session, principal.staff_user_id)
+    ):
+        raise PermissionDenied("You can only put yourself on a session.", code="own-sessions-only")
     if not keep:
         raise Conflict("A session needs a court, room or trainer.", code="session-needs-resource")
     scheduling.service.reschedule_booking(
@@ -1034,7 +1046,9 @@ def _session_pay(session: Session, sheet: _Sheet, payee: StaffPayee, tz: str) ->
     """Completed, confirmed bookings on the trainer's calendar in the period, paid by the pay-rate row for
     the booking's reservation type (a P1 override), else the default row (STF-02, STF-03)."""
     run = sheet.run
-    rates = {r.reservation_type_id: r for r in session.scalars(select(PayRate).where(PayRate.staff_payee_id == payee.id))}
+    rates = {
+        r.reservation_type_id: r for r in session.scalars(select(PayRate).where(PayRate.staff_payee_id == payee.id))
+    }
     if not rates:
         return
     start, end = _window(run.period_starts_on, run.period_ends_on, tz)

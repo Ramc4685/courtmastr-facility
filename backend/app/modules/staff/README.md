@@ -46,6 +46,9 @@ A sale already on a finalized run is flagged `was_paid_before` but still counted
 ## Assumptions (written down, not guessed)
 
 - A trainer payee is created by `resources.resource.manage` (it creates or adopts a calendar column).
+- Changing a payee's linked staff login also needs `staff.pay_rate.manage`: the login is who is paid.
+- With `own` reach on `scheduling.session.manage`, a coach may only put themselves on a session; handing it
+  to another trainer or taking themselves off is `403 own-sessions-only`.
   `resource_id` adopts an existing trainer resource; otherwise one is created in `resource_group_id`, or in
   the location's first active group, or in a new "Trainers" group.
 - A manager never creates or edits their own time entries; Owner and Admin may (STF-08 "no self-approval").
