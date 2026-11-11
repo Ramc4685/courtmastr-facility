@@ -350,7 +350,9 @@ def test_automation_sends_on_its_trigger_and_stops_on_an_exit_event(client, tena
     mailbox.clear()
     with tenant_session(tenant.id, actor=SYSTEM) as session:
         svc.on_trigger(session, "programs.waitlist.promoted", payload | {"client_id": opted_out["id"]})
-        sent = session.scalar(select(Message).where(Message.client_id == opted_out["id"]))
+        sent = session.scalar(
+            select(Message).where(Message.client_id == opted_out["id"], Message.category == "marketing")
+        )
         assert (sent.category, sent.skip_reason) == ("marketing", "unsubscribed")  # automations honour consent
     assert not mailbox
     activated = {"client_id": person["id"], "contract_id": str(uuid4())}
