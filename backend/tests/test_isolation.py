@@ -240,6 +240,8 @@ _BODIES = {
     "confirmPortalRental": {"provider_payment_token": "tok_card_ok"},
     "updateRentalPlan": {"name": "Renamed"},
     "cancelRentalPlanPurchase": {"cancel_mode": "keep_billing", "reason": "Mistake"},
+    "assignCredential": {"kind": "barcode", "generate": True},
+    "revokeClientAppCards": {"kind": "app_card"},
 }
 _ACCEPTANCE = {"content_sha256": "0" * 64, "signers": [
     {"decision": "accepted", "signer_role": "client", "signer_name": "X", "method": "checkbox"}]}  # fmt: skip

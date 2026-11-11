@@ -911,6 +911,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/check-ins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Check Ins
+         * @description Recent check-ins (CHK-18) and a client's history (CHK-19). Filters: location_id, client_id, result,
+         *     channel, local_on, checked_in_at[gte|lte].
+         */
+        get: operations["listCheckIns"];
+        put?: never;
+        /**
+         * Create Check In
+         * @description Check a client in from the front desk or their profile (CHK-01, CHK-03). A denial is returned, not raised.
+         */
+        post: operations["createCheckIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/check-ins/evaluate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Evaluate Check In
+         * @description What a check-in would decide, without writing anything.
+         */
+        post: operations["evaluateCheckIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/check-ins/{check_in_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Check In */
+        get: operations["getCheckIn"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/client-alerts/{alert_id}": {
         parameters: {
             query?: never;
@@ -1744,6 +1806,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/clients/{client_id}/credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Client Credentials */
+        get: operations["listClientCredentials"];
+        put?: never;
+        /**
+         * Assign Credential
+         * @description Scan, type or generate a barcode or RFID value (CHK-11).
+         */
+        post: operations["assignCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/credentials/revoke-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke Client App Cards
+         * @description Clear every digital card of a client (CHK-13).
+         */
+        post: operations["revokeClientAppCards"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/clients/{client_id}/disable": {
         parameters: {
             query?: never;
@@ -2155,6 +2258,43 @@ export interface paths {
         get: operations["listCouponRedemptions"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/credentials/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Credential
+         * @description The client behind a scanned or typed value (CHK-14).
+         */
+        post: operations["resolveCredential"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/credentials/{credential_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke Credential */
+        post: operations["revokeCredential"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3080,6 +3220,179 @@ export interface paths {
          * @description Its items go back to uninvoiced. Errors: invoice-has-payments (pass release_allocations).
          */
         post: operations["voidInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk-devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Kiosk Devices */
+        get: operations["listKioskDevices"];
+        put?: never;
+        /**
+         * Create Kiosk Device
+         * @description Register a kiosk device; the pairing code is shown once.
+         */
+        post: operations["createKioskDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk-devices/{kiosk_device_id}/pairing-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Kiosk Pairing Code
+         * @description Launch kiosk mode on a registered device (CHK-05).
+         */
+        post: operations["createKioskPairingCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk-devices/{kiosk_device_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke Kiosk Device */
+        post: operations["revokeKioskDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Kiosk Settings */
+        get: operations["getKioskSettings"];
+        /** Put Kiosk Settings */
+        put: operations["putKioskSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk/check-ins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Kiosk Check In
+         * @description Self check-in (CHK-05): admitted or see staff, never amounts or reasons.
+         */
+        post: operations["createKioskCheckIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Kiosk Config */
+        get: operations["getKioskConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk/exit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exit Kiosk
+         * @description Leave kiosk mode: the device token stops working until staff pair it again.
+         */
+        post: operations["exitKiosk"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk/lookups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Kiosk Lookup
+         * @description Find yourself by card or the first letters of your last name: first name and last initial only.
+         */
+        post: operations["kioskLookup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk/pair": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pair Kiosk
+         * @description Exchange a pairing code for this device's kiosk cookie.
+         */
+        post: operations["pairKiosk"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4259,6 +4572,44 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/app-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List App Cards */
+        get: operations["listAppCards"];
+        put?: never;
+        /**
+         * Issue App Card
+         * @description A digital member card for this device; the payload is shown once and drives rotating QR codes offline.
+         */
+        post: operations["issueAppCard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/app-cards/{credential_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke App Card */
+        delete: operations["revokeAppCard"];
         options?: never;
         head?: never;
         patch?: never;
@@ -7313,6 +7664,42 @@ export interface components {
             /** Signers */
             signers: components["schemas"]["StaffSigner"][];
         };
+        /** AccessDecision */
+        AccessDecision: {
+            /** Alerts */
+            alerts: components["schemas"]["CheckInAlertOut"][];
+            client: components["schemas"]["CheckInClientOut"];
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Denial Reason */
+            denial_reason: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Membership Contract Id */
+            membership_contract_id: string | null;
+            /** Would Consume Visit */
+            would_consume_visit: boolean;
+            /** Would Grant */
+            would_grant: boolean;
+        };
+        /** AccessEvaluateRequest */
+        AccessEvaluateRequest: {
+            /** Client Id */
+            client_id?: string | null;
+            /** Credential Value */
+            credential_value?: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+        };
         /** AccountCredit */
         AccountCredit: {
             /**
@@ -7520,6 +7907,20 @@ export interface components {
         AttendancePut: {
             /** Marks */
             marks: components["schemas"]["Mark"][];
+        };
+        /** AttendedOut */
+        AttendedOut: {
+            /** Session Id */
+            session_id: string | null;
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+            /** Target Type */
+            target_type: string;
+            /** Was Auto Booked */
+            was_auto_booked: boolean;
         };
         /** AuditEventOut */
         AuditEventOut: {
@@ -9200,6 +9601,195 @@ export interface components {
             /** Unit Price Minor */
             unit_price_minor?: number | null;
         };
+        /** CheckInAlertOut */
+        CheckInAlertOut: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "client_disabled" | "access_denied" | "membership_suspended" | "membership_frozen" | "membership_expired" | "visits_depleted" | "balance_due" | "waiver_unsigned" | "payment_method_expired" | "staff_note" | "birthday" | "photo_missing" | "over_daily_limit";
+        };
+        /**
+         * CheckInClientOut
+         * @description The status card at the front desk (CHK-01).
+         */
+        CheckInClientOut: {
+            /** Balance Due Minor */
+            balance_due_minor: number;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Display Name */
+            display_name: string;
+            /** First Name */
+            first_name: string;
+            /** Is Waiver On File */
+            is_waiver_on_file: boolean;
+            /** Last Name */
+            last_name: string;
+            /** Member Number */
+            member_number: string | null;
+            membership: components["schemas"]["CheckInMembershipOut"] | null;
+            /** Staff Alerts */
+            staff_alerts: components["schemas"]["StaffAlertOut"][];
+            /** Status */
+            status: string;
+        };
+        /** CheckInCreate */
+        CheckInCreate: {
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "staff_window" | "client_profile" | "pos" | "api";
+            /** Client Id */
+            client_id?: string | null;
+            /** Credential Value */
+            credential_value?: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Override
+             * @default false
+             */
+            override: boolean;
+            /** Override Reason */
+            override_reason?: string | null;
+        };
+        /** CheckInMembershipOut */
+        CheckInMembershipOut: {
+            /**
+             * Contract Id
+             * Format: uuid
+             */
+            contract_id: string;
+            /** End On */
+            end_on: string | null;
+            /** Name */
+            name: string | null;
+            /** Status */
+            status: string;
+            /** Visits Remaining Count */
+            visits_remaining_count: number | null;
+        };
+        /** CheckInOut */
+        CheckInOut: {
+            /** Alert Codes */
+            alert_codes: string[];
+            /** Attended */
+            attended: components["schemas"]["AttendedOut"][];
+            /** Channel */
+            channel: string;
+            /**
+             * Checked In At
+             * Format: date-time
+             */
+            checked_in_at: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Credential Id */
+            credential_id: string | null;
+            /** Denial Reason */
+            denial_reason: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Identified By */
+            identified_by: string;
+            /** Is Visit Consumed */
+            is_visit_consumed: boolean;
+            /** Kiosk Device Id */
+            kiosk_device_id: string | null;
+            /**
+             * Local On
+             * Format: date
+             */
+            local_on: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Membership Contract Id */
+            membership_contract_id: string | null;
+            /** Override By Staff User Id */
+            override_by_staff_user_id: string | null;
+            /** Override Reason */
+            override_reason: string | null;
+            /** Result */
+            result: string;
+        };
+        /** CheckInResult */
+        CheckInResult: {
+            /** Alerts */
+            alerts: components["schemas"]["CheckInAlertOut"][];
+            check_in: components["schemas"]["CheckInOut"];
+            client: components["schemas"]["CheckInClientOut"];
+        };
+        /** CheckInRowOut */
+        CheckInRowOut: {
+            /** Alert Codes */
+            alert_codes: string[];
+            /** Attended */
+            attended: components["schemas"]["AttendedOut"][];
+            /** Channel */
+            channel: string;
+            /**
+             * Checked In At
+             * Format: date-time
+             */
+            checked_in_at: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Name */
+            client_name: string;
+            /** Credential Id */
+            credential_id: string | null;
+            /** Denial Reason */
+            denial_reason: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Identified By */
+            identified_by: string;
+            /** Is Visit Consumed */
+            is_visit_consumed: boolean;
+            /** Kiosk Device Id */
+            kiosk_device_id: string | null;
+            /**
+             * Local On
+             * Format: date
+             */
+            local_on: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Membership Contract Id */
+            membership_contract_id: string | null;
+            /** Override By Staff User Id */
+            override_by_staff_user_id: string | null;
+            /** Override Reason */
+            override_reason: string | null;
+            /** Result */
+            result: string;
+        };
         /** ClientCreate */
         ClientCreate: {
             /** Address Line1 */
@@ -10225,6 +10815,81 @@ export interface components {
             redeemer_client_id?: string | null;
             /** Subtotal Minor */
             subtotal_minor: number;
+        };
+        /** CredentialCreate */
+        CredentialCreate: {
+            /**
+             * Generate
+             * @default false
+             */
+            generate: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "barcode" | "rfid";
+            /** Source */
+            source?: ("scanned" | "typed") | null;
+            /** Value */
+            value?: string | null;
+        };
+        /** CredentialMatch */
+        CredentialMatch: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Credential Id */
+            credential_id: string | null;
+            /** Display Name */
+            display_name: string;
+            /** Is Client Disabled */
+            is_client_disabled: boolean;
+            /** Kind */
+            kind: string;
+        };
+        /** CredentialOut */
+        CredentialOut: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Device Label */
+            device_label: string | null;
+            /** Id */
+            id: string | null;
+            /** Is Primary */
+            is_primary: boolean;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
+            /** Kind */
+            kind: string;
+            /** Revoked At */
+            revoked_at: string | null;
+            /** Source */
+            source: string;
+            /** Status */
+            status: string;
+            /** Value */
+            value: string;
+        };
+        /** CredentialResolveRequest */
+        CredentialResolveRequest: {
+            /** Value */
+            value: string;
+        };
+        /** CredentialRevokeAllRequest */
+        CredentialRevokeAllRequest: {
+            /**
+             * Kind
+             * @constant
+             */
+            kind: "app_card";
         };
         /** CreditAdjust */
         CreditAdjust: {
@@ -12083,6 +12748,174 @@ export interface components {
              * @default false
              */
             release_allocations: boolean;
+        };
+        /** KioskAttendedOut */
+        KioskAttendedOut: {
+            /** Session Id */
+            session_id: string | null;
+            /** Target Type */
+            target_type: string;
+        };
+        /** KioskCheckInCreate */
+        KioskCheckInCreate: {
+            /** Card Payload */
+            card_payload?: string | null;
+            /** Match Token */
+            match_token?: string | null;
+        };
+        /** KioskCheckInResult */
+        KioskCheckInResult: {
+            /** Attended */
+            attended: components["schemas"]["KioskAttendedOut"][];
+            /**
+             * Check In Id
+             * Format: uuid
+             */
+            check_in_id: string;
+            /** Displayed Alert Codes */
+            displayed_alert_codes: string[];
+            /** First Name */
+            first_name: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "admitted" | "see_staff";
+            /** Welcome Message */
+            welcome_message: string | null;
+        };
+        /** KioskConfig */
+        KioskConfig: {
+            /**
+             * Kiosk Device Id
+             * Format: uuid
+             */
+            kiosk_device_id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Location Name */
+            location_name: string;
+            settings: components["schemas"]["KioskSettingsOut"];
+            /** Time Zone */
+            time_zone: string;
+        };
+        /** KioskDeviceCreate */
+        KioskDeviceCreate: {
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+        };
+        /** KioskDeviceOut */
+        KioskDeviceOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Seen At */
+            last_seen_at: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Paired At */
+            paired_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending_pairing" | "active" | "revoked";
+        };
+        /** KioskLookupRequest */
+        KioskLookupRequest: {
+            /** Credential Value */
+            credential_value?: string | null;
+            /** Last Name Prefix */
+            last_name_prefix?: string | null;
+        };
+        /** KioskLookupResult */
+        KioskLookupResult: {
+            /** Matches */
+            matches: components["schemas"]["KioskMatch"][];
+        };
+        /** KioskMatch */
+        KioskMatch: {
+            /** First Name */
+            first_name: string;
+            /** Last Initial */
+            last_initial: string;
+            /** Match Token */
+            match_token: string;
+        };
+        /** KioskPairRequest */
+        KioskPairRequest: {
+            /** Pairing Code */
+            pairing_code: string;
+        };
+        /** KioskPairingCode */
+        KioskPairingCode: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Kiosk Device Id
+             * Format: uuid
+             */
+            kiosk_device_id: string;
+            /** Pairing Code */
+            pairing_code: string;
+        };
+        /** KioskSettingsOut */
+        KioskSettingsOut: {
+            /** Confirmation Timeout Seconds */
+            confirmation_timeout_seconds: number;
+            /** Displayed Alert Codes */
+            displayed_alert_codes: string[];
+            /** Early Window Minutes */
+            early_window_minutes: number;
+            /** Late Window Minutes */
+            late_window_minutes: number;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Lookup Method */
+            lookup_method: string;
+            /** Welcome Message */
+            welcome_message: string | null;
+        };
+        /** KioskSettingsWrite */
+        KioskSettingsWrite: {
+            /** Confirmation Timeout Seconds */
+            confirmation_timeout_seconds?: number | null;
+            /** Displayed Alert Codes */
+            displayed_alert_codes?: ("client_disabled" | "access_denied" | "membership_suspended" | "membership_frozen" | "membership_expired" | "visits_depleted" | "balance_due" | "waiver_unsigned" | "payment_method_expired" | "staff_note" | "birthday" | "photo_missing" | "over_daily_limit")[] | null;
+            /** Early Window Minutes */
+            early_window_minutes?: number | null;
+            /** Late Window Minutes */
+            late_window_minutes?: number | null;
+            /** Lookup Method */
+            lookup_method?: ("name" | "membership_number" | "both") | null;
+            /** Welcome Message */
+            welcome_message?: string | null;
         };
         /** LedgerEntryOut */
         LedgerEntryOut: {
@@ -13950,6 +14783,12 @@ export interface components {
             data: components["schemas"]["ChargeOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[CheckInRowOut] */
+        Page_CheckInRowOut_: {
+            /** Data */
+            data: components["schemas"]["CheckInRowOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[ClientDocumentOut] */
         Page_ClientDocumentOut_: {
             /** Data */
@@ -13978,6 +14817,12 @@ export interface components {
         Page_CouponOut_: {
             /** Data */
             data: components["schemas"]["CouponOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[CredentialOut] */
+        Page_CredentialOut_: {
+            /** Data */
+            data: components["schemas"]["CredentialOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[CreditLedgerEntryOut] */
@@ -14064,6 +14909,12 @@ export interface components {
             data: components["schemas"]["InvoiceOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[KioskDeviceOut] */
+        Page_KioskDeviceOut_: {
+            /** Data */
+            data: components["schemas"]["KioskDeviceOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[LedgerEntryOut] */
         Page_LedgerEntryOut_: {
             /** Data */
@@ -14134,6 +14985,12 @@ export interface components {
         Page_PermissionDefinition_: {
             /** Data */
             data: components["schemas"]["PermissionDefinition"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PortalAppCardOut] */
+        Page_PortalAppCardOut_: {
+            /** Data */
+            data: components["schemas"]["PortalAppCardOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[PortalClientDocumentOut] */
@@ -14827,6 +15684,60 @@ export interface components {
              * @enum {string}
              */
             status: "provisional" | "applied" | "released";
+        };
+        /** PortalAppCardCreate */
+        PortalAppCardCreate: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Device Label */
+            device_label?: string | null;
+        };
+        /** PortalAppCardIssued */
+        PortalAppCardIssued: {
+            /** Card Payload */
+            card_payload: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Credential Id
+             * Format: uuid
+             */
+            credential_id: string;
+            /** Device Label */
+            device_label: string | null;
+            /** Expires At */
+            expires_at: string | null;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
+        };
+        /** PortalAppCardOut */
+        PortalAppCardOut: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Credential Id
+             * Format: uuid
+             */
+            credential_id: string;
+            /** Device Label */
+            device_label: string | null;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
         };
         /**
          * PortalClientDocumentOut
@@ -19263,6 +20174,13 @@ export interface components {
             /** Remarks */
             remarks?: string | null;
         };
+        /** StaffAlertOut */
+        StaffAlertOut: {
+            /** Message */
+            message: string;
+            /** Severity */
+            severity: string;
+        };
         /** StaffSigner */
         StaffSigner: {
             /**
@@ -22516,6 +23434,155 @@ export interface operations {
             };
         };
     };
+    listCheckIns: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CheckInRowOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createCheckIn: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckInCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckInResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evaluateCheckIn: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccessEvaluateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessDecision"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getCheckIn: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                check_in_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CheckInOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     updateClientAlert: {
         parameters: {
             query?: never;
@@ -24717,6 +25784,114 @@ export interface operations {
             };
         };
     };
+    listClientCredentials: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CredentialOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assignCredential: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CredentialCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revokeClientAppCards: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CredentialRevokeAllRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     disableClient: {
         parameters: {
             query?: never;
@@ -25768,6 +26943,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CouponRedemptionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolveCredential: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CredentialResolveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialMatch"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revokeCredential: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                credential_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialOut"];
                 };
             };
             /** @description Validation Error */
@@ -28098,6 +29343,364 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InvoiceDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listKioskDevices: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_KioskDeviceOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createKioskDevice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KioskDeviceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskPairingCode"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createKioskPairingCode: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                kiosk_device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskPairingCode"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revokeKioskDevice: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                kiosk_device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskDeviceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getKioskSettings: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putKioskSettings: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KioskSettingsWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createKioskCheckIn: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KioskCheckInCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskCheckInResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getKioskConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskConfig"];
+                };
+            };
+        };
+    };
+    exitKiosk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    kioskLookup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KioskLookupRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskLookupResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pairKiosk: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KioskPairRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskConfig"];
                 };
             };
             /** @description Validation Error */
@@ -30987,6 +32590,108 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Page_PermissionDefinition_"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listAppCards: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PortalAppCardOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    issueAppCard: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalAppCardCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalAppCardIssued"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revokeAppCard: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                credential_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

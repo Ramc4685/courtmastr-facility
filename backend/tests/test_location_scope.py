@@ -47,6 +47,7 @@ CLIENT_OR_TENANT_ROUTES = {
         listMembershipSuspensions listMembershipVisits listPackageShares removePaymentMethod
         sendClientDocument sendInvoice sendReceipt setWaiverOverride submitClientDocumentAcceptance
         updatePaymentMethod uploadClientDocumentPaperScan verifyBankAccount
+        assignCredential revokeClientAppCards revokeCredential
     """.split()),
     "tenant": set("""
         addTaxRate approveClientRelationship archiveDocumentTemplate archiveLocation assignClientMemberNumber

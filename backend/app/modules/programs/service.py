@@ -382,3 +382,44 @@ def on_session_cancelled(session: Db, session_id: UUID) -> None:
     ):
         entry.status, entry.removed_reason = "expired", "session_cancelled"
     session.flush()
+
+
+# --- check-in (access, build module 10) ---------------------------------------------------------------------
+
+
+def mark_attended_by_check_in(
+    session: Db, *, client_id: UUID, location_id: UUID, at, early: timedelta, late: timedelta,
+    source: str = "check_in", staff_user_id: UUID | None = None,
+) -> list[tuple[UUID, UUID]]:  # fmt: skip
+    """Internal (access, CHK-01, CHK-05): mark attended the client's unmarked session places at the location
+    whose session starts from `early` before to `late` after `at`. Credits and events follow as for a staff
+    mark. Returns (enrollment id, session id) per place marked."""
+    rows = session.scalars(
+        select(Enrollment)
+        .outerjoin(Attendance, (Attendance.enrollment_id == Enrollment.id) & (Attendance.session_id == Enrollment.session_id))
+        .where(
+            Enrollment.client_id == client_id, Enrollment.location_id == location_id,
+            Enrollment.status == "enrolled", Enrollment.target_kind == "session", Attendance.id.is_(None),
+        )
+        .order_by(Enrollment.enrolled_at.desc())
+        .limit(50)  # shortcut: newest 50 unmarked places; enough for one visit, revisit if rosters stay unmarked
+    ).all()  # fmt: skip
+    marked = []
+    for row in rows:
+        seat = scheduling.service.get_session(session, row.session_id)
+        if seat["status"] != "confirmed" or not (at - early <= seat["starts_at"] <= at + late):
+            continue
+        mark = Attendance(
+            enrollment_id=row.id, session_id=row.session_id, client_id=client_id, status="attended", source=source,
+            marked_at=clock.now(), marked_by_staff_user_id=staff_user_id,
+        )  # fmt: skip
+        session.add(mark)
+        session.flush()
+        audit.record(session, MARK, mark, location_id=location_id, changes={"status": [None, "attended"]})
+        if row.pricing == "entitlement":
+            _settle_credit(session, seat, row, "attended")
+        events.publish(
+            session, ev.EnrollmentAttended(enrollment_id=row.id, session_id=row.session_id, client_id=client_id), row.id
+        )
+        marked.append((row.id, row.session_id))
+    return marked

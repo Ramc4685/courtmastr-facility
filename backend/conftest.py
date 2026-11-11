@@ -202,6 +202,7 @@ def populate(client, tenant) -> SimpleNamespace:
     space |= _populate_rentals(
         client, headers, post, location["id"], person["id"], space["resource_id"], category_id, tax_id
     )
+    space |= _populate_access(client, headers, post, tenant, location["id"], person["id"], space)
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
         session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
@@ -549,3 +550,26 @@ def two_tenants():
     """Tenants A and B, each populated in every table: the reusable tenant-isolation fixture."""
     client = TestClient(fastapi_app)
     return populate(client, make_tenant()), populate(client, make_tenant("Asia/Kolkata"))
+
+
+def _populate_access(client, headers, post, tenant, location_id, client_id, space) -> dict:
+    """Module 10: a barcode, a staff check-in (its attendance row by hand: no session starts near now), kiosk
+    settings and a registered kiosk device."""
+    from app.modules.access.models import CheckInAttendance
+
+    credential = post(f"/clients/{client_id}/credentials", {"kind": "barcode", "value": f"POP-{uuid4().hex[:8]}"})
+    checked = post("/check-ins", {"client_id": client_id, "location_id": location_id, "channel": "staff_window"})
+    response = client.put(
+        f"/api/v1/kiosk-settings?location_id={location_id}", headers=headers, json={"welcome_message": "Hi"}
+    )
+    assert response.status_code == 200, response.text
+    device = post("/kiosk-devices", {"location_id": location_id, "name": "Front door"})
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        session.add(CheckInAttendance(
+            check_in_id=checked["check_in"]["id"], target_id=space["enrollment_id"],
+            session_id=space["schedule_session_id"],
+        ))  # fmt: skip
+    return {
+        "credential_id": credential["id"], "check_in_id": checked["check_in"]["id"],
+        "kiosk_device_id": device["kiosk_device_id"],
+    }  # fmt: skip
