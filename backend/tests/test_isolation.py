@@ -253,26 +253,30 @@ _ID_ROUTES = [
 ]
 
 
-@pytest.mark.parametrize(("method", "path", "name"), _ID_ROUTES, ids=[f"{m} {p}" for m, p, _ in _ID_ROUTES])
-def test_api_foreign_tenant_id_is_404(client, two_tenants, method, path, name):
-    """Every route with an id parameter, called with A's token and B's id: 404, never 403 or data."""
-    a, b = two_tenants
-    url = re.sub(r"\{(\w+)_id\}", lambda m: str(getattr(b, f"{m[1]}_id")), path)
+def body_for(name: str, ids):
+    """The request body for an id route, with any id it carries taken from `ids` (a populate() namespace)."""
     body = _BODIES.get(name)
     if body == "role":
-        body = {"role_id": a.role_id}  # A's own role, so only the path id is foreign
+        body = {"role_id": ids.role_id}
     elif body == "relationship":
-        body = {"other_client_id": a.kid_id, "relationship_type_id": a.relationship_type_id}
+        body = {"other_client_id": ids.kid_id, "relationship_type_id": ids.relationship_type_id}
     elif body == "merge":
-        body = {"merged_client_ids": [a.kid_id]}
+        body = {"merged_client_ids": [ids.kid_id]}
     elif body == "preferences":
         body = _PREFERENCES
     elif body == "acceptance":
         body = _ACCEPTANCE
     elif body == "share":
-        body = {"client_id": a.kid_id}
-    if callable(body):
-        body = body(a)
+        body = {"client_id": ids.kid_id}
+    return body(ids) if callable(body) else body
+
+
+@pytest.mark.parametrize(("method", "path", "name"), _ID_ROUTES, ids=[f"{m} {p}" for m, p, _ in _ID_ROUTES])
+def test_api_foreign_tenant_id_is_404(client, two_tenants, method, path, name):
+    """Every route with an id parameter, called with A's token and B's id: 404, never 403 or data."""
+    a, b = two_tenants
+    url = re.sub(r"\{(\w+)_id\}", lambda m: str(getattr(b, f"{m[1]}_id")), path)
+    body = body_for(name, a)  # A's own ids in the body, so only the path id is foreign
     response = client.request(method, url, headers=a.headers | {"Idempotency-Key": f"iso-{name}-key"}, json=body)
     assert response.status_code == 404, response.text
     assert response.json()["code"] == "not-found"
