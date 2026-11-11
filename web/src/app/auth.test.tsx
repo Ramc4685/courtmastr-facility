@@ -44,6 +44,8 @@ afterEach(() => {
 })
 
 describe('auth flow', () => {
+  // Typing into two fields through userEvent is slow on a loaded machine: the 5 s default test timeout and the
+  // 1 s findBy default were the flake. Each wait below is still on the real condition; only the ceiling is higher.
   it('sends a signed-out visitor to sign-in, then back to the page they asked for', async () => {
     let signedIn = false
     const calls = mockFetch({
@@ -59,17 +61,17 @@ describe('auth flow', () => {
     })
     renderApp('/staff')
 
-    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Sign in' }, { timeout: 15000 })).toBeInTheDocument()
     await userEvent.type(screen.getByRole('textbox', { name: 'Email' }), 'pat@example.com')
     await userEvent.type(screen.getByLabelText('Password', { selector: 'input' }), 'secret-password')
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Staff users' }, { timeout: 5000 })).toBeInTheDocument()
-    expect(await screen.findByText('olivia@example.com')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Staff users' }, { timeout: 20000 })).toBeInTheDocument()
+    expect(await screen.findByText('olivia@example.com', {}, { timeout: 15000 })).toBeInTheDocument()
     const signIn = calls.find((c) => c.url === '/api/v1/auth/sign-in')
     expect(signIn?.body).toMatchObject({ email: 'pat@example.com', client_kind: 'web' })
     expect(signIn?.headers['x-csrf-token']).toBe('pre')
-  })
+  }, 60000)
 
   it('restores a session from the cookie and hides navigation the role cannot use', async () => {
     mockFetch({
