@@ -197,7 +197,7 @@ def update_billing_schedule_period(period_id: UUID, body: s.PeriodUpdate, ctx: S
     return service.span_view(service.update_period(ctx.session, ctx.principal, period_id, _patch(body)))
 
 
-@router.get("/membership-contracts/{contract_id}/history", response_model=list[s.HistoryOut])
+@router.get("/membership-contracts/{contract_id}/history", response_model=list[s.ContractHistoryOut])
 def list_membership_contract_history(contract_id: UUID, ctx: Read):
     return service.list_history(ctx.session, ctx.principal, contract_id)
 
@@ -281,12 +281,12 @@ def undo_membership_cancel(contract_id: UUID, ctx: Cancel):
 # --- sharing and visits ------------------------------------------------------------------------------------------
 
 
-@router.get("/membership-contracts/{contract_id}/shares", response_model=list[s.ShareOut])
+@router.get("/membership-contracts/{contract_id}/shares", response_model=list[s.MembershipShareOut])
 def list_membership_shares(contract_id: UUID, ctx: Read):
     return service.list_shares(ctx.session, ctx.principal, contract_id)
 
 
-@router.post("/membership-contracts/{contract_id}/shares", response_model=s.ShareOut, status_code=201)
+@router.post("/membership-contracts/{contract_id}/shares", response_model=s.MembershipShareOut, status_code=201)
 def add_membership_share(contract_id: UUID, body: s.ShareIn, ctx: Share):
     return service.add_share(ctx.session, ctx.principal, contract_id, body.client_id)
 

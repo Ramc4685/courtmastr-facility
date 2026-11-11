@@ -224,7 +224,7 @@ def get_rental_plan_purchase(purchase_id: UUID, ctx: Ctx = Sell):
     return service.get_purchase(ctx.session, ctx.principal, purchase_id)
 
 
-@staff.get("/rental-plan-purchases/{purchase_id}/ledger", response_model=list[s.LedgerEntryOut])
+@staff.get("/rental-plan-purchases/{purchase_id}/ledger", response_model=list[s.RentalPlanLedgerEntryOut])
 def list_rental_plan_ledger(purchase_id: UUID, ctx: Ctx = Sell):
     return service.list_ledger(ctx.session, ctx.principal, purchase_id)
 

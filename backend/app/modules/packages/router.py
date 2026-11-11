@@ -134,7 +134,7 @@ def update_client_package(package_id: UUID, body: s.PackageUpdate, ctx: Update):
     return service.update_package(ctx.session, ctx.principal, package_id, _patch(body, nullable))
 
 
-@router.get("/client-packages/{package_id}/ledger", response_model=s.Page[s.LedgerEntryOut])
+@router.get("/client-packages/{package_id}/ledger", response_model=s.Page[s.CreditLedgerEntryOut])
 def list_client_package_ledger(package_id: UUID, query: Lists, ctx: Read):
     """Every credit movement. Filters: entry_type, client_id, source_id, reason. Sort: occurred_at."""
     return service.list_ledger(ctx.session, ctx.principal, package_id, query)
@@ -150,12 +150,12 @@ def adjust_client_package_credits(
     return service.adjust_credits(ctx.session, ctx.principal, package_id, body.model_dump())
 
 
-@router.get("/client-packages/{package_id}/shares", response_model=list[s.ShareOut])
+@router.get("/client-packages/{package_id}/shares", response_model=list[s.PackageShareOut])
 def list_package_shares(package_id: UUID, ctx: Read):
     return service.list_shares(ctx.session, ctx.principal, package_id)
 
 
-@router.post("/client-packages/{package_id}/shares", response_model=s.ShareOut, status_code=201)
+@router.post("/client-packages/{package_id}/shares", response_model=s.PackageShareOut, status_code=201)
 def add_package_share(package_id: UUID, body: s.ShareIn, ctx: Share):
     return service.add_share(ctx.session, ctx.principal, package_id, body.client_id)
 
@@ -183,18 +183,18 @@ def remove_client_package(package_id: UUID, body: s.PackageRemove, ctx: Remove):
     return service.remove_package(ctx.session, ctx.principal, package_id, body.model_dump())
 
 
-@router.get("/package-series", response_model=s.Page[s.SeriesOut])
+@router.get("/package-series", response_model=s.Page[s.PackageSeriesOut])
 def list_package_series(query: Lists, ctx: Read):
     """Filters: client_id, status, package_plan_id, location_id. Sort: created_at."""
     return service.list_series(ctx.session, ctx.principal, query)
 
 
-@router.get("/package-series/{series_id}", response_model=s.SeriesOut)
+@router.get("/package-series/{series_id}", response_model=s.PackageSeriesOut)
 def get_package_series(series_id: UUID, ctx: Read):
     return service.get_series(ctx.session, ctx.principal, series_id)
 
 
-@router.post("/package-series/{series_id}/cancel", response_model=s.SeriesOut)
+@router.post("/package-series/{series_id}/cancel", response_model=s.PackageSeriesOut)
 def cancel_package_series(series_id: UUID, ctx: Remove):
     return service.cancel_series(ctx.session, ctx.principal, series_id)
 
@@ -216,7 +216,7 @@ def portal_buy_client_package(body: s.PortalPackageBuy, ctx: Portal, idempotency
     return service.portal_buy(ctx.session, ctx.principal, body.model_dump(), idempotency_key)
 
 
-@router.get("/portal/client-packages/{package_id}/ledger", response_model=s.Page[s.LedgerEntryOut])
+@router.get("/portal/client-packages/{package_id}/ledger", response_model=s.Page[s.CreditLedgerEntryOut])
 def list_portal_client_package_ledger(package_id: UUID, query: Lists, ctx: Portal):
     return service.portal_list_ledger(ctx.session, ctx.principal, package_id, query)
 
@@ -233,7 +233,7 @@ def portal_opt_out_package_auto_renew(package_id: UUID, ctx: Portal):
     return service.portal_disable_auto_renew(ctx.session, ctx.principal, package_id)
 
 
-@router.post("/portal/package-series/{series_id}/auto-renew-opt-out", response_model=s.SeriesOut)
+@router.post("/portal/package-series/{series_id}/auto-renew-opt-out", response_model=s.PackageSeriesOut)
 def portal_opt_out_series_auto_renew(series_id: UUID, ctx: Portal):
     return service.portal_disable_series_auto_renew(ctx.session, ctx.principal, series_id)
 

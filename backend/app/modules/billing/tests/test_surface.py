@@ -3,6 +3,7 @@ pay link, account credit, stored methods, the provider webhook, the client porta
 
 from datetime import timedelta
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import func, select
@@ -81,7 +82,7 @@ def test_taxes_are_dated_and_a_used_rate_is_frozen(api, shop, desk):
     off = api("PATCH", f"/taxes/{vat['id']}", {"is_active": False, "label": "VAT (old)"})
     assert (off["is_active"], off["deactivated_on"], off["label"]) == (
         False,
-        clock.now().date().isoformat(),
+        clock.now().astimezone(ZoneInfo("America/Chicago")).date().isoformat(),  # the shop's day, not UTC's
         "VAT (old)",
     )
     assert api("POST", "/charges", item(shop, revenue_category_id=category["id"]), 201)["tax_minor"] == 0

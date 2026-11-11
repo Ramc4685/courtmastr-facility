@@ -13,3 +13,4 @@ from app.modules.pos import catalogue, inventory, drawer, equipment, sales, retu
 __all__ = [
     "catalogue", "drawer", "equipment", "inventory", "models", "permissions", "reports", "returns", "sales", "service",
 ]  # fmt: skip
+from app.modules.pos import subject  # noqa: E402, F401  (registers the merge and data-subject handlers)

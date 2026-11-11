@@ -18,8 +18,6 @@ from conftest import add_staff, login, new_client
 API = "/api/v1"
 # Tables whose client foreign keys stay on the losing or erased record on purpose.
 MERGE_ALLOWED = {"data_subject_request"}
-# The money lane registers its own merge and erasure handlers for these (integrator note in the README).
-MONEY = {"invoice", "charge", "payment", "refund", "ledger_entry"}
 
 
 @pytest.fixture
@@ -41,8 +39,8 @@ def test_every_table_with_a_client_fk_has_merge_and_erase_handlers():
     merge_covered = {t for h in clients.merge.HANDLERS.values() for t in h.tables}
     erase_covered = {t for h in privacy.HANDLERS.values() for t in h.tables}
     referencing = _tables_referencing_client()
-    assert referencing - merge_covered - MERGE_ALLOWED - MONEY == set()
-    assert referencing - erase_covered - MERGE_ALLOWED - MONEY == set()
+    assert referencing - merge_covered - MERGE_ALLOWED == set()
+    assert referencing - erase_covered - MERGE_ALLOWED == set()
 
 
 def test_notes_subjects_and_timeline(client, tenant, owner, location_id):

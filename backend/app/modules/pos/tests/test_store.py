@@ -1,6 +1,7 @@
 """Catalogue, stock, drawer sessions, equipment rental, returns and the POS reports."""
 
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import update
 
@@ -17,7 +18,7 @@ def _stock(client, store, location_id=None) -> int:
 
 
 def _today():
-    return clock.now().date()
+    return clock.now().astimezone(ZoneInfo("America/Chicago")).date()  # the store's location, not UTC
 
 
 # --- catalogue ------------------------------------------------------------------------------------------------

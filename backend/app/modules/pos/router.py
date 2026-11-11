@@ -470,7 +470,10 @@ def create_pos_return(
 
 @router.post("/pos-sales/{pos_sale_id}/void", response_model=s.PosReturnOut, status_code=201)
 def void_pos_sale(
-    pos_sale_id: UUID, body: s.ReasonRequest, idempotency_key: RequiredKey, ctx: Ctx = Depends(require("pos.sale.void"))
+    pos_sale_id: UUID,
+    body: s.PosReasonRequest,
+    idempotency_key: RequiredKey,
+    ctx: Ctx = Depends(require("pos.sale.void")),
 ):
     """A full return of every remaining unit to the original tenders, restocked. Errors: already-returned."""
     return returns.void_sale(ctx.session, ctx.principal, pos_sale_id, body.model_dump())

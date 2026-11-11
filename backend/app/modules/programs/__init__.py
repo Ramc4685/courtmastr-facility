@@ -8,3 +8,4 @@ Public interface: `service`.
 from app.modules.programs import handlers, models, service
 
 __all__ = ["handlers", "models", "service"]
+from app.modules.programs import subject  # noqa: E402, F401  (registers the merge and data-subject handlers)

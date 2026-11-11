@@ -37,7 +37,7 @@ import { CouponsPage } from '../features/billing/CouponsPage'
 import { InvoiceDocumentPage, InvoicePage } from '../features/billing/InvoicePage'
 import { PaymentPage, ReceiptPage } from '../features/billing/PaymentPage'
 import { BillingSettingsPage } from '../features/billing/SettingsPage'
-import { SetupPage } from '../features/billing/SetupPage'
+import { SetupPage as BillingSetupPage } from '../features/billing/SetupPage'
 import { WorkbenchPage } from '../features/billing/WorkbenchPage'
 import { DrawersPage, EquipmentPage, PosReportsPage } from '../features/pos/OperationsPages'
 import { ProductsPage } from '../features/pos/ProductsPage'
@@ -91,7 +91,7 @@ export function AppRoutes() {
           <Route path="autopay" element={<RequirePermission permission="billing.payment.read"><AutopayPage /></RequirePermission>} />
           <Route path="receivables" element={<RequirePermission permission="billing.invoice.read"><AgeingPage /></RequirePermission>} />
           <Route path="coupons" element={<CouponsPage />} />
-          <Route path="setup" element={<SetupPage />} />
+          <Route path="setup" element={<BillingSetupPage />} />
           <Route path="settings" element={<RequirePermission permission="billing.settings.manage"><BillingSettingsPage /></RequirePermission>} />
         </Route>
         <Route path="pos" element={<RequirePermission permission="pos.sale.read"><PosLayout /></RequirePermission>}>

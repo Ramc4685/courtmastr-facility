@@ -139,8 +139,8 @@ def update_tax(session: Session, principal: Principal, tax_id: UUID, data: dict)
         if key in data:
             setattr(tax, key, data[key])
     if "is_active" in data:
+        today = platform.service.earliest_today(session)  # tenant-wide: must hold at every location now
         tax.is_active = data["is_active"]
-        today = clock.now().date()
         tax.deactivated_on = None if tax.is_active else (data.get("deactivated_on") or today)
     audit.record(session, "billing.tax.manage", tax, changes=audit.diff(tax))
     session.flush()

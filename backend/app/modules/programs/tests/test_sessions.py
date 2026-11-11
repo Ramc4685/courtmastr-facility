@@ -194,7 +194,8 @@ def test_waitlist_is_fifo_and_promotes_when_a_seat_frees(client, owner, f, tenan
         "channel"
     ] == "waitlist"
     assert (roster["booked_count"], roster["waiting_count"]) == (1, 2)
-    assert len(mailbox) == 1 and "place opened up" in mailbox[0].subject
+    # new clients with an address also get the clients module's "confirm your email" message
+    assert len([m for m in mailbox if "place opened up" in m.subject]) == 1
     with tenant_session(tenant.id) as session:
         entry = session.get(WaitlistEntry, UUID(queued_b["id"]))
         assert entry.status == "promoted" and entry.promoted_enrollment_id is not None

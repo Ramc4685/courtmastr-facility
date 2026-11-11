@@ -415,6 +415,12 @@ def test_openapi_document(client):
     )
 
 
+def test_schema_names_are_unique_across_contexts():
+    """Two contexts naming a schema alike makes FastAPI emit `app__modules__x__schemas__Name` for both, which
+    renames the web client's types behind its back. Prefix the newer one with its aggregate instead."""
+    assert [name for name in app.openapi()["components"]["schemas"] if "__" in name] == []
+
+
 def test_committed_openapi_snapshot_is_current():
     """backend/openapi.json feeds the web client's generated types; `make openapi` after any API change."""
     snapshot = json.loads((Path(__file__).resolve().parents[1] / "openapi.json").read_text())

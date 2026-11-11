@@ -10,3 +10,4 @@ from app.modules.billing import models, permissions, service  # noqa: I001  (ser
 from app.modules.billing import catalogue, methods, autopay, documents, webhooks
 
 __all__ = ["autopay", "catalogue", "documents", "methods", "models", "permissions", "service", "webhooks"]
+from app.modules.billing import subject  # noqa: E402, F401  (registers the merge and data-subject handlers)

@@ -626,7 +626,7 @@ class RegisterSession(Out):
     can_apply_custom_discount: bool
 
 
-class ReceiptLine(Out):
+class PosReceiptLine(Out):
     line_no: int
     description: str
     quantity: int
@@ -659,7 +659,7 @@ class ReceiptHeader(Out):
 class PosReceipt(Out):
     pos_sale_id: UUID
     header: ReceiptHeader
-    lines: list[ReceiptLine]
+    lines: list[PosReceiptLine]
     discounts: list[ReceiptAmount]
     tenders: list[ReceiptAmount]
     subtotal_minor: int
@@ -699,7 +699,7 @@ class PosReturnCreate(In):
     reason: LongText | None = None
 
 
-class ReasonRequest(In):
+class PosReasonRequest(In):
     reason: LongText
 
 

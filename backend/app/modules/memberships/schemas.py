@@ -525,7 +525,7 @@ class ShareIn(In):
     client_id: UUID
 
 
-class ShareOut(Out):
+class MembershipShareOut(Out):
     id: UUID
     membership_contract_id: UUID
     client_id: UUID
@@ -581,7 +581,7 @@ class UpcomingRenewalOut(Out):
     next_discount_minor: int | None
 
 
-class HistoryOut(Out):
+class ContractHistoryOut(Out):
     id: UUID
     occurred_at: datetime
     action: str

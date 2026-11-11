@@ -7,3 +7,4 @@ Public interface: `service`.
 from app.modules.rentals import handlers, models, permissions, service
 
 __all__ = ["handlers", "models", "permissions", "service"]
+from app.modules.rentals import subject  # noqa: E402, F401  (registers the merge and data-subject handlers)

@@ -322,7 +322,7 @@ class CreditAdjust(In):
     note: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 
 
-class LedgerEntryOut(Out):
+class CreditLedgerEntryOut(Out):
     id: UUID
     client_package_id: UUID
     client_id: UUID
@@ -344,7 +344,7 @@ class ShareIn(In):
     client_id: UUID
 
 
-class ShareOut(Out):
+class PackageShareOut(Out):
     id: UUID
     client_package_id: UUID
     client_id: UUID
@@ -368,7 +368,7 @@ class PackageRemove(In):
     removal_mode: Literal["billing_reversed", "billing_kept"]
 
 
-class SeriesOut(Out):
+class PackageSeriesOut(Out):
     id: UUID
     owner_client_id: UUID
     package_plan_id: UUID

@@ -499,7 +499,7 @@ class PurchaseOut(Out):
     invoice_id: UUID | None = None
 
 
-class LedgerEntryOut(Out):
+class RentalPlanLedgerEntryOut(Out):
     id: UUID
     entry_type: str
     quantity: Decimal

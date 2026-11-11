@@ -217,6 +217,14 @@ def location_today(session: Session, location_id: UUID) -> date:
     return clock.now().astimezone(ZoneInfo(location.time_zone)).date()
 
 
+def earliest_today(session: Session) -> date:
+    """The earliest "today" among the tenant's locations. Internal: a tenant-wide rule that takes effect
+    "today" uses it, so it already holds at the location furthest behind UTC."""
+    now = clock.now()
+    zones = session.scalars(select(Location.time_zone).distinct())
+    return min((now.astimezone(ZoneInfo(zone)).date() for zone in zones), default=now.date())
+
+
 # --- counters ----------------------------------------------------------------------------------------------
 
 

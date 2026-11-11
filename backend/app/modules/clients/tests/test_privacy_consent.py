@@ -6,6 +6,7 @@ from sqlalchemy import String, Text, select, text
 from app.core import clock
 from app.core.auth import passwords, system_principal
 from app.core.db import Base
+from app.core.db.base import GLOBAL_TABLES
 from app.core.db.session import tenant_session
 from app.modules import billing, clients, engagement
 from app.modules.clients.models import ClientEmail
@@ -119,10 +120,13 @@ def test_export_bundle_and_erasure_with_sentinel_scan(client, tenant, owner, loc
     assert no_reason.status_code == 422
     erase = client.post(f"{API}/data-subject-requests", headers=owner,
                         json={"client_id": pid, "kind": "erasure", "reason": "Asked by email"}).json()  # fmt: skip
-    assert erase["status"] == "requested"
+    # billing blocks the erasure while the lesson is unpaid; staff may override, and the ledger is kept anyway
+    assert erase["status"] == "blocked"
+    assert [(b["context"], b["code"]) for b in erase["blockers"]] == [("billing", "open-balance")]
     url = f"{API}/data-subject-requests/{erase['id']}/confirm"
     assert client.post(url, headers=owner, json={"confirmation": "erase"}).status_code == 422
-    done = client.post(url, headers=owner, json={"confirmation": "ERASE"}).json()
+    assert client.post(url, headers=owner, json={"confirmation": "ERASE"}).json()["code"] == "erasure-blocked"
+    done = client.post(url, headers=owner, json={"confirmation": "ERASE", "is_blocker_override": True}).json()
     assert done["status"] == "completed" and done["handler_results"]["clients"]["client_note"] == 1
     assert client.post(url, headers=owner, json={"confirmation": "ERASE"}).status_code == 409
     erased = client.get(f"{API}/clients/{pid}", headers=owner).json()
@@ -133,7 +137,7 @@ def test_export_bundle_and_erasure_with_sentinel_scan(client, tenant, owner, loc
     with tenant_session(tenant.id) as session:
         hits = []
         for table in Base.metadata.sorted_tables:
-            if table.name in ("audit_event", "outbox_event") or "tenant_id" not in table.c:
+            if table.name in ("audit_event", "outbox_event", *GLOBAL_TABLES) or "tenant_id" not in table.c:
                 continue
             for column in table.c:
                 if isinstance(column.type, String | Text) and not column.computed:
