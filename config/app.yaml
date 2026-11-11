@@ -50,3 +50,6 @@ rate_limit:
 audit:
   retention_days: 730                 # standard class, 24 months
   retention_days_long: 2557           # role and permission changes, 7 years
+storage:
+  local_dir: var/storage              # relative to the repository root (git-ignored)
+  max_upload_bytes: 20971520          # the one route that takes file bytes (scanned documents, 20 MiB)

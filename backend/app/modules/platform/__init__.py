@@ -4,6 +4,6 @@ Public interface for routers, jobs and other contexts: `service`, `auth`, `staff
 package's models or schemas from another context.
 """
 
-from app.modules.platform import auth, models, permissions, service, staff
+from app.modules.platform import auth, files, models, permissions, service, staff
 
-__all__ = ["auth", "models", "permissions", "service", "staff"]
+__all__ = ["auth", "files", "models", "permissions", "service", "staff"]

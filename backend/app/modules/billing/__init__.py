@@ -1,10 +1,13 @@
-"""billing context (L2): receivables and money. Kernel slice (overview section 6 items 3 and 5, ADR 0003);
-build module 8 completes it.
+"""billing context (L2): receivables and money (ADR 0003, ADR 0005 section 8; build module 8).
 
-Public interface for routers, jobs and other contexts: `service`. Never import this package's models or
-schemas from another context.
+Public interface for routers, jobs and other contexts: `service` (charges, invoices, payments, the undo
+operations, account credit), `catalogue` (settings, coupons: `settings_for`, `quote_coupon`, `redeem_coupon`,
+`release_coupon`), `methods` (stored payment methods) and `documents` (`billing_summary`). Never import this
+package's models or schemas from another context.
 """
 
-from app.modules.billing import models, permissions, service
+from app.modules.billing import models, permissions, service  # noqa: I001  (service before what builds on it)
+from app.modules.billing import catalogue, methods, autopay, checkout, documents, webhooks
 
-__all__ = ["models", "permissions", "service"]
+__all__ = ["autopay", "catalogue", "checkout", "documents", "methods", "models", "permissions", "service", "webhooks"]
+from app.modules.billing import subject  # noqa: E402, F401  (registers the merge and data-subject handlers)

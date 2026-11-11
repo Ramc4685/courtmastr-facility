@@ -12,9 +12,23 @@ def create_app() -> FastAPI:
     logging.configure()
     bootstrap()
     from app.modules.billing.router import router as billing_router
+    from app.modules.clients.router import public as clients_public
     from app.modules.clients.router import router as clients_router
+    from app.modules.documents.router import public as documents_public
+    from app.modules.documents.router import router as documents_router
+    from app.modules.engagement.router import router as engagement_router
     from app.modules.integrations.router import router as integrations_router
+    from app.modules.memberships.router import public as memberships_public
+    from app.modules.memberships.router import router as memberships_router
+    from app.modules.packages.router import public as packages_public
+    from app.modules.packages.router import router as packages_router
+    from app.modules.platform.privacy_router import router as privacy_router
     from app.modules.platform.router import API_PREFIX, router
+    from app.modules.pos.router import router as pos_router
+    from app.modules.programs.router import router as programs_router
+    from app.modules.rentals.router import router as rentals_router
+    from app.modules.resources.router import router as resources_router
+    from app.modules.scheduling.router import router as scheduling_router
 
     app = FastAPI(
         title=f"{settings.app.display_name} API",
@@ -25,8 +39,16 @@ def create_app() -> FastAPI:
         redoc_url=None,
     )
     api.install(app)
-    for each in (router, clients_router, billing_router, integrations_router):
+    for each in (router, clients_router, billing_router, pos_router, documents_router):
         app.include_router(each, prefix=API_PREFIX)
+    for each in (clients_public, engagement_router, privacy_router, documents_public):
+        app.include_router(each, prefix=API_PREFIX)
+    for each in (memberships_router, packages_router, memberships_public, packages_public):
+        app.include_router(each, prefix=API_PREFIX)
+    for each in (resources_router, scheduling_router, programs_router):
+        app.include_router(each, prefix=API_PREFIX)
+    app.include_router(rentals_router, prefix=API_PREFIX)
+    app.include_router(integrations_router, prefix=API_PREFIX)
     _document_auth(app)
     return app
 

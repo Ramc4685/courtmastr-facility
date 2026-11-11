@@ -22,6 +22,8 @@ from app.core.errors import Conflict, ValidationFailed
 from app.core.ids import new_id
 
 _TTL = timedelta(hours=24)
+# The key reaches provider queries (Stripe Search) and logs, so only a plain token alphabet is accepted.
+KEY_PATTERN = r"^[A-Za-z0-9_.:\-]{1,255}$"
 
 
 class IdempotencyKey(TenantOwned, Base):
@@ -101,7 +103,7 @@ def abandon(tenant_id: UUID, scope: str, key: str) -> None:
 def idempotency(
     request: Request,
     ctx: Ctx = Depends(current_ctx),
-    idempotency_key: str | None = Header(None, max_length=255, description="Optional; keys live 24 hours."),
+    idempotency_key: str | None = Header(None, pattern=KEY_PATTERN, description="Optional; keys live 24 hours."),
 ) -> None:
     """Router-level dependency: every POST that carries Idempotency-Key becomes replay-safe."""
     if idempotency_key is None or request.method != "POST":

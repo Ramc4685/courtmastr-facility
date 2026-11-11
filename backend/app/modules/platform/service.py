@@ -217,6 +217,14 @@ def location_today(session: Session, location_id: UUID) -> date:
     return clock.now().astimezone(ZoneInfo(location.time_zone)).date()
 
 
+def earliest_today(session: Session) -> date:
+    """The earliest "today" among the tenant's locations. Internal: a tenant-wide rule that takes effect
+    "today" uses it, so it already holds at the location furthest behind UTC."""
+    now = clock.now()
+    zones = session.scalars(select(Location.time_zone).distinct())
+    return min((now.astimezone(ZoneInfo(zone)).date() for zone in zones), default=now.date())
+
+
 # --- counters ----------------------------------------------------------------------------------------------
 
 
@@ -277,6 +285,12 @@ def get_me(session: Session, principal: Principal) -> dict:
         "entitlements": [],
     }
     if principal.kind != "staff":
+        if principal.kind == "client" and _client_ids_resolver is not None:
+            me["principal"] = {
+                "kind": "client", "identity_id": principal.identity_id, "email": principal.email,
+                "display_name": principal.display_name,
+                "client_ids": _client_ids_resolver(session, principal.identity_id),
+            }  # fmt: skip
         return me
     staff_user = session.get(StaffUser, principal.staff_user_id)
     locations = session.scalars(
@@ -353,3 +367,87 @@ def onboard_tenant(
     except BaseException:
         platform_db.unprovision_tenant(tenant_id)
         raise
+
+
+# --- internal: for the clients context ---------------------------------------------------------------------
+
+_client_ids_resolver = None
+
+
+def register_client_ids_resolver(resolver) -> None:
+    """clients registers how a client identity maps to client ids, so /me can fill PrincipalOut.client_ids."""
+    global _client_ids_resolver
+    _client_ids_resolver = resolver
+
+
+def location_exists(session: Session, location_id: UUID) -> bool:
+    return session.get(Location, location_id) is not None
+
+
+def staff_user_exists(session: Session, staff_user_id: UUID) -> bool:
+    return session.get(StaffUser, staff_user_id) is not None
+
+
+def disable_client_identity(session: Session, identity_id: UUID, status: str = "disabled") -> None:
+    """A client identity with no active access row left is disabled (or marked merged) and signed out."""
+    from app.modules.platform import auth
+
+    identity = session.get(Identity, identity_id)
+    if identity is not None and identity.kind == "client" and identity.status in ("active", "invited"):
+        identity.status = status
+        auth.revoke_sessions(session, identity_id, "disabled")
+
+
+def enable_client_identity(session: Session, identity_id: UUID) -> None:
+    identity = session.get(Identity, identity_id)
+    if identity is not None and identity.kind == "client" and identity.status == "disabled":
+        identity.status = "active" if identity.email_verified_at else "invited"
+
+
+def find_client_identity(session: Session, email: str) -> Identity | None:
+    return session.scalar(select(Identity).where(Identity.kind == "client", Identity.email == email))
+
+
+def create_client_identity(session: Session, email: str) -> Identity:
+    identity = Identity(kind="client", email=email, status="invited")
+    session.add(identity)
+    session.flush()
+    return identity
+
+
+def delete_client_identity(session: Session, identity_id: UUID) -> None:
+    """GDPR erasure: the sign-in identity of an erased client goes, with its sessions and link tokens."""
+    from app.modules.platform.models import AuthSession, AuthToken
+
+    session.execute(delete(AuthSession).where(AuthSession.identity_id == identity_id))
+    session.execute(delete(AuthToken).where(AuthToken.identity_id == identity_id))
+    session.execute(delete(Identity).where(Identity.id == identity_id, Identity.kind == "client"))
+
+
+# --- staff user <-> trainer resource (internal; used by resources and scheduling for `own` reach) ----------
+
+
+def linked_resource_id(session: Session, staff_user_id: UUID | None) -> UUID | None:
+    """The trainer resource a staff user's own calendar is (rbac-matrix 3.2). Internal."""
+    from app.modules.platform.models import StaffUser
+
+    return session.scalar(select(StaffUser.linked_resource_id).where(StaffUser.id == staff_user_id))
+
+
+def set_linked_resource(session: Session, staff_user_id: UUID, resource_id: UUID) -> None:
+    """Point a staff user at their trainer resource. Internal: resources.create_resource authorizes."""
+    from app.modules.platform.models import StaffUser
+
+    user = session.get(StaffUser, staff_user_id)
+    if user is None:
+        raise ValidationFailed("Unknown staff user.", pointer="/staff_user_id")
+    user.linked_resource_id = resource_id
+    session.flush()
+
+
+def location_time_zone(session: Session, location_id: UUID) -> str:
+    """IANA zone of a location (overview 3.7). Internal: every "day" and wall-time rule of a context uses it."""
+    zone = session.scalar(select(Location.time_zone).where(Location.id == location_id))
+    if zone is None:
+        raise NotFound()
+    return zone

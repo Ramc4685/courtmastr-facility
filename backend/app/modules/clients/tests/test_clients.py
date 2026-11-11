@@ -46,6 +46,8 @@ def test_create_get_list_and_search(client, tenant, owner, location_id):
         assert names(f"?q={term}") == ["Lovelace"], term
     assert names(f"?home_location_id={location_id}&status=active") == ["Hopper", "Lovelace"]
     assert names("?status=disabled") == []
+    grace = client.get(f"{API}/clients?q=hopper", headers=owner).json()["data"][0]["id"]
+    assert names(f"?id[in]={ada['id']},{grace}") == ["Hopper", "Lovelace"] and names(f"?id={ada['id']}") == ["Lovelace"]
 
     audit = scalar(tenant, select(AuditEvent).where(AuditEvent.entity_id == ada["id"]))
     assert audit.action == "clients.client.create" and "first_name" not in audit.changes  # no PII in the trail

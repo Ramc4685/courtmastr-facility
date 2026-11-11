@@ -16,6 +16,8 @@ dependencies = [
     "dramatiq[redis]>=1.17",
     "cryptography>=50.0.2",
     "httpx>=0.28.1",
+    "nh3>=0.3.7",
+    "fpdf2>=2.9.0",
 ]
 
 [dependency-groups]

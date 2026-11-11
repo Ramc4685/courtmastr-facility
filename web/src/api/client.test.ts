@@ -23,6 +23,24 @@ describe('api client', () => {
     expect(calls[1]?.headers['content-type']).toBe('application/json')
   })
 
+  it('uses a caller-supplied idempotency key so one user action can be retried safely', async () => {
+    const calls = mockFetch({ 'POST /api/v1/locations': { status: 201, body: { id: 'l' } } })
+    const body = { name: 'A', time_zone: 'UTC', country_code: 'US' }
+    await api.post('/api/v1/locations', { body, idempotencyKey: 'k-1' })
+    await api.post('/api/v1/locations', { body, idempotencyKey: 'k-1' })
+    expect(calls.map((c) => c.headers['idempotency-key'])).toEqual(['k-1', 'k-1'])
+  })
+
+  it('returns the body of a 202 and undefined for an empty one', async () => {
+    mockFetch({
+      'POST /api/v1/bookings': { status: 202, body: { status_url: '/api/v1/booking-series/s/runs/r' } },
+      'POST /api/v1/auth/magic-links': { status: 202 },
+    })
+    const created = await api.post('/api/v1/bookings', { body: { location_id: 'l', kind: 'block', starts_at: 'a', ends_at: 'b', resources: [{ resource_id: 'r' }], include_linked_resources: true, on_conflict: 'abort', override_policy: false } })
+    expect(created?.status_url).toBe('/api/v1/booking-series/s/runs/r')
+    expect(await api.post('/api/v1/auth/magic-links', { body: { email: 'a@example.com', audience: 'staff' } })).toBeUndefined()
+  })
+
   it('turns problem+json into ApiError with field errors by pointer', async () => {
     mockFetch({
       'POST /api/v1/locations': {

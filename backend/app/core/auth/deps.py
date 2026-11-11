@@ -122,4 +122,5 @@ def require(*keys: str) -> Callable[..., Ctx]:
         return ctx
 
     dependency.accepts_api_key = True
+    dependency.keys = keys  # read by the generated location-scope tests
     return dependency

@@ -40,3 +40,9 @@ Later modules must not assume these exist.
 - **Guards waiting on other contexts:** `location-has-future-bookings` on archive (scheduling), currency
   immutability once a charge exists (billing), FKs for `staff_user.linked_resource_id` (resources) and
   `auth_session.target_client_id` (clients).
+
+## Security hardening (wave 1, S-07)
+
+- An editor limited to some locations replaces only the part of a colleague's location set it reaches;
+  the colleague's other locations (and their primary flag, unless a new primary is given) are kept. A
+  colleague with access to every location can be changed only by an editor with the same.

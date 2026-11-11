@@ -11,3 +11,5 @@ rate_limit:
   enabled: false
 integrations:
   webhook_allow_localhost: false
+storage:
+  local_dir: var/storage-test

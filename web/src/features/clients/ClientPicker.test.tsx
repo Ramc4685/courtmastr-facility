@@ -7,7 +7,8 @@ import { mockFetch } from '../../test/fetchMock'
 import { ClientPicker, type ClientSummary } from './ClientPicker'
 
 const person = (id: string, first_name: string, last_name: string, extra: Partial<ClientSummary> = {}): ClientSummary => ({
-  id, first_name, last_name, primary_email: null, phone_mobile: null, home_location_id: 'l1', member_number: null, status: 'active', created_at: '2026-11-10T00:00:00Z', ...extra,
+  id, first_name, last_name, primary_email: null, phone_mobile: null, home_location_id: 'l1', member_number: null, status: 'active', created_at: '2026-11-10T00:00:00Z',
+  client_category_id: null, erased_at: null, merged_into_id: null, preferred_name: null, ...extra,
 })
 const page = (data: ClientSummary[]) => ({ status: 200, body: { data, page: { next_cursor: null, has_more: false } } })
 const ada = person('c1', 'Ada', 'Lovelace', { member_number: 'M-100', primary_email: 'ada@example.com' })

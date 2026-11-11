@@ -45,9 +45,15 @@ def test_no_cross_tenant_write(two_tenants, table):
         except DBAPIError as exc:
             assert "permission denied" in str(exc)  # append-only tables refuse the verb outright
     # Take one of A's own rows, give it a new id and B's tenant_id, and try to insert it.
+    with tenant_session(a) as session:  # generated columns (search keys) cannot be inserted
+        columns = ", ".join(session.scalars(text(
+            "SELECT quote_ident(column_name) FROM information_schema.columns "
+            "WHERE table_name = :t AND is_generated = 'NEVER' ORDER BY ordinal_position"
+        ), {"t": table}))  # fmt: skip
     forged = (
-        f"INSERT INTO {table} SELECT (jsonb_populate_record(NULL::{table}, to_jsonb(r) || "
-        f"jsonb_build_object('id', app.uuid_v7(), 'tenant_id', CAST(:b AS uuid)))).* FROM {table} r LIMIT 1"
+        f"INSERT INTO {table} ({columns}) SELECT {columns} FROM jsonb_populate_record(NULL::{table}, "
+        f"(SELECT to_jsonb(r) || jsonb_build_object('id', app.uuid_v7(), 'tenant_id', CAST(:b AS uuid)) "
+        f"FROM {table} r LIMIT 1))"
     )
     with pytest.raises(DBAPIError, match="row-level security"), tenant_session(a) as session:
         session.execute(text(forged), {"b": b})
@@ -86,9 +92,161 @@ _BODIES = {
     "reverseCharge": {"reason": "Mistake"},
     "allocatePayment": {},
     "createRefund": {"amount_minor": 1, "reason": "Mistake"},
+    # billing (build module 8). A callable gets tenant A's ids, so only the path id is foreign.
+    "updateRevenueCategory": {"label": "Renamed"},
+    "updateTax": {"label": "Renamed"},
+    "addTaxRate": {"rate": "0.05", "effective_from_on": "2031-01-01"},
+    "updateTaxRate": {"rate": "0.05"},
+    "updateTenderType": {"label": "Renamed"},
+    "updateCoupon": {"name": "Renamed"},
+    "updateCharge": {"description": "Renamed"},
+    "voidCharge": {"reason": "Mistake"},
+    "updateInvoice": {"comments": "Note"},
+    "addInvoiceCharges": lambda a: {"charge_ids": [a.charge_id]},
+    "moveInvoiceCharge": lambda a: {"target_invoice_id": a.invoice_id},
+    "voidInvoice": {"reason": "Mistake"},
+    "reassignInvoicePayer": lambda a: {"bill_to_client_id": a.client_id},
+    "markInvoicePaid": {},
+    "putPaymentSchedule": {"instalments": [{"due_on": "2031-01-01", "amount_minor": 1}]},
+    "generatePaymentSchedule": {"start_on": "2031-01-01", "count": 2},
+    "sendInvoice": {},
+    "voidPayment": {"reason": "Mistake"},
+    "sendReceipt": {},
+    "applyAccountCredit": {},
+    "refundAccountCredit": {"amount_minor": 1, "reason": "Mistake"},
+    "sendClientStatement": {"from_on": "2026-01-01", "to_on": "2026-02-01"},
+    "attachPaymentMethod": {"method_token": "tok_card_ok"},
+    "createSetupIntent": {},
+    "updatePaymentMethod": {"is_autopay": True},
+    "verifyBankAccount": {"amounts": [32, 45]},
+    "updatePortalPaymentMethod": {"is_autopay": True},
+    # pos (build module 9)
+    "updateRegister": {"name": "Renamed"},
+    "putRegisterFavorites": {"product_ids": []},
+    "openDrawerSession": {"opening_float_minor": 0},
+    "closeDrawerSession": {"counted_cash_minor": 0},
+    "reconcileDrawerSession": {},
+    "openDrawerNoSale": {"reason": "Change"},
+    "updateProductCategory": {"name": "Renamed"},
+    "updateProductBrand": {"name": "Renamed"},
+    "updateProductSupplier": {"name": "Renamed"},
+    "updateProduct": {"name": "Renamed"},
+    "updateDiscountPreset": {"name": "Renamed"},
+    "updateEquipmentCategory": {"name": "Renamed"},
+    "updateEquipmentItem": {"name": "Renamed"},
+    "returnEquipment": {"outcome": "lost"},
+    "updatePosSale": {"version": 1},
+    "addPosSaleLine": lambda a: {"product_id": a.product_id},
+    "updatePosSaleLine": {"quantity": 1},
+    "addPosSaleDiscount": {"source": "custom", "discount_minor": 1},
+    "addPosSaleTender": {"tender": "pay_later", "amount_minor": 1},
+    "sendPosReceipt": {"channel": "print"},
+    "createPosReturn": lambda a: {"lines": [{"pos_sale_line_id": a.pos_sale_line_id, "quantity": 1}]},
+    "voidPosSale": {"reason": "Mistake"},
+    # clients (module 4)
+    "updateClient": {"first_name": "Renamed"},
+    "replaceClientEmergencyContacts": {"contacts": []},
+    "assignClientMemberNumber": {},
+    "assignClientOwners": {},
+    "updateClientCategory": {"name": "Renamed"},
+    "updateReferralCategory": {"name": "Renamed"},
+    "updateTag": {"label": "Renamed"},
+    "updateCustomField": {"label": "Renamed"},
+    "updateClientLocationSettings": {"is_portal_photo_edit_enabled": True},
+    "updateRelationshipType": {"label": "Renamed"},
+    "createClientRelationship": "relationship",
+    "inviteClientToPortal": {},
+    "portalUpdateClient": {"city": "Elsewhere"},
+    "portalReplaceEmergencyContacts": {"contacts": []},
+    "updateNoteSubject": {"label": "Renamed"},
+    "createClientNote": {"kind": "call", "subject_text": "Hi"},
+    "updateClientNote": {"body": "Renamed"},
+    "updateClientTask": {"body": "Renamed"},
+    "createClientAlert": {"message": "Hi"},
+    "updateClientAlert": {"message": "Renamed"},
+    "precheckClientMerge": "merge",
+    "mergeClients": "merge",
+    "putClientCommunicationPreferences": "preferences",
+    "putPortalCommunicationPreferences": {
+        "changes": [{"channel": "push", "topic": "league_alerts", "is_subscribed": True}]
+    },
+    "confirmDataSubjectRequest": {"confirmation": "ERASE"},
+    # documents (module 7)
+    "updateDocumentTemplate": {"name": "Renamed"},
+    "saveDocumentTemplateDraft": {"body_html": "<p>x</p>", "acceptance_text": "I agree."},
+    "submitClientDocumentAcceptance": "acceptance",
+    "portalSubmitAcceptance": "acceptance",
+    "sendClientDocument": {"recipient_emails": ["x@example.com"]},
+    "setWaiverOverride": {"waiver_override": "on_file"},
+    "updateDocumentLocationSettings": {"is_consent_required": False},
+    # memberships and packages (module 5)
+    "updateMembershipType": {"name": "Renamed"},
+    "updateMembershipPlan": {"name": "Renamed"},
+    "replaceMembershipPlanAddons": {"addons": []},
+    "updateMembershipContract": {"internal_notes": "Renamed"},
+    "setMembershipContractSoldBy": {"sold_by_staff_user_id": None},
+    "repriceMembershipContract": {"term_fee_minor": 100},
+    "updateBillingSchedulePeriod": {"amount_minor": 100},
+    "updateMembershipFreeze": {"remarks": "Renamed"},
+    "updateMembershipSuspension": {"remarks": "Renamed"},
+    "cancelMembershipContract": {"reason": "voluntary"},
+    "addMembershipShare": "share",
+    "adjustMembershipVisits": {"delta": 1, "reason": "Recount"},
+    "updatePackagePlan": {"name": "Renamed"},
+    "updateClientPackage": {"internal_remarks": "Renamed"},
+    "adjustClientPackageCredits": {"delta": 1, "note": "Recount"},
+    "addPackageShare": "share",
+    "removeClientPackage": {"removal_mode": "billing_kept"},
+    "updateResourceGroup": {"name": "Renamed"},
+    "updateResource": {"name": "Renamed"},
+    "replaceResourceLinks": {"to_resource_ids": []},
+    "createAvailabilityWindow": {
+        "starts_on": "2030-01-01",
+        "weekdays": [1],
+        "start_time": "09:00",
+        "end_time": "10:00",
+    },
+    "updateAvailabilityWindow": {"note": "Renamed"},
+    "updateReservationCategory": {"name": "Renamed"},
+    "updateReservationType": {"name": "Renamed"},
+    "updateBlackout": {"name": "Renamed"},
+    "updateBooking": {"title": "Renamed", "version": 1},
+    "rescheduleBooking": {"starts_at": "2030-03-04T17:00:00Z", "ends_at": "2030-03-04T18:00:00Z", "version": 1},
+    "cancelBooking": {"version": 1},
+    "addBookingSeriesRule": {
+        "start_on": "2030-09-02",
+        "start_time": "09:00",
+        "end_time": "10:00",
+        "rule": {"pattern": "single", "range_type": "count", "occurrence_limit": 1},
+    },
+    "editBookingSeries": {"scope": {"mode": "all"}, "patch": {"title": "Renamed"}},
+    "cancelBookingSeries": {"scope": {"mode": "all"}},
+    "updateSession": {"is_self_bookable": False},
+    "cancelEnrollment": {},
+    "putSessionAttendance": {
+        "marks": [{"enrollment_id": "00000000-0000-7000-8000-000000000000", "status": "attended"}]
+    },
+    "updateRentalType": {"name": "Renamed"},
+    "createRentalRate": {"name": "Other", "amount_minor": 100, "basis": "per_hour"},
+    "updateRentalRate": {"name": "Renamed"},
+    "cancelRental": {},
+    "extendRental": {
+        "start_on": "2030-09-03",
+        "start_time": "09:00",
+        "end_time": "10:00",
+        "rule": {"pattern": "single", "range_type": "count", "occurrence_limit": 1},
+    },
+    "setRentalPublicSchedule": {"is_on_public_schedule": True},
+    "confirmPortalRental": {"provider_payment_token": "tok_card_ok"},
+    "updateRentalPlan": {"name": "Renamed"},
+    "cancelRentalPlanPurchase": {"cancel_mode": "keep_billing", "reason": "Mistake"},
+    # integrations (module 16)
     "rotateApiKey": {},
     "updateWebhookEndpoint": {"description": "Renamed"},
 }
+_ACCEPTANCE = {"content_sha256": "0" * 64, "signers": [
+    {"decision": "accepted", "signer_role": "client", "signer_name": "X", "method": "checkbox"}]}  # fmt: skip
+_PREFERENCES = {"changes": [{"channel": "push", "topic": "league_alerts", "is_subscribed": True}], "note": "x"}
 # Generated from the OpenAPI document, so a new route with an id parameter is tested without being listed.
 _ID_ROUTES = [
     (method.upper(), path, operation["operationId"])
@@ -98,14 +256,30 @@ _ID_ROUTES = [
 ]
 
 
+def body_for(name: str, ids):
+    """The request body for an id route, with any id it carries taken from `ids` (a populate() namespace)."""
+    body = _BODIES.get(name)
+    if body == "role":
+        body = {"role_id": ids.role_id}
+    elif body == "relationship":
+        body = {"other_client_id": ids.kid_id, "relationship_type_id": ids.relationship_type_id}
+    elif body == "merge":
+        body = {"merged_client_ids": [ids.kid_id]}
+    elif body == "preferences":
+        body = _PREFERENCES
+    elif body == "acceptance":
+        body = _ACCEPTANCE
+    elif body == "share":
+        body = {"client_id": ids.kid_id}
+    return body(ids) if callable(body) else body
+
+
 @pytest.mark.parametrize(("method", "path", "name"), _ID_ROUTES, ids=[f"{m} {p}" for m, p, _ in _ID_ROUTES])
 def test_api_foreign_tenant_id_is_404(client, two_tenants, method, path, name):
     """Every route with an id parameter, called with A's token and B's id: 404, never 403 or data."""
     a, b = two_tenants
     url = re.sub(r"\{(\w+)_id\}", lambda m: str(getattr(b, f"{m[1]}_id")), path)
-    body = _BODIES.get(name)
-    if body == "role":
-        body = {"role_id": a.role_id}  # A's own role, so only the path id is foreign
+    body = body_for(name, a)  # A's own ids in the body, so only the path id is foreign
     response = client.request(method, url, headers=a.headers | {"Idempotency-Key": f"iso-{name}-key"}, json=body)
     assert response.status_code == 404, response.text
     assert response.json()["code"] == "not-found"
@@ -121,8 +295,17 @@ def test_every_id_route_is_covered():
     "path",
     [
         "/locations", "/staff-users", "/roles", "/audit-events?limit=200", "/auth/sessions", "/clients", "/charges",
-        "/invoices", "/payments", "/revenue-categories", "/ledger-entries", "/api-keys", "/webhook-endpoints",
-        "/webhook-deliveries", "/external-connections", "/accounting-exports", "/adapter-commands",
+        "/invoices", "/payments", "/revenue-categories", "/ledger-entries",
+        "/taxes", "/coupons", "/payment-methods", "/autopay-runs", "/autopay-attempts", "/refunds",
+        "/billing-notices", "/billing-history",
+        "/registers", "/products", "/product-categories", "/pos-sales", "/drawer-sessions", "/stock-movements",
+        "/equipment-items", "/equipment-loans", "/discount-presets",
+        "/client-categories", "/tags",
+        "/note-subjects", "/client-tasks", "/data-subject-requests", "/relationship-types", "/custom-fields",
+        "/membership-types", "/membership-plans", "/membership-contracts", "/package-plans", "/client-packages",
+        "/package-series",
+        "/api-keys", "/webhook-endpoints", "/webhook-deliveries", "/external-connections", "/accounting-exports",
+        "/adapter-commands",
     ],
 )  # fmt: skip
 def test_api_lists_never_include_the_other_tenant(client, two_tenants, path):
@@ -133,7 +316,10 @@ def test_api_lists_never_include_the_other_tenant(client, two_tenants, path):
     ids = {row["id"] for row in rows}
     assert not ids & {
         b.location_id, b.staff_user_id, b.role_id, b.session_id, b.client_id, b.charge_id, b.invoice_id,
-        b.payment_id, b.revenue_category_id, b.api_key_id, b.webhook_endpoint_id, b.webhook_delivery_id,
+        b.payment_id, b.revenue_category_id, b.client_category_id, b.tag_id, b.note_subject_id, b.task_id,
+        b.request_id, b.relationship_type_id, b.custom_field_id, b.template_id, b.binding_id, b.document_id,
+        b.pending_document_id, b.membership_type_id, b.membership_plan_id, b.contract_id, b.package_plan_id,
+        b.package_id, b.series_id, b.api_key_id, b.webhook_endpoint_id, b.webhook_delivery_id,
         b.external_connection_id,
     }  # fmt: skip
     theirs = client.get(f"/api/v1{path}", headers=b.headers).json()
@@ -161,6 +347,10 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
     charge = {"client_id": a.client_id, "location_id": a.location_id, "description": "X", "unit_price_minor": 100}
     payment = {"client_id": a.client_id, "location_id": a.location_id, "amount_minor": 100, "tender_kind": "cash"}
     fresh = post("/charges", charge).json()["id"]  # A's own, still uninvoiced
+    document = {"client_id": a.client_id, "location_id": a.location_id, "template_id": a.template_id,
+                "acceptance_method": "checkbox"}  # fmt: skip
+    membership = {"client_id": a.kid_id, "location_id": a.location_id, "membership_plan_id": a.membership_plan_id}
+    package = {"client_id": a.client_id, "location_id": a.location_id, "package_plan_id": a.package_plan_id}
     for index, (path, body) in enumerate((
         ("/clients", person | {"home_location_id": b.location_id}),
         ("/charges", charge | {"client_id": b.client_id}),
@@ -174,6 +364,42 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
         ("/payments", payment | {"allocations": [{"charge_id": b.charge_id, "amount_minor": 1}]}),
         (f"/payments/{a.payment_id}/allocations", {"invoice_id": b.invoice_id}),
         (f"/payments/{a.payment_id}/allocations", {"allocations": [{"charge_id": b.charge_id, "amount_minor": 1}]}),
+        ("/registers", {"location_id": b.location_id, "name": "X"}),
+        ("/pos-sales", {"register_id": b.register_id}),
+        ("/stock-movements", {"product_id": b.product_id, "location_id": a.location_id, "kind": "adjustment",
+                              "quantity_delta": 1, "reason": "other"}),
+        ("/products", {"product_category_id": b.product_category_id, "name": "X", "product_code": "X-iso",
+                       "unit_price_minor": 1}),
+        ("/equipment-items", {"equipment_category_id": a.equipment_category_id, "location_id": b.location_id,
+                              "name": "X", "asset_code": "X-iso"}),
+        ("/clients", person | {"client_category_id": b.client_category_id}),
+        ("/clients", person | {"tag_ids": [b.tag_id]}),
+        (f"/clients/{a.client_id}/relationships", {"other_client_id": b.client_id, "relationship_type_id": a.relationship_type_id}),
+        (f"/clients/{a.client_id}/relationships", {"other_client_id": a.kid_id, "relationship_type_id": b.relationship_type_id}),
+        ("/client-tasks", {"client_id": b.client_id, "subject_text": "x"}),
+        ("/client-tasks", {"client_id": a.client_id, "subject_text": "x", "assignee_staff_user_id": b.staff_user_id}),
+        (f"/clients/{a.client_id}/notes", {"kind": "call", "note_subject_id": b.note_subject_id}),
+        (f"/clients/{a.client_id}/merge-precheck", {"merged_client_ids": [b.client_id]}),
+        ("/data-subject-requests", {"client_id": b.client_id, "kind": "export"}),
+        ("/client-documents", document | {"client_id": b.client_id}),
+        ("/client-documents", document | {"location_id": b.location_id}),
+        ("/client-documents", document | {"template_id": b.template_id}),
+        ("/membership-types", {"name": "X", "revenue_category_id": b.revenue_category_id}),
+        ("/membership-plans", {"membership_type_id": b.membership_type_id, "name": "X", "billing_occurrences_count": 1, "term_fee_minor": 1}),
+        ("/membership-contracts", membership | {"client_id": b.client_id}),
+        ("/membership-contracts", membership | {"location_id": b.location_id}),
+        ("/membership-contracts", membership | {"membership_plan_id": b.membership_plan_id}),
+        ("/membership-contracts", membership | {"referred_by_client_id": b.client_id}),
+        ("/membership-contracts", membership | {"sold_by_staff_user_id": b.staff_user_id}),
+        ("/membership-contracts", membership | {"share_client_ids": [b.client_id]}),
+        (f"/membership-contracts/{a.contract_id}/shares", {"client_id": b.client_id}),
+        (f"/membership-contracts/{a.contract_id}/renew", {"renews_as_plan_id": b.membership_plan_id}),
+        ("/client-packages", package | {"client_id": b.client_id}),
+        ("/client-packages", package | {"location_id": b.location_id}),
+        ("/client-packages", package | {"package_plan_id": b.package_plan_id}),
+        ("/client-packages", package | {"sold_by_staff_user_id": b.staff_user_id}),
+        ("/client-packages/complimentary", package | {"package_plan_id": b.package_plan_id}),
+        (f"/client-packages/{a.package_id}/shares", {"client_id": b.client_id}),
         ("/api-keys", {"name": "X", "scopes": ["clients.client.read"], "location_ids": [b.location_id]}),
         ("/external-connections", {"provider": "accounting_file", "location_id": b.location_id}),
         ("/accounting-exports", {
@@ -186,6 +412,8 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
             body,
             response.text,
         )
+    foreign_binding = {"scope_type": "program_default", "template_id": b.template_id}
+    assert client.put("/api/v1/document-bindings", headers=a.headers, json=foreign_binding).status_code == 422
     # A's location with B's connection: the connection id itself is not found.
     foreign = {
         "external_connection_id": b.external_connection_id,

@@ -214,23 +214,28 @@ class SecurityHeadersMiddleware:
 
 class BodyLimitMiddleware:
     """Refuse request bodies over api.max_body_bytes with 413, by Content-Length or by counting a chunked
-    body. File uploads never pass through the API (they go to object storage), so one small cap fits all."""
+    body. One small cap fits everything except the routes in UPLOAD_PATHS, which take file bytes up to
+    storage.max_upload_bytes (security-baseline 8)."""
+
+    UPLOAD_PATHS = re.compile(r"^/api/v1/client-documents/[^/]+/paper-scan$")
 
     def __init__(self, app) -> None:
         self.app = app
-        self.limit = get_settings().api.max_body_bytes
+        self.small = get_settings().api.max_body_bytes
+        self.large = get_settings().storage.max_upload_bytes
 
     async def __call__(self, scope, receive, send) -> None:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
+        limit = self.large if self.UPLOAD_PATHS.match(scope["path"]) else self.small
         declared = dict(scope["headers"]).get(b"content-length", b"")
-        seen, refused = 0, declared.isdigit() and int(declared) > self.limit
+        seen, refused = 0, declared.isdigit() and int(declared) > limit
 
         async def refuse() -> None:
             body = {
                 "type": "/problems/payload-too-large", "title": "Payload too large", "status": 413,
                 "code": "payload-too-large", "instance": scope["path"], "trace_id": context.request_id.get(),
-                "detail": f"The request body may not exceed {self.limit} bytes.",
+                "detail": f"The request body may not exceed {limit} bytes.",
             }  # fmt: skip
             raw = json.dumps(body).encode()
             headers = [(b"content-type", b"application/problem+json"), (b"content-length", str(len(raw)).encode())]
@@ -245,7 +250,7 @@ class BodyLimitMiddleware:
             message = await receive()
             if message["type"] == "http.request":
                 seen += len(message.get("body", b""))
-                if seen > self.limit:
+                if seen > limit:
                     refused = True
                     raise ValueError("request body over the limit")
             return message

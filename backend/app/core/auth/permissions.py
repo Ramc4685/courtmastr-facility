@@ -86,6 +86,14 @@ def authorize(principal: Principal, key: str, *, location_id: UUID | None = None
         raise NotFound()
 
 
+def authorize_tenant_wide(principal: Principal, key: str) -> None:
+    """Writes to a tenant-wide row (location_id IS NULL) under a location-scoped key: the caller must reach
+    every location, since the row governs all of them."""
+    authorize(principal, key)
+    if principal.kind != "system" and principal.location_ids is not None:
+        raise PermissionDenied(f"Requires {key} at every location", required=key)
+
+
 def scope_query(stmt: Select, principal: Principal, location_column) -> Select:
     """Restrict a list query to the caller's permitted locations."""
     if principal.kind == "system" or principal.location_ids is None:

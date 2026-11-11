@@ -5,7 +5,7 @@ Generated from the models, then completed by hand: enable_rls() per table.
 Revision id 05xx is this module's range so parallel lanes do not collide; rebase down_revision on merge.
 
 Revision ID: 0501
-Revises: 0002
+Revises: 0401
 """
 import sqlalchemy as sa
 from alembic import op
@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 from app.core.db.rls import enable_rls
 
 revision = '0501'
-down_revision = '0002'
+down_revision = '0401'
 
 TENANT_TABLES = (
     "api_key", "webhook_endpoint", "webhook_delivery", "external_connection", "accounting_export",

@@ -1,42 +1,64 @@
-# clients (kernel skeleton)
+# clients
 
-People. This is the thin slice that ships ahead of build module 4 (overview section 6 item 2) so bookings,
-charges and payments have a real client to point at. Module 4 (the People lane) completes it.
+People: client profiles, households, notes and tasks, merge, and the GDPR subject handlers for this context.
+Build module 4. Feature status: `docs/status/04-clients-households.md`. Migration `0201_clients_households`.
 
 | File | What it holds |
 |---|---|
-| `models.py` | `client` (skeleton columns of data-model-people 1.1) and `client_portal_access` (1.11, complete) |
-| `service.py` | Staff queries and commands (`list_clients`, `get_client`, `create_client`) and the internal interface |
-| `router.py` | `GET /clients`, `POST /clients`, `GET /clients/{client_id}` |
-| `permissions.py` | All 16 keys of rbac-matrix 6.5, so seeded roles are already right |
-| `events.py` | `clients.client.created` |
+| `models.py` | Every table of data-model-people section 1 except photo storage: `client`, `client_email`, settings, field policy, custom fields, categories, tags, emergency contacts, relationship types and relationships, portal access, notes, subjects, tasks, alerts, `client_merge` (append-only), recent views |
+| `service.py` | Profile queries and commands, field policy (`check_capture`), member numbers, owners and `own` reach, and the internal interface |
+| `households.py` | Relationships, `can_act_for`, portal invitation and revocation, and every `/portal` function |
+| `activity.py` | Notes, subjects, tasks (`send_task_reminders`), alerts (`active_alerts`), timeline |
+| `merge.py` | Duplicates, precheck, merge, `register_merge_handler`; registers this context's erase and export handlers |
+| `router.py` | Staff, portal and activity routes; a separate `public` router for emailed links |
 
-Internal interface for other contexts (no permission check; ADR 0009 section 9):
-`get(session, client_id)`, `require_active(session, client_id, pointer=)`, `display_name(client)`,
-`link_identity(session, client_id, identity_id)`, `client_ids_for_identity(session, identity_id)`.
+## Internal interface (no permission check; ADR 0009 section 9)
 
-Web: `web/src/features/clients/ClientPicker.tsx` (combobox; needs `clients.client.read`).
+`get`, `require_active`, `resolve` (follows `merged_into_id`), `display_name`, `is_minor` (age of majority
+from `tenant.settings`, default 18), `email_is_verified`, `client_addresses`, `ensure_member_number`,
+`import_client`, `link_identity`, `client_ids_for_identity`, `households.can_act_for(session, identity_id,
+client_id, capability)`, `households.actable_client_ids`, `activity.active_alerts(session, client_id,
+"check_in" | "booking", on)`.
 
-## Deferred to build module 4, by name
+## Integrator notes
 
-- The remaining `client` columns (preferred name, birth date, address, category, custom values, photo, the
-  generated `search_text` and `phone_digits` with their trigram indexes, merge and erasure columns) and every
-  other table of section 1 (`client_email`, relationships, notes, tasks, settings...). Add columns; rename none.
-- `updateClient`, `disableClient`, `enableClient`, merge, export, member-number generation from
-  `tenant_counter('member_number')` (the counter exists: `platform.service.next_number`).
-- The `own` reach predicate (rbac-matrix 3.2). Until it exists a principal whose reach on
-  `clients.client.read` is `own` (the Coach role) sees **no** clients: lists are empty and reads are 404.
-- Portal invitation flow; `PrincipalOut.client_ids` is still empty (portal routers call
-  `client_ids_for_identity`).
-- `clients.client.updated`, `.disabled`, `.merged` events and the merge handlers in every referencing context.
+- **Every table with a foreign key to `client` needs a merge handler and an erase handler.** The meta-test
+  `test_every_table_with_a_client_fk_has_merge_and_erase_handlers` fails otherwise. Billing tables
+  (`invoice`, `charge`, `payment`, `refund`, `ledger_entry`) are allow-listed there until the money lane
+  registers `clients.merge.register_merge_handler(...)` and `platform.privacy.register_subject_handler(...)`;
+  remove them from `MONEY` when it does. A merge precheck can return blockers (for example an open balance).
+- Portal routes must check `can_act_for` per request. Delegates may book, buy and view the schedule only.
+- `PrincipalOut.client_ids` is filled by the resolver this package registers with platform.
+- Opt-in to marketing lives in the `engagement` slice; ask `engagement.service.is_subscribed` before sending.
+
+## Not built
+
+Client photo (needs platform uploads and `stored_file`), note attachments, CSV export (`createClientExport`),
+the portal member card, a scheduler for task reminders, derived system alerts, and the booking clause of the
+`own` reach predicate (waits for scheduling).
 
 ## Assumptions
 
-- `primary_email` is written directly by `create_client` for now. Module 4 introduces `client_email` and
-  turns this column into the denormalised copy the data model describes, back-filling one row per client.
-- A staff user limited to some locations may create clients only with a home location in their set, although
-  reading clients is tenant-wide (CLI-19).
-- One check constraint, `ck_client_member_number_source`, carries both the pair rule and the vocabulary: the
-  data model gives both that name, and a table cannot hold two constraints with one name.
-- Search is `ILIKE` over name, email, phone and member number: correct, but unindexed until the trigram
-  indexes land with module 4.
+- Email verification tokens live on `client_email`. `client.primary_email` is the denormalised, lower-cased
+  copy of the primary row; the migration back-fills one row per existing client.
+- Portal GET operation ids start with `get`/`list` (kernel naming test), which differs from the YAML ids.
+- `is_own_clients_scope_enabled` is stored only; RBAC reach decides visibility.
+- A user's saved list filters live in browser localStorage; the named views are server code.
+- Merge runs synchronously in one transaction; `client_merge` history is never re-pointed.
+
+## Security hardening (wave 1, P-01 to P-07)
+
+- Every client command loads the client through `service.load`, including task and relationship bodies; a
+  body id outside the caller's reach is 422 at its pointer, a path id is 404.
+- A portal request for a guardianship over a minor (either side of the type) is stored `pending` with no
+  token and no email; only staff `approve_relationship` activates it, and the minor cannot end it in the
+  portal (409 `staff-approval-required`). Minor tests use the home location's date.
+- The portal may set `birth_on` only while it is blank (422 `field-locked`).
+- Merge never carries acting rights: the loser's manager access rows are revoked and its live relationships
+  that grant acting rights (from either side) end. `merge-precheck` lists them under `review` so staff
+  re-grant on purpose. Rights already held on the survivor's own record are untouched.
+  A portal-created record cannot survive a merge with a staff-created one (blocker `survivor-portal-created`):
+  the staff record must be the survivor, so a portal manager never inherits the real record's history.
+- A portal-created record matches as a duplicate on email only through a verified address.
+- `client_merge.backfilled_fields` stores field names only (`{field: true}`): the table is append-only and
+  erasure cannot clear values. Rows written before this change exist only in demo tenants.

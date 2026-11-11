@@ -53,9 +53,11 @@ def _check_owner_protection(principal: Principal, target: StaffUser) -> None:
         raise PermissionDenied("Only an owner can change an owner.")
 
 
-def _check_not_self(principal: Principal, target: StaffUser) -> None:
+def _check_not_self(
+    principal: Principal, target: StaffUser, detail: str = "You cannot change your own role, permissions or locations."
+) -> None:
     if principal.staff_user_id == target.id:
-        raise _self_escalation("You cannot change your own role, permissions or locations.")
+        raise _self_escalation(detail)
 
 
 def _check_last_owner(session: Session, target: StaffUser) -> None:
@@ -158,22 +160,31 @@ def _set_locations(
     location_ids: list[UUID],
     primary_location_id: UUID | None,
 ) -> None:
-    """Location containment: an editor limited to a location set can only assign locations inside it."""
+    """Location containment: an editor limited to a location set can only assign locations inside it, and
+    leaves the target's other locations as they are (S-07): it has no say over them."""
     wanted = set(location_ids)
     if primary_location_id:
         wanted.add(primary_location_id)
-    if principal.location_ids is not None and (has_all or not wanted <= principal.location_ids):
-        raise _self_escalation("You can only assign locations you have access to yourself.")
+    foreign: dict[UUID, bool] = {}  # location -> is_primary, outside the editor's set
+    if principal.location_ids is not None:
+        if has_all or not wanted <= principal.location_ids:
+            raise _self_escalation("You can only assign locations you have access to yourself.")
+        if staff_user.has_all_location_access:
+            raise _self_escalation("Only someone with access to every location can change this user's locations.")
+        foreign = {
+            a.location_id: a.is_primary and primary_location_id is None
+            for a in staff_user.location_access
+            if a.location_id not in principal.location_ids
+        }
     known = set(session.scalars(select(Location.id).where(Location.id.in_(wanted)))) if wanted else set()
     if wanted - known:
         raise ValidationFailed("Unknown location.", pointer="/location_ids")
     staff_user.has_all_location_access = has_all
     session.execute(delete(UserLocationAccess).where(UserLocationAccess.staff_user_id == staff_user.id))
-    for location_id in sorted(wanted):
+    rows = {location_id: location_id == primary_location_id for location_id in wanted} | foreign
+    for location_id in sorted(rows):
         session.add(
-            UserLocationAccess(
-                staff_user_id=staff_user.id, location_id=location_id, is_primary=location_id == primary_location_id
-            )
+            UserLocationAccess(staff_user_id=staff_user.id, location_id=location_id, is_primary=rows[location_id])
         )
 
 
@@ -209,11 +220,24 @@ def invite_staff_user(session: Session, principal: Principal, data: dict) -> Sta
     return _refresh(session, staff_user)
 
 
+_SECURITY_FIELDS = frozenset({"ip_policy", "access_expires_on"})  # extending access or lifting an IP restriction
+_UPDATABLE_FIELDS = _SECURITY_FIELDS | {
+    "first_name", "last_name", "mobile_phone", "linked_resource_id", "is_attendance_notified"
+}  # fmt: skip
+
+
 def update_staff_user(session: Session, principal: Principal, staff_user_id: UUID, data: dict) -> StaffUser:
     staff_user = get_staff_user(session, principal, staff_user_id, permission="platform.staff_user.update")
     _check_owner_protection(principal, staff_user)
-    for field, value in data.items():
-        setattr(staff_user, field, value)
+    if unknown := sorted(data.keys() - _UPDATABLE_FIELDS):
+        raise ValidationFailed(f"{unknown[0]} cannot be changed here.", code="unknown-field", pointer=f"/{unknown[0]}")
+    changed = {field for field, value in data.items() if getattr(staff_user, field) != value}
+    if changed & _SECURITY_FIELDS:
+        _check_not_self(principal, staff_user, "You cannot change your own access expiry or IP policy.")
+    if "ip_policy" in changed:
+        authorize(principal, "platform.security.manage")
+    for field in changed:
+        setattr(staff_user, field, data[field])
     audit.record(session, "platform.staff_user.update", staff_user, changes=audit.diff(staff_user))
     return _refresh(session, staff_user)
 
