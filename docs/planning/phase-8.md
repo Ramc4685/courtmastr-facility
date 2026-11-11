@@ -120,3 +120,10 @@ Playwright helpers that read cookies by name must use the shared sign-in helper.
 |---|---|---|---|
 | 2026-11-11 | plan | approved with the decisions above | |
 | 2026-11-11 | K1, K2, S1 | started | |
+| 2026-11-11 | K2 | merged `77f15d8` (chip `0a31429`); migrations 1210, 1211 down and up clean | `0a31429` |
+| 2026-11-11 | K1 | merged `e020a85` (chip `dbb6ad9`); no migration; presigned direct upload deferred | `dbb6ad9` |
+| 2026-11-11 | gate after K1 + K2 | lint clean; 3,854 backend tests passed, coverage 93%; web-check clean; web-test 134 passed on rerun (first run: the known `auth.test.tsx` timing flake under load); no OpenAPI drift | `e020a85` |
+
+Follow-ups from batch 1, each assigned: purge of expired report result bytes through `files.remove` (T2);
+flaky `auth.test.tsx` redirect test and the scheduling 1,500-occurrence timing test under load (K3);
+`nosniff` on the bucket origin (O1); public URL and bucket policy for `t/*/public/*` (T2).
