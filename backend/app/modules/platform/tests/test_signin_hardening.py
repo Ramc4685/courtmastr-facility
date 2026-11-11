@@ -233,6 +233,12 @@ def test_staff_outside_the_list_are_refused_at_sign_in_and_on_every_request(tena
 
     refused = _sign_in(outside, tenant, email=desk_email, client_kind="mobile")
     assert refused.status_code == 403 and refused.json()["code"] == "ip-not-allowed"
+    # Refused before the password is checked: a wrong password and an unknown email answer the same, and the
+    # wrong password does not count toward the lockout.
+    for email, password in ((desk_email, "wrong-password-123"), ("nobody@example.com", PASSWORD)):
+        assert _sign_in(outside, tenant, password=password, email=email).json()["code"] == "ip-not-allowed"
+    failures = scalar(tenant, select(Identity.failed_attempt_count).where(Identity.email == desk_email))
+    assert not failures
     assert _sign_in(inside, tenant, email=desk_email, client_kind="mobile").status_code == 200
     assert inside.get(f"{API}/me", headers=desk_session).status_code == 200
     moved = outside.get(f"{API}/me", headers=desk_session)

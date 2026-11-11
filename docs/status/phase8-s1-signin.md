@@ -30,6 +30,20 @@ and 6, and PLT-07. The full behaviour description is in `backend/app/modules/pla
 - **Per-location networks and `staff_user.ip_policy`.** The allow-list is tenant-wide, as the brief asks.
 - **Mobile `schema.d.ts`** was not regenerated (no mobile route changed).
 
+## Security review notes (automated review of the S1 commit)
+
+- **Fixed: credential oracle.** A staff sign-in from outside the allow-list is now refused with
+  `ip-not-allowed` before the password is checked, and an unknown email gets the same answer, so the refusal
+  reveals nothing about the credentials (`auth._refused_before_password`). Remaining signal: a bypass holder's
+  email (Owner, Admin) gets the ordinary `invalid-credentials` answer from outside, which marks it as
+  privileged. Accepted: those are also the accounts that must be able to recover a bad list.
+- **Accepted: API keys ignore the allow-list.** The brief scopes PLT-07 to staff sign-in and staff requests.
+  API keys belong to `integrations` and have no network policy yet; a per-key CIDR list is the follow-up.
+- **Accepted: per-address buckets can be spent by a third party.** Someone who knows a staff email can use up
+  its sign-in budget (10 per 15 min) and its emailed-link budget (3 per hour) and so delay that person's
+  sign-in. These are the baseline's section 6 rows as written. Keying the address buckets on (address,
+  client subnet), or giving magic links their own budget, is the fix if it shows up in practice.
+
 ## What S2 (MFA, step-up) and S3 (OIDC) should build on
 
 - `/security-settings` (`SecuritySettings` / `SecuritySettingsUpdate`) is the place for the MFA policy; the

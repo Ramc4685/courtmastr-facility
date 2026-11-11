@@ -78,7 +78,7 @@ Later modules must not assume these exist.
 - **Staff IP allow-list** (PLT-07): `tenant.staff_ip_allowlist` (`cidr[]`), edited at
   `GET/PATCH /security-settings` (`platform.security.manage`, audited under that key) and the Security
   screen (`/settings/security`). Evaluated at every staff sign-in and on every staff request (web and mobile
-  sessions); outside the list is `403 ip-not-allowed`; empty means no restriction; holders of
+  sessions); outside the list is `403 ip-not-allowed` (at sign-in decided before the password is checked, the same for unknown emails, so it is no credential oracle); empty means no restriction; holders of
   `platform.security.bypass_ip_allowlist` (Owner and Admin by default) are exempt. A list that leaves out the
   caller's own address is refused (`422 ip-allowlist-excludes-you`), whoever the caller is. CIDR parsing and
   matching live in `core/networks.py`, shared with POS registers and the time clock. Assumption: the brief's

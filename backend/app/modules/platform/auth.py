@@ -69,9 +69,26 @@ def check_ip_allowlist(session: Session, principal: Principal) -> None:
     bypass key. Checked at sign-in and on every staff request; client sessions and API keys are not staff."""
     if principal.kind != "staff" or principal.has("platform.security.bypass_ip_allowlist"):
         return
-    allowed = session.get(Tenant, principal.tenant_id).staff_ip_allowlist
-    if allowed and not networks.contains(allowed, context.client_ip.get()):
-        raise PermissionDenied("Staff access is not allowed from this network.", code="ip-not-allowed")
+    if _outside(session, principal.tenant_id):
+        raise _ip_not_allowed()
+
+
+def _outside(session: Session, tenant_id) -> bool:
+    allowed = session.get(Tenant, tenant_id).staff_ip_allowlist
+    return bool(allowed) and not networks.contains(allowed, context.client_ip.get())
+
+
+def _ip_not_allowed() -> PermissionDenied:
+    return PermissionDenied("Staff access is not allowed from this network.", code="ip-not-allowed")
+
+
+def _refused_before_password(session: Session, audience: str, identity: Identity | None) -> bool:
+    """Decided before the password is checked, and the same for an unknown email, so a refusal from outside
+    the allow-list says nothing about the credentials. Only bypass holders go on to the password check."""
+    if audience != "staff" or not _outside(session, session.info["tenant_id"]):
+        return False
+    principal = identity is not None and identity.kind == "staff" and _principal_for(session, identity)
+    return not (principal and principal.has("platform.security.bypass_ip_allowlist"))
 
 
 def _start_session(session: Session, identity: Identity, client_kind: str) -> Grant:
@@ -151,6 +168,9 @@ def _clear_failures(identity: Identity) -> None:
 def sign_in(session: Session, *, email: str, password: str, audience: str = "staff", client_kind: str = "web") -> Grant:
     now = clock.now()
     identity = _find_identity(session, audience, email)
+    if _refused_before_password(session, audience, identity):
+        passwords.burn(password)
+        raise _ip_not_allowed()
     if identity is None or identity.password_hash is None:
         passwords.burn(password)
         raise _invalid_credentials()
