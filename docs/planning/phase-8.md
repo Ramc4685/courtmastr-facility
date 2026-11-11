@@ -1,8 +1,7 @@
 # Phase 8 plan: platform, security and operations (Wave 7)
 
 Date: 2026-11-11. Branch: `claude/phase8-wave7-5be825`, cut from `main` at `6d8ca6c`. Source backlog:
-`docs/planning/remaining-work.md` sections 3, 4 (Wave 7), 5 and 6. Status: **draft, waiting for the owner's
-approval**. Nothing here is pushed or merged to `main` without the owner saying so.
+`docs/planning/remaining-work.md` sections 3, 4 (Wave 7), 5 and 6. Status: **approved by the owner on 2026-11-11** (decisions below). Nothing here is pushed or merged to `main` without the owner saying so.
 
 ## How the phase runs
 
@@ -45,7 +44,7 @@ points at the head it finds (`alembic heads`); the coordinator re-points one `do
 | **T1 Tenant plans and entitlements** | Opus | PLT-14 (plans, metered limits, add-on gating, `Me.entitlements`), PLT-09 (covered by the same flag mechanism), PLT-13 (branded-app portal users as an entitlement) | `platform/entitlements.py`, `platform/models.py` (`subscription_plan`, `tenant_entitlement`), platform router and screens | 1250 to 1259 | none |
 | **T2 Privacy, branding and onboarding** | Sonnet | PLT-08 logos, PLT-06 campaign permission levels, PLT-16 GDPR mode, IMP-04 export bundle as a stored file, ONB-01 setup checklist, ONB-03 support requests | `platform/privacy.py`, `platform/branding.py`, `platform/onboarding.py`, one permission edit in `engagement/permissions.py` (agreed with whoever owns engagement) | 1260 to 1269 | K1 merged (logos, export bundle) |
 | **T3 Location day in billing** | Sonnet | REL-04: statements and the AR cut use the location's day, not UTC | `billing/service.py` statement and AR functions and their tests only | none | Stripe lane merged to `main` and the phase branch rebased, so billing is not edited under a running lane |
-| **I1 Import** | Opus | IMP-01 templates, IMP-02 assisted import, MEM-23 | `platform/imports.py`, `import_job`, per-context import handlers | 1270 to 1279 | **blocked**: owner names the source system and data; K1 and K2 merged |
+| **I1 Import** | Opus | IMP-01 templates, IMP-02 assisted import, MEM-23, as a generic CSV import (decision 5) | `platform/imports.py`, `import_job`, per-context import handlers | 1270 to 1279 | K1 and K2 merged |
 | **D1 Docs refresh** | coordinator | stale READMEs, `16-integrations.md`, CLAUDE.md status table, status rows for the † rows, `unknowns.md` read | docs only | none | the three Phase 6 to 7 lanes merged |
 
 Parked, with the owner's agreement asked below: **PLT-10** (per-user UI preferences and dark mode, P2; better
@@ -95,24 +94,29 @@ Phase 8 owns `core/auth`, `core/db`, `core/jobs`, `ports/storage`, `platform` an
 cookie names and the CSRF token; the web client hides both, so Phase 10 screens are unaffected, but its
 Playwright helpers that read cookies by name must use the shared sign-in helper.
 
-## Open questions for the owner
+## Owner decisions (2026-11-11)
 
-1. **Hosting:** which cloud and region, and what uptime target? Until answered, O1 builds only what runs
-   anywhere (containers, proxy, backups, health checks).
-2. **OIDC:** Google, Microsoft or both? Default if no answer: generic OIDC with presets for both.
-3. **MFA:** required for Owner and Admin, or optional for everyone? Default: required for Owner and Admin,
-   optional for the rest.
-4. **Step-up:** may it wait for the first customer? Default: no, build it in S2, because payroll finalize
-   and voids are the actions it protects.
-5. **Import:** which source system, and which data (members, contracts, balances, products)? I1 does not
-   start without this.
-6. **Malware scanning:** baseline 8.1 asks for a ClamAV sidecar on uploads. Build it in K1 now, or ship K1
-   with type sniffing and image re-encoding (already in place) and add the scanner with the deployment?
-   Default: a scanner port with a no-op adapter now, ClamAV with the deployment.
-7. **Parking:** agree to park PLT-10, ONB-02 and ONB-05?
+1. **Hosting:** a cloud, chosen on cost; Fly.io (already used by the owner) or AWS, and the owner may switch.
+   So everything stays provider-neutral: container images, an S3-compatible storage adapter, plain Postgres
+   and Redis, a proxy config. O1 adds a Fly.io example config because it is the likely first target; no
+   deployment happens without the owner's explicit go. Uptime: as high as is practical, no contractual
+   number; the working target is 99.9% a month, written down as a goal with health checks and alerts.
+2. **OIDC:** generic OpenID Connect, with Google and Microsoft presets (both free). No paid identity broker.
+3. **MFA:** a tenant setting. Default: required for Owner and Admin, optional for other staff; a tenant
+   Owner can turn the requirement off (audited, behind step-up).
+4. **Step-up:** built now in S2 (coordinator's call, industry practice): `+` keys need a re-authentication
+   no older than 10 minutes, by MFA code if enrolled, else password.
+5. **Import:** no customer data to bring yet. I1 is unblocked as a **generic** import: our own CSV templates
+   for clients and households, memberships and contracts, opening balances and POS products, with a dry run,
+   a row-level error report and an idempotent commit. No vendor-specific converters until a customer needs one.
+6. **Malware scanning:** K1 builds the scanner port and a ClamAV (`clamd`) adapter, tested against an
+   optional Compose profile; dev and tests default to the no-op scanner; production config must enable it
+   (the app refuses to start in production with the no-op scanner).
+7. **Parked:** PLT-10 (to Phase 11 with portal theming), ONB-02 and ONB-05 (not software).
 
 ## Progress log
 
 | Date | Chip | State | Commit |
 |---|---|---|---|
-| 2026-11-11 | plan | draft written, waiting for approval | |
+| 2026-11-11 | plan | approved with the decisions above | |
+| 2026-11-11 | K1, K2, S1 | started | |
