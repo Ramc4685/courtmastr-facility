@@ -344,7 +344,7 @@ def _drain():
     worker = Worker(broker, worker_timeout=100)
     worker.start()
     try:
-        broker.join("default")
+        broker.join("default", fail_fast=True, timeout=300_000)
         worker.join()
     finally:
         worker.stop()

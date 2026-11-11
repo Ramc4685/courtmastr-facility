@@ -542,7 +542,9 @@ def test_webhook_reaches_a_local_receiver_signed(client, tenant, owner, monkeypa
         worker = Worker(broker, worker_timeout=100)
         worker.start()
         try:
-            broker.join("default")  # the fan-out enqueues the delivery job on the same queue
+            broker.join(
+                "default", fail_fast=True, timeout=300_000
+            )  # the fan-out enqueues the delivery job on the same queue
             worker.join()
         finally:
             worker.stop()
