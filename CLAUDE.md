@@ -59,10 +59,8 @@ docs/architecture/  docs/adr/  docs/api/  docs/discovery/  docs/dev/
   Outside tenant or location scope is 404, never 403. Keys are registered in the module's `permissions.py`.
 - **Audit (3.10, ADR 0007).** Every mutating service function calls `audit.record(...)` once per aggregate,
   in the same transaction. PII and free text are flag-only; secrets never.
-- **Events (3.11).** `events.publish(session, event, aggregate_id)` only; nothing goes to Redis from a request.
-  Subscribers are `@handles` + `@tenant_actor` and idempotent.
-- **Errors (3.13).** Services raise `DomainError` subclasses; routers never build error bodies. Constraint
-  names are API-relevant: map special ones in `core.api.CONSTRAINT_CODES`.
+- **Events (3.11).** `events.publish(session, event, aggregate_id)` only; subscribers are idempotent `@handles` + `@tenant_actor`.
+- **Errors (3.13).** Services raise `DomainError`; routers never build error bodies. Map special constraint names in `core.api.CONSTRAINT_CODES`.
 - **Lists (3.14).** Keyset pagination through `paginate()`; allow-listed sort and filter fields.
 - **Schema (3.1 to 3.3).** Singular snake_case tables; `text` + named CHECK instead of native enums
   (`enum_column` + `enum_check`); UUIDv7 ids; `_minor` bigint money; `timestamptz` in UTC; local wall time
@@ -78,11 +76,13 @@ docs/architecture/  docs/adr/  docs/api/  docs/discovery/  docs/dev/
 - **Tests (section 5).** Real PostgreSQL 16 from Compose, connected as `fh_app`. No SQLite, no database
   mocks. Every new table must be populated by `populate()` in `backend/conftest.py`, which enrols it in the
   generated isolation tests. Every new route is checked by `backend/tests/test_security.py`.
+- **Security (wave 1, playbook section "Security rules").** `L` keys: `authorize(..., location_id=record.location_id)`;
+  request ids only via scoped loaders; gates in the shared inner function; privileged flags need own key; money
+  only to its owner; portal sales end in `secure_online_checkout`; portal routes never reuse staff schemas.
 - **Web.** No tokens in browser storage; all calls through `src/api/client.ts`; WCAG 2.1 AA with an axe scan
   in every Playwright spec; colours from the CSS variables, never raw values.
-- **Secrets.** Environment only. `.env` is git-ignored; `.env.example` holds dev-only values. Emailed link
+- **Secrets.** (Document precedence: `docs/architecture/README.md` section 1.) Environment only. `.env` is git-ignored; `.env.example` holds dev-only values. Emailed link
   tokens ride in the URL fragment, never the query string (security-baseline 17.2).
-- Document precedence when two disagree: `docs/architecture/README.md` section 1.
 
 ## Adding a module
 
