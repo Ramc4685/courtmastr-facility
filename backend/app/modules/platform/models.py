@@ -542,3 +542,35 @@ class StoredFile(TenantOwned, Timestamps, Base):
     status: Mapped[str] = enum_column(server_default=text("'pending'"))
     uploaded_by_type: Mapped[str] = enum_column()
     uploaded_by_id: Mapped[UUID | None]
+
+
+# --- 2.5 Dead letters (ADR 0008 section 7) --------------------------------------------------------------------
+
+
+class FailedJobResolution(StrEnum):
+    REQUEUED = "requeued"
+    DISCARDED = "discarded"
+
+
+class FailedJob(TenantOwned, Timestamps, Base):
+    """A background message that exhausted its retries, written by `core.jobs.FailedJobRecorder`. Args are ids
+    and dates only (ADR 0008 section 2); the error is its class and first line, never a payload. Deviation from
+    data-model-core 2.5: created_at and updated_at as on other mutable tables (resolution updates the row)."""
+
+    __tablename__ = "failed_job"
+    __table_args__ = tenant_args(
+        UniqueConstraint("tenant_id", "message_id", name="uq_failed_job"),
+        Index("ix_failed_job_open", "tenant_id", "failed_at", postgresql_where=text("resolved_at IS NULL")),
+        enum_check("resolution", FailedJobResolution),
+    )
+
+    actor_name: Mapped[str] = mapped_column(info={"audit": "value"})
+    queue: Mapped[str] = mapped_column(info={"audit": "value"})
+    message_id: Mapped[str] = mapped_column(info={"audit": "value"})
+    args: Mapped[list] = mapped_column(JsonDict)
+    error_class: Mapped[str] = mapped_column(info={"audit": "value"})
+    error_detail: Mapped[str | None]
+    attempts: Mapped[int]
+    failed_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
+    resolved_at: Mapped[datetime | None]
+    resolution: Mapped[str | None] = enum_column()

@@ -133,6 +133,7 @@ def populate(client, tenant) -> SimpleNamespace:
 
     from app.core.events import ProcessedEvent
     from app.modules import billing, clients
+    from app.modules.platform.models import FailedJob
 
     headers = login(client, tenant)
     location = client.post(
@@ -158,6 +159,8 @@ def populate(client, tenant) -> SimpleNamespace:
     )
     with tenant_session(tenant.id) as session:
         session.add(ProcessedEvent(consumer_name="tests.populate", event_id=uuid4()))
+        session.add(FailedJob(actor_name="tests.populate", queue="default", message_id=str(uuid4()), args=[],
+                              error_class="RuntimeError", attempts=1))  # fmt: skip
     session_id = client.get("/api/v1/auth/session", headers=headers).json()["id"]
 
     # clients skeleton and billing kernel: a taxed charge, invoiced, paid by card with an overpayment that is

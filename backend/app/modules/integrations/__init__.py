@@ -6,6 +6,6 @@ Public interface for routers, jobs and other contexts: `service` (internal funct
 another context.
 """
 
-from app.modules.integrations import auth, handlers, models, permissions, service
+from app.modules.integrations import auth, handlers, jobs, models, permissions, service
 
-__all__ = ["auth", "handlers", "models", "permissions", "service"]
+__all__ = ["auth", "handlers", "jobs", "models", "permissions", "service"]

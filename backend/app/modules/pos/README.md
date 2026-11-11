@@ -75,8 +75,8 @@ client's profile. Memberships are not sold at the till (not in the parity matrix
 
 ## Known gaps
 
-- `abandon_stale_drafts()` exists and is tested, but nothing schedules it yet. The worker schedule belongs to
-  the integrator.
+- `abandon_stale_drafts()` runs hourly through `jobs.abandon_stale_drafts` (app/scheduler.py); drafts idle for
+  24 hours with no money taken become `abandoned`.
 - `StockLow` is published when a sale or adjustment crosses the reorder level. The daily digest email to
   `low_stock_alert_email` is not built.
 - Not built:
