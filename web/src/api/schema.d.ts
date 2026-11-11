@@ -10303,6 +10303,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/shifts/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Copy Shifts
+         * @description Copies a week of shifts as drafts; one that would overlap another shift is skipped and counted.
+         */
+        post: operations["copyShifts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/shifts/publish": {
         parameters: {
             query?: never;
@@ -10314,6 +10334,26 @@ export interface paths {
         put?: never;
         /** Publish Shifts */
         post: operations["publishShifts"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/shifts/variance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Shift Variance
+         * @description Published shifts (local dates, at most 62 days) against time entries: minutes scheduled, worked, the gap.
+         */
+        get: operations["getShiftVariance"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -10501,6 +10541,27 @@ export interface paths {
         patch: operations["updateStaffPayee"];
         trace?: never;
     };
+    "/api/v1/staff-payees/{staff_payee_id}/bonus-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Bonus Rules */
+        get: operations["listBonusRules"];
+        /**
+         * Put Bonus Rules
+         * @description Replaces the trainer's trained-hour and off-hour bonuses; applied by payroll runs from then on.
+         */
+        put: operations["putBonusRules"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff-payees/{staff_payee_id}/commission-rules": {
         parameters: {
             query?: never;
@@ -10548,6 +10609,48 @@ export interface paths {
         put: operations["putDefaultPayRate"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff-payees/{staff_payee_id}/pay-rates/membership-types/{membership_type_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Membership Pay Rate
+         * @description Pay for sessions of a client holding this membership type (any 60/45/30, comp and commission fields).
+         */
+        put: operations["putMembershipPayRate"];
+        post?: never;
+        /** Delete Membership Pay Rate */
+        delete: operations["deleteMembershipPayRate"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/staff-payees/{staff_payee_id}/pay-rates/{reservation_type_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Pay Rate Override
+         * @description Pay for one reservation type instead of the default row.
+         */
+        put: operations["putPayRateOverride"];
+        post?: never;
+        /** Delete Pay Rate Override */
+        delete: operations["deletePayRateOverride"];
         options?: never;
         head?: never;
         patch?: never;
@@ -13109,6 +13212,66 @@ export interface components {
             scope?: ("all" | "online_only") | null;
             /** Starts At */
             starts_at?: string | null;
+        };
+        /**
+         * BonusRuleIn
+         * @description `trained_hours` needs threshold_minutes; `off_hours` needs from_minute, to_minute (minutes after local
+         *     midnight, up to 1440) and weekdays (0 = Monday). amount_minor is a flat bonus, or per hour for off hours.
+         */
+        BonusRuleIn: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** From Minute */
+            from_minute?: number | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "trained_hours" | "off_hours";
+            /** Threshold Minutes */
+            threshold_minutes?: number | null;
+            /** To Minute */
+            to_minute?: number | null;
+            /** Weekdays */
+            weekdays?: number[] | null;
+        };
+        /** BonusRuleOut */
+        BonusRuleOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** From Minute */
+            from_minute: number | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "trained_hours" | "off_hours";
+            /** Threshold Minutes */
+            threshold_minutes: number | null;
+            /** To Minute */
+            to_minute: number | null;
+            /** Weekdays */
+            weekdays: number[] | null;
+        };
+        /** BonusRuleSet */
+        BonusRuleSet: {
+            /** Rules */
+            rules: components["schemas"]["BonusRuleOut"][];
+            /**
+             * Staff Payee Id
+             * Format: uuid
+             */
+            staff_payee_id: string;
+        };
+        /** BonusRulesPut */
+        BonusRulesPut: {
+            /** Rules */
+            rules: components["schemas"]["BonusRuleIn"][];
         };
         /** BookingCancel */
         BookingCancel: {
@@ -21958,6 +22121,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Membership Type Id */
+            membership_type_id: string | null;
             /** Non Training Rate Minor */
             non_training_rate_minor: number | null;
             /**
@@ -28655,6 +28820,33 @@ export interface components {
              */
             client_id: string;
         };
+        /** ShiftCopy */
+        ShiftCopy: {
+            /**
+             * From Starts On
+             * Format: date
+             * @description First local date of the seven days to copy
+             */
+            from_starts_on: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * To Starts On
+             * Format: date
+             * @description First local date of the seven days to copy onto
+             */
+            to_starts_on: string;
+        };
+        /** ShiftCopyResult */
+        ShiftCopyResult: {
+            /** Copied Count */
+            copied_count: number;
+            /** Skipped Count */
+            skipped_count: number;
+        };
         /** ShiftCreate */
         ShiftCreate: {
             /**
@@ -28750,6 +28942,51 @@ export interface components {
             staff_user_id?: string | null;
             /** Starts At */
             starts_at?: string | null;
+        };
+        /** ShiftVarianceOut */
+        ShiftVarianceOut: {
+            /** Display Name */
+            display_name: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** First In At */
+            first_in_at: string | null;
+            /** Last Out At */
+            last_out_at: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Scheduled Minutes */
+            scheduled_minutes: number;
+            /**
+             * Shift Id
+             * Format: uuid
+             */
+            shift_id: string;
+            /**
+             * Staff User Id
+             * Format: uuid
+             */
+            staff_user_id: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "upcoming" | "no_show" | "short" | "met";
+            /** Variance Minutes */
+            variance_minutes: number;
+            /** Worked Minutes */
+            worked_minutes: number;
         };
         /** SignInRequest */
         SignInRequest: {
@@ -57576,6 +57813,42 @@ export interface operations {
             };
         };
     };
+    copyShifts: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShiftCopy"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShiftCopyResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     publishShifts: {
         parameters: {
             query?: never;
@@ -57599,6 +57872,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ShiftPublishResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getShiftVariance: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                location_id?: string | null;
+                staff_user_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShiftVarianceOut"][];
                 };
             };
             /** @description Validation Error */
@@ -58210,6 +58520,78 @@ export interface operations {
             };
         };
     };
+    listBonusRules: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_payee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BonusRuleSet"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putBonusRules: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_payee_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BonusRulesPut"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BonusRuleSet"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getCommissionRules: {
         parameters: {
             query?: never;
@@ -58342,6 +58724,150 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PayRateOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putMembershipPayRate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_payee_id: string;
+                membership_type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayRateWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayRateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteMembershipPayRate: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_payee_id: string;
+                membership_type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putPayRateOverride: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_payee_id: string;
+                reservation_type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayRateWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayRateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deletePayRateOverride: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_payee_id: string;
+                reservation_type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

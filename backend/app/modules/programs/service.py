@@ -511,14 +511,18 @@ def on_session_cancelled(session: Db, session_id: UUID) -> None:
 # --- internal: payroll facts (staff, STF-09) ---------------------------------------------------------------------
 
 
-def attended_counts(session: Db, session_ids) -> dict[UUID, int]:
-    """Clients marked attended per session: the attendee count a per-attendee trainer is paid on."""
+def attended_enrollments(session: Db, session_ids) -> dict[UUID, list[UUID]]:
+    """Enrolments marked attended per session: the attendees a trainer is paid for, each with the package credit
+    its enrolment spent (staff payroll, STF-02, STF-10)."""
     ids = list(session_ids)
     rows = session.execute(
-        select(Attendance.session_id, func.count()).where(Attendance.session_id.in_(ids), Attendance.status == "attended")
-        .group_by(Attendance.session_id)
+        select(Attendance.session_id, Attendance.enrollment_id)
+        .where(Attendance.session_id.in_(ids), Attendance.status == "attended")
     ).all() if ids else []  # fmt: skip
-    return {row[0]: int(row[1]) for row in rows}
+    found: dict[UUID, list[UUID]] = {}
+    for session_id, enrollment_id in rows:
+        found.setdefault(session_id, []).append(enrollment_id)
+    return found
 
 
 # --- roster message (CLS-03) -------------------------------------------------------------------------------

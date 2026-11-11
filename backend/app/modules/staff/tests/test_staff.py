@@ -1,7 +1,7 @@
 """staff (build module 12): payees, pay and commission rules, the time clock, manager entries, shifts,
 instructor assignment and payroll runs, each through the API with both permission gates and location scope."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -14,6 +14,7 @@ from app.core.auth import Principal
 from app.core.db.session import tenant_session
 from app.core.errors import PermissionDenied
 from app.core.events import OutboxEvent
+from app.modules.memberships.tests.support import package_plan
 from app.modules.scheduling.tests.helpers import API, DAY, at, book, facility, local, ok
 from app.modules.staff import service
 from conftest import PASSWORD, add_staff, login, make_tenant, new_client, populate, scalar
@@ -481,3 +482,297 @@ def test_w2_05_a_payroll_runner_never_adds_income_to_their_own_statement(client,
                        permissions={service.RUN_CREATE: "all"})  # a custom role below Admin  # fmt: skip
     with tenant_session(tenant.id, actor=runner) as session, pytest.raises(PermissionDenied):
         service.update_pay_statement(session, runner, UUID(mine["id"]), {"additional_income_minor": 500})
+
+
+# --- Phase 10 chip D: floor and flat pay, overrides, bonuses, shift tools -----------------------------------
+
+
+def _utc(stamp: str) -> datetime:
+    return datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+
+
+def _coach_payee(client, owner, f, **rate):
+    trainer = _post(client, owner, "/staff-payees", {
+        "kind": "trainer", "display_name": "Coach Kim", "location_id": f.location, "resource_id": f.coach})  # fmt: skip
+    body = {"pay_basis": "per_session", "rate_60_minor": 3000} | rate
+    ok(client.put(f"{API}/staff-payees/{trainer['id']}/pay-rates/default", headers=owner, json=body), 200)
+    return trainer
+
+
+def _lines(client, owner, run_id, name="Coach Kim"):
+    statements = ok(client.get(f"{API}/payroll-runs/{run_id}/statements", headers=owner), 200)["data"]
+    statement = next(s for s in statements if s["display_name"] == name)
+    lines = ok(client.get(f"{API}/pay-statements/{statement['id']}/lines", headers=owner), 200)["data"]
+    return statement, [(line["kind"], line["amount_minor"]) for line in lines]
+
+
+def test_floor_flat_and_bonus_lines_are_their_own_statement_lines(client, tenant, owner, f):
+    trainer = _coach_payee(client, owner, f, floor_rate_minor=1800, program_instruction_rate_minor=4000)
+    rules = {"rules": [
+        {"kind": "trained_hours", "threshold_minutes": 120, "amount_minor": 500},
+        {"kind": "off_hours", "weekdays": [0], "from_minute": 17 * 60, "to_minute": 1440, "amount_minor": 600},
+    ]}  # fmt: skip
+    ok(client.put(f"{API}/staff-payees/{trainer['id']}/bonus-rules", headers=owner, json=rules), 200)
+    booked = _session(client, owner, f, [f.coach], local(f.zone, 2031, 5, 5, 10), local(f.zone, 2031, 5, 5, 11))
+    person = new_client(client, owner, f.location)
+    enrolled = _post(client, owner, "/enrollments", {"session_id": booked["session"]["id"], "client_id": person["id"]})
+    for kind, (start, end) in (("floor_shift", (12, 13.5)), ("instruction", (18, 19)), ("unpaid", (14, 15))):
+        ok(book(client, owner, f, [f.coach], local(f.zone, 2031, 5, 5, int(start), int(start % 1 * 60)),
+                local(f.zone, 2031, 5, 5, int(end), int(end % 1 * 60)), block_kind=kind))  # fmt: skip
+    with clock.freeze(DAY + timedelta(days=1)):
+        owner = login(client, tenant)
+        ok(client.put(f"{API}/sessions/{booked['session']['id']}/attendance", headers=owner,
+                      json={"marks": [{"enrollment_id": enrolled["id"], "status": "attended"}]}), 200)  # fmt: skip
+        period = {"location_id": f.location, "period_starts_on": "2031-05-01", "period_ends_on": "2031-05-10"}
+        run = _post(client, owner, "/payroll-runs", period)
+        statement, lines = _lines(client, owner, run["id"])
+        assert sorted(lines) == sorted([
+            ("session", 3000), ("floor", 2700), ("program_instruction", 4000),
+            ("trained_hours_bonus", 500),  # session and instruction block: 120 trained minutes, exactly the threshold
+            ("off_hours_bonus", 600),  # the 18:00 to 19:00 Monday block is the only trained time after 17:00
+        ])  # fmt: skip
+        assert (statement["session_pay_minor"], statement["bonus_minor"], statement["total_minor"]) == (
+            9700,
+            1100,
+            10800,
+        )
+        # One minute under the threshold earns no trained-hours bonus.
+        rules["rules"][0]["threshold_minutes"] = 121
+        ok(client.put(f"{API}/staff-payees/{trainer['id']}/bonus-rules", headers=owner, json=rules), 200)
+        ok(client.post(f"{API}/payroll-runs/{run['id']}/recalculate", headers=owner), 200)
+        assert _lines(client, owner, run["id"])[0]["bonus_minor"] == 600
+        # A finalized run is frozen: changing the rules afterwards does not touch it, and a void stays frozen.
+        ok(client.post(f"{API}/payroll-runs/{run['id']}/finalize", headers=owner), 200)
+        ok(client.put(f"{API}/staff-payees/{trainer['id']}/bonus-rules", headers=owner, json={"rules": []}), 200)
+        assert _lines(client, owner, run["id"])[0]["bonus_minor"] == 600
+        ok(client.post(f"{API}/payroll-runs/{run['id']}/void", headers=owner), 200)
+        assert (
+            _code(client.post(f"{API}/payroll-runs/{run['id']}/recalculate", headers=owner), 409)
+            == "payroll-run-frozen"
+        )
+        assert _lines(client, owner, run["id"])[0]["total_minor"] == 3000 + 2700 + 4000 + 600
+
+
+def test_override_rates_by_reservation_type_and_membership_type(client, tenant, owner, f):
+    trainer = _coach_payee(client, owner, f)
+    url = f"{API}/staff-payees/{trainer['id']}/pay-rates"
+    override = ok(
+        client.put(f"{url}/{f.type}", headers=owner, json={"pay_basis": "per_session", "rate_60_minor": 5000}), 200
+    )
+    assert override["reservation_type_id"] == f.type and override["membership_type_id"] is None
+    assert len(ok(client.get(url, headers=owner), 200)) == 2
+    again = ok(
+        client.put(f"{url}/{f.type}", headers=owner, json={"pay_basis": "per_session", "rate_60_minor": 5500}), 200
+    )
+    assert again["id"] == override["id"] and again["rate_60_minor"] == 5500
+    flat = client.put(f"{url}/{f.type}", headers=owner, json={"pay_basis": "per_session", "floor_rate_minor": 1})
+    assert flat.status_code == 422 and flat.json()["errors"][0]["pointer"] == "/floor_rate_minor"
+    nowhere = client.put(f"{url}/{UUID(int=7)}", headers=owner, json={"pay_basis": "per_session"})
+    assert nowhere.json()["errors"][0]["pointer"] == "/reservation_type_id"
+    unknown = client.put(f"{url}/membership-types/{UUID(int=7)}", headers=owner, json={"pay_basis": "per_session"})
+    assert unknown.status_code == 422 and unknown.json()["errors"][0]["pointer"] == "/membership_type_id"
+    manager_email, _ = add_staff(tenant, "manager", location_ids=[f.location])
+    manager = login(client, tenant, manager_email)
+    assert client.put(f"{url}/{f.type}", headers=manager, json={"pay_basis": "per_session"}).status_code == 403
+    assert client.delete(f"{url}/{f.type}", headers=manager).status_code == 403
+    booked = _session(client, owner, f, [f.coach], at(15), at(16))
+    person = new_client(client, owner, f.location)
+    enrolled = _post(client, owner, "/enrollments", {"session_id": booked["session"]["id"], "client_id": person["id"]})
+    with clock.freeze(DAY + timedelta(days=1)):
+        owner = login(client, tenant)
+        ok(client.put(f"{API}/sessions/{booked['session']['id']}/attendance", headers=owner,
+                      json={"marks": [{"enrollment_id": enrolled["id"], "status": "attended"}]}), 200)  # fmt: skip
+        period = {"location_id": f.location, "period_starts_on": "2031-05-01", "period_ends_on": "2031-05-10"}
+        assert _lines(client, owner, _post(client, owner, "/payroll-runs", period)["id"])[1] == [("session", 5500)]
+        assert client.delete(f"{url}/{f.type}", headers=owner).status_code == 204
+        assert client.delete(f"{url}/{f.type}", headers=owner).status_code == 404
+        assert _lines(client, owner, _post(client, owner, "/payroll-runs", period)["id"])[1] == [("session", 3000)]
+
+
+def test_bonus_rule_shapes_and_keys(client, tenant, owner, f):
+    trainer = _coach_payee(client, owner, f)
+    url = f"{API}/staff-payees/{trainer['id']}/bonus-rules"
+    bad = [
+        {"kind": "trained_hours", "amount_minor": 1},
+        {"kind": "trained_hours", "amount_minor": 1, "threshold_minutes": 60, "weekdays": [1]},
+        {"kind": "off_hours", "amount_minor": 1, "weekdays": [0], "from_minute": 600, "to_minute": 600},
+        {"kind": "off_hours", "amount_minor": 1, "weekdays": [7], "from_minute": 0, "to_minute": 60},
+        {"kind": "off_hours", "amount_minor": 1, "from_minute": 0, "to_minute": 60},
+    ]
+    for rule in bad:
+        assert client.put(url, headers=owner, json={"rules": [rule]}).status_code == 422, rule
+    saved = ok(
+        client.put(
+            url,
+            headers=owner,
+            json={
+                "rules": [
+                    {
+                        "kind": "off_hours",
+                        "amount_minor": 300,
+                        "weekdays": [5, 6, 5],
+                        "from_minute": 0,
+                        "to_minute": 1440,
+                    }
+                ]
+            },
+        ),
+        200,
+    )
+    assert saved["rules"][0]["weekdays"] == [5, 6]
+    assert len(ok(client.get(url, headers=owner), 200)["rules"]) == 1
+    manager_email, manager_id = add_staff(tenant, "manager", location_ids=[f.location])
+    manager = login(client, tenant, manager_email)
+    assert client.get(url, headers=manager).status_code == 403
+    assert client.put(url, headers=manager, json={"rules": []}).status_code == 403
+    seller = _post(client, owner, "/staff-payees", {"kind": "salesperson", "display_name": "Sam",
+                                                    "location_id": f.location, "staff_user_id": str(manager_id)})  # fmt: skip
+    assert (
+        client.put(f"{API}/staff-payees/{seller['id']}/bonus-rules", headers=owner, json={"rules": []}).status_code
+        == 422
+    )
+
+
+def test_shift_publish_notifies_copy_week_and_variance(client, tenant, owner, f, mailbox):
+    manager_email, _ = add_staff(tenant, "manager", location_ids=[f.location])
+    manager = login(client, tenant, manager_email)
+    desk_email, desk_id = add_staff(tenant, "front_desk", location_ids=[f.location])
+    job = _hourly(client, owner, desk_id)
+    mon, tue = local(f.zone, 2031, 5, 5, 10), local(f.zone, 2031, 5, 6, 10)
+    first = _post(client, manager, "/shifts", {"staff_user_id": str(desk_id), "location_id": f.location,
+                  "job_classification_id": job, "starts_at": mon, "ends_at": local(f.zone, 2031, 5, 5, 14)})  # fmt: skip
+    second = _post(client, manager, "/shifts", {"staff_user_id": str(desk_id), "location_id": f.location,
+                   "starts_at": tue, "ends_at": local(f.zone, 2031, 5, 6, 14)})  # fmt: skip
+    mailbox.clear()
+    ok(client.post(f"{API}/shifts/publish", headers=manager, json={"shift_ids": [first["id"], second["id"]]}), 200)
+    assert [m.to for m in mailbox] == [desk_email]  # one email per employee, not per shift
+    assert "Mon May 5, 10:00 to 14:00" in mailbox[0].body and "Tue May 6, 10:00 to 14:00" in mailbox[0].body
+    mailbox.clear()
+    ok(client.post(f"{API}/shifts/publish", headers=manager, json={"shift_ids": [first["id"]]}), 200)
+    assert mailbox == [] and _events(tenant, "staff.shift.published") == 2  # nothing newly published
+
+    # copy the week to the next: Mon and Tue come across as drafts, wall times kept; a second copy collides
+    copy = {"location_id": f.location, "from_starts_on": "2031-05-05", "to_starts_on": "2031-05-12"}
+    assert ok(client.post(f"{API}/shifts/copy", headers=manager, json=copy), 200) == {
+        "copied_count": 2,
+        "skipped_count": 0,
+    }
+    assert ok(client.post(f"{API}/shifts/copy", headers=manager, json=copy), 200) == {
+        "copied_count": 0,
+        "skipped_count": 2,
+    }
+    every = ok(client.get(f"{API}/shifts?location_id={f.location}&limit=50", headers=manager), 200)["data"]
+    copied = [(row["status"], _utc(row["starts_at"])) for row in every if _utc(row["starts_at"]).day >= 12]
+    assert copied == [("draft", _utc(local(f.zone, 2031, 5, 12, 10))), ("draft", _utc(local(f.zone, 2031, 5, 13, 10)))]
+    same = client.post(f"{API}/shifts/copy", headers=manager, json=copy | {"to_starts_on": "2031-05-05"})
+    assert same.status_code == 422
+    desk = login(client, tenant, desk_email)
+    assert client.post(f"{API}/shifts/copy", headers=desk, json=copy).status_code == 403
+
+    # variance: Monday was worked 10:30 to 13:00 plus a punch outside the shift; Tuesday nobody came
+    for start, end in ((local(f.zone, 2031, 5, 5, 9), local(f.zone, 2031, 5, 5, 10, 30)),
+                       (local(f.zone, 2031, 5, 5, 10, 45), local(f.zone, 2031, 5, 5, 13))):  # fmt: skip
+        _post(client, owner, "/time-entries", {"staff_user_id": str(desk_id), "location_id": f.location,
+              "job_classification_id": job, "clock_in_at": start, "clock_out_at": end, "edit_reason": "Manual"})  # fmt: skip
+    window = f"{API}/shifts/variance?from=2031-05-05&to=2031-05-11&location_id={f.location}"
+    assert [r["state"] for r in ok(client.get(window, headers=manager), 200)] == ["upcoming"] * 2  # not yet worked
+    with clock.freeze(DAY + timedelta(days=7)):
+        manager = login(client, tenant, manager_email)
+        rows = ok(client.get(window, headers=manager), 200)
+        assert [(r["state"], r["scheduled_minutes"], r["worked_minutes"], r["variance_minutes"]) for r in rows] == [
+            ("short", 240, 30 + 135, -75), ("no_show", 240, 0, -240)]  # fmt: skip
+        assert _utc(rows[0]["first_in_at"]) == _utc(local(f.zone, 2031, 5, 5, 10)) and rows[1]["first_in_at"] is None
+        assert client.get(window.replace("2031-05-11", "2031-09-01"), headers=manager).status_code == 422
+        assert client.get(window, headers=login(client, tenant, desk_email)).status_code == 403
+
+
+# --- review fixes: credits per attendee, overlapping runs, own pay, copy across the clock change -------------
+
+
+def test_comp_and_completion_commission_are_decided_per_attendee(client, tenant, owner, f):
+    trainer = _coach_payee(client, owner, f, pay_basis="per_attendee", comp_session_rate_minor=1000)
+    ok(client.put(f"{API}/staff-payees/{trainer['id']}/commission-rules", headers=owner,
+                  json={"rules": [{"applies_to": "session_completion", "commission_pct": "10"}]}), 200)  # fmt: skip
+    plan = package_plan(client, owner, tenant, reservation_type_id=f.type)  # ten sessions at 100.00: 10.00 each
+    gifted, bought = (new_client(client, owner, f.location)["id"] for _ in range(2))
+    gift = ok(client.post(f"{API}/client-packages/complimentary", headers=owner,
+                          json={"client_id": gifted, "location_id": f.location, "package_plan_id": plan["id"]}))  # fmt: skip
+    paid = ok(client.post(f"{API}/client-packages", headers=owner,
+                          json={"client_id": bought, "location_id": f.location, "package_plan_id": plan["id"]}))  # fmt: skip
+    booked = ok(book(client, owner, f, [f.coach], at(15), at(16), kind="session",
+                     session={"capacity": 2, "allows_free_booking": False}))["booking"]  # fmt: skip
+    seat = booked["session"]["id"]
+    places = [_post(client, owner, "/enrollments", {"session_id": seat, "client_id": person, "client_package_id": pack})
+              for person, pack in ((gifted, gift["id"]), (bought, paid["id"]))]  # fmt: skip
+    with clock.freeze(DAY + timedelta(days=1)):
+        owner = login(client, tenant)
+        ok(client.put(f"{API}/sessions/{seat}/attendance", headers=owner,
+                      json={"marks": [{"enrollment_id": p["id"], "status": "attended"} for p in places]}), 200)  # fmt: skip
+        period = {"location_id": f.location, "period_starts_on": "2031-05-01", "period_ends_on": "2031-05-10"}
+        both = _post(client, owner, "/payroll-runs", period)
+        assert sorted(_lines(client, owner, both["id"])[1]) == [
+            ("comp_session", 1000), ("session", 3000), ("session_completion_commission", 100)]  # fmt: skip
+        # A commissions-only run still lists the completion commission (it is not session pay).
+        only = _post(client, owner, "/payroll-runs", period | {"includes": ["commissions"]})
+        assert _lines(client, owner, only["id"])[1] == [("session_completion_commission", 100)]
+
+
+def test_a_second_run_never_pays_finalized_sessions_again(client, tenant, owner, f):
+    _coach_payee(client, owner, f)
+    booked = _session(client, owner, f, [f.coach], at(15), at(16))
+    person = new_client(client, owner, f.location)
+    enrolled = _post(client, owner, "/enrollments", {"session_id": booked["session"]["id"], "client_id": person["id"]})
+    with clock.freeze(DAY + timedelta(days=30)):
+        owner = login(client, tenant)
+        ok(client.put(f"{API}/sessions/{booked['session']['id']}/attendance", headers=owner,
+                      json={"marks": [{"enrollment_id": enrolled["id"], "status": "attended"}]}), 200)  # fmt: skip
+        week = {"location_id": f.location, "period_starts_on": "2031-05-01", "period_ends_on": "2031-05-07"}
+        month = week | {"period_ends_on": "2031-05-30"}
+        pending = _post(client, owner, "/payroll-runs", month)  # calculated before the week is finalized
+        weekly = _post(client, owner, "/payroll-runs", week)
+        ok(client.post(f"{API}/payroll-runs/{weekly['id']}/finalize", headers=owner), 200)
+        assert _code(client.post(f"{API}/payroll-runs", headers=owner, json=month), 409) == "payroll-period-overlap"
+        tenant_wide = {k: v for k, v in month.items() if k != "location_id"}
+        assert (
+            _code(client.post(f"{API}/payroll-runs", headers=owner, json=tenant_wide), 409) == "payroll-period-overlap"
+        )
+        recalc = client.post(f"{API}/payroll-runs/{pending['id']}/recalculate", headers=owner)
+        assert _code(recalc, 409) == "payroll-period-overlap"
+        # Commissions only, or a later period, does not pay sessions again and is allowed.
+        _post(client, owner, "/payroll-runs", month | {"includes": ["commissions"]})
+        _post(client, owner, "/payroll-runs", week | {"period_starts_on": "2031-05-08", "period_ends_on": "2031-05-14"})
+        ok(client.post(f"{API}/payroll-runs/{weekly['id']}/void", headers=owner), 200)  # a voided run blocks nothing
+        assert _lines(client, owner, _post(client, owner, "/payroll-runs", month)["id"])[1] == [("session", 3000)]
+
+
+def test_a_pay_manager_below_admin_never_edits_their_own_pay(client, tenant, owner, f):
+    _, coach_id = add_staff(tenant, "coach", location_ids=[f.location])
+    trainer = _post(client, owner, "/staff-payees", {"kind": "trainer", "display_name": "Pat", "location_id": f.location,
+                                                     "staff_user_id": str(coach_id)})  # fmt: skip
+    payee_id = UUID(trainer["id"])
+    self_manager = Principal(kind="staff", tenant_id=tenant.id, staff_user_id=coach_id,
+                             permissions={service.PAY_MANAGE: "all"})  # a custom role below Admin  # fmt: skip
+    rate = {"pay_basis": "per_session", "rate_60_minor": 9999}
+    attempts = (
+        lambda s: service.put_default_pay_rate(s, self_manager, payee_id, rate),
+        lambda s: service.put_pay_rate_override(s, self_manager, payee_id, rate, reservation_type_id=UUID(f.type)),
+        lambda s: service.delete_pay_rate_override(s, self_manager, payee_id, reservation_type_id=UUID(f.type)),
+        lambda s: service.put_bonus_rules(s, self_manager, payee_id, []),
+    )
+    for attempt in attempts:
+        with tenant_session(tenant.id, actor=self_manager) as session, pytest.raises(PermissionDenied):
+            attempt(session)
+    ok(client.put(f"{API}/staff-payees/{trainer['id']}/pay-rates/default", headers=owner, json=rate), 200)
+
+
+def test_copying_a_shift_into_the_spring_forward_gap_skips_it(client, tenant, owner, f):
+    desk_email, desk_id = add_staff(tenant, "front_desk", location_ids=[f.location])
+    _post(client, owner, "/shifts", {"staff_user_id": str(desk_id), "location_id": f.location,
+                                     "starts_at": local(f.zone, 2031, 3, 2, 2, 30),
+                                     "ends_at": local(f.zone, 2031, 3, 2, 5)})  # fmt: skip
+    copy = {"location_id": f.location, "from_starts_on": "2031-02-24", "to_starts_on": "2031-03-03"}
+    # 02:30 on Sunday 9 March 2031 does not exist in Chicago: the copy is skipped, never moved an hour.
+    assert ok(client.post(f"{API}/shifts/copy", headers=owner, json=copy), 200) == {
+        "copied_count": 0,
+        "skipped_count": 1,
+    }

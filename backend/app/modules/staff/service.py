@@ -11,13 +11,14 @@ authorizes the key on that row.
 import csv
 import io
 from collections import defaultdict
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from ipaddress import ip_address, ip_network
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core import audit, clock, context, events
@@ -29,8 +30,9 @@ from app.core.pagination import ListQuery, paginate
 from app.modules import billing, memberships, packages, platform, programs, resources, scheduling
 from app.modules.platform import auth as platform_auth
 from app.modules.staff.domain import pay
-from app.modules.staff.events import PayrollRunFinalized, TimeEntryClosed, TrainerCreated
+from app.modules.staff.events import PayrollRunFinalized, ShiftPublished, TimeEntryClosed, TrainerCreated
 from app.modules.staff.models import (
+    BonusRule,
     CommissionRule,
     JobClassification,
     PayRate,
@@ -43,6 +45,7 @@ from app.modules.staff.models import (
     StaffSettings,
     TimeEntry,
 )
+from app.ports import notifications
 
 PUNCH = "staff.time_entry.punch"
 ENTRY_READ = "staff.time_entry.read"
@@ -212,23 +215,96 @@ def list_pay_rates(session: Session, principal: Principal, payee_id: UUID) -> li
     ))  # fmt: skip
 
 
-def put_default_pay_rate(session: Session, principal: Principal, payee_id: UUID, data: dict) -> PayRate:
-    """The trainer's default session pay (STF-02); per-reservation-type overrides are P1 and not built."""
-    payee = _payee_for_rates(session, principal, payee_id, PAY_MANAGE)
-    if payee.kind != "trainer":
-        raise ValidationFailed("Session pay is for trainers.", pointer="/pay_basis")
-    row = session.scalar(
-        select(PayRate).where(PayRate.staff_payee_id == payee.id, PayRate.reservation_type_id.is_(None))
-    )
+_FLAT = ("program_instruction_rate_minor", "non_training_rate_minor", "floor_rate_minor")
+
+
+def _save_pay_rate(session: Session, payee: StaffPayee, data: dict, **key) -> PayRate:
+    row = session.scalar(select(PayRate).where(
+        PayRate.staff_payee_id == payee.id, PayRate.reservation_type_id.is_not_distinct_from(key.get("reservation_type_id")),
+        PayRate.membership_type_id.is_not_distinct_from(key.get("membership_type_id")),
+    ))  # fmt: skip
     if row is None:
-        row = PayRate(staff_payee_id=payee.id, reservation_type_id=None, **data)
+        row = PayRate(staff_payee_id=payee.id, **key, **data)
         session.add(row)
     else:
-        for key, value in data.items():
-            setattr(row, key, value)
-    session.flush()
+        for field, value in data.items():
+            setattr(row, field, value)
+    try:
+        with session.begin_nested():
+            session.flush()
+    except IntegrityError:  # the composite key to an unknown (or another tenant's) membership type
+        raise ValidationFailed("Unknown membership type.", pointer="/membership_type_id") from None
     audit.record(session, PAY_MANAGE, row, location_id=payee.location_id, changes=audit.diff(row) or {"rate": True})
     return row
+
+
+def _trainer_for_rates(session: Session, principal: Principal, payee_id: UUID) -> StaffPayee:
+    payee = _payee_for_rates(session, principal, payee_id, PAY_MANAGE)
+    _not_self(principal, payee.staff_user_id, "Ask another manager to change your own pay.", "own-pay")
+    if payee.kind != "trainer":
+        raise ValidationFailed("Session pay is for trainers.", pointer="/pay_basis")
+    return payee
+
+
+def put_default_pay_rate(session: Session, principal: Principal, payee_id: UUID, data: dict) -> PayRate:
+    """The trainer's default session pay: 60/45/30 anchors, comp, floor, flat and non-training rates (STF-02)."""
+    return _save_pay_rate(session, _trainer_for_rates(session, principal, payee_id), data)
+
+
+def put_pay_rate_override(
+    session: Session, principal: Principal, payee_id: UUID, data: dict, *,
+    reservation_type_id: UUID | None = None, membership_type_id: UUID | None = None,
+) -> PayRate:  # fmt: skip
+    """Pay for one reservation type or one membership type instead of the default row (STF-03). The flat
+    floor, instruction and non-training rates live on the default row only."""
+    payee = _trainer_for_rates(session, principal, payee_id)
+    for field in _FLAT:
+        if data.get(field) is not None:
+            raise ValidationFailed("Set this rate on the default row.", pointer=f"/{field}")
+    if reservation_type_id is not None:
+        try:
+            scheduling.service.get_type(session, principal, reservation_type_id)
+        except NotFound:
+            raise ValidationFailed("Unknown reservation type.", pointer="/reservation_type_id") from None
+    return _save_pay_rate(session, payee, data | dict.fromkeys(_FLAT), reservation_type_id=reservation_type_id,
+                          membership_type_id=membership_type_id)  # fmt: skip
+
+
+def delete_pay_rate_override(
+    session: Session, principal: Principal, payee_id: UUID, *,
+    reservation_type_id: UUID | None = None, membership_type_id: UUID | None = None,
+) -> None:  # fmt: skip
+    payee = _trainer_for_rates(session, principal, payee_id)
+    row = session.scalar(select(PayRate).where(
+        PayRate.staff_payee_id == payee.id, PayRate.reservation_type_id.is_not_distinct_from(reservation_type_id),
+        PayRate.membership_type_id.is_not_distinct_from(membership_type_id),
+    ))  # fmt: skip
+    if row is None or (reservation_type_id is None and membership_type_id is None):
+        raise NotFound()
+    audit.record(session, PAY_MANAGE, row, location_id=payee.location_id, changes={"deleted": True})
+    session.delete(row)
+    session.flush()
+
+
+def _bonus_rules(session: Session, payee_id: UUID) -> list[BonusRule]:
+    return list(session.scalars(
+        select(BonusRule).where(BonusRule.staff_payee_id == payee_id).order_by(BonusRule.kind, BonusRule.id)
+    ))  # fmt: skip
+
+
+def list_bonus_rules(session: Session, principal: Principal, payee_id: UUID) -> dict:
+    payee = _payee_for_rates(session, principal, payee_id, PAY_READ)
+    return {"staff_payee_id": payee.id, "rules": _bonus_rules(session, payee.id)}
+
+
+def put_bonus_rules(session: Session, principal: Principal, payee_id: UUID, rules: list[dict]) -> dict:
+    """Replace the trainer's bonus rules as a whole (STF-04). A finalized run keeps the lines it already holds."""
+    payee = _trainer_for_rates(session, principal, payee_id)
+    session.execute(delete(BonusRule).where(BonusRule.staff_payee_id == payee.id))
+    session.add_all(BonusRule(staff_payee_id=payee.id, **rule) for rule in rules)
+    session.flush()
+    audit.record(session, PAY_MANAGE, payee, location_id=payee.location_id, changes={"bonus_rules": True})
+    return {"staff_payee_id": payee.id, "rules": _bonus_rules(session, payee.id)}
 
 
 def get_commission_rules(session: Session, principal: Principal, payee_id: UUID) -> dict:
@@ -535,13 +611,16 @@ def list_time_entries(session: Session, principal: Principal, query: ListQuery) 
     return page
 
 
-def _not_self(principal: Principal, staff_user_id: UUID) -> None:
-    """A manager never edits their own hours; Owner and Admin may (STF-08)."""
+def _not_self(
+    principal: Principal, staff_user_id: UUID | None, message: str = "Ask another manager to change your own hours.",
+    code: str = "own-time-entry",
+) -> None:  # fmt: skip
+    """A manager never edits their own hours or pay; Owner and Admin may (STF-08)."""
     if (
-        principal.kind == "staff" and staff_user_id == principal.staff_user_id
+        principal.kind == "staff" and staff_user_id is not None and staff_user_id == principal.staff_user_id
         and principal.role_system_key not in ("owner", "admin")
     ):  # fmt: skip
-        raise PermissionDenied("Ask another manager to change your own hours.", code="own-time-entry")
+        raise PermissionDenied(message, code=code)
 
 
 def _managed_entry(session: Session, principal: Principal, entry_id: UUID) -> TimeEntry:
@@ -727,14 +806,151 @@ def publish_shifts(session: Session, principal: Principal, data: dict) -> dict:
         )))  # fmt: skip
     else:
         raise ValidationFailed("Name the shifts, or a location and a time window.", pointer="/shift_ids")
-    count = 0
+    published = []
     for shift in shifts:
         if shift.status == "draft":
             shift.status = "published"
             audit.record(session, SHIFT_MANAGE, shift, location_id=shift.location_id, changes=audit.diff(shift))
-            count += 1
+            published.append(shift)
     session.flush()
-    return {"published_count": count}
+    for shift in published:
+        events.publish(
+            session, ShiftPublished(shift_id=shift.id, staff_user_id=shift.staff_user_id, location_id=shift.location_id),
+            shift.id,
+        )  # fmt: skip
+    _notify_published(session, published)
+    return {"published_count": len(published)}
+
+
+notifications.register_template(
+    "staff.shifts_published", subject="Your schedule has been published",
+    body="Hi $name,\n\nThese shifts were published for you:\n\n$shifts\n\nQuestions? Ask your manager.\n",
+)  # fmt: skip
+
+
+def _notify_published(session: Session, shifts: list[Shift]) -> None:
+    """One email per employee listing their newly published shifts, through the notification port (goes out
+    only if the request commits). Employees without an email address are skipped."""
+    by_user: dict[UUID, list[Shift]] = defaultdict(list)
+    for shift in shifts:
+        by_user[shift.staff_user_id].append(shift)
+    emails = platform.service.active_staff_emails(session, by_user)
+    names = platform.service.staff_user_names(session, by_user)
+    zones: dict[UUID, ZoneInfo] = {}
+    for user_id, rows in by_user.items():
+        if user_id not in emails:
+            continue
+        lines = []
+        for shift in sorted(rows, key=lambda r: r.starts_at):
+            if shift.location_id not in zones:
+                zones[shift.location_id] = ZoneInfo(platform.service.location_time_zone(session, shift.location_id))
+            start, end = (t.astimezone(zones[shift.location_id]) for t in (shift.starts_at, shift.ends_at))
+            lines.append(f"{start:%a %b} {start.day}, {start:%H:%M} to {end:%H:%M}")
+        notifications.send(session, "staff.shifts_published", emails[user_id],
+                           {"name": names.get(user_id, ""), "shifts": "\n".join(lines)})  # fmt: skip
+
+
+def _exists(moment: datetime) -> bool:
+    """False for a local wall time in a spring-forward gap, which zoneinfo would silently move by an hour."""
+    return moment.astimezone(UTC).astimezone(moment.tzinfo).replace(tzinfo=None) == moment.replace(tzinfo=None)
+
+
+def copy_shifts(session: Session, principal: Principal, data: dict) -> dict:
+    """Copy the seven days from `from_starts_on` to the seven days from `to_starts_on` as drafts (STF-15). Local
+    wall times are kept across daylight saving. A shift is skipped, not failed, when the employee already has
+    a shift then, no longer works at the location, its job classification was deactivated, or its start or end
+    falls in the target week's spring-forward gap (that wall time does not exist)."""
+    location_id = data["location_id"]
+    _location(session, principal, location_id)
+    authorize(principal, SHIFT_MANAGE, location_id=location_id)
+    source, target = data["from_starts_on"], data["to_starts_on"]
+    if source == target:
+        raise ValidationFailed("Pick a different week to copy to.", pointer="/to_starts_on")
+    zone = ZoneInfo(platform.service.location_time_zone(session, location_id))
+    start, end = _window(source, source + timedelta(days=6), str(zone))
+    rows = session.scalars(select(Shift).where(
+        Shift.location_id == location_id, Shift.status != "cancelled", Shift.starts_at >= start, Shift.starts_at < end,
+    ).order_by(Shift.starts_at, Shift.id)).all()  # fmt: skip
+    shift_by = timedelta(days=(target - source).days)
+    copied = skipped = 0
+    for row in rows:
+        first, last = row.starts_at.astimezone(zone), row.ends_at.astimezone(zone)
+        starts_at = datetime.combine(first.date() + shift_by, first.time(), zone)
+        ends_at = datetime.combine(last.date() + shift_by, last.time(), zone)
+        job = session.get(JobClassification, row.job_classification_id) if row.job_classification_id else None
+        if (
+            ends_at <= starts_at or not (_exists(starts_at) and _exists(ends_at))
+            or (job is not None and not job.is_active)
+            or not platform.service.staff_user_works_at(session, row.staff_user_id, location_id)
+        ):  # fmt: skip
+            skipped += 1
+            continue
+        copy = Shift(staff_user_id=row.staff_user_id, location_id=location_id,
+                     job_classification_id=row.job_classification_id, starts_at=starts_at, ends_at=ends_at,
+                     status="draft", note=row.note)  # fmt: skip
+        try:
+            with session.begin_nested():
+                session.add(copy)
+                session.flush()
+        except IntegrityError:  # ex_shift_overlap
+            skipped += 1
+            continue
+        audit.record(session, SHIFT_MANAGE, copy, location_id=location_id, changes={"copied_from": str(row.id)})
+        copied += 1
+    return {"copied_count": copied, "skipped_count": skipped}
+
+
+def shift_variance(
+    session: Session, principal: Principal, starts_on: date, ends_on: date, location_id: UUID | None = None,
+    staff_user_id: UUID | None = None,
+) -> list[dict]:  # fmt: skip
+    """Published shifts starting on local dates [starts_on, ends_on] against the employee's closed, unvoided time
+    entries at the same location (STF-15). A shift still to come, or under way, is `upcoming`; after its end it is
+    `no_show` (nothing worked), `short`, or `met` (the whole shift was covered)."""
+    authorize(principal, SHIFT_MANAGE)
+    _check_span(starts_on, ends_on)
+    if location_id is not None:
+        _location(session, principal, location_id)
+    utc = ZoneInfo("UTC")
+    stmt = scope_query(select(Shift), principal, Shift.location_id).where(
+        Shift.status == "published",
+        Shift.starts_at >= datetime.combine(starts_on - timedelta(days=1), time(), utc),
+        Shift.starts_at < datetime.combine(ends_on + timedelta(days=2), time(), utc),
+    )  # fmt: skip
+    if location_id is not None:
+        stmt = stmt.where(Shift.location_id == location_id)
+    if staff_user_id is not None:
+        stmt = stmt.where(Shift.staff_user_id == staff_user_id)
+    zones: dict[UUID, ZoneInfo] = {}
+    shifts = []
+    for shift in session.scalars(stmt.order_by(Shift.starts_at, Shift.id)):
+        if shift.location_id not in zones:
+            zones[shift.location_id] = ZoneInfo(platform.service.location_time_zone(session, shift.location_id))
+        if starts_on <= shift.starts_at.astimezone(zones[shift.location_id]).date() <= ends_on:
+            shifts.append(shift)
+    entries: dict[tuple[UUID, UUID], list] = defaultdict(list)
+    if shifts:
+        lo, hi = min(r.starts_at for r in shifts), max(r.ends_at for r in shifts)
+        for entry in session.scalars(select(TimeEntry).where(
+            TimeEntry.staff_user_id.in_({r.staff_user_id for r in shifts}), TimeEntry.voided_at.is_(None),
+            TimeEntry.clock_out_at.is_not(None), TimeEntry.clock_in_at < hi, TimeEntry.clock_out_at > lo,
+        )):  # fmt: skip
+            entries[(entry.staff_user_id, entry.location_id)].append((entry.clock_in_at, entry.clock_out_at))
+    names = platform.service.staff_user_names(session, {r.staff_user_id for r in shifts})
+    now = clock.now()
+    rows = []
+    for shift in shifts:
+        fact = pay.shift_variance(shift.starts_at, shift.ends_at, entries[(shift.staff_user_id, shift.location_id)])
+        if shift.ends_at > now:
+            state = "upcoming"
+        elif fact["worked_minutes"] == 0:
+            state = "no_show"
+        else:
+            state = "met" if fact["variance_minutes"] >= 0 else "short"
+        rows.append({"shift_id": shift.id, "staff_user_id": shift.staff_user_id, "location_id": shift.location_id,
+                     "display_name": names.get(shift.staff_user_id, ""), "starts_at": shift.starts_at,
+                     "ends_at": shift.ends_at, "state": state, **fact})  # fmt: skip
+    return rows
 
 
 # --- instructors (sessions are scheduling bookings) --------------------------------------------------------
@@ -832,6 +1048,25 @@ def get_run(session: Session, principal: Principal, run_id: UUID) -> dict:
     return run_view(session, _run(session, principal, run_id, RUN_CREATE))
 
 
+def _refuse_overlap(session: Session, run: PayrollRun) -> None:
+    """Session pay and bonuses are paid once: a run that pays sessions may not overlap a finalized run that also
+    pays them for the same location (or tenant-wide) and payee scope. A voided run blocks nothing. Commission-only
+    runs may overlap; a sale already paid is flagged `was_paid_before` instead."""
+    if "sessions" not in run.includes:
+        return
+    p = PayrollRun
+    clash = select(p.id).where(
+        p.status == "finalized", p.includes.contains(["sessions"]), p.id != run.id,
+        p.period_starts_on <= run.period_ends_on, p.period_ends_on >= run.period_starts_on,
+    )  # fmt: skip
+    if run.location_id is not None:
+        clash = clash.where(or_(p.location_id.is_(None), p.location_id == run.location_id))
+    if run.scope_staff_payee_id is not None:
+        clash = clash.where(or_(p.scope_staff_payee_id.is_(None), p.scope_staff_payee_id == run.scope_staff_payee_id))
+    if session.scalar(clash.limit(1)) is not None:
+        raise Conflict("A finalized run already pays sessions for part of this period.", code="payroll-period-overlap")
+
+
 def create_run(session: Session, principal: Principal, data: dict) -> dict:
     """Compute a pay report for a date range now (STF-09, STF-10); it stays editable until finalized."""
     location_id = data.get("location_id")
@@ -860,6 +1095,7 @@ def create_run(session: Session, principal: Principal, data: dict) -> dict:
     )  # fmt: skip
     session.add(run)
     session.flush()
+    _refuse_overlap(session, run)
     _calculate(session, run)
     audit.record(session, RUN_CREATE, run, location_id=location_id, changes={"status": [None, run.status]})
     return run_view(session, run)
@@ -869,6 +1105,7 @@ def recalculate_run(session: Session, principal: Principal, run_id: UUID) -> dic
     run = _run(session, principal, run_id, RUN_CREATE)
     if run.status != "calculated":
         raise Conflict("Only an unfinalized run is recalculated.", code="payroll-run-frozen")
+    _refuse_overlap(session, run)
     session.execute(delete(PayStatement).where(PayStatement.payroll_run_id == run.id))
     _calculate(session, run)
     audit.record(session, RUN_CREATE, run, location_id=run.location_id, changes={"recalculated": True})
@@ -1032,7 +1269,7 @@ def _calculate(session: Session, run: PayrollRun) -> None:
             zones[location_id] = platform.service.location_time_zone(session, location_id)
         return zones[location_id]
 
-    if "sessions" in run.includes:
+    if {"sessions", "commissions"} & set(run.includes):  # completion commission is a commission, not pay
         for payee in payees:
             if payee.resource_id is not None:
                 _session_pay(session, sheet, payee, zone(payee.location_id))
@@ -1046,39 +1283,125 @@ def _calculate(session: Session, run: PayrollRun) -> None:
     session.flush()
 
 
+_TRAINED = ("session", "comp_session", "program_instruction")
+
+
 def _session_pay(session: Session, sheet: _Sheet, payee: StaffPayee, tz: str) -> None:
-    """Completed, confirmed bookings on the trainer's calendar in the period, paid by the pay-rate row for
-    the booking's reservation type (a P1 override), else the default row (STF-02, STF-03)."""
+    """Completed, confirmed bookings on the trainer's calendar in the period (STF-02 to STF-04, STF-10).
+
+    With `sessions` in the run: sessions and rentals are paid by the pay-rate row for the booking's reservation
+    type, else for the client's membership type, else the default row; each attendee whose credit came from a
+    complimentary package is a comp attendee. Floor-shift and instruction time blocks pay the floor rate and the
+    flat activity rate, and bonuses follow as their own lines. With `commissions`: every attendee who paid with a
+    bought package credit earns a session-completion commission line, flagged `was_paid_before` when the
+    booking's commission is already on a finalized run."""
     run = sheet.run
+    pay_sessions, pay_commissions = "sessions" in run.includes, "commissions" in run.includes
     rates = {
-        r.reservation_type_id: r for r in session.scalars(select(PayRate).where(PayRate.staff_payee_id == payee.id))
-    }
-    if not rates:
+        (r.reservation_type_id, r.membership_type_id): r
+        for r in session.scalars(select(PayRate).where(PayRate.staff_payee_id == payee.id))
+    }  # fmt: skip
+    rules = [r for r in _rules(session, payee.id) if r.applies_to == "session_completion"] if pay_commissions else []
+    if not (rates or rules):
         return
+    zone = ZoneInfo(tz)
     start, end = _window(run.period_starts_on, run.period_ends_on, tz)
     ids = scheduling.service.booking_ids(
         resource_id=payee.resource_id, status="confirmed", starts_from=start, starts_to=end
     )
     now = clock.now()
     views = [v for v in scheduling.service.booking_views(session, session.scalars(ids)).values()
-             if v["ends_at"] <= now and v["kind"] in ("session", "rental")]  # fmt: skip
-    attended = programs.service.attended_counts(session, [v["session"]["id"] for v in views if v["session"]])
+             if v["ends_at"] <= now and v["kind"] in ("session", "rental", "block")]  # fmt: skip
+    attended = programs.service.attended_enrollments(session, [v["session"]["id"] for v in views if v["session"]])
+    by_enrollment = packages.service.session_credit_facts(
+        session, "enrollment", [e for found in attended.values() for e in found]
+    )
+    by_booking = packages.service.session_credit_facts(
+        session, "booking", [v["id"] for v in views if v["kind"] != "block" and not v["session"]]
+    )
+    sold = [v["id"] for v in views if v["kind"] != "block"] if pay_commissions else []
+    before = _paid_before(session, "session_completion_commission", "booking", sold) | _paid_before(
+        session, "session_commission", "booking", sold
+    )
+    default = rates.get((None, None))
+    by_membership = any(key[1] is not None for key in rates)
+    trained_minutes = 0
+    off_hours: list[tuple[datetime, datetime]] = []
     for view in sorted(views, key=lambda v: (v["starts_at"], v["id"])):
-        rate = rates.get(view["reservation_type_id"]) or rates.get(None)
-        if rate is None:
-            continue
         minutes = int((view["ends_at"] - view["starts_at"]).total_seconds() // 60)
-        attendees = attended.get(view["session"]["id"], 0) if view["session"] else int(bool(view.get("client_id")))
-        fact = pay.session_line(rate, minutes, attendees)
-        if fact is None:
+        local_start = view["starts_at"].astimezone(zone)
+        common = dict(occurred_on=local_start.date(), source_type="booking", source_id=view["id"],
+                      reservation_type_id=view["reservation_type_id"], description=view["title"] or "Session")  # fmt: skip
+        if view["kind"] == "block":
+            fact = pay.block_line(default, view["block_kind"], minutes) if default else None
+            facts = [fact] if fact else []
+        else:
+            if view["session"]:
+                found = attended.get(view["session"]["id"], [])
+                attendees, credits = len(found), [by_enrollment[e] for e in found if e in by_enrollment]
+            else:
+                attendees = int(bool(view.get("client_id")))
+                credits = [by_booking[view["id"]]] if attendees and view["id"] in by_booking else []
+            member_type = None
+            if by_membership and view.get("client_id"):
+                standing = memberships.service.eligibility(session, view["client_id"], local_start.date())
+                member_type = standing["membership_type_id"] if standing["is_member"] else None
+            rate = pay.pick_pay_rate(rates, view["reservation_type_id"], member_type)
+            comp = sum(1 for c in credits if c["is_complimentary"])
+            facts = pay.session_lines(rate, default, minutes, attendees, comp) if rate else []
+            for credit in (c for c in credits if not c["is_complimentary"]):
+                _session_commission(sheet, payee, rules, rate, credit["unit_price_minor"] or 0, view,
+                                    common | {"was_paid_before": view["id"] in before})  # fmt: skip
+        if not pay_sessions:
             continue
-        sheet.line(
-            sheet.statement(payee=payee), "session_pay_minor", kind=fact["kind"],
-            occurred_on=view["starts_at"].astimezone(ZoneInfo(tz)).date(), source_type="booking",
-            source_id=view["id"], reservation_type_id=view["reservation_type_id"],
-            description=view["title"] or "Session", quantity=Decimal(fact["quantity"]).quantize(Decimal("0.01")),
-            rate_minor=fact["rate_minor"], amount_minor=fact["amount_minor"],
-        )  # fmt: skip
+        for fact in facts:
+            sheet.line(
+                sheet.statement(payee=payee), "session_pay_minor", kind=fact["kind"],
+                quantity=Decimal(fact["quantity"]).quantize(Decimal("0.01")), rate_minor=fact["rate_minor"],
+                amount_minor=fact["amount_minor"], **common,
+            )  # fmt: skip
+        if any(fact["kind"] in _TRAINED for fact in facts):
+            trained_minutes += minutes
+            off_hours.append((view["starts_at"], view["ends_at"]))
+    if pay_sessions:
+        for rule in _bonus_rules(session, payee.id):
+            _bonus(sheet, payee, rule, trained_minutes, off_hours, zone)
+
+
+def _session_commission(sheet: _Sheet, payee: StaffPayee, rules: list, rate, base: int, view: dict, common: dict):
+    """One attendee's bought package credit earns a share of one session's price: the payee's
+    `session_completion` rule (a reservation-type row first), else the pay-rate row's `session_commission_pct`."""
+    rule = pay.pick_rule(rules, "session_completion", reservation_type_id=view["reservation_type_id"])
+    if rule is not None:
+        kind, pct, flat = "session_completion_commission", rule.commission_pct, rule.flat_minor
+    elif rate is not None and rate.session_commission_pct:
+        kind, pct, flat = "session_commission", rate.session_commission_pct, 0
+    else:
+        return
+    if amount := pay.commission(base, pct, flat):
+        sheet.line(sheet.statement(payee=payee), "commission_minor", kind=kind, commission_pct=pct, base_minor=base,
+                   amount_minor=amount, **common)  # fmt: skip
+
+
+def _bonus(
+    sheet: _Sheet, payee: StaffPayee, rule: BonusRule, trained_minutes: int, off_hours: list, zone: ZoneInfo
+) -> None:
+    """One bonus line per rule over the run's whole period, rounded once (STF-04); rules do not combine."""
+    if rule.kind == "trained_hours":
+        amount = pay.trained_hours_bonus(trained_minutes, rule.threshold_minutes, rule.amount_minor)
+        fields = dict(kind="trained_hours_bonus", quantity=Decimal(1), rate_minor=rule.amount_minor,
+                      description=f"Trained {trained_minutes // 60}h {trained_minutes % 60}m, bonus at "
+                                  f"{rule.threshold_minutes // 60}h {rule.threshold_minutes % 60}m")  # fmt: skip
+    else:
+        minutes = sum(
+            pay.off_hours_minutes(a, b, zone, rule.weekdays, rule.from_minute, rule.to_minute) for a, b in off_hours
+        )
+        amount = pay.off_hours_bonus(minutes, rule.amount_minor)
+        fields = dict(kind="off_hours_bonus", quantity=(Decimal(minutes) / 60).quantize(Decimal("0.01")),
+                      rate_minor=rule.amount_minor, description=f"Off-hours session time {minutes // 60}h {minutes % 60}m")  # fmt: skip
+    if amount:
+        sheet.line(sheet.statement(payee=payee), "bonus_minor", occurred_on=sheet.run.period_ends_on,
+                   source_type="bonus_rule", source_id=rule.id, amount_minor=amount, **fields)  # fmt: skip
 
 
 def _commissions(session: Session, sheet: _Sheet, payee: StaffPayee, tz: str) -> None:

@@ -4131,6 +4131,208 @@
         "title": "BlackoutUpdate",
         "type": "object"
       },
+      "BonusRuleIn": {
+        "additionalProperties": false,
+        "description": "`trained_hours` needs threshold_minutes; `off_hours` needs from_minute, to_minute (minutes after local\nmidnight, up to 1440) and weekdays (0 = Monday). amount_minor is a flat bonus, or per hour for off hours.",
+        "properties": {
+          "amount_minor": {
+            "maximum": 10000000000.0,
+            "minimum": 0.0,
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "from_minute": {
+            "anyOf": [
+              {
+                "maximum": 1439.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Minute"
+          },
+          "kind": {
+            "enum": [
+              "trained_hours",
+              "off_hours"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "threshold_minutes": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100000.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold Minutes"
+          },
+          "to_minute": {
+            "anyOf": [
+              {
+                "maximum": 1440.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Minute"
+          },
+          "weekdays": {
+            "anyOf": [
+              {
+                "items": {
+                  "maximum": 6.0,
+                  "minimum": 0.0,
+                  "type": "integer"
+                },
+                "maxItems": 7,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekdays"
+          }
+        },
+        "required": [
+          "kind",
+          "amount_minor"
+        ],
+        "title": "BonusRuleIn",
+        "type": "object"
+      },
+      "BonusRuleOut": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "from_minute": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Minute"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "trained_hours",
+              "off_hours"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "threshold_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold Minutes"
+          },
+          "to_minute": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Minute"
+          },
+          "weekdays": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekdays"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "amount_minor",
+          "threshold_minutes",
+          "from_minute",
+          "to_minute",
+          "weekdays"
+        ],
+        "title": "BonusRuleOut",
+        "type": "object"
+      },
+      "BonusRuleSet": {
+        "properties": {
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/BonusRuleOut"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "staff_payee_id": {
+            "format": "uuid",
+            "title": "Staff Payee Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "staff_payee_id",
+          "rules"
+        ],
+        "title": "BonusRuleSet",
+        "type": "object"
+      },
+      "BonusRulesPut": {
+        "additionalProperties": false,
+        "properties": {
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/BonusRuleIn"
+            },
+            "maxItems": 50,
+            "title": "Rules",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rules"
+        ],
+        "title": "BonusRulesPut",
+        "type": "object"
+      },
       "BookingCancel": {
         "additionalProperties": false,
         "properties": {
@@ -33336,6 +33538,18 @@
             "title": "Id",
             "type": "string"
           },
+          "membership_type_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Membership Type Id"
+          },
           "non_training_rate_minor": {
             "anyOf": [
               {
@@ -33404,6 +33618,7 @@
           "id",
           "staff_payee_id",
           "reservation_type_id",
+          "membership_type_id",
           "pay_basis",
           "rate_60_minor",
           "rate_45_minor",
@@ -54330,6 +54545,53 @@
         "title": "ShareIn",
         "type": "object"
       },
+      "ShiftCopy": {
+        "additionalProperties": false,
+        "properties": {
+          "from_starts_on": {
+            "description": "First local date of the seven days to copy",
+            "format": "date",
+            "title": "From Starts On",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "to_starts_on": {
+            "description": "First local date of the seven days to copy onto",
+            "format": "date",
+            "title": "To Starts On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location_id",
+          "from_starts_on",
+          "to_starts_on"
+        ],
+        "title": "ShiftCopy",
+        "type": "object"
+      },
+      "ShiftCopyResult": {
+        "properties": {
+          "copied_count": {
+            "title": "Copied Count",
+            "type": "integer"
+          },
+          "skipped_count": {
+            "title": "Skipped Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "copied_count",
+          "skipped_count"
+        ],
+        "title": "ShiftCopyResult",
+        "type": "object"
+      },
       "ShiftCreate": {
         "additionalProperties": false,
         "properties": {
@@ -54591,6 +54853,101 @@
           }
         },
         "title": "ShiftUpdate",
+        "type": "object"
+      },
+      "ShiftVarianceOut": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "first_in_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First In At"
+          },
+          "last_out_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Out At"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "scheduled_minutes": {
+            "title": "Scheduled Minutes",
+            "type": "integer"
+          },
+          "shift_id": {
+            "format": "uuid",
+            "title": "Shift Id",
+            "type": "string"
+          },
+          "staff_user_id": {
+            "format": "uuid",
+            "title": "Staff User Id",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "upcoming",
+              "no_show",
+              "short",
+              "met"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "variance_minutes": {
+            "title": "Variance Minutes",
+            "type": "integer"
+          },
+          "worked_minutes": {
+            "title": "Worked Minutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "shift_id",
+          "staff_user_id",
+          "location_id",
+          "display_name",
+          "starts_at",
+          "ends_at",
+          "state",
+          "scheduled_minutes",
+          "worked_minutes",
+          "variance_minutes",
+          "first_in_at",
+          "last_out_at"
+        ],
+        "title": "ShiftVarianceOut",
         "type": "object"
       },
       "SignInRequest": {
@@ -116611,6 +116968,69 @@
         ]
       }
     },
+    "/api/v1/shifts/copy": {
+      "post": {
+        "description": "Copies a week of shifts as drafts; one that would overlap another shift is skipped and counted.",
+        "operationId": "copyShifts",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShiftCopy"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShiftCopyResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Copy Shifts",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
     "/api/v1/shifts/publish": {
       "post": {
         "operationId": "publishShifts",
@@ -116668,6 +117088,117 @@
           }
         },
         "summary": "Publish Shifts",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/shifts/variance": {
+      "get": {
+        "description": "Published shifts (local dates, at most 62 days) against time entries: minutes scheduled, worked, the gap.",
+        "operationId": "getShiftVariance",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Location Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "staff_user_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Staff User Id"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ShiftVarianceOut"
+                  },
+                  "title": "Response Getshiftvariance",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Shift Variance",
         "tags": [
           "staff"
         ]
@@ -117963,6 +118494,139 @@
         ]
       }
     },
+    "/api/v1/staff-payees/{staff_payee_id}/bonus-rules": {
+      "get": {
+        "operationId": "listBonusRules",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_payee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff Payee Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BonusRuleSet"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Bonus Rules",
+        "tags": [
+          "staff"
+        ]
+      },
+      "put": {
+        "description": "Replaces the trainer's trained-hour and off-hour bonuses; applied by payroll runs from then on.",
+        "operationId": "putBonusRules",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_payee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff Payee Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BonusRulesPut"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BonusRuleSet"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Bonus Rules",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
     "/api/v1/staff-payees/{staff_payee_id}/commission-rules": {
       "get": {
         "operationId": "getCommissionRules",
@@ -118228,6 +118892,298 @@
           }
         },
         "summary": "Put Default Pay Rate",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/staff-payees/{staff_payee_id}/pay-rates/membership-types/{membership_type_id}": {
+      "delete": {
+        "operationId": "deleteMembershipPayRate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_payee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff Payee Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "membership_type_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Membership Type Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Membership Pay Rate",
+        "tags": [
+          "staff"
+        ]
+      },
+      "put": {
+        "description": "Pay for sessions of a client holding this membership type (any 60/45/30, comp and commission fields).",
+        "operationId": "putMembershipPayRate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_payee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff Payee Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "membership_type_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Membership Type Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayRateWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayRateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Membership Pay Rate",
+        "tags": [
+          "staff"
+        ]
+      }
+    },
+    "/api/v1/staff-payees/{staff_payee_id}/pay-rates/{reservation_type_id}": {
+      "delete": {
+        "operationId": "deletePayRateOverride",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_payee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff Payee Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "reservation_type_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Reservation Type Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Pay Rate Override",
+        "tags": [
+          "staff"
+        ]
+      },
+      "put": {
+        "description": "Pay for one reservation type instead of the default row.",
+        "operationId": "putPayRateOverride",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_payee_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff Payee Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "reservation_type_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Reservation Type Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayRateWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayRateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Pay Rate Override",
         "tags": [
           "staff"
         ]

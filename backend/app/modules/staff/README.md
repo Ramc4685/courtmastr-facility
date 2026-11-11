@@ -6,8 +6,8 @@ the time clock, shifts, instructor assignment and payroll runs (build module 12;
 
 | File | What it holds |
 |---|---|
-| `models.py` | The eleven tables of section 4 (deviations in its docstring; `bonus_rule` is not built) |
-| `domain/pay.py` | Pure pay arithmetic: anchored session rates, proration, commission, effective-dated rates |
+| `models.py` | The twelve tables of section 4 plus `bonus_rule` (deviations in its docstring) |
+| `domain/pay.py` | Pure pay arithmetic: anchored session rates, comp, floor and flat pay, rate precedence, bonuses, commission, effective-dated rates, shift variance |
 | `service.py` | Staff commands and the synchronous payroll calculation |
 | `router.py` | Staff routes; no portal routes |
 
@@ -15,7 +15,8 @@ the time clock, shifts, instructor assignment and payroll runs (build module 12;
 calendar column is a `resources.resource` row (`kind = 'trainer'`) linked to the staff user through
 `staff_user.linked_resource_id`. Sessions are `scheduling` bookings. This context reads them only through
 those contexts' service functions, and reads sale facts through `packages.sales_by_seller`,
-`memberships.seller_periods`, `programs.attended_counts` and `billing.source_totals`. Each was added for
+`memberships.seller_periods`, `programs.attended_enrollments`, `packages.session_credit_facts` and
+`billing.source_totals`. Each was added for
 payroll and has no permission check (ADR 0009 section 9).
 
 **Instructor assignment.** `PUT /sessions/{schedule_session_id}/instructor` swaps the trainer columns on the
@@ -35,10 +36,21 @@ is finalized (frozen) or voided. A run without `location_id` covers every locati
 them (`authorize_tenant_wide`). The run has three sections:
 
 - **Sessions.** Confirmed, ended bookings on the trainer's column whose start falls in the period (local
-  dates, per location zone). The rate comes from the 60/45/30 anchor nearest the session length, longer on a
-  tie, prorated to the real length.
+  dates, per location zone). The pay-rate row is the booking's reservation-type row, else the row for the
+  client's membership type (a booking with one client, member on the session date), else the default row. The
+  rate comes from the 60/45/30 anchor nearest the session length, longer on a tie, prorated to the real length.
+  A session whose credit came from a complimentary package pays `comp_session_rate_minor` once, when it is set
+  (else as normal). Time blocks on the trainer's column pay too: `floor_shift` at `floor_rate_minor` per hour,
+  `instruction` at the flat `program_instruction_rate_minor` per block; `unpaid` and `unavailable` pay nothing.
 - **Commissions.** Package sales by `created_at`, and billed membership periods by `bill_on`, for the
-  payee's staff user. The base is the invoiced or paid amount (`commission_basis`).
+  payee's staff user. The base is the invoiced or paid amount (`commission_basis`). A completed session
+  (attended, credit consumed from a paying package) earns a share of one session's package price
+  (`unit_price_minor`): the payee's `session_completion` rule (a reservation-type row wins over the default row;
+  percent plus flat), else the pay-rate row's `session_commission_pct`. Never both.
+- **Bonuses.** `bonus_rule` rows, one statement line each, rounded once: `trained_hours` pays a flat amount once
+  the period's trained time (session, comp and flat-activity lines) reaches the threshold, a threshold met
+  exactly pays; `off_hours` pays an hourly extra over the trained minutes that fall inside a local window on
+  chosen weekdays. They are added when "sessions" is in the run's `includes`.
 - **Hourly.** Closed, unvoided time entries by local start date, at the rate in force that day.
 
 A sale already on a finalized run is flagged `was_paid_before` but still counted, so the manager decides.
@@ -72,13 +84,51 @@ A sale already on a finalized run is flagged `was_paid_before` but still counted
   wrong password leaves an audit row.
 - Payroll runs are calculated in the request, not in a worker: a location's two-week run is small.
 
+## Phase 10 assumptions (chip D)
+
+- Pay-rate overrides, bonus rules and the membership-type rows are written with `staff.pay_rate.manage` (Admin
+  and Owner only); no new permission key was needed. Shift copy and variance use `staff.shift.manage`.
+- Precedence is reservation type, then membership type, then default. A row names a type or a membership type,
+  not both (`ck_pay_rate_one_override`). Floor, flat-activity and non-training rates live on the default row, so
+  an empty session under an override row is paid the default row's non-training rate; an override row with no comp
+  rate takes the default row's comp rate. Pay-rate and bonus edits are refused (`own-pay`, 403) to anyone below
+  Owner and Admin who is the payee's own linked staff user.
+- Membership-type pay is looked up only for bookings with one client (`booking.client_id`: private lessons and
+  rentals), through `memberships.eligibility`; attendees of a group session are not looked up one by one.
+- Complimentary and session-completion facts come from `packages.session_credit_facts` (the one function added
+  to `packages`, next to `sales_by_seller`): sources whose credit ledger shows a net consumed credit. A group
+  session is read per attendee: `programs.attended_enrollments` gives the attended enrolments, and each one's
+  credit (source `enrollment`) decides. A single-client booking reads its own credit (source `booking`). Comp is
+  per attendee: `per_attendee` pays the comp rate for each comp attendee and the normal rate for the others;
+  `per_session` pays the comp rate once only when every attendee is comp, else the normal rate once.
+- Each attendee who paid with a bought package credit earns one completion-commission line on one session's price
+  (the per-session price, not the invoiced or paid basis). It is a commission: it is computed when the run
+  includes `commissions`, with or without `sessions`, and a booking whose commission is on a finalized run is
+  flagged `was_paid_before`, like a package sale.
+- A run that pays `sessions` is refused (`payroll-period-overlap`, 409) when a finalized run that also pays
+  sessions overlaps its dates for the same location (or tenant-wide) and payee scope; recalculating one is
+  refused the same way. A voided run blocks nothing. Commission-only runs may overlap, as before.
+- Bonuses are evaluated over the run's window, not `staff_settings.pay_period`: run weekly and a 10-hour
+  trained-hours threshold is a weekly threshold. Every rule pays on its own: two trained-hours rules (say 10 h
+  and 20 h) both pay when 20 h are reached; they do not replace each other.
+- An off-hours window is whole minutes after local midnight on each local calendar day a session touches, in the
+  location's zone, on that day's weekday. Minutes are real elapsed time, so the spring-forward night counts the
+  hour that passed, not the wall-clock span.
+- Variance: a published shift's worked minutes are the employee's closed, unvoided entries at the same
+  location, clipped to the shift. After the shift ends the result is `no_show` (nothing worked), `short`, or
+  `met`; before then `upcoming`. Time worked outside any shift is not reported.
+- Copy week copies the seven days from one date onto the seven from another as drafts, keeping local wall times
+  across daylight saving. A shift is skipped, not failed, when it would overlap, the person left the location,
+  the job was deactivated, or its start or end wall time does not exist on the target day (the spring-forward
+  gap); the response counts copied and skipped. In the fall-back hour the earlier of the two times is used.
+- Publishing sends one `staff.shifts_published` email per employee through the notification port (after commit,
+  skipped when the user has no email) and publishes `staff.shift.published` per shift.
+- A finalized run keeps the lines it holds: rate, rule and bonus edits never touch it. A voided run cannot be
+  recalculated, and its sales are not "paid before" (only finalized runs count).
+
 ## Not built
 
-- Bonus rules (STF-04).
-- Per-reservation-type pay-rate overrides (P1; the table supports them and the calculation honours them).
-- `session_completion` commission and `session_commission_pct`.
-- Complimentary-session pay and floor-shift pay.
-- Copy shifts (P1) and shift notifications.
 - `listPayStatements` filters by subject only.
 - A file export of the hours summary (STF-08 CSV/XLSX); the summary is on screen and in the API.
-- Shift-versus-time-entry variance (STF-15).
+- A commission rule that names a reservation type is editable through the API but not in the screen, which
+  keeps only the default row of each kind.

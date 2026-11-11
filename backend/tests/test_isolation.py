@@ -279,6 +279,9 @@ _BODIES = {
     "updateStaffPayee": {"display_name": "Renamed"},
     "putDefaultPayRate": {"pay_basis": "per_session"},
     "putCommissionRules": {"rules": []},
+    "putPayRateOverride": {"pay_basis": "per_session"},
+    "putMembershipPayRate": {"pay_basis": "per_session"},
+    "putBonusRules": {"rules": []},
     "updateJobClassification": {"name": "Renamed"},
     "addStaffHourlyRate": lambda ids: {
         "job_classification_id": ids.job_classification_id,

@@ -723,6 +723,8 @@ def _populate_staff(client, headers, post, location_id, staff_user_id, trainer_r
     trainer = post("/staff-payees", {"kind": "trainer", "display_name": "Coach Kim", "location_id": location_id,
                                      "resource_id": trainer_resource_id})  # fmt: skip
     put(f"/staff-payees/{trainer['id']}/pay-rates/default", {"pay_basis": "per_session", "rate_60_minor": 3000})
+    put(f"/staff-payees/{trainer['id']}/bonus-rules",
+        {"rules": [{"kind": "trained_hours", "threshold_minutes": 600, "amount_minor": 5000}]})  # fmt: skip
     seller = post("/staff-payees", {"kind": "salesperson", "display_name": "New Person", "location_id": location_id,
                                     "staff_user_id": staff_user_id})  # fmt: skip
     put(

@@ -1418,3 +1418,21 @@ def sales_by_seller(session: Session, staff_user_id: UUID, starts_at, ends_at, l
          "reservation_type_id": p.reservation_type_id, "price_minor": p.price_minor}
         for p in session.scalars(stmt.order_by(ClientPackage.created_at, ClientPackage.id))
     ]  # fmt: skip
+
+
+def session_credit_facts(session: Session, source_type: str, source_ids) -> dict[UUID, dict]:
+    """Sources (a `booking`, or a program `enrollment`) that consumed a package credit: whether the package is
+    complimentary and what one session of it cost (staff session pay and completion commission, STF-02, STF-10).
+    A restored credit does not count."""
+    ids = list(source_ids)
+    if not ids:
+        return {}
+    e = CreditLedgerEntry
+    rows = session.execute(
+        select(e.source_id, ClientPackage.is_complimentary, ClientPackage.unit_price_minor)
+        .join(ClientPackage, ClientPackage.id == e.client_package_id)
+        .where(e.source_type == source_type, e.source_id.in_(ids))
+        .group_by(e.source_id, ClientPackage.id)
+        .having(func.sum(e.consumed_delta) > 0)
+    ).all()  # fmt: skip
+    return {row[0]: {"is_complimentary": row[1], "unit_price_minor": row[2]} for row in rows}
