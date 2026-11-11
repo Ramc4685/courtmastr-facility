@@ -123,7 +123,12 @@ Playwright helpers that read cookies by name must use the shared sign-in helper.
 | 2026-11-11 | K2 | merged `77f15d8` (chip `0a31429`); migrations 1210, 1211 down and up clean | `0a31429` |
 | 2026-11-11 | K1 | merged `e020a85` (chip `dbb6ad9`); no migration; presigned direct upload deferred | `dbb6ad9` |
 | 2026-11-11 | gate after K1 + K2 | lint clean; 3,854 backend tests passed, coverage 93%; web-check clean; web-test 134 passed on rerun (first run: the known `auth.test.tsx` timing flake under load); no OpenAPI drift | `e020a85` |
+| 2026-11-11 | S1 | merged `b29db43` (chip `b97291f` to `7c17046`); migration 1220 re-pointed onto 1211, down and up clean | `7c17046` |
+| 2026-11-11 | gate after K1 + K2 + S1 | lint clean; 4,191 backend tests passed, coverage 93%; web-check clean; web-test 137 passed; no OpenAPI drift. `make web-e2e` not rerun after the merge (S1 alone: 29 of 32, three failures it attributes to causes outside S1) | `b29db43` |
 
 Follow-ups from batch 1, each assigned: purge of expired report result bytes through `files.remove` (T2);
 flaky `auth.test.tsx` redirect test and the scheduling 1,500-occurrence timing test under load (K3);
 `nosniff` on the bucket origin (O1); public URL and bucket policy for `t/*/public/*` (T2).
+Open from S1: Owner and Admin bypass the staff IP allow-list (owner to decide; remove once MFA is in);
+staff session lifetimes still 12 h / 7 days against the baseline's 30-minute idle (S2); the three `web-e2e`
+failures (K3 or the Phase 10 web owners); `core.networks` now shared by `pos` and `staff` (tell Phase 10).
