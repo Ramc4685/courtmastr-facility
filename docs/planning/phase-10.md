@@ -2,7 +2,7 @@
 
 Date: 2026-11-11. Phase branch: `claude/phase10-wave2-b907a2`, cut from `main` at `6d8ca6c`.
 Source: `docs/planning/remaining-work.md` section 4 "Wave 2" (33 features: 15 P0, 17 P1, 1 P2).
-Status: **plan, waiting for the owner's approval.** No chip has started.
+Status: **approved by the owner on 2026-11-11**, with all six recommendations below and CHK-17 parked. Batch 1 (A, B, D) started.
 
 ## How the phase runs
 
@@ -38,7 +38,7 @@ and does not make the change.
   the calendar shades a trainer's off-hours.
 - SCH-09: change an existing series rule with the same pre-commit preview.
 - SCH-10 and SCH-11: screens for the `selected` and `date_range` scopes; multi-select delete mode on the calendar.
-- Question 19 (if approved): a warning, not a refusal, when staff book outside opening hours.
+- Question 19 (approved): a warning, not a refusal, when staff book outside opening hours.
 - Holds are still written only by `scheduling.service`; conflicts stay with the exclusion constraint.
 
 ### B. Access rules and visits
@@ -80,7 +80,7 @@ and does not make the change.
 - MEM-13, MEM-14, MEM-20: staff screens for freeze edit and re-bill, suspension edit, and visit listing and
   adjustment, over the existing APIs.
 - PKG-12: book all linked sessions, speed register, sell a package inline while registering.
-- Question 16 (if approved): a manager override for package removal after sessions were used, under its own key.
+- Question 16 (approved): a manager override for package removal after sessions were used, under its own key.
 
 ### F. Client files
 
@@ -129,12 +129,13 @@ table below is the record.
 
 | Feature set | State |
 |---|---|
-| Chips A to F | not started |
-| CHK-17 | parked (proposed) |
+| Chips A, B, D | running |
+| Chips E, C, F | not started |
+| CHK-17 | parked (owner agreed 2026-11-11) |
 
 ## Open questions for the owner (from the report, section 5)
 
-| # | Question | Recommendation | Chip |
+| # | Question | Decision (owner approved the recommendation) | Chip |
 |---|---|---|---|
 | 12 | Refuse entry when a visit-limited membership is used up? | Yes: deny, with the existing staff override and reason; the kiosk says "see staff" | B |
 | 20 | PIN to leave kiosk mode? | Yes: a per-location PIN, stored hashed | B |
