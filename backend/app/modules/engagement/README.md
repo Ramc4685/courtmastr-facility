@@ -57,7 +57,9 @@ routes, the portal inbox and push devices, portal settings and videos. Feature s
    internal entry point an adapter will call. No RFC 8058 `List-Unsubscribe` header: the email port has no
    headers yet.
 7. No push provider is wired: device messages are logged as skipped (`channel_unavailable`); the inbox carries
-   the announcement. The device registration endpoint is live for the mobile app.
+   the announcement. The device registration endpoint is live for the mobile app. A push token is unique among
+   live registrations (migration `0802`); registering a token another login holds revokes that login's row and
+   adds a new one, so a device is never reassigned silently (W2-08).
 8. The waitlist promotion email (gap B8) is sent by programs through the notification port, so it now passes
    the delivery log and suppression; staff can add automation rules on `programs.waitlist.promoted`. There is
    no built-in rule, so the client is not emailed twice.

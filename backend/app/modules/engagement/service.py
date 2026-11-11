@@ -1142,7 +1142,19 @@ def register_portal_device(session: Session, principal: Principal, data: dict) -
         raise NotFound()
     if data.get("location_id") and not platform.service.location_exists(session, data["location_id"]):
         raise ValidationFailed("Unknown location.", pointer="/location_id")
-    row = session.scalar(select(DeviceRegistration).where(DeviceRegistration.push_token == data["push_token"]))
+    row = session.scalar(
+        select(DeviceRegistration)
+        .where(DeviceRegistration.push_token == data["push_token"], DeviceRegistration.revoked_at.is_(None))
+        .with_for_update()
+    )
+    if row is not None and row.identity_id != principal.identity_id:
+        # The phone changed hands (W2-08): end the other login's registration, never move it silently.
+        row.revoked_at = _now()
+        audit.record(
+            session, "engagement.device.unregister", row, location_id=row.location_id, changes={"revoked": True}
+        )
+        session.flush()
+        row = None
     if row is None:
         row = DeviceRegistration(push_token=data["push_token"], identity_id=principal.identity_id, client_id=ids[0],
                                  platform=data["platform"])  # fmt: skip

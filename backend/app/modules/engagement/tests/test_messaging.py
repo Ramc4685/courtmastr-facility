@@ -423,3 +423,18 @@ def test_group_enrollment_events_without_a_session_are_handled(tenant):
     # Called as the worker would: tenant id, event id, payload. A KeyError here once stalled every queue drain.
     handlers.on_enrollment_created(str(tenant.id), str(uuid4()), {"type": "programs.enrollment.created", **ids})
     handlers.on_waitlist_promoted(str(tenant.id), str(uuid4()), promoted)
+
+
+def test_w2_08_a_push_token_on_another_login_is_revoked_never_reassigned(client, tenant, owner, site):
+    first = _member(client, tenant, _person(client, owner, site, "first@example.com", tenant=tenant))
+    second = _member(client, tenant, _person(client, owner, site, "second@example.com", tenant=tenant))
+    token = {"platform": "android", "push_token": "tok-" + "b" * 20}
+    mine = ok(client.post(f"{API}/portal/devices", headers=first, json=token), 201)
+    again = ok(client.post(f"{API}/portal/devices", headers=first, json=token), 201)
+    assert again["id"] == mine["id"]  # the same login re-registering keeps its row
+    theirs = ok(client.post(f"{API}/portal/devices", headers=second, json=token), 201)
+    assert theirs["id"] != mine["id"]
+    with tenant_session(tenant.id) as session:
+        old, new = session.get(DeviceRegistration, mine["id"]), session.get(DeviceRegistration, theirs["id"])
+        assert old.revoked_at is not None and old.identity_id != new.identity_id and old.client_id != new.client_id
+    refused(client.delete(f"{API}/portal/devices/{theirs['id']}", headers=first), 404)

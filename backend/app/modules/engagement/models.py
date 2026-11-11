@@ -381,7 +381,9 @@ class DeviceRegistration(TenantOwned, Timestamps, Base):
     __table_args__ = tenant_args(
         *tfk("client_id", "client", index=False),
         *tfk("location_id", "location", index=False),
-        UniqueConstraint("tenant_id", "push_token", name="uq_device_registration_push_token"),
+        # One live registration per token; a revoked one stays as history when the phone changes hands (W2-08).
+        Index("uq_device_registration_push_token", "tenant_id", "push_token", unique=True,
+              postgresql_where=text("revoked_at IS NULL")),
         enum_check("platform", DevicePlatform),
         Index("ix_device_registration_client", "tenant_id", "client_id", postgresql_where=text("revoked_at IS NULL")),
         Index("ix_device_registration_location", "tenant_id", "location_id",
