@@ -63,6 +63,8 @@ Tables follow `docs/architecture/data-model-programs.md`. The migration is `0611
   `full_waitlist`, with an online fee and the login's own client as payer. Auto-promotion would skip the
   portal's pay-now and document steps, so staff promote it by hand. The upgrade is an offer that the client
   completes through a basket.
+- A portal session waitlist entry that is auto-promoted is not re-checked against the booking policy at
+  promotion time. Joining and claiming check it.
 
 ## Not built
 

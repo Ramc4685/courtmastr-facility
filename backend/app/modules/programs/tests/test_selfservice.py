@@ -160,3 +160,21 @@ def test_series_batch_rebook_and_roster_message(client, owner, tenant, f, mailbo
         f"{API}/sessions/{other}/roster/messages", headers=desk, json={"subject": "x", "body_html": "y"}
     )
     assert blocked.status_code == 404
+
+
+def test_portal_queue_and_booking_obey_the_whole_policy(client, owner, tenant, f, mailbox):
+    policy(client, owner, f, requires_active_membership=True, visible_range_days=1)
+    full = soon(client, owner, f, 1)  # three days out: beyond a one-day range
+    (holder,) = people(client, owner, f, 1)
+    ok(enroll(client, owner, full, holder))
+    person, portal = member(client, tenant, owner, f, mailbox)
+    body = {"client_id": person["id"], "session_id": full}
+    beyond = client.post(f"{API}/portal/waitlist-entries", headers=portal, json=body)
+    assert beyond.status_code == 422
+    policy(client, owner, f, requires_active_membership=True)
+    members = client.post(f"{API}/portal/waitlist-entries", headers=portal, json=body)
+    assert (members.status_code, members.json()["code"], members.json()["reason"]) == (
+        409,
+        "policy-violation",
+        "members-only",
+    )

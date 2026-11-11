@@ -194,3 +194,20 @@ def test_auto_archive_on_the_location_date(client, owner, tenant, f):
         assert groups.auto_archive_due(session) == 1
     assert group_of(client, owner, camp["id"])["status"] == "archived"
     assert group_of(client, owner, later["id"])["status"] == "active"
+
+
+def test_enrolment_list_follows_each_target_key_and_own_reach(client, owner, tenant, f):
+    email, staff_id = add_staff(tenant, "coach", location_ids=[f.location])
+    trainer = {"location_id": f.location, "resource_group_id": f.group, "name": "Coach Ray", "kind": "trainer",
+               "staff_user_id": str(staff_id)}  # fmt: skip
+    trainer = ok(client.post(f"{API}/resources", headers=owner, json=trainer))["id"]
+    coach = login(client, tenant, email)
+    mine, theirs = program(client, owner, f, name="Mine"), program(client, owner, f, name="Theirs")
+    seat = ok(book(client, owner, f, [trainer], at(16), at(17), kind="session", session={"capacity": 4}))
+    body = {"session_ids": [seat["booking"]["session"]["id"]]}
+    ok(client.post(f"{API}/program-groups/{mine['id']}/sessions", headers=owner, json=body), 200)
+    a, b = people(client, owner, f, 2)
+    seen = ok(register(client, owner, mine["id"], a))
+    hidden = ok(register(client, owner, theirs["id"], b))
+    listed = {r["id"] for r in ok(client.get(f"{API}/enrollments", headers=coach), 200)["data"]}
+    assert seen["id"] in listed and hidden["id"] not in listed

@@ -63,6 +63,113 @@
         "title": "Accepted",
         "type": "object"
       },
+      "AccessDecision": {
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/CheckInAlertOut"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "client": {
+            "$ref": "#/components/schemas/CheckInClientOut"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "denial_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denial Reason"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "membership_contract_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Membership Contract Id"
+          },
+          "would_consume_visit": {
+            "title": "Would Consume Visit",
+            "type": "boolean"
+          },
+          "would_grant": {
+            "title": "Would Grant",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "client_id",
+          "location_id",
+          "would_grant",
+          "denial_reason",
+          "membership_contract_id",
+          "would_consume_visit",
+          "alerts",
+          "client"
+        ],
+        "title": "AccessDecision",
+        "type": "object"
+      },
+      "AccessEvaluateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "credential_value": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential Value"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location_id"
+        ],
+        "title": "AccessEvaluateRequest",
+        "type": "object"
+      },
       "AccountCredit": {
         "properties": {
           "client_id": {
@@ -652,6 +759,43 @@
           "marks"
         ],
         "title": "AttendancePut",
+        "type": "object"
+      },
+      "AttendedOut": {
+        "properties": {
+          "session_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "target_id": {
+            "format": "uuid",
+            "title": "Target Id",
+            "type": "string"
+          },
+          "target_type": {
+            "title": "Target Type",
+            "type": "string"
+          },
+          "was_auto_booked": {
+            "title": "Was Auto Booked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "target_type",
+          "target_id",
+          "session_id",
+          "was_auto_booked"
+        ],
+        "title": "AttendedOut",
         "type": "object"
       },
       "AuditEventOut": {
@@ -5727,6 +5871,571 @@
         "title": "ChargeUpdate",
         "type": "object"
       },
+      "CheckInAlertOut": {
+        "properties": {
+          "code": {
+            "enum": [
+              "client_disabled",
+              "access_denied",
+              "membership_suspended",
+              "membership_frozen",
+              "membership_expired",
+              "visits_depleted",
+              "balance_due",
+              "waiver_unsigned",
+              "payment_method_expired",
+              "staff_note",
+              "birthday",
+              "photo_missing",
+              "over_daily_limit"
+            ],
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "CheckInAlertOut",
+        "type": "object"
+      },
+      "CheckInClientOut": {
+        "description": "The status card at the front desk (CHK-01).",
+        "properties": {
+          "balance_due_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance Due Minor"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "first_name": {
+            "title": "First Name",
+            "type": "string"
+          },
+          "is_waiver_on_file": {
+            "title": "Is Waiver On File",
+            "type": "boolean"
+          },
+          "last_name": {
+            "title": "Last Name",
+            "type": "string"
+          },
+          "member_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Number"
+          },
+          "membership": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CheckInMembershipOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "staff_alerts": {
+            "items": {
+              "$ref": "#/components/schemas/StaffAlertOut"
+            },
+            "title": "Staff Alerts",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "first_name",
+          "last_name",
+          "display_name",
+          "member_number",
+          "status",
+          "is_waiver_on_file",
+          "balance_due_minor",
+          "membership",
+          "staff_alerts"
+        ],
+        "title": "CheckInClientOut",
+        "type": "object"
+      },
+      "CheckInCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "enum": [
+              "staff_window",
+              "client_profile",
+              "pos",
+              "api"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "credential_value": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential Value"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "override": {
+            "default": false,
+            "title": "Override",
+            "type": "boolean"
+          },
+          "override_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Reason"
+          }
+        },
+        "required": [
+          "location_id",
+          "channel"
+        ],
+        "title": "CheckInCreate",
+        "type": "object"
+      },
+      "CheckInMembershipOut": {
+        "properties": {
+          "contract_id": {
+            "format": "uuid",
+            "title": "Contract Id",
+            "type": "string"
+          },
+          "end_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End On"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "visits_remaining_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visits Remaining Count"
+          }
+        },
+        "required": [
+          "contract_id",
+          "name",
+          "status",
+          "end_on",
+          "visits_remaining_count"
+        ],
+        "title": "CheckInMembershipOut",
+        "type": "object"
+      },
+      "CheckInOut": {
+        "properties": {
+          "alert_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Alert Codes",
+            "type": "array"
+          },
+          "attended": {
+            "items": {
+              "$ref": "#/components/schemas/AttendedOut"
+            },
+            "title": "Attended",
+            "type": "array"
+          },
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "checked_in_at": {
+            "format": "date-time",
+            "title": "Checked In At",
+            "type": "string"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "credential_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential Id"
+          },
+          "denial_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denial Reason"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "identified_by": {
+            "title": "Identified By",
+            "type": "string"
+          },
+          "is_visit_consumed": {
+            "title": "Is Visit Consumed",
+            "type": "boolean"
+          },
+          "kiosk_device_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kiosk Device Id"
+          },
+          "local_on": {
+            "format": "date",
+            "title": "Local On",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "membership_contract_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Membership Contract Id"
+          },
+          "override_by_staff_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override By Staff User Id"
+          },
+          "override_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Reason"
+          },
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "location_id",
+          "kiosk_device_id",
+          "channel",
+          "identified_by",
+          "credential_id",
+          "checked_in_at",
+          "local_on",
+          "result",
+          "denial_reason",
+          "override_by_staff_user_id",
+          "override_reason",
+          "membership_contract_id",
+          "is_visit_consumed",
+          "alert_codes",
+          "attended"
+        ],
+        "title": "CheckInOut",
+        "type": "object"
+      },
+      "CheckInResult": {
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/CheckInAlertOut"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "check_in": {
+            "$ref": "#/components/schemas/CheckInOut"
+          },
+          "client": {
+            "$ref": "#/components/schemas/CheckInClientOut"
+          }
+        },
+        "required": [
+          "check_in",
+          "alerts",
+          "client"
+        ],
+        "title": "CheckInResult",
+        "type": "object"
+      },
+      "CheckInRowOut": {
+        "properties": {
+          "alert_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Alert Codes",
+            "type": "array"
+          },
+          "attended": {
+            "items": {
+              "$ref": "#/components/schemas/AttendedOut"
+            },
+            "title": "Attended",
+            "type": "array"
+          },
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "checked_in_at": {
+            "format": "date-time",
+            "title": "Checked In At",
+            "type": "string"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_name": {
+            "title": "Client Name",
+            "type": "string"
+          },
+          "credential_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential Id"
+          },
+          "denial_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denial Reason"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "identified_by": {
+            "title": "Identified By",
+            "type": "string"
+          },
+          "is_visit_consumed": {
+            "title": "Is Visit Consumed",
+            "type": "boolean"
+          },
+          "kiosk_device_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kiosk Device Id"
+          },
+          "local_on": {
+            "format": "date",
+            "title": "Local On",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "membership_contract_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Membership Contract Id"
+          },
+          "override_by_staff_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override By Staff User Id"
+          },
+          "override_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Reason"
+          },
+          "result": {
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "location_id",
+          "kiosk_device_id",
+          "channel",
+          "identified_by",
+          "credential_id",
+          "checked_in_at",
+          "local_on",
+          "result",
+          "denial_reason",
+          "override_by_staff_user_id",
+          "override_reason",
+          "membership_contract_id",
+          "is_visit_consumed",
+          "alert_codes",
+          "attended",
+          "client_name"
+        ],
+        "title": "CheckInRowOut",
+        "type": "object"
+      },
       "CheckoutCreate": {
         "additionalProperties": false,
         "properties": {
@@ -9902,6 +10611,213 @@
           "subtotal_minor"
         ],
         "title": "CouponValidateRequest",
+        "type": "object"
+      },
+      "CredentialCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "generate": {
+            "default": false,
+            "title": "Generate",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "barcode",
+              "rfid"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "scanned",
+                  "typed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "CredentialCreate",
+        "type": "object"
+      },
+      "CredentialMatch": {
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "credential_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential Id"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "is_client_disabled": {
+            "title": "Is Client Disabled",
+            "type": "boolean"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "credential_id",
+          "kind",
+          "client_id",
+          "display_name",
+          "is_client_disabled"
+        ],
+        "title": "CredentialMatch",
+        "type": "object"
+      },
+      "CredentialOut": {
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "device_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Label"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "is_primary": {
+            "title": "Is Primary",
+            "type": "boolean"
+          },
+          "issued_at": {
+            "format": "date-time",
+            "title": "Issued At",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "kind",
+          "value",
+          "status",
+          "source",
+          "is_primary",
+          "device_label",
+          "issued_at",
+          "revoked_at"
+        ],
+        "title": "CredentialOut",
+        "type": "object"
+      },
+      "CredentialResolveRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "value": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value"
+        ],
+        "title": "CredentialResolveRequest",
+        "type": "object"
+      },
+      "CredentialRevokeAllRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "app_card",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "CredentialRevokeAllRequest",
         "type": "object"
       },
       "CreditAdjust": {
@@ -15780,6 +16696,512 @@
           "reason"
         ],
         "title": "InvoiceVoidRequest",
+        "type": "object"
+      },
+      "KioskAttendedOut": {
+        "properties": {
+          "session_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "target_type": {
+            "title": "Target Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_type",
+          "session_id"
+        ],
+        "title": "KioskAttendedOut",
+        "type": "object"
+      },
+      "KioskCheckInCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "card_payload": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Card Payload"
+          },
+          "match_token": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Token"
+          }
+        },
+        "title": "KioskCheckInCreate",
+        "type": "object"
+      },
+      "KioskCheckInResult": {
+        "properties": {
+          "attended": {
+            "items": {
+              "$ref": "#/components/schemas/KioskAttendedOut"
+            },
+            "title": "Attended",
+            "type": "array"
+          },
+          "check_in_id": {
+            "format": "uuid",
+            "title": "Check In Id",
+            "type": "string"
+          },
+          "displayed_alert_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Displayed Alert Codes",
+            "type": "array"
+          },
+          "first_name": {
+            "title": "First Name",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "admitted",
+              "see_staff"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "welcome_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Welcome Message"
+          }
+        },
+        "required": [
+          "check_in_id",
+          "status",
+          "first_name",
+          "displayed_alert_codes",
+          "attended",
+          "welcome_message"
+        ],
+        "title": "KioskCheckInResult",
+        "type": "object"
+      },
+      "KioskConfig": {
+        "properties": {
+          "kiosk_device_id": {
+            "format": "uuid",
+            "title": "Kiosk Device Id",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "location_name": {
+            "title": "Location Name",
+            "type": "string"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/KioskSettingsOut"
+          },
+          "time_zone": {
+            "title": "Time Zone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kiosk_device_id",
+          "location_id",
+          "location_name",
+          "time_zone",
+          "settings"
+        ],
+        "title": "KioskConfig",
+        "type": "object"
+      },
+      "KioskDeviceCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location_id",
+          "name"
+        ],
+        "title": "KioskDeviceCreate",
+        "type": "object"
+      },
+      "KioskDeviceOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "paired_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paired At"
+          },
+          "status": {
+            "enum": [
+              "pending_pairing",
+              "active",
+              "revoked"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "name",
+          "status",
+          "last_seen_at",
+          "paired_at",
+          "created_at"
+        ],
+        "title": "KioskDeviceOut",
+        "type": "object"
+      },
+      "KioskLookupRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "credential_value": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential Value"
+          },
+          "last_name_prefix": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Name Prefix"
+          }
+        },
+        "title": "KioskLookupRequest",
+        "type": "object"
+      },
+      "KioskLookupResult": {
+        "properties": {
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/KioskMatch"
+            },
+            "title": "Matches",
+            "type": "array"
+          }
+        },
+        "required": [
+          "matches"
+        ],
+        "title": "KioskLookupResult",
+        "type": "object"
+      },
+      "KioskMatch": {
+        "properties": {
+          "first_name": {
+            "title": "First Name",
+            "type": "string"
+          },
+          "last_initial": {
+            "title": "Last Initial",
+            "type": "string"
+          },
+          "match_token": {
+            "title": "Match Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "match_token",
+          "first_name",
+          "last_initial"
+        ],
+        "title": "KioskMatch",
+        "type": "object"
+      },
+      "KioskPairRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "pairing_code": {
+            "maxLength": 16,
+            "minLength": 4,
+            "title": "Pairing Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pairing_code"
+        ],
+        "title": "KioskPairRequest",
+        "type": "object"
+      },
+      "KioskPairingCode": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "kiosk_device_id": {
+            "format": "uuid",
+            "title": "Kiosk Device Id",
+            "type": "string"
+          },
+          "pairing_code": {
+            "title": "Pairing Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kiosk_device_id",
+          "pairing_code",
+          "expires_at"
+        ],
+        "title": "KioskPairingCode",
+        "type": "object"
+      },
+      "KioskSettingsOut": {
+        "properties": {
+          "confirmation_timeout_seconds": {
+            "title": "Confirmation Timeout Seconds",
+            "type": "integer"
+          },
+          "displayed_alert_codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Displayed Alert Codes",
+            "type": "array"
+          },
+          "early_window_minutes": {
+            "title": "Early Window Minutes",
+            "type": "integer"
+          },
+          "late_window_minutes": {
+            "title": "Late Window Minutes",
+            "type": "integer"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "lookup_method": {
+            "title": "Lookup Method",
+            "type": "string"
+          },
+          "welcome_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Welcome Message"
+          }
+        },
+        "required": [
+          "location_id",
+          "lookup_method",
+          "early_window_minutes",
+          "late_window_minutes",
+          "welcome_message",
+          "displayed_alert_codes",
+          "confirmation_timeout_seconds"
+        ],
+        "title": "KioskSettingsOut",
+        "type": "object"
+      },
+      "KioskSettingsWrite": {
+        "additionalProperties": false,
+        "properties": {
+          "confirmation_timeout_seconds": {
+            "anyOf": [
+              {
+                "maximum": 300.0,
+                "minimum": 3.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmation Timeout Seconds"
+          },
+          "displayed_alert_codes": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "client_disabled",
+                    "access_denied",
+                    "membership_suspended",
+                    "membership_frozen",
+                    "membership_expired",
+                    "visits_depleted",
+                    "balance_due",
+                    "waiver_unsigned",
+                    "payment_method_expired",
+                    "staff_note",
+                    "birthday",
+                    "photo_missing",
+                    "over_daily_limit"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Displayed Alert Codes"
+          },
+          "early_window_minutes": {
+            "anyOf": [
+              {
+                "maximum": 1440.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Early Window Minutes"
+          },
+          "late_window_minutes": {
+            "anyOf": [
+              {
+                "maximum": 1440.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Late Window Minutes"
+          },
+          "lookup_method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "name",
+                  "membership_number",
+                  "both"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lookup Method"
+          },
+          "welcome_message": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Welcome Message"
+          }
+        },
+        "title": "KioskSettingsWrite",
         "type": "object"
       },
       "LedgerEntryOut": {
@@ -22311,6 +23733,26 @@
         "title": "Page[ChargeOut]",
         "type": "object"
       },
+      "Page_CheckInRowOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CheckInRowOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[CheckInRowOut]",
+        "type": "object"
+      },
       "Page_ClientDocumentOut_": {
         "properties": {
           "data": {
@@ -22409,6 +23851,26 @@
           "page"
         ],
         "title": "Page[CouponOut]",
+        "type": "object"
+      },
+      "Page_CredentialOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CredentialOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[CredentialOut]",
         "type": "object"
       },
       "Page_CreditLedgerEntryOut_": {
@@ -22691,6 +24153,26 @@
         "title": "Page[InvoiceOut]",
         "type": "object"
       },
+      "Page_KioskDeviceOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/KioskDeviceOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[KioskDeviceOut]",
+        "type": "object"
+      },
       "Page_LedgerEntryOut_": {
         "properties": {
           "data": {
@@ -22929,6 +24411,26 @@
           "page"
         ],
         "title": "Page[PermissionDefinition]",
+        "type": "object"
+      },
+      "Page_PortalAppCardOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PortalAppCardOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[PortalAppCardOut]",
         "type": "object"
       },
       "Page_PortalClientDocumentOut_": {
@@ -25128,6 +26630,127 @@
           "released_at"
         ],
         "title": "PortalAllocationOut",
+        "type": "object"
+      },
+      "PortalAppCardCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "device_label": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Label"
+          }
+        },
+        "required": [
+          "client_id"
+        ],
+        "title": "PortalAppCardCreate",
+        "type": "object"
+      },
+      "PortalAppCardIssued": {
+        "properties": {
+          "card_payload": {
+            "title": "Card Payload",
+            "type": "string"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "credential_id": {
+            "format": "uuid",
+            "title": "Credential Id",
+            "type": "string"
+          },
+          "device_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Label"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "issued_at": {
+            "format": "date-time",
+            "title": "Issued At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "credential_id",
+          "client_id",
+          "device_label",
+          "card_payload",
+          "issued_at",
+          "expires_at"
+        ],
+        "title": "PortalAppCardIssued",
+        "type": "object"
+      },
+      "PortalAppCardOut": {
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "credential_id": {
+            "format": "uuid",
+            "title": "Credential Id",
+            "type": "string"
+          },
+          "device_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Label"
+          },
+          "issued_at": {
+            "format": "date-time",
+            "title": "Issued At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "credential_id",
+          "client_id",
+          "device_label",
+          "issued_at"
+        ],
+        "title": "PortalAppCardOut",
         "type": "object"
       },
       "PortalCheckoutConfirm": {
@@ -41416,6 +43039,24 @@
         "title": "SpanUpdate",
         "type": "object"
       },
+      "StaffAlertOut": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "severity",
+          "message"
+        ],
+        "title": "StaffAlertOut",
+        "type": "object"
+      },
       "StaffSigner": {
         "additionalProperties": false,
         "properties": {
@@ -49393,6 +51034,331 @@
         ]
       }
     },
+    "/api/v1/check-ins": {
+      "get": {
+        "description": "Recent check-ins (CHK-18) and a client's history (CHK-19). Filters: location_id, client_id, result,\nchannel, local_on, checked_in_at[gte|lte].",
+        "operationId": "listCheckIns",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_CheckInRowOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Check Ins",
+        "tags": [
+          "access"
+        ]
+      },
+      "post": {
+        "description": "Check a client in from the front desk or their profile (CHK-01, CHK-03). A denial is returned, not raised.",
+        "operationId": "createCheckIn",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckInCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckInResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Check In",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/check-ins/evaluate": {
+      "post": {
+        "description": "What a check-in would decide, without writing anything.",
+        "operationId": "evaluateCheckIn",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessEvaluateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessDecision"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Evaluate Check In",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/check-ins/{check_in_id}": {
+      "get": {
+        "operationId": "getCheckIn",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "check_in_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Check In Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckInOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Check In",
+        "tags": [
+          "access"
+        ]
+      }
+    },
     "/api/v1/client-alerts/{alert_id}": {
       "patch": {
         "operationId": "updateClientAlert",
@@ -53772,6 +55738,205 @@
         ]
       }
     },
+    "/api/v1/clients/{client_id}/credentials": {
+      "get": {
+        "operationId": "listClientCredentials",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Client Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_CredentialOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Client Credentials",
+        "tags": [
+          "access"
+        ]
+      },
+      "post": {
+        "description": "Scan, type or generate a barcode or RFID value (CHK-11).",
+        "operationId": "assignCredential",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Client Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Assign Credential",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/clients/{client_id}/credentials/revoke-all": {
+      "post": {
+        "description": "Clear every digital card of a client (CHK-13).",
+        "operationId": "revokeClientAppCards",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Client Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialRevokeAllRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Client App Cards",
+        "tags": [
+          "access"
+        ]
+      }
+    },
     "/api/v1/clients/{client_id}/disable": {
       "post": {
         "description": "Soft-disable; revokes portal access. Reversible with enable.",
@@ -55936,6 +58101,131 @@
         "summary": "List Coupon Redemptions",
         "tags": [
           "billing"
+        ]
+      }
+    },
+    "/api/v1/credentials/resolve": {
+      "post": {
+        "description": "The client behind a scanned or typed value (CHK-14).",
+        "operationId": "resolveCredential",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialResolveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialMatch"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resolve Credential",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/credentials/{credential_id}/revoke": {
+      "post": {
+        "operationId": "revokeCredential",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "credential_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Credential Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Credential",
+        "tags": [
+          "access"
         ]
       }
     },
@@ -61040,6 +63330,643 @@
         "summary": "Void Invoice",
         "tags": [
           "billing"
+        ]
+      }
+    },
+    "/api/v1/kiosk-devices": {
+      "get": {
+        "operationId": "listKioskDevices",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_KioskDeviceOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Kiosk Devices",
+        "tags": [
+          "access"
+        ]
+      },
+      "post": {
+        "description": "Register a kiosk device; the pairing code is shown once.",
+        "operationId": "createKioskDevice",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KioskDeviceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KioskPairingCode"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Kiosk Device",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/kiosk-devices/{kiosk_device_id}/pairing-codes": {
+      "post": {
+        "description": "Launch kiosk mode on a registered device (CHK-05).",
+        "operationId": "createKioskPairingCode",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kiosk_device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Kiosk Device Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KioskPairingCode"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Kiosk Pairing Code",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/kiosk-devices/{kiosk_device_id}/revoke": {
+      "post": {
+        "operationId": "revokeKioskDevice",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kiosk_device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Kiosk Device Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KioskDeviceOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Kiosk Device",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/kiosk-settings": {
+      "get": {
+        "operationId": "getKioskSettings",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KioskSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Kiosk Settings",
+        "tags": [
+          "access"
+        ]
+      },
+      "put": {
+        "operationId": "putKioskSettings",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KioskSettingsWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KioskSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Kiosk Settings",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/kiosk/check-ins": {
+      "post": {
+        "description": "Self check-in (CHK-05): admitted or see staff, never amounts or reasons.",
+        "operationId": "createKioskCheckIn",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KioskCheckInCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KioskCheckInResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Kiosk Check In",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/kiosk/config": {
+      "get": {
+        "operationId": "getKioskConfig",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KioskConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Kiosk Config",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/kiosk/exit": {
+      "post": {
+        "description": "Leave kiosk mode: the device token stops working until staff pair it again.",
+        "operationId": "exitKiosk",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Exit Kiosk",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/kiosk/lookups": {
+      "post": {
+        "description": "Find yourself by card or the first letters of your last name: first name and last initial only.",
+        "operationId": "kioskLookup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KioskLookupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KioskLookupResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Kiosk Lookup",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/kiosk/pair": {
+      "post": {
+        "description": "Exchange a pairing code for this device's kiosk cookie.",
+        "operationId": "pairKiosk",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KioskPairRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KioskConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pair Kiosk",
+        "tags": [
+          "access"
         ]
       }
     },
@@ -67081,6 +70008,191 @@
         "summary": "List Permission Catalogue",
         "tags": [
           "platform"
+        ]
+      }
+    },
+    "/api/v1/portal/app-cards": {
+      "get": {
+        "operationId": "listAppCards",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PortalAppCardOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List App Cards",
+        "tags": [
+          "access"
+        ]
+      },
+      "post": {
+        "description": "A digital member card for this device; the payload is shown once and drives rotating QR codes offline.",
+        "operationId": "issueAppCard",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalAppCardCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalAppCardIssued"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Issue App Card",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/portal/app-cards/{credential_id}": {
+      "delete": {
+        "operationId": "revokeAppCard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "credential_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Credential Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke App Card",
+        "tags": [
+          "access"
         ]
       }
     },

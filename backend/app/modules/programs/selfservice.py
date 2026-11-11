@@ -187,7 +187,9 @@ def _bookable_seat(session: Db, session_id: UUID, client_id: UUID) -> tuple[dict
     except NotFound:
         raise ValidationFailed("Unknown session.", pointer="/session_id") from None
     policy = effective(session, seat["location_id"], seat["reservation_type_id"])
-    if seat["status"] != "confirmed" or policy["listing_mode"] == "hidden":
+    hidden = policy["listing_mode"] == "hidden"  # unlisted stays bookable by direct link
+    beyond = seat["starts_at"] >= clock.now() + timedelta(days=policy["visible_range_days"])
+    if seat["status"] != "confirmed" or hidden or beyond:
         raise ValidationFailed("Unknown session.", pointer="/session_id")
     return seat, policy
 
@@ -305,8 +307,11 @@ def portal_join(session: Db, principal: Principal, data: dict) -> WaitlistEntry:
         seat, policy = _bookable_seat(session, data["session_id"], subject)
         if policy["waitlist_mode"] == "disabled":
             raise Conflict("This session has no waitlist.", code="waitlist-disabled")
-        if seat["booked_count"] < seat["capacity"]:
+        reason = _verdict(session, seat, policy, subject, None)
+        if reason is None:
             raise Conflict("The session still has space: book it instead.", code="session-has-space")
+        if reason != "full":  # the queue is for a full session the client could otherwise book
+            raise Conflict("This session cannot be booked online now.", code="policy-violation", reason=reason)
         if session.scalar(
             select(Enrollment.id).where(
                 Enrollment.session_id == seat["id"], Enrollment.client_id == subject, Enrollment.status == "enrolled"
@@ -338,6 +343,10 @@ def portal_claim(session: Db, principal: Principal, entry_id: UUID, data: dict) 
     entry = _own_row(session, principal, WaitlistEntry, entry_id)
     if entry.session_id is None:
         raise Conflict("Program waitlists are promoted by staff.", code="invalid-state-transition")
+    seat, policy = _bookable_seat(session, entry.session_id, entry.client_id)
+    reason = _verdict(session, seat, policy, entry.client_id, None)
+    if reason not in (None, "full"):  # the policy may have changed since the client queued
+        raise Conflict("This session cannot be booked online now.", code="policy-violation", reason=reason)
     service.claim_offer(session, entry, data.get("client_package_id"))
     audit.record(
         session, service.WAITLIST, entry, location_id=entry.location_id, changes={"status": ["offered", "promoted"]}

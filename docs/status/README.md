@@ -443,3 +443,5 @@ By module (the tables above carry the per-feature gaps; these are the ones that 
   (`app/core/inbound_webhooks.py`); API keys and scopes are not built (CLI-21, MEM-22, PKG-16, BIL-23).
 - **Mobile (17):** the staff API is complete in `backend/openapi.json`; tokens must not be kept in browser
   storage (web rule), and client-facing endpoints live under `/portal/` and `/public/`.
+
+Module 10 (check-in and kiosk) is reported in `10-checkin.md`: P0 8 done, 1 partial.

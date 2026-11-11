@@ -26,6 +26,7 @@ async function openMorgan(page: Page) {
 }
 
 test('membership and package screens and dialogs pass the axe WCAG 2.1 AA scan', async ({ page }) => {
+  test.setTimeout(120_000) // twenty axe scans across two colour schemes; over 30s on a loaded machine
   await signIn(page)
   for (const colorScheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme })

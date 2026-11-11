@@ -97,6 +97,13 @@ def _reaches(session: Db, principal: Principal, group: ProgramGroup, key: str) -
     return bool(session.scalar(stmt))
 
 
+def reached_groups(session: Db, principal: Principal):
+    """A SELECT of the group ids with a session on the coach's own calendar (empty without one)."""
+    sessions = _own_sessions(session, principal)
+    reached = select(ProgramSession.program_group_id)
+    return reached.where(ProgramSession.session_id.in_(sessions)) if sessions is not None else reached.where(False)
+
+
 def load(session: Db, principal: Principal, group_id: UUID, key: str, *, deleted: bool = False, lock: bool = False):
     """The group the caller may act on with `key`: missing, deleted or out of location scope is 404."""
     group = _row(session, group_id, deleted=deleted, lock=lock)
@@ -258,12 +265,7 @@ def list_groups(session: Db, principal: Principal, query: ListQuery) -> dict:
     if "parent_id" not in filters and not deleted:
         stmt = stmt.where(g.parent_id.is_(None))
     if _own_reach(principal, READ):
-        sessions = _own_sessions(session, principal)
-        reached = select(ProgramSession.program_group_id)
-        reached = (
-            reached.where(ProgramSession.session_id.in_(sessions)) if sessions is not None else reached.where(False)
-        )
-        stmt = stmt.where(g.id.in_(reached))
+        stmt = stmt.where(g.id.in_(reached_groups(session, principal)))
     query = ListQuery(query.limit, query.cursor, query.sort, query.include_total, query.q, filters)
     page = paginate(
         session, scope_query(stmt, principal, g.location_id), query, id_column=g.id,

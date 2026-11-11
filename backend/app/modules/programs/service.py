@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import false, func, or_, select
 from sqlalchemy.orm import Session as Db
 
 from app.core import audit, clock, events
@@ -146,8 +146,22 @@ def create_enrollment(session: Db, principal: Principal, data: dict) -> Enrollme
 
 def list_enrollments(session: Db, principal: Principal, query: ListQuery) -> dict:
     _authorize_any(principal, READ, groups.READ)
+    e, kinds = Enrollment, []
+    for key, kind in ((READ, "session"), (groups.READ, "group")):
+        reach = principal.permissions.get(key) if principal.kind == "staff" else "all"
+        if not reach:
+            continue  # each target kind needs its own read key
+        clause = e.target_kind == kind
+        if reach == "own" and kind == "session":
+            mine = platform.service.linked_resource_id(session, principal.staff_user_id)
+            sessions = scheduling.service.sessions_with_resource(mine, select(e.session_id)) if mine else None
+            clause &= e.session_id.in_(sessions) if sessions is not None else false()
+        elif reach == "own":
+            clause &= e.program_group_id.in_(groups.reached_groups(session, principal))
+        kinds.append(clause)
+    stmt = select(e).where(or_(*kinds))
     return paginate(
-        session, scope_query(select(Enrollment), principal, Enrollment.location_id), query, id_column=Enrollment.id,
+        session, scope_query(stmt, principal, Enrollment.location_id), query, id_column=Enrollment.id,
         sort_fields={"enrolled_at": Enrollment.created_at}, default_sort="enrolled_at",
         filter_fields={
             "location_id": Enrollment.location_id, "session_id": Enrollment.session_id,
@@ -602,3 +616,44 @@ def lapse_offers(session: Db) -> int:
         entry.status, entry.offered_at, entry.offer_expires_at = "waiting", None, None
     session.flush()
     return len(rows)
+
+
+# --- check-in (access, build module 10) ---------------------------------------------------------------------
+
+
+def mark_attended_by_check_in(
+    session: Db, *, client_id: UUID, location_id: UUID, at, early: timedelta, late: timedelta,
+    source: str = "check_in", staff_user_id: UUID | None = None,
+) -> list[tuple[UUID, UUID]]:  # fmt: skip
+    """Internal (access, CHK-01, CHK-05): mark attended the client's unmarked session places at the location
+    whose session starts from `early` before to `late` after `at`. Credits and events follow as for a staff
+    mark. Returns (enrollment id, session id) per place marked."""
+    rows = session.scalars(
+        select(Enrollment)
+        .outerjoin(Attendance, (Attendance.enrollment_id == Enrollment.id) & (Attendance.session_id == Enrollment.session_id))
+        .where(
+            Enrollment.client_id == client_id, Enrollment.location_id == location_id,
+            Enrollment.status == "enrolled", Enrollment.target_kind == "session", Attendance.id.is_(None),
+        )
+        .order_by(Enrollment.enrolled_at.desc())
+        .limit(50)  # shortcut: newest 50 unmarked places; enough for one visit, revisit if rosters stay unmarked
+    ).all()  # fmt: skip
+    marked = []
+    for row in rows:
+        seat = scheduling.service.get_session(session, row.session_id)
+        if seat["status"] != "confirmed" or not (at - early <= seat["starts_at"] <= at + late):
+            continue
+        mark = Attendance(
+            enrollment_id=row.id, session_id=row.session_id, client_id=client_id, status="attended", source=source,
+            marked_at=clock.now(), marked_by_staff_user_id=staff_user_id,
+        )  # fmt: skip
+        session.add(mark)
+        session.flush()
+        audit.record(session, MARK, mark, location_id=location_id, changes={"status": [None, "attended"]})
+        if row.pricing == "entitlement":
+            _settle_credit(session, seat, row, "attended")
+        events.publish(
+            session, ev.EnrollmentAttended(enrollment_id=row.id, session_id=row.session_id, client_id=client_id), row.id
+        )
+        marked.append((row.id, row.session_id))
+    return marked
