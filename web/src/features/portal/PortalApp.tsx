@@ -9,6 +9,7 @@ import { useAuth, useMe } from '../../lib/auth'
 import { APP_NAME } from '../../lib/format'
 import { BookingsPage } from './BookingsPage'
 import { HomePage } from './HomePage'
+import { InboxBadge, InboxPage } from './InboxPage'
 import { InvoicesPage } from './InvoicesPage'
 import { MembershipsPage } from './MembershipsPage'
 import { PackagesPage } from './PackagesPage'
@@ -21,6 +22,7 @@ const NAV = [
   { to: '/portal/memberships', label: 'Memberships' },
   { to: '/portal/packages', label: 'Packages' },
   { to: '/portal/invoices', label: 'Invoices' },
+  { to: '/portal/inbox', label: 'Inbox' },
   { to: '/portal/profile', label: 'Profile' },
 ]
 
@@ -99,6 +101,7 @@ function Shell({ children }: { children: ReactNode }) {
                   className={({ isActive }) => `-mb-px block whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium ${isActive ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-fg'}`}
                 >
                   {n.label}
+                  {n.to === '/portal/inbox' && <InboxBadge />}
                 </NavLink>
               </li>
             ))}
@@ -141,6 +144,7 @@ export function PortalApp() {
           <Route path="memberships" element={<MembershipsPage />} />
           <Route path="packages" element={<PackagesPage />} />
           <Route path="invoices" element={<InvoicesPage />} />
+          <Route path="inbox" element={<InboxPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="*" element={<Navigate to="/portal" replace />} />
         </Routes>
