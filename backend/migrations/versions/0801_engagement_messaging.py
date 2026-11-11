@@ -175,7 +175,7 @@ def upgrade() -> None:
     sa.Column('segment_id', sa.Uuid(), nullable=True),
     sa.Column('audience', postgresql.JSONB(none_as_null=True, astext_type=sa.Text()), nullable=True),
     sa.Column('reply_to', postgresql.CITEXT(), nullable=True),
-    sa.Column('sender_staff_user_id', sa.Uuid(), nullable=False),
+    sa.Column('sender_staff_user_id', sa.Uuid(), nullable=True),
     sa.Column('status', sa.Text(), server_default=sa.text("'draft'"), nullable=False),
     sa.Column('scheduled_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('started_at', sa.DateTime(timezone=True), nullable=True),

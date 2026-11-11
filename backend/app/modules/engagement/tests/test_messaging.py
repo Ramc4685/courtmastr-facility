@@ -212,6 +212,15 @@ def test_templates_segments_and_campaign_lifecycle(client, tenant, owner, site, 
     assert [c["id"] for c in listed] == [campaign["id"]]
 
 
+def test_an_api_key_creates_a_campaign_without_a_staff_sender(client, tenant, owner, site):
+    scopes = ["engagement.campaign.read", "engagement.campaign.create"]
+    key = ok(client.post(f"{API}/api-keys", headers=owner, json={"name": "CRM", "scopes": scopes}), 201)
+    bearer = {"Authorization": f"Bearer {key['secret']}"}
+    created = _campaign(client, bearer, site, [str(uuid4())])
+    with tenant_session(tenant.id, actor=SYSTEM) as session:
+        assert session.get(Campaign, created["id"]).sender_staff_user_id is None
+
+
 def test_announcement_reaches_the_portal_inbox_and_can_be_recalled(client, tenant, owner, site):
     person = _person(client, owner, site, "member@example.com", tenant=tenant)
     portal = _member(client, tenant, person)

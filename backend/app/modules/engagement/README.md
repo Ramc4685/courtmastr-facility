@@ -41,6 +41,7 @@ routes, the portal inbox and push devices, portal settings and videos. Feature s
   transaction, otherwise a row is queued. An exit event cancels the client's queued sends for that rule. They
   are marketing (topic `email_campaigns`, verified address, footer) unless the template's category says otherwise.
 - **Editing a scheduled campaign** returns it to draft, so someone holding the send key schedules it again.
+- **API keys** (module 16) holding engagement scopes can create campaigns; the sender is then empty.
 - **The message log** shows location-less rows (transactional mail from other contexts) to tenant-wide staff only.
 
 ## Assumptions and deviations (written down, not guessed)

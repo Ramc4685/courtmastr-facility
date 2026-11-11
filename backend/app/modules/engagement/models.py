@@ -274,7 +274,7 @@ class Campaign(TenantOwned, Timestamps, Base):
     segment_id: Mapped[UUID | None]
     audience: Mapped[dict | None] = mapped_column(JsonDict, nullable=True)
     reply_to: Mapped[str | None] = mapped_column(CITEXT)
-    sender_staff_user_id: Mapped[UUID]
+    sender_staff_user_id: Mapped[UUID | None]  # None when an API key sends
     status: Mapped[str] = enum_column(server_default=text("'draft'"))
     scheduled_at: Mapped[datetime | None]
     started_at: Mapped[datetime | None]
