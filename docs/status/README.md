@@ -147,10 +147,10 @@ Lane detail: `04-clients-households.md`.
 | CLI-06 Client categories | P0 | done |  |
 | CLI-07 Referral categories and source | P1 | done |  |
 | CLI-08 Tags (sports, seasons, custom) | P0 | done |  |
-| CLI-09 Activity log with attachments | P1 | partial | **Attachments not built**: they need platform uploads (`stored_file`) and object storage, which do not exist yet. |
+| CLI-09 Activity log with attachments | P1 | done | Attachments (PDF, JPEG, PNG; up to 5 per note) on notes, with the note's reach; served by a checked route, not a signed URL. Bodies over 1 MiB get 413 until Phase 8 widens `BodyLimitMiddleware`; bytes of removed files wait for K1 `files.remove`. |
 | CLI-10 Activity/task subject list | P1 | done |  |
 | CLI-11 Client tasks and task/activity report | P1 | partial | **Not built**: a dedicated task/activity report (the reporting module owns it) and a scheduler that calls the reminder function. Own reach means the assignee. |
-| CLI-12 Client photo | P0 | not built | Needs the platform uploads flow (security-baseline 8), `stored_file` and object storage. None exist, so `photo_file_id` and the photo routes are left out. |
+| CLI-12 Client photo | P0 | partial | Staff upload, replace and remove (JPEG/PNG, re-encoded); shown on the profile, the client list and the check-in status card, never the kiosk. **Not built**: webcam capture and the portal photo edit (`is_portal_photo_edit_enabled`). Uploads over 1 MiB get 413 until Phase 8 widens `BodyLimitMiddleware`. |
 | CLI-13 Duplicate detection and merge | P1 | done |  |
 | CLI-14 Disable a client | P0 | done |  |
 | CLI-15 Self-service portal access provisioning | P0 | done |  |

@@ -17,7 +17,7 @@ from app.core import audit, clock, events
 from app.core.auth import Principal, authorize
 from app.core.errors import Conflict, ValidationFailed
 from app.modules import platform
-from app.modules.clients import households, service
+from app.modules.clients import files, households, service
 from app.modules.clients.events import ClientMerged
 from app.modules.clients.models import (
     Client,
@@ -100,6 +100,7 @@ BACKFILL = (
     "address_line1", "address_line2", "city", "region", "postal_code", "country_code", "client_category_id",
     "referral_category_id", "referral_source", "default_trainer_staff_user_id",
     "default_salesperson_staff_user_id", "comments", "medical_notes", "member_number",
+    "photo_file_id",  # CLI-12: a survivor without a photo takes the loser's
 )  # fmt: skip
 
 
@@ -376,6 +377,7 @@ _ERASE_NULL = (
     "preferred_name", "gender", "birth_on", "organization_name", "primary_email", "phone_mobile", "phone_home",
     "phone_work", "address_line1", "address_line2", "city", "region", "postal_code", "country_code",
     "referral_source", "comments", "medical_notes", "member_number", "member_number_source",
+    "photo_file_id",  # its stored_file row is marked purged first (files.purge_rows); bytes wait for K1
 )  # fmt: skip
 
 
@@ -396,7 +398,8 @@ def _export_clients(session: Session, client_id: UUID) -> dict:
                                    for e in service.emergency_contacts(session, cid)],
             "alerts": [{"message": a.message, "created_at": a.created_at} for a in
                        session.scalars(select(ClientAlert).where(ClientAlert.client_id == cid))],
-            "notes": [{"kind": n.kind, "subject": n.subject_text, "body": n.body, "occurred_at": n.occurred_at}
+            "notes": [{"kind": n.kind, "subject": n.subject_text, "body": n.body, "occurred_at": n.occurred_at,
+                       "attachments": files.export_attachments(session, n.id)}
                       for n in session.scalars(select(ClientNote).where(ClientNote.client_id == cid))],
         }  # fmt: skip
     return out
@@ -409,6 +412,7 @@ def _erase_clients(session: Session, client_id: UUID) -> dict:
     counts = {}
     for cid in _subject_ids(session, client_id):
         client = session.get(Client, cid)
+        files.purge_rows(session, files.file_ids_of(session, client))  # before the photo id and notes go
         client.first_name, client.last_name = ERASED_FIRST, ERASED_LAST
         for field in _ERASE_NULL:
             setattr(client, field, None)

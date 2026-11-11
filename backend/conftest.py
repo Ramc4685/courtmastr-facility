@@ -204,6 +204,7 @@ def populate(client, tenant) -> SimpleNamespace:
         ref = payment_provider.get("fake").open_dispute(paid.provider_payment_ref)
         billing_ids["dispute_id"] = str(billing.service.sync_dispute(session, account, ref).id)
     people = _populate_people(client, headers, tenant, location["id"], person["id"])
+    people |= _populate_client_files(client, headers, person["id"], people["note_id"])
     documents = _populate_documents(client, headers, tenant, location["id"], person)
     space = _populate_space(client, tenant, headers, post, location["id"], person["id"])
     people |= _populate_memberships(
@@ -346,6 +347,25 @@ def _populate_pos(client, headers, post, person, location, category_id, tax_id) 
         "pos_sale_discount_id": sale["discounts"][0]["id"], "pos_sale_tender_id": sale["tenders"][0]["id"],
         "pos_return_id": pos_return["id"],
     }  # fmt: skip
+
+
+def png_bytes(size: tuple[int, int] = (4, 4)) -> bytes:
+    import io
+
+    from PIL import Image
+
+    out = io.BytesIO()
+    Image.new("RGB", size, (200, 40, 40)).save(out, "PNG")
+    return out.getvalue()
+
+
+def _populate_client_files(client, headers, person_id, note_id) -> dict:
+    """Phase 10 chip F: a client photo and one note attachment (client_note_attachment, stored_file)."""
+    png = headers | {"Content-Type": "image/png"}
+    assert client.put(f"/api/v1/clients/{person_id}/photo", headers=png, content=png_bytes()).status_code == 200
+    attachment = client.post(f"/api/v1/client-notes/{note_id}/attachments", headers=png, content=png_bytes())
+    assert attachment.status_code == 201, attachment.text
+    return {"attachment_id": attachment.json()["id"]}
 
 
 def _populate_people(client, headers, tenant, location_id, person_id) -> dict:

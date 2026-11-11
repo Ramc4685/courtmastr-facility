@@ -1969,6 +1969,46 @@ export interface paths {
         patch: operations["updateClientNote"];
         trace?: never;
     };
+    "/api/v1/client-notes/{note_id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Client Note Attachments */
+        get: operations["listClientNoteAttachments"];
+        put?: never;
+        /**
+         * Upload Client Note Attachment
+         * @description PDF, JPEG or PNG bytes with their Content-Type and an optional X-File-Name; at most 5 per note.
+         *     Errors: file-type-mismatch, file-too-large, file-empty, too-many-attachments.
+         */
+        post: operations["uploadClientNoteAttachment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/client-notes/{note_id}/attachments/{attachment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Client Note Attachment */
+        get: operations["getClientNoteAttachment"];
+        put?: never;
+        post?: never;
+        /** Delete Client Note Attachment */
+        delete: operations["deleteClientNoteAttachment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/client-packages": {
         parameters: {
             query?: never;
@@ -2727,6 +2767,28 @@ export interface paths {
         /** Create Setup Intent */
         post: operations["createSetupIntent"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Client Photo */
+        get: operations["getClientPhoto"];
+        /**
+         * Set Client Photo
+         * @description JPEG or PNG bytes, up to 5 MiB; re-encoded. Errors: file-type-mismatch, file-too-large, file-empty.
+         */
+        put: operations["setClientPhoto"];
+        post?: never;
+        /** Delete Client Photo */
+        delete: operations["deleteClientPhoto"];
         options?: never;
         head?: never;
         patch?: never;
@@ -15469,6 +15531,8 @@ export interface components {
             merged_into_id: string | null;
             /** Phone Mobile */
             phone_mobile: string | null;
+            /** Photo File Id */
+            photo_file_id?: string | null;
             /** Preferred Name */
             preferred_name: string | null;
             /** Primary Email */
@@ -15563,6 +15627,8 @@ export interface components {
             phone_mobile: string | null;
             /** Phone Work */
             phone_work: string | null;
+            /** Photo File Id */
+            photo_file_id?: string | null;
             /** Postal Code */
             postal_code: string | null;
             /** Preferred Name */
@@ -20463,6 +20529,30 @@ export interface components {
         NoSaleRequest: {
             /** Reason */
             reason: string;
+        };
+        /** NoteAttachmentOut */
+        NoteAttachmentOut: {
+            /**
+             * Client Note Id
+             * Format: uuid
+             */
+            client_note_id: string;
+            /** Content Type */
+            content_type: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** File Name */
+            file_name: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Size Bytes */
+            size_bytes: number;
         };
         /** NoteIn */
         NoteIn: {
@@ -36745,6 +36835,140 @@ export interface operations {
             };
         };
     };
+    listClientNoteAttachments: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteAttachmentOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    uploadClientNoteAttachment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                note_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteAttachmentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getClientNoteAttachment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                note_id: string;
+                attachment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteClientNoteAttachment: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                note_id: string;
+                attachment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listClientPackages: {
         parameters: {
             query?: {
@@ -38674,6 +38898,104 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SetupIntentOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getClientPhoto: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    setClientPhoto: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteClientPhoto: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

@@ -146,9 +146,9 @@ export const api = {
     request<Ok<Op<P, 'delete'>>>('delete', path as string, opts as Options),
 }
 
-/** PUT raw file bytes (the one upload route, /client-documents/{id}/paper-scan). Same CSRF, idempotency and
- * problem handling as `request`; no refresh retry, since the body stream is consumed. */
-export async function uploadFile<T>(template: keyof paths, path: Record<string, string>, file: File): Promise<T> {
+/** PUT (or POST) raw file bytes to an upload route (paper scans, client photos, note attachments). Same CSRF,
+ * idempotency and problem handling as `request`; no refresh retry, since the body stream is consumed. */
+export async function uploadFile<T>(template: keyof paths, path: Record<string, string>, file: File, method: 'PUT' | 'POST' = 'PUT'): Promise<T> {
   const headers: Record<string, string> = {
     accept: 'application/json',
     'content-type': file.type || 'application/octet-stream',
@@ -157,7 +157,7 @@ export async function uploadFile<T>(template: keyof paths, path: Record<string, 
   }
   if (TENANT_SLUG) headers['x-tenant-slug'] = TENANT_SLUG
   if (csrfToken) headers['x-csrf-token'] = csrfToken
-  const res = await fetch(buildUrl(template as string, { path }), { method: 'PUT', headers, credentials: 'same-origin', body: file })
+  const res = await fetch(buildUrl(template as string, { path }), { method, headers, credentials: 'same-origin', body: file })
   const data: unknown = await res.json().catch(() => undefined)
   if (!res.ok) throw new ApiError({ ...((data ?? {}) as Problem), status: res.status })
   return data as T

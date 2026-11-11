@@ -78,6 +78,8 @@ CLIENT_OR_TENANT_ROUTES = {
         putCommissionRules putDefaultPayRate putPayRateOverride putMembershipPayRate deletePayRateOverride
         deleteMembershipPayRate listBonusRules putBonusRules
         listReservationTypeGrants replaceReservationTypeGrants
+        setClientPhoto deleteClientPhoto getClientPhoto listClientNoteAttachments uploadClientNoteAttachment
+        getClientNoteAttachment deleteClientNoteAttachment
         createAssessmentField updateAssessmentField updateAssessmentTemplate
     """.split())
     # Integrations (module 16): T keys; the service limits a location-bound admin to their own endpoints and to

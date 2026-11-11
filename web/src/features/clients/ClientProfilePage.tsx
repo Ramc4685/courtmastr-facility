@@ -19,6 +19,7 @@ import { ClientMembershipsTab } from '../memberships/ClientMembershipsTab'
 import { ClientPackagesTab } from '../packages/ClientPackagesTab'
 import { formatDateTime, fullName } from '../../lib/format'
 import { ClientPicker, type ClientSummary } from './ClientPicker'
+import { NoteAttachments, PhotoCard } from './ClientFiles'
 import { useCategories } from './ClientsPage'
 
 type Client = Schemas['ClientOut']
@@ -148,6 +149,7 @@ function Overview({ client }: { client: Client }) {
           {client.is_sensitive_masked && <p className="text-muted">Birth date, address and medical notes are hidden for your role.</p>}
         </dl>
       </Card>
+      <PhotoCard client={client} />
     </div>
   )
 }
@@ -316,6 +318,7 @@ function Notes({ client }: { client: Client }) {
                 </p>
                 {n.body && <p>{n.body}</p>}
                 <p className="text-xs text-muted">{formatDateTime(n.occurred_at)}</p>
+                <NoteAttachments noteId={n.id} />
               </li>
             ))}
           </ul>

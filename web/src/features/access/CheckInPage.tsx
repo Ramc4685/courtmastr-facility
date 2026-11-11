@@ -15,6 +15,7 @@ import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { LocationSelect, useWorkingLocation } from '../scheduling/location'
 import { ALERT_LABEL, CHANNEL, DENIAL_LABEL, MODE_LABEL, RESULT, type AccessMode, type CheckIn, type Decision } from './queries'
 import { useScanBurst } from './useScanBurst'
+import { ClientPhotoById } from '../clients/ClientFiles' // CLI-12 photo on the staff status card (never the kiosk)
 
 type Subject = { client_id: string } | { credential_value: string }
 
@@ -137,7 +138,8 @@ function StatusCard({ decision, busy, canOverride, reason, onReason, onCheckIn, 
   return (
     <div className="space-y-4" aria-live="polite">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
+        <ClientPhotoById clientId={c.client_id} name={c.display_name} />
+        <div className="flex-1">
           <h3 className="text-lg font-semibold">
             <Link to={`/clients/${c.client_id}`}>{c.display_name}</Link>
           </h3>
