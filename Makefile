@@ -102,3 +102,27 @@ mobile-check:       ## typecheck and lint the member app
 
 mobile-test:        ## Jest + React Native Testing Library
 	$(MOBILE) test
+
+# --- Operations (chip O1): the container stack and the backup drill. See docs/ops/. ---
+STACK = docker compose --env-file infra/docker/.env.stack -f infra/docker/compose.stack.yml --profile mail
+
+.PHONY: stack-up stack-smoke stack-down backup-drill
+
+infra/docker/.env.stack:
+	cp infra/docker/stack.env.example $@
+
+stack-up: infra/docker/.env.stack   ## build and start the whole stack on its own project (fhstack) and ports; https://localhost:18443
+	$(STACK) up -d --build --wait --wait-timeout 900
+
+stack-smoke:        ## header, sign-in, upload/download and readiness checks through the proxy
+	infra/docker/smoke.sh
+
+stack-down:         ## stop the stack and delete its volumes
+	$(STACK) down -v
+
+backup-drill: .env  ## back up this lane's database via the dev Postgres container, restore to a scratch database, check it
+	set -a; . ./.env; set +a; export PGPASSWORD="$$FH_POSTGRES_PASSWORD" PGUSER=postgres PGDATABASE="$${FH_DB_NAME:-facilityhub}" \
+	  FH_BACKUP_PASSPHRASE=lane-drill-passphrase FH_BACKUP_DIR=var/backups FH_BACKUP_KEEP=2 \
+	  FH_PG_EXEC="docker exec -i -e PGPASSWORD -e PGUSER facilityhub-postgres-1" \
+	  FH_EXPECTED_HEAD="$$(cd backend && uv run alembic heads | cut -d' ' -f1)"; \
+	infra/backup/backup.sh && infra/backup/drill.sh

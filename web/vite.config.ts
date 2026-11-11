@@ -14,7 +14,8 @@ const API = process.env.FH_API_URL ?? `http://127.0.0.1:${API_PORT}`
 export default defineConfig({
   plugins: [react()],
   define: { __APP_NAME__: JSON.stringify(displayName) },
-  server: { port: WEB_PORT, strictPort: true, proxy: { '/api': { target: API } } },
+  // CHANGELOG.md sits one level above the web root and is imported as raw text (the What's new page).
+  server: { fs: { allow: ['..'] }, port: WEB_PORT, strictPort: true, proxy: { '/api': { target: API } } },
   preview: { port: WEB_PORT, strictPort: true, proxy: { '/api': { target: API } } },
   test: {
     environment: 'jsdom',

@@ -1,0 +1,14 @@
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.venv
+**/tests
+backend/var
+backend/.coverage
+.git
+.env
+.env.*
+web
+mobile
+docs
+graphify-out

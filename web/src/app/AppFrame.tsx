@@ -159,8 +159,13 @@ function UserMenu() {
               ))}
             </div>
           </fieldset>
+<<<<<<< HEAD
           <Link to="/account/security" onClick={() => setOpen(false)} className="block w-full rounded px-2 py-2 text-left text-sm hover:bg-surface-2">
             Sign-in security
+=======
+          <Link to="/whats-new" onClick={() => setOpen(false)} className="block rounded px-2 py-2 text-sm hover:bg-surface-2">
+            What's new
+>>>>>>> claude/p8-o1-ops-dd611f
           </Link>
           <button type="button" onClick={() => void signOut()} className="w-full rounded px-2 py-2 text-left text-sm hover:bg-surface-2">
             Sign out

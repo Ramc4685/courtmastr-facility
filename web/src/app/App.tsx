@@ -30,6 +30,7 @@ import { PackagesPage } from '../features/packages/PackagesPage'
 import { PortalApp } from '../features/portal/PortalApp'
 import { AuditLogPage } from '../features/platform/AuditLogPage'
 import { DashboardPage } from '../features/platform/DashboardPage'
+import { WhatsNewPage } from '../features/platform/WhatsNewPage'
 import { LocationsPage } from '../features/platform/LocationsPage'
 import { RoleDetailPage } from '../features/platform/RoleDetailPage'
 import { RolesPage } from '../features/platform/RolesPage'
@@ -113,6 +114,7 @@ export function AppRoutes() {
       <Route element={<RequireStaff><AppFrame /></RequireStaff>}>
         <Route index element={<DashboardPage />} />
         <Route path="locations" element={<LocationsPage />} />
+        <Route path="whats-new" element={<WhatsNewPage />} />
         <Route path="staff" element={<RequirePermission permission="platform.staff_user.read"><StaffUsersPage /></RequirePermission>} />
         <Route path="staff/:id" element={<RequirePermission permission="platform.staff_user.read"><StaffUserPage /></RequirePermission>} />
         <Route path="roles" element={<RequirePermission permission="platform.role.read"><RolesPage /></RequirePermission>} />

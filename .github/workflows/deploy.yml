@@ -1,0 +1,93 @@
+# Deploy pipeline SKELETON. Manual only; deploys nothing until the owner chooses a host and adds that host's secrets.
+# Build and scan run on every dispatch and need no secrets. Migrate and deploy are separate jobs that sit behind the
+# `production` GitHub Environment (add required reviewers there: that is the gate) and are skipped, with a notice,
+# when DEPLOY_ENABLED is not set to "true" in the repository's variables.
+name: deploy
+
+on:
+  workflow_dispatch: {}   # builds the branch or tag picked in the Run workflow dialog; no free-form ref input
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-scan:
+    name: build and scan (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        image: [backend, web]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build ${{ matrix.image }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/${{ matrix.image }}.Dockerfile
+          tags: facilityhub-${{ matrix.image }}:${{ github.sha }}
+          load: true
+          push: false
+      # security-baseline 14: no HIGH or CRITICAL finding that has a fix ships.
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: facilityhub-${{ matrix.image }}:${{ github.sha }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          vuln-type: os,library
+          trivyignores: .trivyignore
+      - name: Scan the repository for secrets and misconfiguration
+        if: matrix.image == 'backend'
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scanners: secret,misconfig
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+  migrate:
+    name: migrate (gated)
+    needs: build-scan
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Run database migrations
+        env:
+          DEPLOY_ENABLED: ${{ vars.DEPLOY_ENABLED }}
+        run: |
+          if [ "$DEPLOY_ENABLED" != "true" ]; then
+            echo "::notice::Migrations skipped: DEPLOY_ENABLED is not true. No host is configured yet."
+            exit 0
+          fi
+          # PLACEHOLDER: run the backend image's `migrate` command against the production database, as a one-shot
+          # task on the chosen host, with FH_DB_OWNER_PASSWORD from that host's secret store. Fly:
+          #   fly machine run <image> migrate --app <app> --rm   AWS: ecs run-task with the migrate command override.
+          echo "::error::DEPLOY_ENABLED is true but the migrate step is still a placeholder (docs/ops/deploy-fly.md)."
+          exit 1
+
+  deploy:
+    name: deploy (placeholder)
+    needs: migrate
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deploy images
+        env:
+          DEPLOY_ENABLED: ${{ vars.DEPLOY_ENABLED }}
+        run: |
+          if [ "$DEPLOY_ENABLED" != "true" ]; then
+            echo "::notice::Deploy skipped: DEPLOY_ENABLED is not true. Nothing was pushed or started."
+            exit 0
+          fi
+          # PLACEHOLDER: push facilityhub-backend and facilityhub-web:${{ github.sha }} to the chosen registry and roll
+          # the api, worker, relay, scheduler and proxy to that tag. Provider credentials come from repository or
+          # environment secrets (for example FLY_API_TOKEN, or an OIDC role for AWS), never from this file.
+          echo "::error::DEPLOY_ENABLED is true but the deploy step is still a placeholder (docs/ops/deploy-fly.md, deploy-aws.md)."
+          exit 1
