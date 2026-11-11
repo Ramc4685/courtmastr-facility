@@ -82,6 +82,7 @@ def test_tenant_row_is_private(two_tenants):
 
 _BODIES = {
     "updateLocation": {"name": "Renamed"},
+    "updateSavedReport": {"name": "Renamed"},
     "replaceFacilityHours": {"days": WEEK},
     "updateStaffUser": {"first_name": "Renamed"},
     "assignStaffRole": "role",
@@ -490,6 +491,8 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
         ("/accounting-exports", {
             "external_connection_id": a.external_connection_id, "location_id": b.location_id, "business_on": "2020-01-02",
         }),
+        ("/report-runs", {"report_key": "deposits", "saved_report_id": b.saved_report_id}),
+        ("/export-jobs", {"report_run_id": b.report_run_id}),
     )):  # fmt: skip
         response = post(path, body, index)
         assert (response.status_code, response.json()["code"]) == (422, "validation-failed"), (

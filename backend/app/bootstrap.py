@@ -51,6 +51,7 @@ def bootstrap() -> None:
         leagues,
         programs,
         rentals,
+        reporting,  # noqa: F401  (build module 15)
         resources,
         scheduling,
         staff,  # noqa: F401  (build module 12)

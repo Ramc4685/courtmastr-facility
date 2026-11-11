@@ -1,0 +1,114 @@
+"""reporting tables (docs/architecture/data-model-programs.md section 4, ADR 0010). The context stores what users
+save and what runs and exports produce, never business facts: those are read through the `rpt_*` views in
+`views.py`. The report catalogue is code (`registry.py`), not a table."""
+
+from datetime import datetime
+from enum import StrEnum
+from uuid import UUID
+
+from sqlalchemy import CheckConstraint, Index, func, text
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.core.db import Base, TenantOwned, Timestamps, enum_check, enum_column, tenant_args, tfk
+
+
+class RunStatus(StrEnum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    EXPIRED = "expired"
+
+
+class SourceKind(StrEnum):
+    REPORT_RUN = "report_run"
+    LIST = "list"
+    DOCUMENT_BATCH = "document_batch"
+
+
+class ExportFormat(StrEnum):
+    CSV = "csv"
+    XLSX = "xlsx"
+    PDF = "pdf"
+
+
+class SavedReport(TenantOwned, Timestamps, Base):
+    """A user's saved parameter set (4.2). It grants nothing: running it applies the runner's gates."""
+
+    __tablename__ = "saved_report"
+    __table_args__ = tenant_args(
+        *tfk("owner_staff_user_id", "staff_user", index=False),
+        Index("uq_saved_report_owner_name", "tenant_id", "owner_staff_user_id", func.lower(text("name")), unique=True),
+    )
+
+    report_key: Mapped[str] = mapped_column(info={"audit": "value"})
+    name: Mapped[str] = mapped_column(info={"audit": "value"})
+    params: Mapped[dict] = mapped_column(server_default=text("'{}'"))
+    columns: Mapped[dict | None]
+    owner_staff_user_id: Mapped[UUID]
+    is_shared: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
+    last_run_at: Mapped[datetime | None]
+
+
+class ReportRun(TenantOwned, Timestamps, Base):
+    """One execution with frozen, resolved parameters: a static snapshot kept in `result_file_id` (4.3)."""
+
+    __tablename__ = "report_run"
+    __table_args__ = tenant_args(
+        *tfk("saved_report_id", "saved_report"),
+        *tfk("requested_by_staff_user_id", "staff_user", index=False),
+        *tfk("result_file_id", "stored_file"),
+        enum_check("status", RunStatus),
+        Index("ix_report_run_recent", "tenant_id", "requested_by_staff_user_id", "id"),
+    )
+
+    report_key: Mapped[str] = mapped_column(info={"audit": "value"})
+    saved_report_id: Mapped[UUID | None]
+    requested_by_staff_user_id: Mapped[UUID]
+    params: Mapped[dict]
+    params_hash: Mapped[str] = mapped_column(info={"audit": "value"})
+    status: Mapped[str] = enum_column(server_default=text("'queued'"))
+    started_at: Mapped[datetime | None]
+    finished_at: Mapped[datetime | None]
+    row_count: Mapped[int | None] = mapped_column(info={"audit": "value"})
+    # Deviation from 4.3 (README): the report totals sit on the row too, so lists show them without the file.
+    totals: Mapped[dict | None]
+    result_file_id: Mapped[UUID | None]
+    error: Mapped[str | None]
+    expires_at: Mapped[datetime]
+
+
+class ExportJob(TenantOwned, Timestamps, Base):
+    """A file rendered by the `run_export` job from a report run snapshot (4.4)."""
+
+    __tablename__ = "export_job"
+    __table_args__ = tenant_args(
+        *tfk("report_run_id", "report_run"),
+        *tfk("file_id", "stored_file"),
+        *tfk("requested_by_staff_user_id", "staff_user", index=False),
+        enum_check("source_kind", SourceKind),
+        enum_check("format", ExportFormat),
+        enum_check("status", RunStatus),
+        CheckConstraint("(source_kind = 'report_run') = (report_run_id IS NOT NULL)", name="source"),
+        CheckConstraint("page_size IS NULL OR page_size IN ('a4', 'letter')", name="page_size"),
+        CheckConstraint("orientation IS NULL OR orientation IN ('portrait', 'landscape')", name="orientation"),
+        Index("ix_export_job_history", "tenant_id", "requested_by_staff_user_id", "id"),
+        Index("ix_export_job_source", "tenant_id", "source_key", "id"),
+    )
+
+    source_kind: Mapped[str] = enum_column()
+    report_run_id: Mapped[UUID | None]
+    source_key: Mapped[str] = mapped_column(info={"audit": "value"})
+    params: Mapped[dict] = mapped_column(server_default=text("'{}'"))
+    format: Mapped[str] = enum_column(server_default=text("'csv'"))
+    includes_details: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
+    page_size: Mapped[str | None] = enum_column()
+    orientation: Mapped[str | None] = enum_column()
+    status: Mapped[str] = enum_column(server_default=text("'queued'"))
+    row_count: Mapped[int | None] = mapped_column(info={"audit": "value"})
+    file_id: Mapped[UUID | None]
+    error: Mapped[str | None]
+    requested_by_staff_user_id: Mapped[UUID]
+    started_at: Mapped[datetime | None]
+    finished_at: Mapped[datetime | None]
+    expires_at: Mapped[datetime]

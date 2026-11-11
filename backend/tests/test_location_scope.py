@@ -118,8 +118,10 @@ def _staff_id_routes():
 def _location_bound(path: str, name: str, keys: tuple[str, ...]) -> bool:
     if name in LOCATION_BOUND_WRITES:
         return True
-    first = re.search(r"\{(\w+)_id\}", path)[1]
-    table = _table(first)
+    match = re.search(r"\{(\w+)_id\}", path)
+    if match is None:
+        return False  # a code key ({report_key}), not a row
+    table = _table(match[1])
     owned = table.name == "location" or "location_id" in table.c
     return owned and (not keys or any(CATALOGUE[key].scope == Scope.LOCATION for key in keys))
 

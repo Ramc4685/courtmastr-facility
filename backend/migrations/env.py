@@ -21,6 +21,7 @@ import app.modules.platform.models  # noqa: F401
 import app.modules.pos.models  # noqa: F401
 import app.modules.programs.models  # noqa: F401
 import app.modules.rentals.models  # noqa: F401
+import app.modules.reporting.models  # noqa: F401
 import app.modules.resources.models  # noqa: F401
 import app.modules.scheduling.models  # noqa: F401
 import app.modules.staff.models  # noqa: F401

@@ -17,6 +17,7 @@ from seeds import access as access_seed
 from seeds import assessments as assessments_seed
 from seeds import billing, clients, documents, engagement, integrations, leagues, memberships, packages, pos, programs
 from seeds import rentals as rentals_seed
+from seeds import reporting as reporting_seed
 from seeds import resources as resources_seed
 from seeds import scheduling as scheduling_seed
 from seeds import staff as staff_seed
@@ -100,7 +101,7 @@ def seed() -> None:
         for context in (
             clients, billing, resources_seed, scheduling_seed, pos, documents, memberships, packages, rentals_seed, programs,
             access_seed, integrations, engagement, leagues,
-            staff_seed, assessments_seed,
+            staff_seed, assessments_seed, reporting_seed,
         ):  # fmt: skip
             context.seed(session)
     print(f"Seeded tenant {TENANT['name']} ({TENANT['slug']}), id {tenant_id}")

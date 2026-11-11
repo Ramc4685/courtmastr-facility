@@ -177,7 +177,7 @@ def populate(client, tenant) -> SimpleNamespace:
 
     def post(path: str, body: dict, key: str | None = None) -> dict:
         response = client.post(f"/api/v1{path}", json=body, headers=headers | ({"Idempotency-Key": key} if key else {}))
-        assert response.status_code in (200, 201), response.text
+        assert response.status_code in (200, 201, 202), response.text
         return response.json()
 
     charge = post("/charges", {
@@ -211,13 +211,23 @@ def populate(client, tenant) -> SimpleNamespace:
     space |= _populate_engagement(client, tenant, post, location["id"], person["id"], identity_id)
     leagues = _populate_leagues(client, headers, post, location["id"], person["id"], space["resource_id"], category_id)
     integration = _populate_integrations(client, headers, tenant, post, location, person)
+    reporting = _populate_reporting(post, location["id"])
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
         session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
         payment_id=payment["id"], revenue_category_id=category_id, tax_id=tax_id, **billing_ids, **people, **documents, **space,
         **leagues,
-        **integration,
+        **integration, **reporting,
     )  # fmt: skip
+
+
+def _populate_reporting(post, location_id) -> dict:
+    """Build module 15: a saved report, one run of it, and a (queued) CSV export of that run."""
+    params = {"location_ids": [location_id], "from_on": "2020-01-01", "to_on": "2020-12-31"}
+    saved = post("/saved-reports", {"report_key": "deposits", "name": "Deposits 2020", "params": params})
+    run = post("/report-runs", {"report_key": "deposits", "saved_report_id": saved["id"]})
+    export = post("/export-jobs", {"report_run_id": run["id"], "format": "csv"})
+    return {"saved_report_id": saved["id"], "report_run_id": run["id"], "export_job_id": export["id"]}
 
 
 def _populate_assessments(client, headers, post, location_id, client_id) -> dict:
