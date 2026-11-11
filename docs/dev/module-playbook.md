@@ -51,7 +51,7 @@ new module must know. The rules that integration added:
 
 ## Security rules for new modules (wave 1 hardening)
 
-Full findings and tests: `docs/security/wave1-hardening-spec.md`, `docs/status/security-wave1.md`.
+Full findings and tests: `docs/security/wave1-hardening-spec.md`, `docs/status/security-wave1.md`; wave 2: `docs/status/security-wave2.md`.
 
 - **Scope comes from the key.** An `L` key is always `authorize(principal, key,
   location_id=record.location_id)` on the loaded record; a `C` key needs no location but does need the
