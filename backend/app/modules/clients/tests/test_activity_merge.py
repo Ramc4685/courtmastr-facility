@@ -73,8 +73,11 @@ def test_notes_subjects_and_timeline(client, tenant, owner, location_id):
 
 
 def test_tasks_own_reach_counts_and_reminders(client, tenant, owner, location_id, mailbox):
-    person = new_client(client, owner, location_id)
     email, coach_id = add_staff(tenant, "coach", location_ids=[location_id])
+    person = new_client(client, owner, location_id)
+    client.put(
+        f"{API}/clients/{person['id']}/owners", headers=owner, json={"default_trainer_staff_user_id": str(coach_id)}
+    )
     coach = login(client, tenant, email)
     yesterday = (clock.now().date() - timedelta(days=1)).isoformat()
     mine = client.post(f"{API}/client-tasks", headers=coach, json={
@@ -143,6 +146,7 @@ def test_duplicates_precheck_and_merge(client, tenant, owner, location_id):
     body = {"merged_client_ids": [lose["id"]]}
     check = client.post(f"{API}/clients/{keep['id']}/merge-precheck", headers=owner, json=body).json()
     assert check["can_merge"] and {"phone_mobile", "member_number"} <= set(check["backfill_fields"])
+    assert [i["kind"] for i in check["review"]] == ["relationship"]  # acting rights never carry over (P-06)
     assert (
         client.post(
             f"{API}/clients/{keep['id']}/merge", headers=owner, json={"merged_client_ids": [keep["id"]]}
@@ -155,7 +159,7 @@ def test_duplicates_precheck_and_merge(client, tenant, owner, location_id):
     assert merged["phone_mobile"] == "+13125550111" and merged["member_number"] == "OLD-1"
     assert [e["email"] for e in merged["emails"]] == ["lee@example.com"] and merged["tag_ids"] == [vip["id"]]
     rels = client.get(f"{API}/clients/{keep['id']}/relationships", headers=owner).json()
-    assert [r["other_client_id"] for r in rels] == [kid["id"]]
+    assert rels == []
     assert len(client.get(f"{API}/clients/{keep['id']}/notes", headers=owner).json()["data"]) == 1
     tomb = client.get(f"{API}/clients/{lose['id']}", headers=owner).json()
     assert tomb["merged_into_id"] == keep["id"] and tomb["status"] == "disabled"

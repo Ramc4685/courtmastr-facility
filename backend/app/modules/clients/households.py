@@ -173,8 +173,11 @@ def create_relationship(session: Session, principal: Principal, client_id: UUID,
     authorize(principal, _MANAGE)
     client = service.load(session, principal, client_id, "clients.client.read")
     service._require_live(client)
-    other = session.get(Client, data["other_client_id"])
-    if other is None or other.id == client.id or other.merged_into_id or other.erased_at:
+    try:
+        other = service.load(session, principal, data["other_client_id"], "clients.client.read")
+    except NotFound:
+        raise ValidationFailed("Unknown client.", pointer="/other_client_id") from None
+    if other.id == client.id or other.merged_into_id or other.erased_at:
         raise ValidationFailed("Unknown client.", pointer="/other_client_id")
     types = _types(session)
     kind = types.get(data["relationship_type_id"])
@@ -190,17 +193,20 @@ def create_relationship(session: Session, principal: Principal, client_id: UUID,
     return relationship_view(session, rel, client.id, types)
 
 
-def _live_rel(session: Session, rel_id: UUID) -> ClientRelationship:
+def _live_rel(session: Session, principal: Principal, rel_id: UUID) -> ClientRelationship:
+    """The relationship, 404 unless the caller reaches both parties."""
     rel = session.get(ClientRelationship, rel_id)
     if rel is None:
         raise NotFound()
+    for client_id in (rel.from_client_id, rel.to_client_id):
+        service.load(session, principal, client_id, "clients.client.read")
     return rel
 
 
 def approve_relationship(session: Session, principal: Principal, rel_id: UUID) -> dict:
     """Staff approve a pending portal request on the other person's behalf."""
     authorize(principal, _MANAGE)
-    rel = _live_rel(session, rel_id)
+    rel = _live_rel(session, principal, rel_id)
     if rel.status != "pending":
         raise Conflict("Only a pending relationship can be approved.")
     rel.status, rel.confirmed_at, rel.confirmation_token_hash = "active", clock.now(), None
@@ -221,12 +227,27 @@ def _end(session: Session, rel: ClientRelationship, action: str) -> None:
 
 def end_relationship(session: Session, principal: Principal, rel_id: UUID) -> dict:
     authorize(principal, _MANAGE)
-    rel = _live_rel(session, rel_id)
+    rel = _live_rel(session, principal, rel_id)
     _end(session, rel, _MANAGE)
     return relationship_view(session, rel, rel.from_client_id, _types(session))
 
 
 # --- acting rights -------------------------------------------------------------------------------------------
+
+
+def _is_minor(session: Session, client: Client) -> bool:
+    """Under the tenant's age of majority on today's date at the client's home location."""
+    tenant = platform.service.get_tenant(session)
+    age = int((tenant.settings or {}).get("age_of_majority", 18))
+    return service.is_minor(client, platform.service.location_today(session, client.home_location_id), age)
+
+
+def _minor_ward(session: Session, rel: ClientRelationship, types: dict) -> UUID | None:
+    """The minor that a guardianship link (read from either side) is over, else None."""
+    for guardian, ward in ((rel.from_client_id, rel.to_client_id), (rel.to_client_id, rel.from_client_id)):
+        if _side_type(rel, guardian, types).is_guardianship and _is_minor(session, session.get(Client, ward)):
+            return ward
+    return None
 
 
 def _access_rows(session: Session, identity_id: UUID) -> list[ClientPortalAccess]:
@@ -279,11 +300,7 @@ def authority(session: Session, identity_id: UUID, client_id: UUID) -> str | Non
             kind = _side_type(rel, row.client_id, types)
             if not kind.grants_acting_rights:
                 continue
-            tenant = platform.service.get_tenant(session)
-            age = int((tenant.settings or {}).get("age_of_majority", 18))
-            adult_with_login = not service.is_minor(target, clock.now().date(), age) and _has_own_login(
-                session, client_id
-            )
+            adult_with_login = not _is_minor(session, target) and _has_own_login(session, client_id)
             if kind.is_guardianship and not adult_with_login:
                 return "guardian"
             found = "delegate"
@@ -479,6 +496,8 @@ def portal_get_client(session: Session, principal: Principal, client_id: UUID) -
 
 def portal_update_client(session: Session, principal: Principal, client_id: UUID, data: dict) -> dict:
     client, found = _portal_load(session, principal, client_id, "edit_profile")
+    if data.get("birth_on", client.birth_on) != client.birth_on and client.birth_on is not None:
+        raise ValidationFailed("Ask staff to change a recorded birth date.", pointer="/birth_on", code="field-locked")
     changes = service.apply_update(session, client, data, context="portal", actor_staff_id=None)
     if changes:
         audit.record(session, "clients.client.update", client, location_id=client.home_location_id, changes=changes)
@@ -529,7 +548,7 @@ def portal_request_relationship(session: Session, principal: Principal, data: di
     cannot be used to find out who has an account. Matches one active client with that address, those names
     and their own login; sends them a single-use confirmation link."""
     me = _self_client(session, principal)
-    kind, _ = _portal_type(session, data["relationship_type_id"])
+    kind, types = _portal_type(session, data["relationship_type_id"])
     email = data["email"].lower()
     candidates = [
         c
@@ -559,12 +578,18 @@ def portal_request_relationship(session: Session, principal: Principal, data: di
     )
     if live:
         return
-    raw, hashed = tokens.mint("fhr", session.info["tenant_id"])
     rel = ClientRelationship(
         from_client_id=me.id, to_client_id=other.id, relationship_type_id=kind.id, status="pending",
         created_via="portal", requested_by_identity_id=principal.identity_id,
-        confirmation_token_hash=hashed, confirmation_expires_at=clock.now() + CONFIRM_TTL,
     )  # fmt: skip
+    if _minor_ward(session, rel, types) is not None:
+        # Guardianship of a minor is never confirmed by the minor: staff approve it (approve_relationship).
+        session.add(rel)
+        session.flush()
+        _changed(session, rel, "clients.relationship.request", {"status": [None, "pending"]})
+        return
+    raw, hashed = tokens.mint("fhr", session.info["tenant_id"])
+    rel.confirmation_token_hash, rel.confirmation_expires_at = hashed, clock.now() + CONFIRM_TTL
     session.add(rel)
     session.flush()
     _changed(session, rel, "clients.relationship.request", {"status": [None, "pending"]})
@@ -588,6 +613,8 @@ def decide_relationship(session: Session, token: str, decision: str) -> dict:
     if rel is None or rel.status != "pending" or rel.confirmation_expires_at <= clock.now():
         raise NotFound("This link is not valid or has expired.", code="token-invalid")
     if decision == "accept":
+        if _minor_ward(session, rel, _types(session)) is not None:
+            raise Conflict("Staff must approve a guardianship of a minor.", code="staff-approval-required")
         rel.status, rel.confirmed_at, rel.confirmation_token_hash = "active", clock.now(), None
         _changed(session, rel, "clients.relationship.confirm", {"status": ["pending", "active"]})
     else:
@@ -635,5 +662,7 @@ def portal_end_relationship(session: Session, principal: Principal, rel_id: UUID
     rel = session.get(ClientRelationship, rel_id)
     if rel is None or me.id not in (rel.from_client_id, rel.to_client_id):
         raise NotFound()
+    if rel.status == "active" and _minor_ward(session, rel, _types(session)) == me.id:
+        raise Conflict("Ask staff to end a guardianship link.", code="staff-approval-required")
     _end(session, rel, "clients.relationship.end")
     return relationship_view(session, rel, me.id, _types(session))

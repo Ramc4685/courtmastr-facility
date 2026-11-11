@@ -612,11 +612,18 @@ VIEWS = ("all", "recent", "created", "birthdays_this_month", "birthdays_next_mon
 
 def _duplicate_of(other_alias=None):
     """Candidate predicate (data-model 1.16): same last name and one of: birth date, a shared email, or a
-    trigram-similar first name with a shared mobile number. Tombstones are never candidates."""
+    trigram-similar first name with a shared mobile number. Tombstones are never candidates. A record created
+    in the portal shares an email only through a verified address (matchable_addresses)."""
     other = other_alias or aliased(Client)
+    theirs = aliased(ClientEmail)
     shared_email = exists().where(
         ClientEmail.client_id == Client.id,
-        ClientEmail.email.in_(select(ClientEmail.email).where(ClientEmail.client_id == other.id).scalar_subquery()),
+        or_(Client.created_via != "portal", ClientEmail.verified_at.is_not(None)),
+        ClientEmail.email.in_(
+            select(theirs.email)
+            .where(theirs.client_id == other.id, or_(other.created_via != "portal", theirs.verified_at.is_not(None)))
+            .scalar_subquery()
+        ),
     )
     return other, and_(
         other.id != Client.id,
@@ -846,8 +853,7 @@ def update_client(session: Session, principal: Principal, client_id: UUID, data:
 def disable_client(session: Session, principal: Principal, client_id: UUID) -> Client:
     """CLI-14: reversible soft-disable. Revokes the client's portal access rows; an identity left with no
     active row is disabled and signed out (ADR 0002 section 5)."""
-    authorize(principal, "clients.client.disable")
-    client = session.get(Client, client_id) or _not_found()
+    client = load(session, principal, client_id, "clients.client.disable")
     _require_live(client)
     if client.status == "disabled":
         raise Conflict("This client is already disabled.")
@@ -879,8 +885,7 @@ def disable_client(session: Session, principal: Principal, client_id: UUID) -> C
 
 def enable_client(session: Session, principal: Principal, client_id: UUID) -> Client:
     """Ours (data-model 7.1): back to active and the access rows the disable revoked are restored."""
-    authorize(principal, "clients.client.disable")
-    client = session.get(Client, client_id) or _not_found()
+    client = load(session, principal, client_id, "clients.client.disable")
     _require_live(client)
     if client.status == "active":
         raise Conflict("This client is already active.")
@@ -927,8 +932,7 @@ def assign_member_number(session: Session, principal: Principal, client_id: UUID
 
 
 def assign_owners(session: Session, principal: Principal, client_id: UUID, data: dict) -> Client:
-    authorize(principal, "clients.client.assign_owner")
-    client = session.get(Client, client_id) or _not_found()
+    client = load(session, principal, client_id, "clients.client.assign_owner")
     _require_live(client)
     for field in ("default_trainer_staff_user_id", "default_salesperson_staff_user_id"):
         if data.get(field) is not None and not platform.service.staff_user_exists(session, data[field]):
@@ -1043,6 +1047,15 @@ def client_addresses(session: Session, client_id: UUID) -> list[str]:
     return list(
         session.scalars(select(ClientEmail.email).where(ClientEmail.client_id == client_id).order_by(ClientEmail.email))
     )
+
+
+def matchable_addresses(session: Session, client: Client) -> set[str]:
+    """Addresses that may match another record as a duplicate: a portal-created record's verified ones only,
+    so a dependent typed in with someone's address is never paired with that person (merge would follow)."""
+    stmt = select(ClientEmail.email).where(ClientEmail.client_id == client.id)
+    if client.created_via == "portal":
+        stmt = stmt.where(ClientEmail.verified_at.is_not(None))
+    return set(session.scalars(stmt))
 
 
 def ensure_member_number(session: Session, client_id: UUID) -> str | None:

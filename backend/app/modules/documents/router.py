@@ -272,13 +272,13 @@ def update_document_location_settings(location_id: UUID, body: s.DocumentLocatio
 # --- portal ----------------------------------------------------------------------------------------------------
 
 
-@router.get("/portal/client-documents", response_model=s.Page[s.ClientDocumentOut])
+@router.get("/portal/client-documents", response_model=s.Page[s.PortalClientDocumentOut])
 def list_portal_client_documents(query: Lists, ctx: Portal, client_id: ActFor = None):
     """Your documents, or a household member's you may act for (client_id). Filter: status."""
     return service.portal_list(ctx.session, ctx.principal, client_id, query)
 
 
-@router.get("/portal/client-documents/{document_id}", response_model=s.ClientDocumentOut)
+@router.get("/portal/client-documents/{document_id}", response_model=s.PortalClientDocumentOut)
 def get_portal_client_document(document_id: UUID, ctx: Portal, client_id: ActFor = None):
     return service.portal_get(ctx.session, ctx.principal, document_id, client_id)
 
@@ -296,7 +296,7 @@ def get_portal_document_requirements(
     return service.portal_requirements(ctx.session, ctx.principal, scope_type, scope_id, client_id)
 
 
-@router.post("/portal/client-documents/{document_id}/acceptances", response_model=s.ClientDocumentOut)
+@router.post("/portal/client-documents/{document_id}/acceptances", response_model=s.PortalClientDocumentOut)
 def portal_submit_acceptance(
     document_id: UUID, body: s.PortalAcceptanceSubmit, ctx: Portal, request: Request, client_id: ActFor = None
 ):

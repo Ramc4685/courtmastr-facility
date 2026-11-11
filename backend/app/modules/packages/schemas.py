@@ -340,6 +340,20 @@ class CreditLedgerEntryOut(Out):
     occurred_at: datetime
 
 
+class PortalCreditLedgerEntryOut(Out):
+    """The portal view of a credit movement: no staff note, actor, source or client id (P-11)."""
+
+    id: UUID
+    client_package_id: UUID
+    entry_type: Literal["grant", "reserve", "release", "consume", "restore", "forfeit", "adjust"]
+    granted_delta: int
+    reserved_delta: int
+    consumed_delta: int
+    forfeited_delta: int
+    reason: str
+    occurred_at: datetime
+
+
 class ShareIn(In):
     client_id: UUID
 
@@ -366,6 +380,16 @@ class RemovalQuoteOut(Out):
 
 class PackageRemove(In):
     removal_mode: Literal["billing_reversed", "billing_kept"]
+
+
+class PortalPackageSeriesOut(Out):
+    id: UUID
+    package_plan_id: UUID
+    occurrences_total_count: int
+    occurrences_generated_count: int
+    next_period_start_on: date | None
+    is_auto_renew: bool
+    status: Literal["active", "completed", "cancelled"]
 
 
 class PackageSeriesOut(Out):

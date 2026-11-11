@@ -12828,6 +12828,8 @@ export interface components {
             can_merge: boolean;
             /** Merged Client Ids */
             merged_client_ids: string[];
+            /** Review */
+            review: components["schemas"]["MergeReviewItem"][];
             /**
              * Survivor Client Id
              * Format: uuid
@@ -12838,6 +12840,26 @@ export interface components {
         MergeRequest: {
             /** Merged Client Ids */
             merged_client_ids: string[];
+        };
+        /** MergeReviewItem */
+        MergeReviewItem: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Detail */
+            detail: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "portal_access" | "relationship";
         };
         /** NoSaleRequest */
         NoSaleRequest: {
@@ -14109,6 +14131,18 @@ export interface components {
             data: components["schemas"]["PermissionDefinition"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[PortalClientDocumentOut] */
+        Page_PortalClientDocumentOut_: {
+            /** Data */
+            data: components["schemas"]["PortalClientDocumentOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PortalCreditLedgerEntryOut] */
+        Page_PortalCreditLedgerEntryOut_: {
+            /** Data */
+            data: components["schemas"]["PortalCreditLedgerEntryOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[PortalInvoiceOut] */
         Page_PortalInvoiceOut_: {
             /** Data */
@@ -14783,6 +14817,66 @@ export interface components {
              */
             status: "provisional" | "applied" | "released";
         };
+        /**
+         * PortalClientDocumentOut
+         * @description The portal view: no source, binding, deletion or stored-file references (P-11).
+         */
+        PortalClientDocumentOut: {
+            /** Acceptance Method */
+            acceptance_method: string;
+            /** Acceptance Text */
+            acceptance_text: string;
+            /** Acceptances */
+            acceptances: components["schemas"]["PortalDocumentAcceptanceOut"][];
+            /** Body Html */
+            body_html: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Name */
+            client_name: string;
+            /** Content Sha256 */
+            content_sha256: string;
+            /** Decided At */
+            decided_at: string | null;
+            /** Description */
+            description: string | null;
+            /** Expires On */
+            expires_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Paper Signed */
+            is_paper_signed: boolean;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Required Roles */
+            required_roles: string[];
+            /** Requires Guardian */
+            requires_guardian: boolean;
+            /** Signature Blocks */
+            signature_blocks: {
+                [key: string]: unknown;
+            }[];
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
+            /** Version */
+            version: number;
+        };
         /** PortalClientList */
         PortalClientList: {
             /** Data */
@@ -15044,6 +15138,42 @@ export interface components {
             /** Visits Used Count */
             visits_used_count: number;
         };
+        /**
+         * PortalCreditLedgerEntryOut
+         * @description The portal view of a credit movement: no staff note, actor, source or client id (P-11).
+         */
+        PortalCreditLedgerEntryOut: {
+            /**
+             * Client Package Id
+             * Format: uuid
+             */
+            client_package_id: string;
+            /** Consumed Delta */
+            consumed_delta: number;
+            /**
+             * Entry Type
+             * @enum {string}
+             */
+            entry_type: "grant" | "reserve" | "release" | "consume" | "restore" | "forfeit" | "adjust";
+            /** Forfeited Delta */
+            forfeited_delta: number;
+            /** Granted Delta */
+            granted_delta: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Reason */
+            reason: string;
+            /** Reserved Delta */
+            reserved_delta: number;
+        };
         /** PortalDependentCreate */
         PortalDependentCreate: {
             /** Birth On */
@@ -15061,6 +15191,30 @@ export interface components {
              * Format: uuid
              */
             relationship_type_id: string;
+        };
+        /**
+         * PortalDocumentAcceptanceOut
+         * @description No witness, signer client id or signature file (P-11).
+         */
+        PortalDocumentAcceptanceOut: {
+            /**
+             * Decided At
+             * Format: date-time
+             */
+            decided_at: string;
+            /** Decision */
+            decision: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Method */
+            method: string;
+            /** Signer Name */
+            signer_name: string;
+            /** Signer Role */
+            signer_role: string;
         };
         /** PortalInvite */
         PortalInvite: {
@@ -15337,6 +15491,32 @@ export interface components {
             valid_from_on: string;
             /** Valid Until On */
             valid_until_on: string | null;
+        };
+        /** PortalPackageSeriesOut */
+        PortalPackageSeriesOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /** Next Period Start On */
+            next_period_start_on: string | null;
+            /** Occurrences Generated Count */
+            occurrences_generated_count: number;
+            /** Occurrences Total Count */
+            occurrences_total_count: number;
+            /**
+             * Package Plan Id
+             * Format: uuid
+             */
+            package_plan_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "completed" | "cancelled";
         };
         /** PortalPayment */
         PortalPayment: {
@@ -30783,7 +30963,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Page_ClientDocumentOut_"];
+                    "application/json": components["schemas"]["Page_PortalClientDocumentOut_"];
                 };
             };
             /** @description Validation Error */
@@ -30819,7 +30999,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ClientDocumentOut"];
+                    "application/json": components["schemas"]["PortalClientDocumentOut"];
                 };
             };
             /** @description Validation Error */
@@ -30859,7 +31039,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ClientDocumentOut"];
+                    "application/json": components["schemas"]["PortalClientDocumentOut"];
                 };
             };
             /** @description Validation Error */
@@ -31052,7 +31232,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Page_CreditLedgerEntryOut_"];
+                    "application/json": components["schemas"]["Page_PortalCreditLedgerEntryOut_"];
                 };
             };
             /** @description Validation Error */
@@ -31733,7 +31913,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PackageSeriesOut"];
+                    "application/json": components["schemas"]["PortalPackageSeriesOut"];
                 };
             };
             /** @description Validation Error */

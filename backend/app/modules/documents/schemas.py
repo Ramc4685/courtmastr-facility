@@ -155,6 +155,42 @@ class DocumentAcceptanceOut(Out):
     witnessed_by_staff_user_id: UUID | None
 
 
+class PortalDocumentAcceptanceOut(Out):
+    """No witness, signer client id or signature file (P-11)."""
+
+    id: UUID
+    decision: str
+    signer_role: str
+    signer_name: str
+    method: str
+    decided_at: datetime
+
+
+class PortalClientDocumentOut(Out):
+    """The portal view: no source, binding, deletion or stored-file references (P-11)."""
+
+    id: UUID
+    version: int
+    client_id: UUID
+    client_name: str
+    location_id: UUID
+    title: str
+    description: str | None
+    acceptance_method: str
+    status: str
+    requires_guardian: bool
+    required_roles: list[str]
+    issued_at: datetime
+    decided_at: datetime | None
+    expires_on: date | None
+    is_paper_signed: bool
+    body_html: str
+    acceptance_text: str
+    signature_blocks: list[dict]
+    content_sha256: str
+    acceptances: list[PortalDocumentAcceptanceOut]
+
+
 class ClientDocumentOut(Out):
     id: UUID
     version: int

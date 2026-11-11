@@ -131,7 +131,7 @@ def test_portal_lists_signs_and_acts_for_a_dependent(client, owner, location_id,
     forged = {**body, "signers": [body["signers"][0] | {"signer_client_id": stranger["id"]}]}
     assert client.post(url, headers=portal, json=forged).status_code == 422
     signed = ok(client.post(url, headers=portal, json=body))
-    assert signed["status"] == "accepted" and signed["acceptances"][0]["witnessed_by_staff_user_id"] is None
+    assert signed["status"] == "accepted" and "witnessed_by_staff_user_id" not in signed["acceptances"][0]
     pdf = client.get(f"{API}/portal/client-documents/{mine['id']}/file", headers=portal)
     assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
 
@@ -154,7 +154,8 @@ def test_portal_lists_signs_and_acts_for_a_dependent(client, owner, location_id,
          "typed_signature": "Me"}]}  # fmt: skip
     done = ok(client.post(f"{API}/portal/client-documents/{pending['id']}/acceptances?client_id={kid['id']}",
                           headers=portal, json=as_guardian))  # fmt: skip
-    assert done["status"] == "accepted" and done["acceptances"][0]["signer_client_id"] == me["id"]
+    staff_view = ok(client.get(f"{API}/client-documents/{pending['id']}", headers=owner))
+    assert done["status"] == "accepted" and staff_view["acceptances"][0]["signer_client_id"] == me["id"]
     assert ok(client.get(reqs, headers=portal))["requirements"][0]["is_satisfied"] is True
 
 
@@ -175,7 +176,7 @@ def test_portal_consent(client, owner, location_id, tenant, mailbox):
         ok(client.get(f"{API}/portal/consent", headers=portal))["pending_document_id"] == state["pending_document_id"]
     )
     doc = ok(client.get(f"{API}/portal/client-documents/{state['pending_document_id']}", headers=portal))
-    assert doc["origin"] == "consent"
+    assert doc["status"] == "pending" and "origin" not in doc  # portal schema (P-11)
     ok(client.post(f"{API}/portal/client-documents/{doc['id']}/acceptances", headers=portal, json={
         "content_sha256": doc["content_sha256"],
         "signers": [{"decision": "accepted", "signer_role": "client", "signer_name": "C", "method": "checkbox"}]}))  # fmt: skip

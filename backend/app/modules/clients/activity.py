@@ -182,9 +182,10 @@ def list_tasks(session: Session, principal: Principal, query: ListQuery) -> dict
 
 def create_task(session: Session, principal: Principal, data: dict) -> ClientTask:
     _task_reach(principal)
-    client = session.get(Client, data["client_id"])
-    if client is None:
-        raise ValidationFailed("Unknown client.", pointer="/client_id")
+    try:
+        client = service.load(session, principal, data["client_id"], "clients.activity.write")
+    except NotFound:
+        raise ValidationFailed("Unknown client.", pointer="/client_id") from None
     service._require_live(client)
     _check_subject(session, data)
     assignee = data.get("assignee_staff_user_id") or principal.staff_user_id
@@ -211,6 +212,8 @@ def update_task(session: Session, principal: Principal, task_id: UUID, data: dic
         if data["assignee_staff_user_id"] is None:
             raise ValidationFailed("assignee cannot be null.", pointer="/assignee_staff_user_id")
         _check_staff(session, data["assignee_staff_user_id"], "/assignee_staff_user_id")
+        if clause is not None and data["assignee_staff_user_id"] != principal.staff_user_id:
+            raise ValidationFailed("You can only assign tasks to yourself.", pointer="/assignee_staff_user_id")
     status = data.pop("status", None)
     for key, value in data.items():
         setattr(row, key, value)

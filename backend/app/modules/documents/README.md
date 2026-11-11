@@ -70,3 +70,16 @@ so an `every_purchase` binding asks again next time. `scope_id` is opaque here: 
 - The PDF uses built-in Latin-1 fonts: other scripts print as "?" (see the shortcut note in `domain/pdf.py`).
 - The template editor is a markup textarea with formatting buttons and a live sanitised preview, not WYSIWYG.
 - The IP is only recorded when the request carries a real address (the test client's does not).
+
+## Security hardening (wave 1, P-08 to P-11)
+
+- `listClientDocumentStatuses` skips client ids outside the caller's reach.
+- Decided evidence is immutable: a paper scan on an accepted document needs `documents.document.void` (at the
+  document's location), replaces the file only and never rewrites `content_sha256`; returning a paper-signed
+  document to pending also needs the void key.
+- The signer role is derived. Portal: `client` only for the caller's own record, otherwise `guardian`. Link:
+  `guardian` when the document requires one, `client` only when a recipient is a verified address of the
+  client (422 at `/signer_role` otherwise). A link sent to a guardian of an adult client therefore cannot be
+  signed; send it to the client.
+- Portal routes return `PortalClientDocumentOut` and `PortalDocumentAcceptanceOut` (no witness, signer client,
+  source, binding, deletion or stored-file ids).

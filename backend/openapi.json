@@ -17431,6 +17431,13 @@
             "title": "Merged Client Ids",
             "type": "array"
           },
+          "review": {
+            "items": {
+              "$ref": "#/components/schemas/MergeReviewItem"
+            },
+            "title": "Review",
+            "type": "array"
+          },
           "survivor_client_id": {
             "format": "uuid",
             "title": "Survivor Client Id",
@@ -17441,6 +17448,7 @@
           "survivor_client_id",
           "merged_client_ids",
           "blockers",
+          "review",
           "backfill_fields",
           "can_merge"
         ],
@@ -17465,6 +17473,40 @@
           "merged_client_ids"
         ],
         "title": "MergeRequest",
+        "type": "object"
+      },
+      "MergeReviewItem": {
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "portal_access",
+              "relationship"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "kind",
+          "id",
+          "detail"
+        ],
+        "title": "MergeReviewItem",
         "type": "object"
       },
       "NoSaleRequest": {
@@ -21805,6 +21847,46 @@
         "title": "Page[PermissionDefinition]",
         "type": "object"
       },
+      "Page_PortalClientDocumentOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PortalClientDocumentOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[PortalClientDocumentOut]",
+        "type": "object"
+      },
+      "Page_PortalCreditLedgerEntryOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PortalCreditLedgerEntryOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[PortalCreditLedgerEntryOut]",
+        "type": "object"
+      },
       "Page_PortalInvoiceOut_": {
         "properties": {
           "data": {
@@ -23884,6 +23966,152 @@
         "title": "PortalAllocationOut",
         "type": "object"
       },
+      "PortalClientDocumentOut": {
+        "description": "The portal view: no source, binding, deletion or stored-file references (P-11).",
+        "properties": {
+          "acceptance_method": {
+            "title": "Acceptance Method",
+            "type": "string"
+          },
+          "acceptance_text": {
+            "title": "Acceptance Text",
+            "type": "string"
+          },
+          "acceptances": {
+            "items": {
+              "$ref": "#/components/schemas/PortalDocumentAcceptanceOut"
+            },
+            "title": "Acceptances",
+            "type": "array"
+          },
+          "body_html": {
+            "title": "Body Html",
+            "type": "string"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_name": {
+            "title": "Client Name",
+            "type": "string"
+          },
+          "content_sha256": {
+            "title": "Content Sha256",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "expires_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires On"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_paper_signed": {
+            "title": "Is Paper Signed",
+            "type": "boolean"
+          },
+          "issued_at": {
+            "format": "date-time",
+            "title": "Issued At",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "required_roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Required Roles",
+            "type": "array"
+          },
+          "requires_guardian": {
+            "title": "Requires Guardian",
+            "type": "boolean"
+          },
+          "signature_blocks": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Signature Blocks",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "client_id",
+          "client_name",
+          "location_id",
+          "title",
+          "description",
+          "acceptance_method",
+          "status",
+          "requires_guardian",
+          "required_roles",
+          "issued_at",
+          "decided_at",
+          "expires_on",
+          "is_paper_signed",
+          "body_html",
+          "acceptance_text",
+          "signature_blocks",
+          "content_sha256",
+          "acceptances"
+        ],
+        "title": "PortalClientDocumentOut",
+        "type": "object"
+      },
       "PortalClientList": {
         "properties": {
           "data": {
@@ -24740,6 +24968,72 @@
         "title": "PortalContractSaleOut",
         "type": "object"
       },
+      "PortalCreditLedgerEntryOut": {
+        "description": "The portal view of a credit movement: no staff note, actor, source or client id (P-11).",
+        "properties": {
+          "client_package_id": {
+            "format": "uuid",
+            "title": "Client Package Id",
+            "type": "string"
+          },
+          "consumed_delta": {
+            "title": "Consumed Delta",
+            "type": "integer"
+          },
+          "entry_type": {
+            "enum": [
+              "grant",
+              "reserve",
+              "release",
+              "consume",
+              "restore",
+              "forfeit",
+              "adjust"
+            ],
+            "title": "Entry Type",
+            "type": "string"
+          },
+          "forfeited_delta": {
+            "title": "Forfeited Delta",
+            "type": "integer"
+          },
+          "granted_delta": {
+            "title": "Granted Delta",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "reserved_delta": {
+            "title": "Reserved Delta",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "client_package_id",
+          "entry_type",
+          "granted_delta",
+          "reserved_delta",
+          "consumed_delta",
+          "forfeited_delta",
+          "reason",
+          "occurred_at"
+        ],
+        "title": "PortalCreditLedgerEntryOut",
+        "type": "object"
+      },
       "PortalDependentCreate": {
         "additionalProperties": false,
         "properties": {
@@ -24808,6 +25102,47 @@
           "last_name"
         ],
         "title": "PortalDependentCreate",
+        "type": "object"
+      },
+      "PortalDocumentAcceptanceOut": {
+        "description": "No witness, signer client id or signature file (P-11).",
+        "properties": {
+          "decided_at": {
+            "format": "date-time",
+            "title": "Decided At",
+            "type": "string"
+          },
+          "decision": {
+            "title": "Decision",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "signer_name": {
+            "title": "Signer Name",
+            "type": "string"
+          },
+          "signer_role": {
+            "title": "Signer Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "decision",
+          "signer_role",
+          "signer_name",
+          "method",
+          "decided_at"
+        ],
+        "title": "PortalDocumentAcceptanceOut",
         "type": "object"
       },
       "PortalInvite": {
@@ -25605,6 +25940,64 @@
           "payment_status"
         ],
         "title": "PortalPackageSaleOut",
+        "type": "object"
+      },
+      "PortalPackageSeriesOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_auto_renew": {
+            "title": "Is Auto Renew",
+            "type": "boolean"
+          },
+          "next_period_start_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Period Start On"
+          },
+          "occurrences_generated_count": {
+            "title": "Occurrences Generated Count",
+            "type": "integer"
+          },
+          "occurrences_total_count": {
+            "title": "Occurrences Total Count",
+            "type": "integer"
+          },
+          "package_plan_id": {
+            "format": "uuid",
+            "title": "Package Plan Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "completed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "package_plan_id",
+          "occurrences_total_count",
+          "occurrences_generated_count",
+          "next_period_start_on",
+          "is_auto_renew",
+          "status"
+        ],
+        "title": "PortalPackageSeriesOut",
         "type": "object"
       },
       "PortalPayment": {
@@ -62808,7 +63201,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Page_ClientDocumentOut_"
+                  "$ref": "#/components/schemas/Page_PortalClientDocumentOut_"
                 }
               }
             },
@@ -62887,7 +63280,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ClientDocumentOut"
+                  "$ref": "#/components/schemas/PortalClientDocumentOut"
                 }
               }
             },
@@ -62977,7 +63370,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ClientDocumentOut"
+                  "$ref": "#/components/schemas/PortalClientDocumentOut"
                 }
               }
             },
@@ -63470,7 +63863,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Page_CreditLedgerEntryOut_"
+                  "$ref": "#/components/schemas/Page_PortalCreditLedgerEntryOut_"
                 }
               }
             },
@@ -64882,7 +65275,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PackageSeriesOut"
+                  "$ref": "#/components/schemas/PortalPackageSeriesOut"
                 }
               }
             },

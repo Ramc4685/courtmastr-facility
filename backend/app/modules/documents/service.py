@@ -850,8 +850,13 @@ def public_decide(session: Session, data: dict, meta: dict) -> dict:
     """Accept or decline through the link (method typed_name, or drawn when a signature is supplied). The token is
     single-use: any decision consumes it. A guardian signs as the guardian whose confirmed address got the link."""
     delivery, doc = _delivery(session, data["token"])
+    # The role is derived: a link counts as the client's only when it went to the client's confirmed address.
+    to_client = any(clients.service.email_is_verified(session, doc.client_id, a) for a in delivery.recipient_emails)
+    role = "guardian" if doc.requires_guardian else data.get("signer_role") or ("client" if to_client else "guardian")
+    if role == "client" and not to_client:
+        raise ValidationFailed("This link was sent to a guardian; sign as the guardian.", pointer="/signer_role")
     signer = {
-        "decision": data["decision"], "signer_role": data.get("signer_role") or "client",
+        "decision": data["decision"], "signer_role": role,
         "signer_name": data["signer_name"], "typed_signature": data["typed_signature"],
         "method": "drawn_signature" if data.get("signature_png") else "typed_name",
         "signature_png": data.get("signature_png"), "signer_client_id": None,
@@ -877,10 +882,13 @@ def upload_paper_scan(
     session: Session, principal: Principal, doc_id: UUID, data: bytes, content_type: str, filename: str | None
 ) -> dict:
     """Attach a scanned signed copy (PDF, JPEG or PNG) and mark the document paper-signed, witnessed by the
-    uploader. Also how a document is uploaded to a client profile: issue it without a template, then upload."""
+    uploader. Also how a document is uploaded to a client profile: issue it without a template, then upload.
+    Replacing the scan of an accepted document needs the void key and never rewrites its hash (evidence)."""
     doc = load_document(session, principal, doc_id, _COLLECT)
     if doc.status not in ("pending", "accepted") or doc.deleted_at is not None:
         raise Conflict("Only a pending or accepted document takes a paper copy.")
+    if doc.status == "accepted":
+        load_document(session, principal, doc_id, _VOID)
     cleaned, kind = files.clean(
         data,
         content_type,
@@ -891,6 +899,13 @@ def upload_paper_scan(
         session, cleaned, purpose="documents.paper_scan", content_type=kind,
         uploaded_by=("staff", principal.staff_user_id), original_name=filename,
     )  # fmt: skip
+    if doc.status == "accepted":
+        old = doc.paper_scan_file_id
+        doc.paper_scan_file_id = stored.id
+        audit.record(session, _VOID, doc, location_id=doc.location_id,
+                     changes={"paper_scan_file_id": [old and str(old), str(stored.id)]})  # fmt: skip
+        session.flush()
+        return document_view(session, doc)
     doc.paper_scan_file_id, doc.is_paper_signed = stored.id, True
     if not doc.body_html:  # nothing was presented on screen: the scan itself is the evidence
         doc.content_sha256 = stored.sha256
@@ -904,18 +919,15 @@ def upload_paper_scan(
             content_sha256=doc.content_sha256, decided_at=clock.now(),
         ))  # fmt: skip
         session.flush()
-    if doc.status == "pending":
-        _transition(session, doc, "accepted")
-    else:
-        audit.record(session, _COLLECT, doc, location_id=doc.location_id, changes=audit.diff(doc))
+    _transition(session, doc, "accepted")
     session.flush()
     return document_view(session, doc)
 
 
 def clear_paper_signed(session: Session, principal: Principal, doc_id: UUID) -> dict:
     """accepted -> pending when the paper flag is cleared (paper method only, state machine 7.6). The paper evidence
-    row stays (append-only); a new paper copy marks it signed again."""
-    doc = load_document(session, principal, doc_id, _COLLECT)
+    row stays (append-only); a new paper copy marks it signed again. Undoing a decision needs the void key."""
+    doc = load_document(session, principal, doc_id, _VOID)
     if doc.acceptance_method != "paper" or not doc.is_paper_signed or doc.status != "accepted":
         raise Conflict("Only a paper-signed document can be returned to pending.")
     doc.is_paper_signed, doc.status, doc.decided_at, doc.expires_on = False, "pending", None, None
@@ -1054,18 +1066,15 @@ def has_valid_waiver(session: Session, client_id: UUID) -> bool:
 
 def list_statuses(session: Session, principal: Principal, client_ids: list[UUID]) -> dict:
     authorize(principal, _READ)
-    known = set(session.scalars(select(ClientDocument.client_id).where(ClientDocument.client_id.in_(client_ids))))
-    known |= {cid for cid in client_ids if _client_exists(session, cid)}
-    statuses = status_for(session, [cid for cid in client_ids if cid in known])
+    visible = []
+    for cid in client_ids:  # ids outside the caller's reach are skipped, as memberships.list_standings does
+        try:
+            clients.service.load(session, principal, cid, _READ)
+        except NotFound:
+            continue
+        visible.append(cid)
+    statuses = status_for(session, visible)
     return {"data": list(statuses.values()), "page": {"next_cursor": None, "has_more": False}}
-
-
-def _client_exists(session: Session, client_id: UUID) -> bool:
-    try:
-        clients.service.get(session, client_id)
-    except NotFound:
-        return False
-    return True
 
 
 def set_waiver_override(session: Session, principal: Principal, client_id: UUID, data: dict) -> dict:
@@ -1163,6 +1172,8 @@ def portal_submit(session: Session, principal: Principal, doc_id: UUID, client_i
     for signer in data["signers"]:
         if signer.get("signer_client_id") not in (None, me):
             raise ValidationFailed("You can only sign as yourself.", pointer="/signers")
+        if me != doc.client_id and signer["signer_role"] != "guardian":
+            raise ValidationFailed("You can only sign someone else's document as their guardian.", pointer="/signers")
         signers.append(
             signer | {"signer_client_id": me if signer["signer_role"] == "guardian" or me == doc.client_id else None}
         )

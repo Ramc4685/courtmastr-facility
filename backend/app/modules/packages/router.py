@@ -216,7 +216,7 @@ def portal_buy_client_package(body: s.PortalPackageBuy, ctx: Portal, idempotency
     return service.portal_buy(ctx.session, ctx.principal, body.model_dump(), idempotency_key)
 
 
-@router.get("/portal/client-packages/{package_id}/ledger", response_model=s.Page[s.CreditLedgerEntryOut])
+@router.get("/portal/client-packages/{package_id}/ledger", response_model=s.Page[s.PortalCreditLedgerEntryOut])
 def list_portal_client_package_ledger(package_id: UUID, query: Lists, ctx: Portal):
     return service.portal_list_ledger(ctx.session, ctx.principal, package_id, query)
 
@@ -233,7 +233,7 @@ def portal_opt_out_package_auto_renew(package_id: UUID, ctx: Portal):
     return service.portal_disable_auto_renew(ctx.session, ctx.principal, package_id)
 
 
-@router.post("/portal/package-series/{series_id}/auto-renew-opt-out", response_model=s.PackageSeriesOut)
+@router.post("/portal/package-series/{series_id}/auto-renew-opt-out", response_model=s.PortalPackageSeriesOut)
 def portal_opt_out_series_auto_renew(series_id: UUID, ctx: Portal):
     return service.portal_disable_series_auto_renew(ctx.session, ctx.principal, series_id)
 
