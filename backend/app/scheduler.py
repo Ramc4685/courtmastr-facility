@@ -17,7 +17,7 @@ from app.core.db.platform import platform_engine
 from app.core.jobs import broker
 
 log = logging.getLogger(__name__)
-EVERY_MINUTE = ("expire_checkout_holds",)
+EVERY_MINUTE = ("expire_checkout_holds", "send_due_messages")
 EVERY_HOUR = ("billing_daily", "run_membership_day", "run_package_day", "sweep_documents")
 
 

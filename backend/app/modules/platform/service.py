@@ -388,6 +388,24 @@ def staff_user_exists(session: Session, staff_user_id: UUID) -> bool:
     return session.get(StaffUser, staff_user_id) is not None
 
 
+def location_name(session: Session, location_id: UUID) -> str:
+    """Internal: the display name for messages and notices."""
+    name = session.scalar(select(Location.name).where(Location.id == location_id))
+    if name is None:
+        raise NotFound()
+    return name
+
+
+def active_staff_emails(session: Session, staff_user_ids) -> dict[UUID, str]:
+    """Internal: sign-in email of each active staff user among the ids (engagement's staff alerts)."""
+    rows = session.execute(
+        select(StaffUser.id, Identity.email)
+        .join(Identity, Identity.id == StaffUser.identity_id)
+        .where(StaffUser.id.in_(list(staff_user_ids)), StaffUser.is_active)
+    )
+    return {row.id: row.email for row in rows}
+
+
 def disable_client_identity(session: Session, identity_id: UUID, status: str = "disabled") -> None:
     """A client identity with no active access row left is disabled (or marked merged) and signed out."""
     from app.modules.platform import auth

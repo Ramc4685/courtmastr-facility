@@ -49,7 +49,7 @@ CLIENT_OR_TENANT_ROUTES = {
         updatePaymentMethod uploadClientDocumentPaperScan verifyBankAccount
     """.split()),
     "tenant": set("""
-        addTaxRate approveClientRelationship archiveDocumentTemplate archiveLocation assignClientMemberNumber
+        addTaxRate releaseSuppression approveClientRelationship archiveDocumentTemplate archiveLocation assignClientMemberNumber
         assignClientOwners assignStaffLocations assignStaffRole confirmDataSubjectRequest createClientAlert
         createClientNote createClientRelationship createOnboardingLink createRentalRate
         deactivateDocumentBinding deactivateStaffUser deleteClientCategory deleteClientNote deleteCoupon

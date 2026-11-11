@@ -1,9 +1,9 @@
-"""engagement context (slice built by module 4): communication preferences and the consent log (CLI-16).
+"""engagement context (module 14): communication preferences and consent (CLI-16), templates, segments,
+campaigns and announcements, the delivery log and suppressions, reminders, automations, staff alert routes,
+the portal inbox and devices, portal settings and videos. Public interface: `service` (`is_subscribed` is the
+consent gate; `alert_staff`, `schedule_reminders` and `record_delivery_event` are internal entry points)."""
 
-The rest of engagement (campaigns, templates, the public preference centre) belongs to its own module.
-Public interface: `service` (`is_subscribed` is the send gate).
-"""
-
-from app.modules.engagement import models, service
+from app.modules.engagement import models, permissions  # noqa: F401  # isort: skip
+from app.modules.engagement import handlers, jobs, service, subject  # noqa: F401
 
 __all__ = ["models", "service"]

@@ -167,6 +167,7 @@ def populate(client, tenant) -> SimpleNamespace:
         session.add(identity)
         session.flush()
         clients.service.link_identity(session, person["id"], identity.id)
+        identity_id = identity.id
         tax = billing.service.create_tax(
             session, code="ST", label="Sales tax", rate=Decimal("0.0825"), effective_from_on=date(2020, 1, 1)
         )
@@ -202,6 +203,7 @@ def populate(client, tenant) -> SimpleNamespace:
     space |= _populate_rentals(
         client, headers, post, location["id"], person["id"], space["resource_id"], category_id, tax_id
     )
+    space |= _populate_engagement(client, tenant, post, location["id"], person["id"], identity_id)
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
         session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
@@ -344,6 +346,57 @@ def _populate_people(client, headers, tenant, location_id, person_id) -> dict:
         "custom_field_id": field["id"], "relationship_type_id": parent_of["id"], "relationship_id": relationship["id"],
         "note_subject_id": subject["id"], "note_id": note["id"], "task_id": task["id"], "alert_id": alert["id"],
         "request_id": request["id"], "email_id": email_id, "kid_id": kid["id"],
+    }  # fmt: skip
+
+
+def _populate_engagement(client, tenant, post, location_id, person_id, identity_id) -> dict:
+    """Build module 14: every messaging table, mostly through its own routes."""
+    from datetime import timedelta
+
+    from sqlalchemy import select
+
+    from app.modules.engagement.models import DeviceRegistration, InboxItem, ScheduledNotification
+
+    template = post("/message-templates", {"name": "Welcome", "subject": "Hi $first_name", "body_text": "Welcome."})
+    everyone = {"sources": [{"kind": "client_ids", "ids": [person_id]}]}
+    segment = post("/segments", {"name": "Just Casey", "definition": everyone})
+    email_campaign = post("/campaigns", {"location_id": location_id, "name": "News", "subject": "News",
+                                         "body_text": "Hello $first_name", "segment_id": segment["id"]})  # fmt: skip
+    post(f"/campaigns/{email_campaign['id']}/send", {})
+    push = post("/campaigns", {"location_id": location_id, "channel": "push", "name": "Closed", "subject": "Closed",
+                               "body_text": "Courts close early today.", "audience": everyone})  # fmt: skip
+    post(f"/campaigns/{push['id']}/send", {})
+    message = post("/messages", {"client_id": person_id, "subject": "Your booking", "body_text": "See you."})
+    suppression = post("/suppressions", {"address": f"bounced@{tenant.slug}.example.com"})
+    reminder = post("/reminder-rules", {"location_id": location_id, "first_offset_minutes": 1440})
+    route = post("/notification-routes", {"location_id": location_id, "alert_kind": "payment_declined",
+                                          "emails": [f"desk@{tenant.slug}.example.com"]})  # fmt: skip
+    automation = post("/automation-rules", {"name": "Welcome new", "trigger_event_type": "clients.client.created",
+                                            "location_id": location_id,
+                                            "message_template_id": template["id"], "delay_minutes": 60})  # fmt: skip
+    response = client.put(f"/api/v1/locations/{location_id}/portal-settings", headers=login(client, tenant),
+                          json={"is_enabled": True, "is_public": True, "welcome_text": "Welcome"})  # fmt: skip
+    assert response.status_code == 200, response.text
+    video = post("/videos", {"location_id": location_id, "title": "Warm-up", "url": "https://www.youtube.com/watch?v=abc",
+                             "is_published": True})  # fmt: skip
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        device = DeviceRegistration(identity_id=identity_id, client_id=person_id, location_id=location_id,
+                                    platform="ios", push_token=f"tok-{uuid4().hex}")  # fmt: skip
+        session.add(device)
+        later = clock.now() + timedelta(days=2)
+        session.add(ScheduledNotification(
+            location_id=location_id, kind="session_reminder", reminder_no=1, subject_type="booking",
+            subject_id=uuid4(), client_id=person_id, subject_starts_at=later, send_at=later - timedelta(days=1),
+            dedupe_key=f"populate:{uuid4().hex}",
+        ))  # fmt: skip
+        session.flush()
+        inbox_item_id = session.scalar(select(InboxItem.id).where(InboxItem.campaign_id == push["id"]))
+        device_id = device.id
+    return {
+        "message_template_id": template["id"], "segment_id": segment["id"], "campaign_id": email_campaign["id"],
+        "message_id": message["id"], "suppression_id": suppression["id"], "reminder_rule_id": reminder["id"],
+        "notification_route_id": route["id"], "automation_rule_id": automation["id"], "video_id": video["id"],
+        "inbox_item_id": str(inbox_item_id), "device_registration_id": str(device_id),
     }  # fmt: skip
 
 
