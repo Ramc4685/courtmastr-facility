@@ -152,8 +152,10 @@ def _ref(session: Db, model, row_id: UUID | None, pointer: str):
     return row
 
 
-def _client(session: Db, client_id: UUID | None, pointer: str) -> UUID | None:
+def _client(session: Db, principal: Principal, client_id: UUID | None, key: str, pointer: str) -> UUID | None:
+    """A client id from the request: out of the caller's client reach is 404 before any 422 (W2-01, W2-06)."""
     if client_id is not None:
+        clients.service.load(session, principal, client_id, key)
         clients.service.require_active(session, client_id, pointer=pointer)
     return client_id
 
@@ -459,8 +461,8 @@ def get_team(session: Db, principal: Principal, team_id: UUID) -> Team:
     return _scoped(session, principal, Team, team_id, TEAMS)
 
 
-def _new_team(session: Db, location_id: UUID, data: dict, *, placeholder: bool = False) -> Team:
-    _client(session, data.get("captain_client_id"), "/captain_client_id")
+def _new_team(session: Db, principal: Principal, location_id: UUID, data: dict, *, placeholder: bool = False) -> Team:
+    _client(session, principal, data.get("captain_client_id"), TEAMS, "/captain_client_id")
     row = Team(location_id=location_id, is_placeholder=placeholder, **_given(data))
     session.add(row)
     session.flush()
@@ -471,13 +473,13 @@ def _new_team(session: Db, location_id: UUID, data: dict, *, placeholder: bool =
 def create_team(session: Db, principal: Principal, data: dict) -> Team:
     location_id = _location(session, principal, data.pop("location_id"))
     authorize(principal, TEAMS, location_id=location_id)
-    return _new_team(session, location_id, data)
+    return _new_team(session, principal, location_id, data)
 
 
 def update_team(session: Db, principal: Principal, team_id: UUID, data: dict) -> Team:
     """Renaming a generated placeholder team makes it a real one (LGE-03)."""
     row = _scoped(session, principal, Team, team_id, TEAMS, lock=True)
-    _client(session, data.get("captain_client_id"), "/captain_client_id")
+    _client(session, principal, data.get("captain_client_id"), TEAMS, "/captain_client_id")
     data = _given(data, ("captain_client_id", "color"))
     if data.get("name"):
         data["is_placeholder"] = False
@@ -537,12 +539,28 @@ def _enter(
     return row
 
 
-def _bill(session: Db, competition: Competition, entry: CompetitionTeam, team_name: str, client_id: UUID) -> UUID:
+def _bill(
+    session: Db, principal: Principal, competition: Competition, entry: CompetitionTeam, team: Team, client_id: UUID
+) -> UUID:
     """Charge the team fee to the payer and invoice it. The charge is idempotent by source, so the fee is owed
-    once per entry however the command is retried."""
+    once per entry however the command is retried. The payer is in the caller's reach and is the captain, a
+    rostered client or an active relative of one (W2-01): a team fee never lands on a stranger."""
     if entry.fee_status != "unbilled":
         raise Conflict("This team owes no unbilled fee.", code="fee-not-due")
-    _client(session, client_id, "/bill_to_client_id")
+    _client(session, principal, client_id, TEAMS, "/bill_to_client_id")
+    members = set(
+        session.scalars(
+            select(RosterEntry.client_id).where(
+                RosterEntry.competition_team_id == entry.id, RosterEntry.status == "active"
+            )
+        )
+    ) | {team.captain_client_id}
+    if client_id not in billing.service.related_clients(session, members):
+        raise ValidationFailed(
+            "The payer must be the captain, a rostered player or an active relative of one.",
+            pointer="/bill_to_client_id",
+        )
+    team_name = entry.display_name or team.name
     charge = billing.service.post_charge(
         session, client_id=client_id, location_id=competition.location_id,
         description=f"{competition.name}: team fee ({team_name})", unit_price_minor=competition.team_fee_minor,
@@ -565,18 +583,18 @@ def add_competition_team(session: Db, principal: Principal, competition_id: UUID
     if data.get("team_id") is not None:
         team = _scoped(session, principal, Team, data["team_id"], TEAMS)
     else:
-        team = _new_team(session, competition.location_id, data["team"])
+        team = _new_team(session, principal, competition.location_id, data["team"])
     entry = _enter(session, competition, team, division, seed=data.get("seed"), display_name=data.get("display_name"))
     invoice_id = None
     if data.get("bill_to_client_id") is not None:
-        invoice_id = _bill(session, competition, entry, entry.display_name or team.name, data["bill_to_client_id"])
+        invoice_id = _bill(session, principal, competition, entry, team, data["bill_to_client_id"])
     return _entry_view(session, entry, invoice_id)
 
 
 def bill_competition_team(session: Db, principal: Principal, competition_team_id: UUID, data: dict) -> dict:
     entry, competition = _child(session, principal, CompetitionTeam, competition_team_id, TEAMS, lock=True)
     team = session.get(Team, entry.team_id)
-    invoice_id = _bill(session, competition, entry, entry.display_name or team.name, data["bill_to_client_id"])
+    invoice_id = _bill(session, principal, competition, entry, team, data["bill_to_client_id"])
     audit.record(
         session, TEAMS, entry, location_id=competition.location_id, changes={"fee_status": ["unbilled", "billed"]}
     )
@@ -592,7 +610,8 @@ def generate_competition_teams(session: Db, principal: Principal, competition_id
     )
     entries = []
     for n in range(taken + 1, taken + data["count"] + 1):
-        team = _new_team(session, competition.location_id, {"name": f"{data['name_prefix']} {n}"}, placeholder=True)
+        name = {"name": f"{data['name_prefix']} {n}"}
+        team = _new_team(session, principal, competition.location_id, name, placeholder=True)
         entries.append(_enter(session, competition, team, division))
     return _entry_views(session, entries)
 
@@ -602,6 +621,8 @@ def copy_competition_teams(session: Db, principal: Principal, competition_id: UU
     Teams already entered are skipped."""
     competition = _competition(session, principal, competition_id, TEAMS, lock=True)
     source = _competition(session, principal, data["source_competition_id"], TEAMS)
+    if data.get("includes_rosters"):
+        authorize(principal, ROSTER, location_id=competition.location_id)  # copied rosters are roster writes (W2-07)
     if source.id == competition.id:
         raise ValidationFailed("Copy from another competition.", pointer="/source_competition_id")
     stmt = select(CompetitionTeam).where(CompetitionTeam.competition_id == source.id)
@@ -704,17 +725,17 @@ def list_team_roster(session: Db, principal: Principal, competition_team_id: UUI
     return _roster_views(session, list(session.scalars(stmt)))
 
 
-def _person(session: Db, data: dict) -> dict:
+def _person(session: Db, principal: Principal, data: dict) -> dict:
     """A roster person is a client (names cleared) or a typed walk-on name."""
     if data.get("client_id") is not None:
-        _client(session, data["client_id"], "/client_id")
+        _client(session, principal, data["client_id"], ROSTER, "/client_id")
         return data | {"first_name": None, "last_name": None}
     return data
 
 
 def add_roster_entry(session: Db, principal: Principal, competition_team_id: UUID, data: dict) -> dict:
     entry, competition = _child(session, principal, CompetitionTeam, competition_team_id, ROSTER, lock=True)
-    data = _person(session, data)
+    data = _person(session, principal, data)
     if data.get("client_id") is None and not (data.get("first_name") and data.get("last_name")):
         raise ValidationFailed("A client or a first and last name is required.", pointer="/client_id")
     row = RosterEntry(competition_team_id=entry.id, origin="manual", **_given(data))
@@ -732,7 +753,7 @@ def _roster_entry(session: Db, principal: Principal, roster_entry_id: UUID, *, l
 
 def update_roster_entry(session: Db, principal: Principal, roster_entry_id: UUID, data: dict) -> dict:
     row, competition = _roster_entry(session, principal, roster_entry_id, lock=True)
-    data = _given(_person(session, data), ("jersey_number", "position", "first_name", "last_name"))
+    data = _given(_person(session, principal, data), ("jersey_number", "position", "first_name", "last_name"))
     if (data.get("client_id", row.client_id) is None) and not (
         data.get("first_name", row.first_name) and data.get("last_name", row.last_name)
     ):
@@ -1710,6 +1731,7 @@ def update_bracket_slot(session: Db, principal: Principal, slot_id: UUID, data: 
     if _court_and_time(data):
         if slot.game_id is None:
             raise Conflict("Publish the bracket before scheduling its games.")
+        authorize(principal, GAMES, location_id=competition.location_id)  # booking a court is a game move (W2-07)
         game = session.get(Game, slot.game_id)
         _place(session, game, data["resource_id"], data["starts_at"])
         audit.record(

@@ -726,7 +726,10 @@ def _populate_leagues(client, headers, post, location_id, client_id, court_id, c
     })  # fmt: skip
     cid = league["id"]
     post(f"/competitions/{cid}/activate", {})
-    first = post(f"/competitions/{cid}/teams", {"team": {"name": "Strikers"}, "bill_to_client_id": client_id})
+    first = post(
+        f"/competitions/{cid}/teams",
+        {"team": {"name": "Strikers", "captain_client_id": client_id}, "bill_to_client_id": client_id},
+    )
     post(f"/competitions/{cid}/teams/generate", {"count": 3})
     roster = post(f"/competition-teams/{first['id']}/roster", {"client_id": client_id, "role": "captain"})
     official = post("/officials", {

@@ -52,12 +52,23 @@ games to score.
 | Body ids through scoped loaders | teams, resources, competitions, officials and clients in bodies are checked at the record's location (422) | `test_location_scope_and_scoped_body_ids` |
 | Gates in the shared inner function | `_enter` (add, generate, copy), `_place` (create, reschedule, postpone, bracket slot), `_bill` | `test_team_fee_is_billed_once_through_billing`, `test_game_lifecycle` |
 | Privileged flags need their own key | result removal (`amend_final`) and standings adjustment (`standings.adjust`) | `test_results_standings_and_their_keys` |
-| Money only to its owner | the team fee is charged to the named client after `clients.service.require_active` | `test_team_fee_is_billed_once_through_billing` |
+| Money only to its owner | the payer is loaded through `clients.service.load(..., team.manage)` (404 out of reach), must be active, and must be the captain, an active rostered client or an active relative of one (`billing.service.related_clients`), else 422 | `test_leagues.py::test_w2_01_team_fee_payer_must_belong_to_the_team` |
+| Client ids through the scoped loader | `client_id` (roster) loads under `roster.manage`, `captain_client_id` under `team.manage`, the key the command is gated by | `test_leagues.py::test_w2_06_roster_and_captain_clients_go_through_the_scoped_loader` |
+| One key per effect | a bracket slot's court booking also needs `game.manage`; a copy with `includes_rosters` also needs `roster.manage` | `test_leagues.py::test_w2_07_bracket_booking_needs_the_games_key_and_copied_rosters_the_roster_key` |
 | Online checkout | no portal sale in this module | none needed |
 | Portal and public schemas | public routes have their own `Public*Out` schemas with no fees, ids of staff records, notes or adjustments | `test_public_schedule_and_standings`, `tests/test_portal_schemas.py` |
 | Tenant-wide rows | sports, age groups and seasons through `authorize_tenant_wide` | `test_reference_data_is_tenant_wide_and_guarded` |
 
 ## Assumptions and deviations (written down, not guessed)
+
+- **Billing a team fee needs no billing key (W2-01 decision).** The amount comes from the competition, set under
+  `leagues.competition.manage`, and the payer is limited to the team's own people and their relatives, so
+  `leagues.team.manage` cannot point an arbitrary amount at an arbitrary client. That matches the billing rule that
+  internal `billing.service` calls carry no principal and the wrapping staff command carries the gate. Collecting
+  the payment still needs the billing tender keys.
+- **The captain is loaded under `leagues.team.manage`**, not `roster.manage` as the review suggested: the captain is
+  set on team create and update, which are `team.manage` commands, and the front desk holds `roster.manage`
+  without `team.manage`.
 
 - **The generator runs in the request, not as a job.** A league of 20 teams is about 190 games, which
   generates in well under a second. The run is still persisted (`schedule_run` with state and stats), so a

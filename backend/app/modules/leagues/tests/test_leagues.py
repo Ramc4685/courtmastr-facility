@@ -3,11 +3,16 @@ team generation and copy, rosters, the schedule generator booking courts through
 game unschedulable), the game lifecycle, results and standings, officials, brackets, the public views and the
 security rules (location scope, scoped body ids, separate keys for results, amendments and adjustments)."""
 
+from datetime import datetime
+from uuid import UUID, uuid4
+
 import pytest
 
-from app.core.auth import system_principal
+from app.core.auth import Principal, system_principal
 from app.core.db.session import tenant_session
+from app.core.errors import NotFound, PermissionDenied
 from app.modules import billing
+from app.modules.leagues import service
 from app.modules.scheduling.tests.helpers import API, at, book, facility, ok
 from conftest import add_staff, login, new_client
 
@@ -102,7 +107,7 @@ def test_competition_rules_and_lifecycle(client, owner, f):
 def test_team_fee_is_billed_once_through_billing(client, owner, f):
     paid = league(client, owner, f, team_fee_minor=30000, revenue_category_id=f.category)
     entry = post(client, owner, f"/competitions/{paid['id']}/teams",
-                 {"team": {"name": "Strikers"}, "bill_to_client_id": f.person})  # fmt: skip
+                 {"team": {"name": "Strikers", "captain_client_id": f.person}, "bill_to_client_id": f.person})  # fmt: skip
     assert entry["fee_status"] == "billed" and entry["fee_client_id"] == f.person
     invoice = get(client, owner, f"/invoices/{entry['invoice_id']}")
     assert invoice["total_minor"] == 30000
@@ -112,6 +117,7 @@ def test_team_fee_is_billed_once_through_billing(client, owner, f):
     assert again.status_code == 409 and again.json()["code"] == "fee-not-due"
     later = post(client, owner, f"/competitions/{paid['id']}/teams", {"team": {"name": "Rovers"}})
     assert later["fee_status"] == "unbilled"
+    post(client, owner, f"/competition-teams/{later['id']}/roster", {"client_id": f.person})  # a rostered payer
     billed = post(client, owner, f"/competition-teams/{later['id']}/bill", {"bill_to_client_id": f.person}, 200)
     assert billed["fee_status"] == "billed" and billed["invoice_id"]
     free = league(client, owner, f, name="Free league")
@@ -454,3 +460,72 @@ def test_games_follow_their_booking(client, owner, tenant, f):
         service.on_booking_cancelled(session, booking.id)
         service.on_booking_cancelled(session, booking.id)
     assert get(client, owner, f"/games/{game['id']}")["status"] == "cancelled"
+
+
+# --- wave 2 hardening (docs/status/security-wave2.md) ------------------------------------------------------
+
+
+def _principal(tenant, reach: str, *keys) -> Principal:
+    return Principal(kind="staff", tenant_id=tenant.id, staff_user_id=uuid4(), permissions=dict.fromkeys(keys, reach))
+
+
+def test_w2_01_team_fee_payer_must_belong_to_the_team(client, owner, tenant, f):
+    paid = league(client, owner, f, team_fee_minor=30000, revenue_category_id=f.category)
+    captain = new_client(client, owner, f.location)["id"]
+    hawks = {"team": {"name": "Hawks", "captain_client_id": captain}}
+    entry = post(client, owner, f"/competitions/{paid['id']}/teams", hawks)
+    url = f"{API}/competition-teams/{entry['id']}/bill"
+    stranger = client.post(url, headers=owner, json={"bill_to_client_id": f.person})
+    assert stranger.status_code == 422 and stranger.json()["errors"][0]["pointer"] == "/bill_to_client_id"
+    on_add = client.post(f"{API}/competitions/{paid['id']}/teams", headers=owner,
+                         json={"team": {"name": "Owls"}, "bill_to_client_id": f.person})  # fmt: skip
+    assert on_add.status_code == 422
+    billed = post(client, owner, f"/competition-teams/{entry['id']}/bill", {"bill_to_client_id": captain}, 200)
+    assert billed["fee_status"] == "billed"
+    # A payer outside the caller's client reach is 404, never a 422 that confirms the client exists.
+    later = post(client, owner, f"/competitions/{paid['id']}/teams", {"team": {"name": "Larks"}})
+    own = _principal(tenant, "own", service.TEAMS)
+    with tenant_session(tenant.id, actor=own) as session, pytest.raises(NotFound):
+        service.bill_competition_team(session, own, UUID(later["id"]), {"bill_to_client_id": UUID(f.person)})
+
+
+def test_w2_06_roster_and_captain_clients_go_through_the_scoped_loader(client, owner, tenant, f):
+    comp = league(client, owner, f, teams=1)
+    roster, teams = _principal(tenant, "own", service.ROSTER), _principal(tenant, "own", service.TEAMS)
+    with tenant_session(tenant.id, actor=roster) as session:
+        with pytest.raises(NotFound):
+            service.add_roster_entry(
+                session, roster, UUID(comp["teams"][0]["id"]), {"client_id": UUID(f.person), "role": "player"}
+            )
+        with pytest.raises(NotFound):
+            service.create_team(
+                session, teams, {"location_id": UUID(f.location), "name": "Ghosts", "captain_client_id": UUID(f.person)}
+            )
+
+
+def test_w2_07_bracket_booking_needs_the_games_key_and_copied_rosters_the_roster_key(client, owner, tenant, f):
+    comp = league(client, owner, f, kind="tournament", format="single_elimination", teams=2)
+    bracket = post(client, owner, f"/competitions/{comp['id']}/brackets",
+                   {"bracket_type": "single_elimination", "seed_source": "seeds"})  # fmt: skip
+    published = post(client, owner, f"/brackets/{bracket['id']}/publish", {}, 200)
+    slot = next(s for s in published["slots"] if s["game_id"])
+    post(client, owner, f"/competition-teams/{comp['teams'][0]['id']}/roster", {"client_id": f.person})
+    target = league(client, owner, f, name="Next season")
+    generate_only = _principal(tenant, "all", service.GENERATE)
+    teams_only = _principal(tenant, "all", service.TEAMS)
+    with tenant_session(tenant.id, actor=generate_only) as session:
+        with pytest.raises(PermissionDenied):
+            service.update_bracket_slot(
+                session,
+                generate_only,
+                UUID(slot["id"]),
+                {"resource_id": UUID(f.court), "starts_at": datetime.fromisoformat(at(1))},
+            )
+        with pytest.raises(PermissionDenied):
+            service.copy_competition_teams(
+                session, teams_only, UUID(target["id"]),
+                {"source_competition_id": UUID(comp["id"]), "includes_rosters": True},
+            )  # fmt: skip
+    copied = ok(client.post(f"{API}/competitions/{target['id']}/teams/copy", headers=owner,
+                            json={"source_competition_id": comp["id"], "includes_rosters": True}), 201)  # fmt: skip
+    assert len(copied) == 2
