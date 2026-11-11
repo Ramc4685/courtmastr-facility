@@ -72,6 +72,9 @@ def _test_account_details(email: str, country: str) -> dict:
                         "postal_code": "61701", "country": country},
         },
         "external_account": "btok_us_verified",
+        # Midnight UTC, not now: the body (and so the idempotency key) must stay the same when Connect is retried.
+        "tos_acceptance": {"ip": "127.0.0.1", "date": int(
+            datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())},
         "settings": {"payments": {"statement_descriptor": "FACILITY TEST"}},
     }  # fmt: skip
 
@@ -203,8 +206,6 @@ class StripeConnectProvider:
             params |= _test_account_details(email, country)
         # The key carries a hash of the request: Stripe refuses a reused key with different parameters for 24 hours.
         digest = hashlib.sha256(json.dumps(params, sort_keys=True).encode()).hexdigest()[:16]
-        if self._api_onboarding:  # after the digest: a fresh timestamp must not change the key
-            params["tos_acceptance"] = {"date": int(datetime.now(UTC).timestamp()), "ip": "127.0.0.1"}
         return self._account(self._ok("POST", "/v1/accounts", params, idempotency_key=f"{tenant_ref}:account:{digest}"))
 
     def get_account(self, *, account_ref: str) -> AccountState:
