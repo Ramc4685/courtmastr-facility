@@ -1,0 +1,10 @@
+# Reviewed exceptions for `make api-diff` (oasdiff --err-ignore). One line per allowed breaking change, in the
+# exact form oasdiff prints it: `METHOD /path <message>`. Every line needs a reason comment above it; review
+# rejects a bare line. Remove a line once the change has shipped past the diff base.
+#
+# Phase 8 chip S1 (sign-in hardening) changed the auth session contract: the `fh_access` / `fh_refresh`
+# cookies became one `__Host-fh_session` cookie, browser sign-in needs the `__Host-fh_pre` cookie from
+# `GET /auth/pre-session`, and non-GET browser calls carry `X-CSRF-Token`. oasdiff sees none of this: the
+# OpenAPI document has no cookie or header parameters for it, and the diff against the merge base with main is
+# four added endpoints plus three description edits (no breaking entry). So S1 needs no line here; the contract
+# change is recorded in docs/status/phase8-s1-signin.md and docs/dev/checks.md ("What the diff cannot see").

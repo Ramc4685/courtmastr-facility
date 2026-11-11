@@ -22,7 +22,15 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=8", "pytest-cov>=5", "httpx>=0.27", "ruff>=0.6"]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "httpx>=0.27",
+    "ruff>=0.6",
+    "schemathesis>=4.33.2",
+    "mypy>=2.4.1",
+    "import-linter>=2.16",
+]
 
 [tool.uv]
 package = false
@@ -47,3 +55,327 @@ filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
 
 [tool.coverage.run]
 omit = ["*/tests/*"]
+
+# mypy: checks backend/app (tests excluded). Lenient by default; `app.core` and `app.ports` are strict.
+# Ratchet rule (docs/dev/checks.md): to tighten a module, delete its line below and fix what mypy then reports.
+# Never add `# type: ignore` to domain code: add the module to the right list with a reason instead.
+[tool.mypy]
+python_version = "3.12"
+files = ["app"]
+exclude = ["/tests/"]
+explicit_package_bases = true
+ignore_missing_imports = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["app.core.*", "app.ports.*"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
+disallow_any_generics = true
+warn_return_any = true
+no_implicit_optional = true
+
+# Strict-mode gaps in core (missing annotations on decorators, bare generics, Any returns). Each line is one
+# file that does not yet pass the strict flags above; its other checks stay on. Drop a line once the file passes.
+[[tool.mypy.overrides]]
+module = [
+    "app.core.audit",
+    "app.core.auth.permissions",
+    "app.core.events",
+    "app.core.inbound_webhooks",
+    "app.core.jobs",
+    "app.core.networks",
+    "app.core.pagination",
+    "app.core.ratelimit",
+    "app.core.settings",
+]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+disallow_any_generics = false
+warn_return_any = false
+
+# Files that report errors even in lenient mode (mostly Optional narrowing and Literal-typed str values from
+# SQLAlchemy rows). Nothing in them is hidden by a type: ignore; the list is the debt, one file per line.
+[[tool.mypy.overrides]]
+module = [
+    "app.adapters.fake_payments",
+    "app.adapters.stripe_connect",
+    "app.core.api",
+    "app.core.auth.deps",
+    "app.core.db.base",
+    "app.core.idempotency",
+    "app.core.logging",
+    "app.main",
+    "app.modules.access.router",
+    "app.modules.access.service",
+    "app.modules.assessments.service",
+    "app.modules.assessments.subject",
+    "app.modules.billing.autopay",
+    "app.modules.billing.catalogue",
+    "app.modules.billing.desk",
+    "app.modules.billing.documents",
+    "app.modules.billing.methods",
+    "app.modules.billing.models",
+    "app.modules.billing.service",
+    "app.modules.billing.subject",
+    "app.modules.clients.activity",
+    "app.modules.clients.households",
+    "app.modules.clients.merge",
+    "app.modules.clients.service",
+    "app.modules.documents.service",
+    "app.modules.engagement.service",
+    "app.modules.engagement.subject",
+    "app.modules.integrations.service",
+    "app.modules.integrations.transport",
+    "app.modules.leagues.domain.bracket",
+    "app.modules.leagues.service",
+    "app.modules.leagues.subject",
+    "app.modules.memberships.domain.schedule",
+    "app.modules.memberships.router",
+    "app.modules.memberships.service",
+    "app.modules.packages.router",
+    "app.modules.packages.service",
+    "app.modules.platform.auth",
+    "app.modules.platform.privacy",
+    "app.modules.platform.retention",
+    "app.modules.platform.router",
+    "app.modules.platform.service",
+    "app.modules.platform.staff",
+    "app.modules.pos.catalogue",
+    "app.modules.pos.drawer",
+    "app.modules.pos.equipment",
+    "app.modules.pos.inventory",
+    "app.modules.pos.models",
+    "app.modules.pos.reports",
+    "app.modules.pos.returns",
+    "app.modules.pos.sales",
+    "app.modules.pos.service",
+    "app.modules.pos.subject",
+    "app.modules.programs.checkout",
+    "app.modules.programs.groups",
+    "app.modules.programs.selfservice",
+    "app.modules.programs.service",
+    "app.modules.programs.subject",
+    "app.modules.rentals.domain.pricing",
+    "app.modules.rentals.service",
+    "app.modules.rentals.subject",
+    "app.modules.reporting.registry",
+    "app.modules.reporting.service",
+    "app.modules.resources.service",
+    "app.modules.scheduling.domain.recurrence",
+    "app.modules.scheduling.service",
+    "app.modules.scheduling.subject",
+    "app.modules.staff.service",
+]
+ignore_errors = true
+
+# import-linter: the boundaries of docs/architecture/overview.md section 2. Run `make boundaries`.
+# One contract per context lists the contexts it must NOT import (everything its "May call" column omits).
+# Existing breaches are `ignore_imports` entries, each with a reason; shrink the list, never grow it
+# (docs/dev/checks.md). `integrations` may import any service interface, so it has no context contract.
+[tool.importlinter]
+root_packages = ["app"]
+include_external_packages = false
+exclude_type_checking_imports = true
+
+[[tool.importlinter.contracts]]
+name = "core and ports import no module or adapter"
+type = "forbidden"
+source_modules = ["app.core", "app.ports"]
+forbidden_modules = ["app.modules", "app.adapters"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]
+
+[[tool.importlinter.contracts]]
+name = "modules do not import adapters (they use ports)"
+type = "forbidden"
+source_modules = ["app.modules"]
+forbidden_modules = ["app.adapters"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.integrations.service -> app.adapters.accounting",  # integrations picks the accounting adapter directly; should resolve it through a port or the adapter registry
+    "app.modules.integrations.service -> app.adapters.video",  # same for the video-meeting adapter
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]
+
+[[tool.importlinter.contracts]]
+name = "platform imports only its allowed contexts"
+type = "forbidden"
+source_modules = ["app.modules.platform"]
+forbidden_modules = ["app.modules.resources", "app.modules.clients", "app.modules.scheduling", "app.modules.billing", "app.modules.documents", "app.modules.memberships", "app.modules.packages", "app.modules.rentals", "app.modules.programs", "app.modules.pos", "app.modules.access", "app.modules.leagues", "app.modules.staff", "app.modules.assessments", "app.modules.engagement", "app.modules.reporting", "app.modules.integrations"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.platform.privacy -> app.modules.clients.service",  # platform (L0) calls up into clients to run erasure; section 2 rule 3 says upward flow is an event or handler registry
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]
+
+[[tool.importlinter.contracts]]
+name = "resources imports only its allowed contexts"
+type = "forbidden"
+source_modules = ["app.modules.resources"]
+forbidden_modules = ["app.modules.clients", "app.modules.scheduling", "app.modules.billing", "app.modules.documents", "app.modules.memberships", "app.modules.packages", "app.modules.rentals", "app.modules.programs", "app.modules.pos", "app.modules.access", "app.modules.leagues", "app.modules.staff", "app.modules.assessments", "app.modules.engagement", "app.modules.reporting", "app.modules.integrations"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]
+
+[[tool.importlinter.contracts]]
+name = "clients imports only its allowed contexts"
+type = "forbidden"
+source_modules = ["app.modules.clients"]
+forbidden_modules = ["app.modules.resources", "app.modules.scheduling", "app.modules.billing", "app.modules.documents", "app.modules.memberships", "app.modules.packages", "app.modules.rentals", "app.modules.programs", "app.modules.pos", "app.modules.access", "app.modules.leagues", "app.modules.staff", "app.modules.assessments", "app.modules.engagement", "app.modules.reporting", "app.modules.integrations"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]
+
+[[tool.importlinter.contracts]]
+name = "scheduling imports only its allowed contexts"
+type = "forbidden"
+source_modules = ["app.modules.scheduling"]
+forbidden_modules = ["app.modules.billing", "app.modules.documents", "app.modules.memberships", "app.modules.packages", "app.modules.rentals", "app.modules.programs", "app.modules.pos", "app.modules.access", "app.modules.leagues", "app.modules.staff", "app.modules.assessments", "app.modules.engagement", "app.modules.reporting", "app.modules.integrations"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]
+
+[[tool.importlinter.contracts]]
+name = "billing imports only its allowed contexts"
+type = "forbidden"
+source_modules = ["app.modules.billing"]
+forbidden_modules = ["app.modules.resources", "app.modules.scheduling", "app.modules.documents", "app.modules.memberships", "app.modules.packages", "app.modules.rentals", "app.modules.programs", "app.modules.pos", "app.modules.access", "app.modules.leagues", "app.modules.staff", "app.modules.assessments", "app.modules.engagement", "app.modules.reporting", "app.modules.integrations"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]
+
+[[tool.importlinter.contracts]]
+name = "documents imports only its allowed contexts"
+type = "forbidden"
+source_modules = ["app.modules.documents"]
+forbidden_modules = ["app.modules.resources", "app.modules.scheduling", "app.modules.billing", "app.modules.memberships", "app.modules.packages", "app.modules.rentals", "app.modules.programs", "app.modules.pos", "app.modules.access", "app.modules.leagues", "app.modules.staff", "app.modules.assessments", "app.modules.engagement", "app.modules.reporting", "app.modules.integrations"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]
+
+[[tool.importlinter.contracts]]
+name = "memberships imports only its allowed contexts"
+type = "forbidden"
+source_modules = ["app.modules.memberships"]
+forbidden_modules = ["app.modules.resources", "app.modules.scheduling", "app.modules.packages", "app.modules.rentals", "app.modules.programs", "app.modules.pos", "app.modules.access", "app.modules.leagues", "app.modules.staff", "app.modules.assessments", "app.modules.engagement", "app.modules.reporting", "app.modules.integrations"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]
+
+[[tool.importlinter.contracts]]
+name = "packages imports only its allowed contexts"
+type = "forbidden"
+source_modules = ["app.modules.packages"]
+forbidden_modules = ["app.modules.resources", "app.modules.scheduling", "app.modules.documents", "app.modules.rentals", "app.modules.programs", "app.modules.pos", "app.modules.access", "app.modules.leagues", "app.modules.staff", "app.modules.assessments", "app.modules.engagement", "app.modules.reporting", "app.modules.integrations"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.packages.service -> app.modules.documents",  # package checkout calls documents.service (requirements_for, ensure_pending, consume) for waivers; a downward call missing from the "May call" column, so the table or the call changes
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]
+
+[[tool.importlinter.contracts]]
+name = "rentals imports only its allowed contexts"
+type = "forbidden"
+source_modules = ["app.modules.rentals"]
+forbidden_modules = ["app.modules.documents", "app.modules.packages", "app.modules.programs", "app.modules.pos", "app.modules.access", "app.modules.leagues", "app.modules.staff", "app.modules.assessments", "app.modules.engagement", "app.modules.reporting", "app.modules.integrations"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]
+
+[[tool.importlinter.contracts]]
+name = "programs imports only its allowed contexts"
+type = "forbidden"
+source_modules = ["app.modules.programs"]
+forbidden_modules = ["app.modules.memberships", "app.modules.rentals", "app.modules.pos", "app.modules.access", "app.modules.leagues", "app.modules.staff", "app.modules.assessments", "app.modules.engagement", "app.modules.reporting", "app.modules.integrations"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.programs.selfservice -> app.modules.memberships",  # self-service pricing calls memberships.service.is_member; a same-layer call missing from the "May call" column
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]
+
+[[tool.importlinter.contracts]]
+name = "pos imports only its allowed contexts"
+type = "forbidden"
+source_modules = ["app.modules.pos"]
+forbidden_modules = ["app.modules.resources", "app.modules.scheduling", "app.modules.documents", "app.modules.memberships", "app.modules.rentals", "app.modules.programs", "app.modules.access", "app.modules.leagues", "app.modules.staff", "app.modules.assessments", "app.modules.engagement", "app.modules.reporting", "app.modules.integrations"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]
+
+[[tool.importlinter.contracts]]
+name = "access imports only its allowed contexts"
+type = "forbidden"
+source_modules = ["app.modules.access"]
+forbidden_modules = ["app.modules.resources", "app.modules.rentals", "app.modules.pos", "app.modules.leagues", "app.modules.staff", "app.modules.assessments", "app.modules.engagement", "app.modules.reporting", "app.modules.integrations"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]
+
+[[tool.importlinter.contracts]]
+name = "leagues imports only its allowed contexts"
+type = "forbidden"
+source_modules = ["app.modules.leagues"]
+forbidden_modules = ["app.modules.documents", "app.modules.memberships", "app.modules.packages", "app.modules.rentals", "app.modules.pos", "app.modules.access", "app.modules.staff", "app.modules.assessments", "app.modules.engagement", "app.modules.reporting", "app.modules.integrations"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]
+
+[[tool.importlinter.contracts]]
+name = "staff imports only its allowed contexts"
+type = "forbidden"
+source_modules = ["app.modules.staff"]
+forbidden_modules = ["app.modules.documents", "app.modules.rentals", "app.modules.pos", "app.modules.access", "app.modules.leagues", "app.modules.assessments", "app.modules.engagement", "app.modules.reporting", "app.modules.integrations"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]
+
+[[tool.importlinter.contracts]]
+name = "assessments imports only its allowed contexts"
+type = "forbidden"
+source_modules = ["app.modules.assessments"]
+forbidden_modules = ["app.modules.resources", "app.modules.scheduling", "app.modules.billing", "app.modules.documents", "app.modules.memberships", "app.modules.packages", "app.modules.rentals", "app.modules.programs", "app.modules.pos", "app.modules.access", "app.modules.leagues", "app.modules.staff", "app.modules.engagement", "app.modules.reporting", "app.modules.integrations"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]
+
+[[tool.importlinter.contracts]]
+name = "engagement imports only its allowed contexts"
+type = "forbidden"
+source_modules = ["app.modules.engagement"]
+forbidden_modules = ["app.modules.resources", "app.modules.scheduling", "app.modules.billing", "app.modules.documents", "app.modules.packages", "app.modules.rentals", "app.modules.pos", "app.modules.staff", "app.modules.assessments", "app.modules.reporting", "app.modules.integrations"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.engagement.handlers -> app.modules.billing",  # engagement.handlers (event subscribers) imports billing; subscribing to any event is allowed but the column lists only audience functions
+    "app.modules.engagement.handlers -> app.modules.scheduling",  # same, scheduling
+    "app.modules.engagement.service -> app.modules.scheduling",  # engagement.service calls scheduling.service.get_booking and get_session; not in the "May call" column
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]
+
+[[tool.importlinter.contracts]]
+name = "reporting imports only its allowed contexts"
+type = "forbidden"
+source_modules = ["app.modules.reporting"]
+forbidden_modules = ["app.modules.resources", "app.modules.clients", "app.modules.scheduling", "app.modules.billing", "app.modules.documents", "app.modules.memberships", "app.modules.packages", "app.modules.rentals", "app.modules.programs", "app.modules.pos", "app.modules.access", "app.modules.leagues", "app.modules.staff", "app.modules.assessments", "app.modules.engagement", "app.modules.integrations"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]

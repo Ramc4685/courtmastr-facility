@@ -52,11 +52,29 @@ jobs:
           sh infra/postgres/init/01-roles.sh
       - run: cd backend && uv sync --frozen
       - run: make lint
+      - name: Types (mypy; strict for app/core and app/ports)
+        run: make typecheck
+      - name: Boundaries (import-linter, overview section 2)
+        run: make boundaries
       - run: make migrate
       - name: Migration is reversible
         run: cd backend && uv run alembic downgrade base && uv run alembic upgrade head
       - name: Tests (real PostgreSQL as fh_app) and the 80% domain coverage gate
         run: make test
+
+  api-diff:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install oasdiff (pinned)
+        run: |
+          curl -sSfL https://github.com/oasdiff/oasdiff/releases/download/v1.37.0/oasdiff_1.37.0_linux_amd64.tar.gz | tar -xz oasdiff
+          sudo mv oasdiff /usr/local/bin/oasdiff
+      - name: No breaking API change against main (allow list docs/api/breaking-allow.txt)
+        run: API_DIFF_BASE=origin/main make api-diff
 
   web:
     runs-on: ubuntu-latest
