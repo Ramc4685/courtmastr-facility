@@ -472,7 +472,9 @@ def _bill_rows(session: Session, contract: MembershipContract, rows: list[Period
     session.flush()
     if not charge_ids:
         return None
-    return billing.service.create_invoice_for_charges(session, charge_ids, due_on=max(due, today), origin="system")
+    return billing.service.create_invoice_for_charges(
+        session, charge_ids, due_on=max(due, today), origin="system", is_autopay=contract.is_autopay
+    )
 
 
 def _add_share(session: Session, contract: MembershipContract, client_id: UUID, staff_id: UUID | None, origin="manual"):

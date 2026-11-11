@@ -7,6 +7,7 @@ session that does not allow free booking needs `scheduling.enrollment.free_book`
 
 from datetime import timedelta
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as Db
@@ -16,7 +17,7 @@ from app.core.api import CONSTRAINT_CODES
 from app.core.auth import Principal, authorize, scope_query
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.pagination import ListQuery, paginate
-from app.modules import clients, scheduling
+from app.modules import clients, packages, platform, scheduling
 from app.modules.programs import events as ev
 from app.modules.programs.models import Attendance, Enrollment, WaitlistEntry
 from app.ports import notifications
@@ -55,15 +56,37 @@ def _load(session: Db, principal: Principal, model, row_id: UUID, key: str):
 # --- enrolment ---------------------------------------------------------------------------------------------
 
 
-def _enroll(session: Db, seat: dict, client_id: UUID, channel: str) -> Enrollment:
-    """Internal: seat first (row lock, capacity-full), then the roster row, in the caller's transaction."""
+def _credit(row: Enrollment) -> dict:
+    return {"source_type": "enrollment", "source_id": row.id}
+
+
+def _hold_credit(session: Db, seat: dict, row: Enrollment, client_package_id: UUID) -> None:
+    """Hold one credit of the package for this place (PKG-12). The session's own day at its location decides
+    whether the package is in date; packages refuses with 409 package-exhausted, -wrong-type, -out-of-range..."""
+    zone = ZoneInfo(platform.service.location_time_zone(session, seat["location_id"]))
+    try:
+        packages.service.reserve_credit(
+            session, client_package_id=client_package_id, client_id=row.client_id, **_credit(row),
+            session_on=seat["starts_at"].astimezone(zone).date(), reservation_type_id=seat["reservation_type_id"],
+        )  # fmt: skip
+    except NotFound:
+        raise ValidationFailed("Unknown package.", pointer="/client_package_id") from None
+
+
+def _enroll(
+    session: Db, seat: dict, client_id: UUID, channel: str, client_package_id: UUID | None = None
+) -> Enrollment:
+    """Internal: seat first (row lock, capacity-full), then the roster row and, when a package pays, its held
+    credit, all in the caller's transaction."""
     scheduling.service.reserve_seat(session, seat["id"])
     row = Enrollment(
         location_id=seat["location_id"], client_id=client_id, session_id=seat["id"], status="enrolled",
-        pricing="free", channel=channel, enrolled_at=clock.now(),
+        pricing="entitlement" if client_package_id else "free", channel=channel, enrolled_at=clock.now(),
     )  # fmt: skip
     session.add(row)
     session.flush()  # uq_enrollment_session_client answers a second enrolment with already-enrolled
+    if client_package_id:
+        _hold_credit(session, seat, row, client_package_id)
     events.publish(
         session, ev.EnrollmentCreated(enrollment_id=row.id, session_id=seat["id"], client_id=client_id), row.id
     )
@@ -73,12 +96,13 @@ def _enroll(session: Db, seat: dict, client_id: UUID, channel: str) -> Enrollmen
 def create_enrollment(session: Db, principal: Principal, data: dict) -> Enrollment:
     """Register a client into a single session (CLS-01, CLS-05). Errors: capacity-full, already-enrolled."""
     seat = _seat(session, principal, data["session_id"], ENROLL)
-    if not seat["allows_free_booking"] and not principal.has(FREE):
+    package_id = data.get("client_package_id")
+    if package_id is None and not seat["allows_free_booking"] and not principal.has(FREE):
         raise PermissionDenied(
             "This session needs a package; registering without one requires an override.", required=FREE
         )
     clients.service.require_active(session, data["client_id"])
-    row = _enroll(session, seat, data["client_id"], "staff")
+    row = _enroll(session, seat, data["client_id"], "staff", package_id)
     audit.record(session, ENROLL, row, location_id=row.location_id, changes={"session_id": [None, str(row.session_id)]})
     return row
 
@@ -102,6 +126,8 @@ def get_enrollment(session: Db, principal: Principal, enrollment_id: UUID) -> En
 def _cancel(session: Db, row: Enrollment, kind: str, reason: str | None = None) -> None:
     row.status, row.cancelled_at, row.cancel_kind, row.cancel_reason = "cancelled", clock.now(), kind, reason
     scheduling.service.release_seat(session, row.session_id)
+    # A held credit goes back, or is kept on a late cancel when the package settings say so. No-op without one.
+    packages.service.settle_credit(session, **_credit(row), outcome="late_cancel" if kind == "late" else "early_cancel")
     events.publish(
         session,
         ev.EnrollmentCancelled(
@@ -157,6 +183,20 @@ def get_roster(session: Db, principal: Principal, session_id: UUID) -> dict:
     }  # fmt: skip
 
 
+def _settle_credit(session: Db, seat: dict, row: Enrollment, status: str) -> None:
+    """Move the place's package credit to match its attendance mark: attended consumes it, a no-show consumes
+    or returns it per the package settings, excused returns it. A corrected mark first undoes the previous
+    outcome and holds the credit again on the same package, so marks can be changed any number of times."""
+    packages.service.restore_credit(session, **_credit(row))
+    if status == "excused":
+        packages.service.settle_credit(session, **_credit(row), outcome="early_cancel")
+        return
+    package_id = packages.service.package_for(session, **_credit(row))
+    if package_id is not None:
+        _hold_credit(session, seat, row, package_id)  # a no-op while the credit is still held
+        packages.service.settle_credit(session, **_credit(row), outcome=status)
+
+
 def put_attendance(session: Db, principal: Principal, session_id: UUID, marks: list[dict]) -> dict:
     """Mark attendance for participants (CLS-03). Idempotent per (enrolment, session); the first move to
     `attended` emits programs.enrollment.attended. `no_show` and `excused` need the exception permission."""
@@ -193,6 +233,8 @@ def put_attendance(session: Db, principal: Principal, session_id: UUID, marks: l
             audit.record(
                 session, MARK, attendance, location_id=seat["location_id"], changes={"status": [was, mark["status"]]}
             )
+            if row.pricing == "entitlement":
+                _settle_credit(session, seat, row, mark["status"])
             if mark["status"] == "attended":
                 events.publish(
                     session,

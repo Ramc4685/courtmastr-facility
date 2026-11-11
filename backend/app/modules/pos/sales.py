@@ -25,7 +25,7 @@ from app.core.api import CONSTRAINT_CODES
 from app.core.auth import Principal, authorize, scope_query
 from app.core.errors import Conflict, DomainError, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
-from app.modules import billing, clients, platform
+from app.modules import billing, clients, packages, platform
 from app.modules.pos import catalogue, equipment, inventory
 from app.modules.pos.domain.pricing import Discount, apply_discounts, round_half_up
 from app.modules.pos.events import SaleCompleted
@@ -266,12 +266,26 @@ def add_line(session: Session, principal: Principal, sale_id: UUID, data: dict, 
     """Add a product by id or scan (SKU, then product ID) or an equipment item. Scanning the same product again
     adds a unit to its line unless that line's price was overridden."""
     sale = _draft(session, principal, sale_id, client_ip)
-    targets = [k for k in ("product_id", "sku", "equipment_item_id") if data.get(k)]
+    targets = [k for k in ("product_id", "sku", "equipment_item_id", "package_plan_id") if data.get(k)]
     if len(targets) != 1:
-        raise ValidationFailed("Give exactly one of product_id, sku or equipment_item_id.", pointer="/product_id")
+        raise ValidationFailed(
+            "Give exactly one of product_id, sku, equipment_item_id or package_plan_id.", pointer="/product_id"
+        )
     quantity = data.get("quantity") or 1
     lines = _lines(session, sale.id)
-    if targets[0] == "equipment_item_id":
+    if targets[0] == "package_plan_id":
+        authorize(principal, "packages.package.sell", location_id=sale.location_id)
+        if sale.client_id is None:
+            raise ValidationFailed("Packages need a client.", pointer="/client_id", code="client-required")
+        if quantity != 1:
+            raise ValidationFailed("Add a package once per line.", pointer="/quantity")
+        offer = packages.service.offer(session, data["package_plan_id"], sale.location_id)
+        line = PosSaleLine(
+            line_kind="package", package_plan_id=offer["package_plan_id"], description=offer["name"],
+            list_unit_price_minor=offer["price_minor"], unit_price_minor=offer["price_minor"],
+            revenue_category_id=offer["revenue_category_id"] or billing.service.default_revenue_category(session).id,
+        )  # fmt: skip
+    elif targets[0] == "equipment_item_id":
         authorize(principal, "pos.equipment.rent", location_id=sale.location_id)
         item = get_row(session, EquipmentItem, data["equipment_item_id"], pointer="/equipment_item_id")
         if not item.is_active or item.location_id != sale.location_id:
@@ -328,6 +342,8 @@ def update_line(
     (POS-09), and the receipt itemises the difference as a discount."""
     sale = _draft(session, principal, sale_id, client_ip)
     line = _own_line(session, sale, line_id)
+    if line.line_kind == "package":
+        raise ValidationFailed("A package line cannot be changed; remove it and add it again.", pointer="/quantity")
     if data.get("unit_price_minor") is not None:
         price = data["unit_price_minor"]
         if price != line.list_unit_price_minor:
@@ -467,7 +483,8 @@ def recompute(session: Session, sale: PosSale) -> None:
             select(PosSaleDiscountLine).where(PosSaleDiscountLine.pos_sale_discount_id.in_([d.id for d in discounts]))
         )
     }
-    line_ids = [line.id for line in lines]
+    # A package's price is its plan's (packages bills it): cart discounts and coupons skip those lines.
+    line_ids = [line.id for line in lines if line.line_kind != "package"]
 
     def targets(discount: PosSaleDiscount) -> tuple[UUID, ...]:
         if discount.scope == "sale":
@@ -480,8 +497,9 @@ def recompute(session: Session, sale: PosSale) -> None:
     coupon = next((d for d in discounts if d.source == "coupon"), None)
     if coupon is not None:
         quote = billing.catalogue.quote_coupon(
-            session, sale.coupon_code, subtotal_minor=sum(applied.nets.values()), redeemer_client_id=sale.client_id
-        )
+            session, sale.coupon_code, subtotal_minor=sum(applied.nets[line_id] for line_id in line_ids),
+            redeemer_client_id=sale.client_id,
+        )  # fmt: skip
         coupon.discount_minor = quote["discount_minor"]
         more = apply_discounts(
             applied.nets, [Discount(coupon.id, minor=coupon.discount_minor, line_keys=targets(coupon))]
@@ -673,23 +691,43 @@ def complete_sale(session: Session, principal: Principal, sale_id: UUID, client_
             f"Payments ({captured_minor(tenders)}) do not match the total ({sale.total_minor}).",
             code="tender-total-mismatch",
         )
-    if sale.client_id is None and any(line.line_kind == "equipment" for line in lines):
-        raise ValidationFailed("Equipment rentals need a client.", pointer="/client_id", code="client-required")
+    if sale.client_id is None and any(line.line_kind != "product" for line in lines):
+        raise ValidationFailed(
+            "Equipment rentals and packages need a client.", pointer="/client_id", code="client-required"
+        )
+
+    for line in lines:  # before any write: this refusal commits (it issues the document to sign)
+        if line.line_kind == "package":
+            packages.service.require_documents(session, line.package_plan_id, sale.client_id, sale.location_id)
 
     coupon = next((d for d in _discounts(session, sale.id) if d.source == "coupon"), None)
     coupon_lines: set[UUID] = set()
     if coupon is not None and coupon.applied_minor:
-        before = [line.net_minor + _share(session, coupon.id, line.id) for line in lines]
+        priced = [line for line in lines if line.line_kind != "package"]
+        before = [line.net_minor + _share(session, coupon.id, line.id) for line in priced]
         coupon_id, parts = billing.catalogue.redeem_coupon(
             session, sale.coupon_code, redemption_key=f"pos:pos_sale:{sale.id}", line_nets=before,
             redeemer_client_id=sale.client_id,
         )  # fmt: skip
         if sum(parts) != coupon.applied_minor:
             raise Conflict("The coupon's value changed; review the sale.", code="coupon-changed")
-        coupon_lines = {line.id for line, part in zip(lines, parts, strict=True) if part}
+        coupon_lines = {line.id for line, part in zip(priced, parts, strict=True) if part}
 
     charge_ids = []
     for line in lines:
+        if line.line_kind == "package":
+            # packages owns the sale: it checks members-only and required documents (409 document-required),
+            # grants the credits and posts its own charge, left uninvoiced so it joins this sale's invoice.
+            sold = packages.service.sell(
+                session, client_id=sale.client_id, location_id=sale.location_id, package_plan_id=line.package_plan_id,
+                channel="pos", invoice_mode="deferred", sold_by_staff_user_id=principal.staff_user_id,
+            )  # fmt: skip
+            charge = billing.service.get_charge(session, sold["package"].charge_id)
+            if charge.total_minor != line.total_minor:
+                raise Conflict("The package's price changed; remove it and add it again.", code="price-changed")
+            line.charge_id, line.fulfilment_id = charge.id, sold["package"].id
+            charge_ids.append(charge.id)
+            continue
         product = session.get(Product, line.product_id) if line.product_id else None
         charge = billing.service.post_charge(
             session, client_id=sale.client_id, location_id=sale.location_id, description=line.description,
@@ -720,7 +758,7 @@ def complete_sale(session: Session, principal: Principal, sale_id: UUID, client_
                     delta=-line.quantity * product.units_per_sale, pos_sale_line_id=line.id,
                     staff_user_id=principal.staff_user_id,
                 )  # fmt: skip
-        else:
+        elif line.line_kind == "equipment":
             equipment.check_out(session, principal, sale, line)
 
     drawer = open_drawer(session, sale.register_id)

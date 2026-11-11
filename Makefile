@@ -2,7 +2,7 @@
 COMPOSE = docker compose --env-file .env -f infra/docker-compose.yml
 UV = cd backend && uv run
 
-.PHONY: up down reset migrate lane-db seed test lint fmt api worker relay openapi web-install web web-api web-check web-test web-e2e
+.PHONY: up down reset migrate lane-db seed test lint fmt api worker relay scheduler openapi web-install web web-api web-check web-test web-e2e
 
 .env:
 	cp .env.example .env
@@ -45,6 +45,9 @@ worker: .env        ## Dramatiq worker
 
 relay: .env         ## outbox relay loop
 	$(UV) python -m app.relay
+
+scheduler: .env     ## the clock: enqueues the periodic jobs (autopay, renewals, expiries, hold reaper) per tenant
+	$(UV) python -m app.scheduler
 
 openapi: .env       ## export the generated OpenAPI document to backend/openapi.json
 	$(UV) python -m app.cli openapi > openapi.json

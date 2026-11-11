@@ -4,21 +4,29 @@ for Riley Reyes with a future freeze. The matching package plans are created her
 bundles one; seeds/packages.py sells the rest."""
 
 from datetime import timedelta
-from uuid import NAMESPACE_URL, uuid5
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules.billing.models import RevenueCategory
 from app.modules.clients.models import Client
+from app.modules.documents import service as documents
+from app.modules.documents.models import DocumentTemplate
 from app.modules.memberships import service
 from app.modules.memberships.models import MembershipContract, MembershipPlan
 from app.modules.packages import service as packages
 from app.modules.packages.models import PackagePlan
 from app.modules.platform.models import Location
+from app.modules.scheduling.models import ReservationType
 
-# Stands in for scheduling's "Private lesson" reservation type until that lane's table exists.
-LESSON_TYPE = uuid5(NAMESPACE_URL, "courtside-demo/reservation-type/private-lesson")
+
+def lesson_type(session: Session):
+    """Downtown's "Private Lesson" reservation type (seeds/scheduling.py): what the demo lesson packages pay for."""
+    return session.scalar(
+        select(ReservationType.id)
+        .join(Location, Location.id == ReservationType.location_id)
+        .where(Location.slug == "downtown", ReservationType.name == "Private Lesson")
+    )
 
 
 def seed(session: Session) -> None:
@@ -30,7 +38,7 @@ def seed(session: Session) -> None:
     lessons = session.scalar(select(PackagePlan).where(PackagePlan.name == "Member lesson pair"))
     if lessons is None:
         lessons = packages.create_plan(session, actor, {
-            "reservation_type_id": LESSON_TYPE, "name": "Member lesson pair", "session_mode": "fixed",
+            "reservation_type_id": lesson_type(session), "name": "Member lesson pair", "session_mode": "fixed",
             "session_count": 2, "fee_minor": 9000, "fee_basis": "per_package", "revenue_category_id": programs.id,
             "validity_count": 1, "validity_unit": "month", "is_members_only_at_desk": True,
         })  # fmt: skip
@@ -52,6 +60,15 @@ def seed(session: Session) -> None:
     service.create_plan(session, actor, {
         "membership_type_id": visitor.id, "name": "Guest of a member", "billing_interval_unit": "day",
         "billing_interval_count": 30, "billing_occurrences_count": 1, "term_fee_minor": 0, "sort_order": 3,
+    })  # fmt: skip
+    # Sold only against a signed waiver: the contract waits as "upcoming" until the client accepts it (DOC-08).
+    club = service.create_plan(session, actor, {
+        "membership_type_id": adult.id, "name": "Court club monthly", "billing_occurrences_count": 12,
+        "term_fee_minor": 4500, "sort_order": 4,
+    })  # fmt: skip
+    waiver = session.scalar(select(DocumentTemplate.id).where(DocumentTemplate.name == "Liability waiver"))
+    documents.upsert_binding(session, actor, {
+        "scope_type": "membership_plan", "scope_id": club["id"], "template_id": waiver, "frequency": "every_purchase",
     })  # fmt: skip
     service.update_settings(session, actor, {"billing_lead_days": 7})
 

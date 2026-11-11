@@ -24,7 +24,7 @@ MovementKind = _values("adjustment", "set", "sale", "return", "transfer_out", "t
 MovementReason = _values("other", "discrepancy", "new_stock", "sale", "return", "transfer")
 SaleStatus = _values("draft", "completed", "abandoned")
 ReturnState = _values("none", "partial", "full")
-LineKind = _values("product", "equipment")
+LineKind = _values("product", "equipment", "package")
 DiscountSource = _values("preset", "custom", "coupon", "product_default")
 DiscountScope = _values("sale", "lines")
 TenderLeg = _values("payment", "account_credit", "pay_later")
@@ -376,9 +376,10 @@ class PosSaleLine(TenantOwned, Timestamps, Base):
         *tfk("charge_id", "charge"),
         enum_check("line_kind", LineKind),
         UniqueConstraint("tenant_id", "pos_sale_id", "line_no", name="uq_pos_sale_line_no"),
+        *tfk("package_plan_id", "package_plan"),
         CheckConstraint(
             "(line_kind = 'product') = (product_id IS NOT NULL) AND (line_kind = 'equipment') = "
-            "(equipment_item_id IS NOT NULL)",
+            "(equipment_item_id IS NOT NULL) AND (line_kind = 'package') = (package_plan_id IS NOT NULL)",
             name="target",
         ),
         CheckConstraint("quantity > 0", name="quantity"),
@@ -394,6 +395,8 @@ class PosSaleLine(TenantOwned, Timestamps, Base):
     line_kind: Mapped[str] = enum_column()
     product_id: Mapped[UUID | None]
     equipment_item_id: Mapped[UUID | None]
+    package_plan_id: Mapped[UUID | None]  # POS-19: packages.sell runs at completion
+    fulfilment_id: Mapped[UUID | None]  # what completion created: client_package.id for a package line (not an FK)
     description: Mapped[str]
     quantity: Mapped[int] = mapped_column(server_default=text("1"), info={"audit": "value"})
     list_unit_price_minor: Mapped[int] = _money()

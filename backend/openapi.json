@@ -12276,11 +12276,17 @@
             "title": "Client Id",
             "type": "string"
           },
-          "pricing": {
-            "const": "free",
-            "default": "free",
-            "title": "Pricing",
-            "type": "string"
+          "client_package_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Package Id"
           },
           "session_id": {
             "format": "uuid",
@@ -26700,6 +26706,18 @@
             ],
             "title": "Equipment Item Id"
           },
+          "package_plan_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package Plan Id"
+          },
           "product_id": {
             "anyOf": [
               {
@@ -26770,6 +26788,18 @@
             ],
             "title": "Equipment Item Id"
           },
+          "fulfilment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fulfilment Id"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -26778,7 +26808,8 @@
           "line_kind": {
             "enum": [
               "product",
-              "equipment"
+              "equipment",
+              "package"
             ],
             "title": "Line Kind",
             "type": "string"
@@ -26794,6 +26825,18 @@
           "net_minor": {
             "title": "Net Minor",
             "type": "integer"
+          },
+          "package_plan_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package Plan Id"
           },
           "price_overridden_by_staff_user_id": {
             "anyOf": [
@@ -26851,6 +26894,8 @@
           "line_kind",
           "product_id",
           "equipment_item_id",
+          "package_plan_id",
+          "fulfilment_id",
           "description",
           "quantity",
           "list_unit_price_minor",

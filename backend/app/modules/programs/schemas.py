@@ -14,7 +14,7 @@ Reason = Annotated[str, StringConstraints(max_length=500)]
 class EnrollmentCreate(In):
     session_id: UUID
     client_id: UUID
-    pricing: Literal["free"] = "free"
+    client_package_id: UUID | None = None  # the package that pays for the place (pricing becomes `entitlement`)
 
 
 class EnrollmentCancel(In):

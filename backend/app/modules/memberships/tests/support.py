@@ -20,6 +20,8 @@ from app.core.events import OutboxEvent
 from app.modules import billing
 from app.modules.billing.models import Charge, Invoice, Payment
 from app.modules.memberships.models import BillingSchedulePeriod, MembershipContract
+from app.modules.platform.models import Location
+from app.modules.scheduling.models import ReservationType
 from conftest import new_client
 
 API = "/api/v1"
@@ -67,9 +69,20 @@ def membership_plan(client, headers, tenant, **fields) -> dict:
     return ok(client.post(f"{API}/membership-plans", headers=headers, json=body | fields), 201)
 
 
+def lesson_type(client, headers, tenant) -> str:
+    """The tenant's reservation type for package plans (one is enough: plans only need a real one to point at)."""
+    with tx(tenant) as session:
+        found = session.scalar(select(ReservationType.id).order_by(ReservationType.id).limit(1))
+        site = session.scalar(select(Location.id).order_by(Location.id).limit(1))
+    if found:
+        return str(found)
+    body = {"location_id": str(site) if site else location(client, headers), "name": "Lesson"}
+    return ok(client.post(f"{API}/reservation-types", headers=headers, json=body), 201)["id"]
+
+
 def package_plan(client, headers, tenant, **fields) -> dict:
     """A ten-session pack at 100.00 with no expiry."""
-    body = {"reservation_type_id": str(uuid4()), "name": f"Pack {uuid4().hex[:6]}", "session_mode": "fixed",
+    body = {"reservation_type_id": lesson_type(client, headers, tenant), "name": f"Pack {uuid4().hex[:6]}", "session_mode": "fixed",
             "session_count": 10, "fee_minor": 10000, "fee_basis": "per_package",
             "revenue_category_id": category(tenant, "PACK")}  # fmt: skip
     if fields.get("pricing_category") == "free":

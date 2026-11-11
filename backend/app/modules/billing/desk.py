@@ -212,9 +212,22 @@ def void_invoice(session: Session, principal: Principal, invoice_id: UUID, data:
 
 
 def reassign_invoice_payer(session: Session, principal: Principal, invoice_id: UUID, data: dict) -> dict:
-    """BIL-05. Until `clients` exposes household relationships, any active client may be chosen; the
-    permission (Manager and above) is the guard, and the change is audited."""
-    _invoice(session, principal, invoice_id, "billing.invoice.reassign_payer")
+    """BIL-05. The new payer is someone already on the invoice or a relative of theirs (a pending or active
+    relationship in `clients`): a parent pays for a child, never a stranger. Manager and above; audited."""
+    invoice = _invoice(session, principal, invoice_id, "billing.invoice.reassign_payer")
+    on_invoice = set(session.scalars(select(Charge.client_id).where(Charge.invoice_id == invoice.id)))
+    on_invoice = (on_invoice | {invoice.bill_to_client_id}) - {None}
+    relatives = {
+        other
+        for person in on_invoice
+        for rel in clients.households.relationships_of(session, person, live_only=True)
+        for other in (rel.from_client_id, rel.to_client_id)
+    }
+    if data["bill_to_client_id"] not in on_invoice | relatives:
+        raise ValidationFailed(
+            "Choose someone on the invoice or a relative of theirs.", pointer="/bill_to_client_id",
+            code="payer-not-related",
+        )  # fmt: skip
     service.reassign_payer(session, invoice_id, data["bill_to_client_id"])
     return _detail(session, invoice_id)
 

@@ -289,6 +289,10 @@ def test_invoice_edits_schedule_void_and_mark_paid(client, api, shop, desk):
     api("DELETE", f"/invoices/{target['id']}/charges/{second}", None, 404)
 
     api("POST", f"{path}/reassign-payer", {"bill_to_client_id": other}, 403, headers=desk.front)
+    api("POST", f"{path}/reassign-payer", {"bill_to_client_id": other}, 422, "payer-not-related")  # a stranger
+    parent_of = next(t["id"] for t in api("GET", "/relationship-types") if t["code"] == "parent_of")
+    api("POST", f"/clients/{other}/relationships",
+        {"other_client_id": str(shop.client_id), "relationship_type_id": parent_of}, 201)  # fmt: skip
     assert api("POST", f"{path}/reassign-payer", {"bill_to_client_id": other})["bill_to_client_id"] == other
     api("POST", f"{path}/reassign-payer", {"bill_to_client_id": str(uuid4())}, 422)
     paid = api("POST", f"{path}/mark-paid", {"external_reference": "BACS 4471"}, 201)

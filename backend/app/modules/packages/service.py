@@ -402,6 +402,18 @@ def _usable_by(client_id: UUID):
     return or_(ClientPackage.owner_client_id == client_id, ClientPackage.id.in_(shared))
 
 
+def package_for(session: Session, *, source_type: str, source_id: UUID) -> UUID | None:
+    """The package a booking or enrolment last drew on, held or not. Internal: a corrected attendance mark
+    re-holds its credit on the same package."""
+    e = CreditLedgerEntry
+    return session.scalar(
+        select(e.client_package_id)
+        .where(e.source_type == source_type, e.source_id == source_id)
+        .order_by(e.id.desc())
+        .limit(1)
+    )
+
+
 def spendable_packages(
     session: Session, client_id: UUID, reservation_type_id: UUID | None = None, on: date | None = None
 ) -> list[ClientPackage]:
@@ -506,7 +518,9 @@ def _issue(
         )  # fmt: skip
         package.charge_id = charge.id
         if package.invoice_mode == "single" and charge.total_minor > 0:
-            invoice = billing.service.create_invoice_for_charges(session, [charge.id], origin="system")
+            invoice = billing.service.create_invoice_for_charges(
+                session, [charge.id], origin="system", is_autopay=package.is_autopay
+            )
     session.flush()
     events.publish(session, PackageSold(client_package_id=package.id, client_id=package.owner_client_id), package.id)
     return package, invoice
@@ -519,6 +533,49 @@ def _related_ids(session: Session, client_id: UUID) -> list[UUID]:
         for rel in clients.households.relationships_of(session, client_id, live_only=True)
         if rel.status == "active"
     ]
+
+
+def offer(session: Session, package_plan_id: UUID, location_id: UUID) -> dict:
+    """What a POS cart line for this plan shows (POS-19): name, pre-tax price and revenue category. Internal.
+    Only a priced, one-off plan sells at the till: a free, recurring or choose-your-quantity plan is sold or
+    granted from the client's profile, where its options are."""
+    plan = session.get(PackagePlan, package_plan_id)
+    if plan is None or not plan.is_active:
+        raise ValidationFailed("Unknown or retired package plan.", pointer="/package_plan_id")
+    if plan.kind == "recurring" or plan.session_mode == "range":
+        raise ValidationFailed(
+            "Sell this plan from the client's profile.", pointer="/package_plan_id", code="not-sold-at-register"
+        )
+    fields, _ = _terms(plan, None, _today(session, location_id))
+    if fields["price_minor"] == 0 or fields["is_complimentary"]:
+        raise ValidationFailed(
+            "A free package is granted from the client's profile.", pointer="/package_plan_id",
+            code="not-sold-at-register",
+        )  # fmt: skip
+    return {
+        "package_plan_id": plan.id, "name": fields["name"], "price_minor": fields["price_minor"],
+        "revenue_category_id": fields["revenue_category_id"],
+    }  # fmt: skip
+
+
+def require_documents(
+    session: Session, package_plan_id: UUID, client_id: UUID, location_id: UUID, *, online: bool = False
+) -> UUID | None:
+    """The accepted document that satisfies the plan's binding, or 409 document-required with the pending
+    document's id. Internal. The refusal commits (the document it just issued must survive), so a caller that
+    sells inside a larger transaction (the POS cart) calls this before it writes anything else."""
+    source = None
+    for need in documents.service.requirements_for(session, "package_plan", package_plan_id, client_id, online=online):
+        if need["is_blocking"] and not need["is_satisfied"]:
+            pending = documents.service.ensure_pending(session, need["binding_id"], client_id, location_id)
+            raise Conflict(  # persist: the pending document just issued must survive the refusal
+                "The client must accept the plan's document first.",
+                code="document-required",
+                persist=True,
+                document_id=str(pending.id),
+            )
+        source = need["satisfied_by_document_id"] or source
+    return source
 
 
 def sell(
@@ -551,17 +608,7 @@ def sell(
             plan.is_members_only_online if online else plan.is_members_only_at_desk
         ) and not memberships.service.is_member(session, client.id):
             raise Conflict("This plan is for members only.", code="members-only")
-        source = None
-        for need in documents.service.requirements_for(session, "package_plan", plan.id, client.id, online=online):
-            if need["is_blocking"] and not need["is_satisfied"]:
-                pending = documents.service.ensure_pending(session, need["binding_id"], client.id, location_id)
-                raise Conflict(  # persist: the pending document just issued must survive the refusal
-                    "The client must accept the plan's document first.",
-                    code="document-required",
-                    persist=True,
-                    document_id=str(pending.id),
-                )
-            source = need["satisfied_by_document_id"] or source
+        source = require_documents(session, plan.id, client.id, location_id, online=online)
     fields, granted = _terms(plan, quantity, start_on or today, multiplier)
     free = bundled or is_complimentary or fields["price_minor"] == 0
     fields |= {

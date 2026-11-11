@@ -10,9 +10,9 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { Table, useKeysetQuery, type Column } from '../../components/Table'
 import { Tabs } from '../../components/Tabs'
 import { useToast } from '../../components/Toast'
-import { useAuth } from '../../lib/auth'
+import { useAuth, useMe } from '../../lib/auth'
 import { addDays, formatDate, todayIn, toMinor } from '../../lib/format'
-import { ClientLink, PACKAGE_TONE, RequiredDocument, StatusBadge, UNITS, moneyText, useClientNames, useMoney, usePackagePlans, useRevenueCategories, type PackageOut } from '../memberships/shared'
+import { ClientLink, PACKAGE_TONE, RequiredDocument, StatusBadge, UNITS, moneyText, useClientNames, useMoney, useRevenueCategories, type PackageOut } from '../memberships/shared'
 
 type Plan = Schemas['PackagePlanOut']
 
@@ -64,7 +64,10 @@ function PlanDialog({ plan, onClose }: { plan?: Plan; onClose: () => void }) {
   const toast = useToast()
   const { can } = useAuth()
   const categories = useRevenueCategories().data?.data ?? []
-  const known = [...new Set((usePackagePlans(false).data?.data ?? []).map((p) => p.reservation_type_id))]
+  // Reservation types belong to a location; a plan's credits pay for sessions of the one it names.
+  const types = useQuery({ queryKey: ['reservation-types', 'all'], queryFn: () => api.get('/api/v1/reservation-types', { query: { limit: 200 } }) }).data?.data ?? []
+  const locations = useMe().locations ?? []
+  const site = (id: string) => locations.find((l) => l.id === id)?.name
   const [form, setForm] = useState(() => planForm(plan))
   const set = (patch: Partial<typeof form>) => setForm({ ...form, ...patch })
   const paid = form.pricing_category === 'paid'
@@ -154,21 +157,17 @@ function PlanDialog({ plan, onClose }: { plan?: Plan; onClose: () => void }) {
             { value: 'recurring', label: 'Recurring (a package every period)' },
           ]}
         />
-        <Input
-          label="Reservation type ID"
-          hint="The kind of booking the credits pay for. Until scheduling ships its reservation types, paste the id."
+        <Select
+          label="Reservation type"
+          hint="The kind of session the credits pay for (Scheduling setup)."
           className="sm:col-span-2"
-          list="known-reservation-types"
           disabled={Boolean(plan)}
           value={form.reservation_type_id}
           error={errors.reservation_type_id}
-          onChange={(e) => set({ reservation_type_id: e.target.value.trim() })}
+          onChange={(e) => set({ reservation_type_id: e.target.value })}
+          placeholder="Choose a reservation type"
+          options={types.map((t) => ({ value: t.id, label: locations.length > 1 ? `${t.name} (${site(t.location_id) ?? 'another location'})` : t.name }))}
         />
-        <datalist id="known-reservation-types">
-          {known.map((id) => (
-            <option key={id} value={id} />
-          ))}
-        </datalist>
         <Select
           label="Sessions"
           value={form.session_mode}

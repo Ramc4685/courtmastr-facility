@@ -1,4 +1,5 @@
 import type { Tone } from '../../components/Badge'
+import { todayIn } from '../../lib/format'
 
 /** Money travels as integer minor units (ADR 0003). shortcut: two-decimal currencies only (USD, EUR, ...),
  * the same assumption the backend notices make; zero- or three-decimal currencies need the exponent. */
@@ -18,7 +19,9 @@ export function parseMoney(text: string): number | null {
 /** Minor units back to an editable string ("1250" -> "12.50"). */
 export const toMoneyInput = (minor: number) => (minor / 100).toFixed(2)
 
-export const today = () => new Date().toISOString().slice(0, 10)
+// The wall date where the staff member sits, not UTC's: in the evening west of Greenwich they differ, and the
+// API refuses a business date after the location's today.
+export const today = () => todayIn()
 
 export const INVOICE_STATUS: Record<string, [string, Tone]> = {
   open: ['Open', 'info'],

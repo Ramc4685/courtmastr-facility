@@ -1,7 +1,7 @@
 """packages tables (docs/architecture/data-model-people.md section 4, the schema of record).
 
-Deviations, recorded in the module README. `reservation_type_id` has no foreign key yet: the `scheduling` context
-owns `reservation_type` and is built in another lane (add the composite FK when the lanes merge). `coupon_id` is
+Deviations, recorded in the module README. `reservation_type_id` is a composite FK to scheduling's
+`reservation_type` (added at integration, revision 0401). `coupon_id` is
 not created (billing coupons are build module 8). Post-billed packages (PKG-11, P2) are not modelled, as the data
 model says.
 """
@@ -219,6 +219,7 @@ class PackagePlan(TenantOwned, Timestamps, Base):
         CheckConstraint("renewal_threshold_count >= 0", name="renewal_threshold_count"),
         CheckConstraint("num_nonnulls(discount_pct, discount_minor) <= 1", name="discount"),
         CheckConstraint("discount_pct BETWEEN 0 AND 100 AND discount_minor >= 0", name="discount_range"),
+        *tfk("reservation_type_id", "reservation_type", index=False),
         Index("ix_package_plan_reservation_type", "tenant_id", "reservation_type_id", "is_active"),
         Index("ix_package_plan_online", "tenant_id", postgresql_where=text("online_sale_mode <> 'off' AND is_active")),
     )
@@ -329,6 +330,7 @@ class ClientPackage(TenantOwned, Timestamps, Base):
         CheckConstraint("(status = 'removed') = (removed_at IS NOT NULL)", name="removed"),
         CheckConstraint("price_minor >= 0", name="price_minor"),
         CheckConstraint("(renewal_target = 'plan') = (renews_as_plan_id IS NOT NULL)", name="renewal"),
+        *tfk("reservation_type_id", "reservation_type", index=False),
         Index("ix_client_package_owner", "tenant_id", "owner_client_id", "status", "id"),
         Index(
             "ix_client_package_spendable", "tenant_id", "owner_client_id", "reservation_type_id",

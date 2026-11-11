@@ -228,6 +228,15 @@ function AddItems({ session, ensureSale, onSale, onError }: { session: Session; 
     queryFn: () => api.get('/api/v1/equipment-items', { query: { location_id: location, is_active: true, limit: 200 } }),
   })
   const [rental, setRental] = useState('')
+  const { can } = useAuth()
+  // POS-19: one-off, priced package plans sell at the till; packages checks members-only and documents.
+  const plans = useQuery({
+    queryKey: ['pos', 'package-plans'],
+    queryFn: () => api.get('/api/v1/package-plans', { query: { is_active: true, limit: 200 } }),
+    enabled: can('packages.package.sell'),
+  })
+  const sellable = (plans.data?.data ?? []).filter((p) => p.kind === 'standard' && p.session_mode !== 'range' && p.pricing_category === 'paid')
+  const [plan, setPlan] = useState('')
   const favs = (favorites.data?.data ?? []).filter((p) => session.register.favorite_product_ids.includes(p.id))
   const scan = (e: FormEvent) => {
     e.preventDefault()
@@ -297,6 +306,28 @@ function AddItems({ session, ensureSale, onSale, onError }: { session: Session; 
           </Button>
         </form>
       )}
+      {sellable.length > 0 && (
+        <form
+          className="mt-4 flex items-end gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (plan) add.mutate({ package_plan_id: plan, quantity: 1 }, { onSuccess: () => setPlan('') })
+          }}
+        >
+          <Select
+            label="Sell a package"
+            className="flex-1"
+            value={plan}
+            onChange={(e) => setPlan(e.target.value)}
+            placeholder="Choose a package"
+            options={sellable.map((p) => ({ value: p.id, label: p.name }))}
+            hint="Packages need a client on the sale. Discounts and coupons do not apply to them."
+          />
+          <Button type="submit" variant="secondary" className="mb-6" disabled={!plan}>
+            Add package
+          </Button>
+        </form>
+      )}
     </Card>
   )
 }
@@ -323,6 +354,7 @@ function LineRow({ session, sale, line, onSale, onError }: SaleProps & { line: S
       <td className="px-3 py-2">
         {line.description}
         {line.line_kind === 'equipment' && <Badge tone="info">Rental</Badge>}
+        {line.line_kind === 'package' && <Badge tone="info">Package</Badge>}
         {line.price_overridden_by_staff_user_id && (
           <span className="block text-xs text-muted">
             List <Money minor={line.list_unit_price_minor} />
@@ -335,13 +367,13 @@ function LineRow({ session, sale, line, onSale, onError }: SaleProps & { line: S
           className="w-20"
           inputMode="numeric"
           value={qty}
-          disabled={locked}
+          disabled={locked || line.line_kind === 'package'}
           onChange={(e) => setQty(e.target.value)}
           onBlur={() => Number(qty) !== line.quantity && Number(qty) > 0 && update.mutate({ quantity: Number(qty) })}
         />
       </td>
       <td className="px-3 py-2">
-        {session.can_override_price && !locked ? (
+        {session.can_override_price && !locked && line.line_kind !== 'package' ? (
           <Input
             label={<span className="sr-only">Price of {line.description}</span>}
             className="w-24"

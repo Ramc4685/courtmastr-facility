@@ -474,6 +474,7 @@ class PosSaleLineCreate(In):
     product_id: UUID | None = None
     sku: Code | None = None
     equipment_item_id: UUID | None = None
+    package_plan_id: UUID | None = None  # POS-19: one package per line, sold to the sale's client at completion
     quantity: Count = 1
 
 
@@ -505,9 +506,11 @@ class PosSaleTenderCreate(In):
 class PosSaleLineOut(Out):
     id: UUID
     line_no: int
-    line_kind: Literal["product", "equipment"]
+    line_kind: Literal["product", "equipment", "package"]
     product_id: UUID | None
     equipment_item_id: UUID | None
+    package_plan_id: UUID | None
+    fulfilment_id: UUID | None  # the client_package a package line created
     description: str
     quantity: int
     list_unit_price_minor: int

@@ -55,6 +55,8 @@ def create_return(session: Session, principal: Principal, sale_id: UUID, data: d
             raise ValidationFailed("This line is not on the sale.", pointer=f"/lines/{index}/pos_sale_line_id")
         if line.line_kind == "equipment":
             raise ValidationFailed("Return rented equipment through its loan.", pointer=f"/lines/{index}")
+        if line.line_kind == "package":
+            raise ValidationFailed("Remove a sold package from the client's profile.", pointer=f"/lines/{index}")
         if item["quantity"] > line.quantity - line.returned_quantity:
             raise ValidationFailed(f"Only {line.quantity - line.returned_quantity} left to return.",
                                    pointer=f"/lines/{index}/quantity", code="return-exceeds-sold")  # fmt: skip
@@ -89,7 +91,7 @@ def create_return(session: Session, principal: Principal, sale_id: UUID, data: d
 
     row.refunded_minor, row.cash_refunded_minor = _refund(session, sale, row, mode, reason)
     remaining = sum(line.quantity - line.returned_quantity for line in lines.values() if line.line_kind == "product")
-    rented = any(line.line_kind == "equipment" for line in lines.values())
+    rented = any(line.line_kind != "product" for line in lines.values())
     sale.return_state = "full" if remaining == 0 and not rented else "partial"
     if remaining == 0 and sale.coupon_code:
         billing.catalogue.release_coupon(session, f"pos:pos_sale:{sale.id}")

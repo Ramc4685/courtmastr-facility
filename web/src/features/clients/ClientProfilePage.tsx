@@ -10,6 +10,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { Tabs } from '../../components/Tabs'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
+import { InvoicesTable, PaymentsTable } from '../billing/ClientBillingPage'
 import { ClientDocumentsTab, WaiverBadge } from '../documents/ClientDocumentsTab'
 import { ClientMembershipsTab } from '../memberships/ClientMembershipsTab'
 import { ClientPackagesTab } from '../packages/ClientPackagesTab'
@@ -360,6 +361,23 @@ function Notes({ client }: { client: Client }) {
   )
 }
 
+/** Invoices and payments at a glance; items, stored methods, credit and statements live on the billing screen. */
+function ClientBillingTab({ clientId }: { clientId: string }) {
+  const { can } = useAuth()
+  return (
+    <div className="space-y-6">
+      <p>
+        <Link to={`/billing/clients/${clientId}`} className="font-medium text-primary underline-offset-2 hover:underline">
+          Open billing for this client
+        </Link>
+        <span className="text-muted"> to add items, take payments and manage stored methods.</span>
+      </p>
+      <InvoicesTable query={{ bill_to_client_id: clientId }} />
+      {can('billing.payment.read') && <PaymentsTable query={{ client_id: clientId }} />}
+    </div>
+  )
+}
+
 export function ClientProfilePage() {
   const { id = '' } = useParams()
   const qc = useQueryClient()
@@ -414,7 +432,7 @@ export function ClientProfilePage() {
           ...(can('documents.document.read') ? [{ id: 'documents', label: 'Documents', content: <ClientDocumentsTab client={client} /> }] : []),
           ...(can('memberships.contract.read') ? [{ id: 'memberships', label: 'Memberships', content: <ClientMembershipsTab client={client} /> }] : []),
           ...(can('packages.package.read') ? [{ id: 'packages', label: 'Packages', content: <ClientPackagesTab client={client} /> }] : []),
-          { id: 'billing', label: 'Billing', content: <EmptyState title="Billing arrives with the billing screens">Invoices, payments and balance will show here.</EmptyState> },
+          ...(can('billing.invoice.read') ? [{ id: 'billing', label: 'Billing', content: <ClientBillingTab clientId={client.id} /> }] : []),
         ]}
       />
     </>

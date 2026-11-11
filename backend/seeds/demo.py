@@ -94,11 +94,10 @@ def seed() -> None:
             )
         # One file per context, lowest layer first (docs/dev/module-playbook.md step 9). Each is idempotent.
         session.flush()
-        for context in (clients, billing, pos, documents, memberships, packages):
+        for context in (
+            clients, billing, resources_seed, scheduling_seed, pos, documents, memberships, packages, rentals_seed,
+        ):  # fmt: skip
             context.seed(session)
-        for context in (resources_seed, scheduling_seed):
-            context.seed(session)
-        rentals_seed.seed(session)  # build module 3
     print(f"Seeded tenant {TENANT['name']} ({TENANT['slug']}), id {tenant_id}")
 
 

@@ -11210,12 +11210,8 @@ export interface components {
              * Format: uuid
              */
             client_id: string;
-            /**
-             * Pricing
-             * @default free
-             * @constant
-             */
-            pricing: "free";
+            /** Client Package Id */
+            client_package_id?: string | null;
             /**
              * Session Id
              * Format: uuid
@@ -15727,6 +15723,8 @@ export interface components {
         PosSaleLineCreate: {
             /** Equipment Item Id */
             equipment_item_id?: string | null;
+            /** Package Plan Id */
+            package_plan_id?: string | null;
             /** Product Id */
             product_id?: string | null;
             /**
@@ -15747,6 +15745,8 @@ export interface components {
             discount_minor: number;
             /** Equipment Item Id */
             equipment_item_id: string | null;
+            /** Fulfilment Id */
+            fulfilment_id: string | null;
             /**
              * Id
              * Format: uuid
@@ -15756,13 +15756,15 @@ export interface components {
              * Line Kind
              * @enum {string}
              */
-            line_kind: "product" | "equipment";
+            line_kind: "product" | "equipment" | "package";
             /** Line No */
             line_no: number;
             /** List Unit Price Minor */
             list_unit_price_minor: number;
             /** Net Minor */
             net_minor: number;
+            /** Package Plan Id */
+            package_plan_id: string | null;
             /** Price Overridden By Staff User Id */
             price_overridden_by_staff_user_id: string | null;
             /** Product Id */

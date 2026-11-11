@@ -194,10 +194,11 @@ def populate(client, tenant) -> SimpleNamespace:
     billing_ids |= _populate_pos(client, headers, post, person, location, category_id, tax_id)
     people = _populate_people(client, headers, tenant, location["id"], person["id"])
     documents = _populate_documents(client, headers, tenant, location["id"], person)
-    people |= _populate_memberships(
-        client, headers, tenant, location["id"], person["id"], people["kid_id"], category_id
-    )
     space = _populate_space(client, tenant, headers, post, location["id"], person["id"])
+    people |= _populate_memberships(
+        client, headers, tenant, location["id"], person["id"], people["kid_id"], category_id,
+        space["reservation_type_id"],
+    )  # fmt: skip
     space |= _populate_rentals(
         client, headers, post, location["id"], person["id"], space["resource_id"], category_id, tax_id
     )
@@ -388,7 +389,9 @@ def _populate_documents(client, headers, tenant, location_id, person) -> dict:
             "pending_document_id": pending["id"]}  # fmt: skip
 
 
-def _populate_memberships(client, headers, tenant, location_id, person_id, kid_id, category_id) -> dict:
+def _populate_memberships(
+    client, headers, tenant, location_id, person_id, kid_id, category_id, reservation_type_id
+) -> dict:
     """Module 5 tables: a membership plan with a bundled package plan, a sold contract with its schedule, a
     future freeze and suspension, a share and a counted visit; a sold package with a share, and a recurring one
     (series). Every row of memberships and packages for the generated isolation tests."""
@@ -404,7 +407,7 @@ def _populate_memberships(client, headers, tenant, location_id, person_id, kid_i
 
     today = clock.now().astimezone(ZoneInfo("America/Chicago")).date()
     day = lambda n: (today + timedelta(days=n)).isoformat()  # noqa: E731
-    pack = {"reservation_type_id": str(uuid4()), "session_mode": "fixed", "fee_basis": "per_package",
+    pack = {"reservation_type_id": reservation_type_id, "session_mode": "fixed", "fee_basis": "per_package",
             "revenue_category_id": category_id}  # fmt: skip
     package_plan = call("POST", "/package-plans", pack | {
         "name": "Ten lessons", "session_count": 10, "fee_minor": 10000, "validity_count": 6, "validity_unit": "month"})  # fmt: skip

@@ -175,7 +175,7 @@ export function SellMembershipDialog({ client, replacing, onClose }: { client: C
         </div>
         <div className="flex flex-wrap gap-6">
           <Checkbox label="Renew automatically" checked={form.is_auto_renew} onChange={(e) => setForm({ ...form, is_auto_renew: e.target.checked })} />
-          <Checkbox label="Autopay" hint="Collected once billing stores payment methods." checked={form.is_autopay} onChange={(e) => setForm({ ...form, is_autopay: e.target.checked })} />
+          <Checkbox label="Autopay" hint="Collected by the autopay run from the client's autopay method or account credit." checked={form.is_autopay} onChange={(e) => setForm({ ...form, is_autopay: e.target.checked })} />
         </div>
         {quote.error && <p className="text-sm text-danger">{quote.error.message}</p>}
         {q && (

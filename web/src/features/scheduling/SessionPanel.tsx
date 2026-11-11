@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { api, ApiError, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
-import { Checkbox, Input } from '../../components/Field'
+import { Checkbox, Input, Select } from '../../components/Field'
 import { ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
@@ -30,6 +30,18 @@ export function SessionPanel({ sessionId, canEdit }: { sessionId: string; canEdi
     enabled: can('scheduling.waitlist.manage'),
   })
   const [client, setClient] = useState<ClientSummary | null>(null)
+  const [packageId, setPackageId] = useState('')
+  // The packages of the picked client (owned or shared) that pay for this kind of session.
+  const typeId = session.data?.reservation_type_id
+  const packages = useQuery({
+    queryKey: ['session', sessionId, 'packages', client?.id, typeId],
+    queryFn: () => api.get('/api/v1/client-packages', { query: { usable_by_client_id: client?.id, reservation_type_id: typeId ?? undefined, status: 'active', limit: 50 } }),
+    enabled: Boolean(client && typeId) && can('packages.package.read'),
+  })
+  const pick = (c: ClientSummary | null) => {
+    setClient(c)
+    setPackageId('')
+  }
   const [capacity, setCapacity] = useState<string | null>(null)
   const [marks, setMarks] = useState<Record<string, Attendance>>({})
   const refresh = () => {
@@ -39,18 +51,19 @@ export function SessionPanel({ sessionId, canEdit }: { sessionId: string; canEdi
   const fail = (e: Error) => toast('error', e.message)
 
   const enrol = useMutation({
-    mutationFn: (c: ClientSummary) => api.post('/api/v1/enrollments', { body: { client_id: c.id, session_id: sessionId, pricing: 'free' } }),
+    mutationFn: (c: ClientSummary) => api.post('/api/v1/enrollments', { body: { client_id: c.id, session_id: sessionId, client_package_id: packageId || null } }),
     onSuccess: () => {
       toast('success', `${client?.first_name ?? 'Client'} registered.`)
-      setClient(null)
+      pick(null)
       refresh()
+      void qc.invalidateQueries({ queryKey: ['client-packages'] })
     },
   })
   const queue = useMutation({
     mutationFn: (c: ClientSummary) => api.post('/api/v1/waitlist-entries', { body: { client_id: c.id, session_id: sessionId, mode: 'auto_promote' } }),
     onSuccess: () => {
       toast('success', `${client?.first_name ?? 'Client'} added to the waitlist.`)
-      setClient(null)
+      pick(null)
       refresh()
     },
   })
@@ -216,7 +229,18 @@ export function SessionPanel({ sessionId, canEdit }: { sessionId: string; canEdi
 
       {(can('scheduling.enrollment.create') || can('scheduling.waitlist.manage')) && (
         <div className="space-y-2 rounded border border-border p-3">
-          <ClientPicker label="Add a client" value={client} onChange={setClient} error={enrolError ?? queue.error?.message} hint={full ? 'The session is full: new clients join the waitlist.' : undefined} />
+          <ClientPicker label="Add a client" value={client} onChange={pick} error={enrolError ?? queue.error?.message} hint={full ? 'The session is full: new clients join the waitlist.' : undefined} />
+          {client && (packages.data?.data.length ?? 0) > 0 && (
+            <Select
+              label="Pay with"
+              value={packageId}
+              onChange={(e) => setPackageId(e.target.value)}
+              options={[
+                { value: '', label: s.allows_free_booking ? 'No package (free)' : 'No package (needs an override)' },
+                ...(packages.data?.data ?? []).map((p) => ({ value: p.id, label: `${p.name}: ${p.is_unlimited ? 'unlimited' : `${p.sessions_available_count ?? 0} left`}` })),
+              ]}
+            />
+          )}
           <div className="flex flex-wrap gap-2">
             {can('scheduling.enrollment.create') && (
               <Button size="sm" disabled={!client} loading={enrol.isPending} onClick={() => client && enrol.mutate(client)}>

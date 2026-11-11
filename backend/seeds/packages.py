@@ -11,7 +11,7 @@ from app.modules.clients.models import Client
 from app.modules.packages import service
 from app.modules.packages.models import ClientPackage, PackagePlan
 from app.modules.platform.models import Location
-from seeds.memberships import LESSON_TYPE
+from seeds.memberships import lesson_type
 
 
 def seed(session: Session) -> None:
@@ -19,14 +19,14 @@ def seed(session: Session) -> None:
         return  # already seeded
     actor = session.info["actor"]
     programs = session.scalar(select(RevenueCategory).where(RevenueCategory.code == "PROGRAMS"))
-    paid = {"reservation_type_id": LESSON_TYPE, "revenue_category_id": programs.id, "fee_basis": "per_package"}
+    paid = {"reservation_type_id": lesson_type(session), "revenue_category_id": programs.id, "fee_basis": "per_package"}
     ten = service.create_plan(session, actor, paid | {
         "name": "Ten private lessons", "session_mode": "fixed", "session_count": 10, "fee_minor": 45000,
         "validity_count": 6, "validity_unit": "month", "renewal_threshold_count": 2, "online_sale_mode": "paid_in_full",
         "share_mode": "all_related", "sort_order": 1,
     })  # fmt: skip
     service.create_plan(session, actor, {
-        "reservation_type_id": LESSON_TYPE, "name": "Free trial lesson", "session_mode": "single",
+        "reservation_type_id": lesson_type(session), "name": "Free trial lesson", "session_mode": "single",
         "pricing_category": "free", "is_complimentary": True, "validity_count": 2, "validity_unit": "week", "sort_order": 2,
     })  # fmt: skip
     service.create_plan(session, actor, paid | {
