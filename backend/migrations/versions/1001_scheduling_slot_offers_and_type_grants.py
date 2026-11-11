@@ -13,7 +13,7 @@ from app.core.db.rls import enable_rls
 
 
 revision = '1001'
-down_revision = '0953'
+down_revision = '0310'
 
 TENANT_TABLES = ("reservation_type_grant", "slot_offer", "slot_offer_resource")
 
