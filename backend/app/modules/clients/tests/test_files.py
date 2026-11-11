@@ -193,6 +193,18 @@ def test_erasure_nulls_the_photo_and_purges_the_file_rows(client, tenant, owner,
     assert client.get(f"{API}/clients/{person['id']}/photo", headers=owner).status_code == 404
 
 
+def test_erasing_a_tombstone_keeps_a_photo_its_survivor_still_shows(client, tenant, owner, location_id):
+    survivor = new_client(client, owner, location_id, first_name="Sam")
+    loser = new_client(client, owner, location_id, first_name="Sammy", last_name=survivor["last_name"])
+    photo = _put_photo(client, owner, loser["id"], png_bytes()).json()["photo_file_id"]
+    client.post(f"{API}/clients/{survivor['id']}/merge", headers=owner, json={"merged_client_ids": [loser["id"]]})
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        privacy.HANDLERS["clients"].erase(session, loser["id"])  # aimed at the tombstone, not the survivor
+    with tenant_session(tenant.id) as session:
+        assert session.get(StoredFile, photo).status == "ready"
+    assert client.get(f"{API}/clients/{survivor['id']}/photo", headers=owner).status_code == 200
+
+
 def test_export_lists_note_attachments(client, tenant, owner, location_id):
     person = new_client(client, owner, location_id)
     _attach(client, owner, _note(client, owner, person["id"]))

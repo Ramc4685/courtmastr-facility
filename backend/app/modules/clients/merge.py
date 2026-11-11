@@ -410,9 +410,15 @@ def _erase_clients(session: Session, client_id: UUID) -> dict:
     person. Billing rows keep their subject id and amounts: the ledger is retained (4.3)."""
     identities = set()
     counts = {}
-    for cid in _subject_ids(session, client_id):
+    subjects = _subject_ids(session, client_id)
+    for cid in subjects:
         client = session.get(Client, cid)
-        files.purge_rows(session, files.file_ids_of(session, client))  # before the photo id and notes go
+        ids = files.file_ids_of(session, client)  # before the photo id and notes go
+        # A merge can leave a survivor outside this erasure showing the same photo: that file stays.
+        shared = set(session.scalars(
+            select(Client.photo_file_id).where(Client.photo_file_id.in_(ids), Client.id.not_in(subjects))
+        ))  # fmt: skip
+        files.purge_rows(session, [i for i in ids if i not in shared])
         client.first_name, client.last_name = ERASED_FIRST, ERASED_LAST
         for field in _ERASE_NULL:
             setattr(client, field, None)
