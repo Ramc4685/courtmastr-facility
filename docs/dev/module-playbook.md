@@ -32,6 +32,23 @@ Postgres, Redis and Mailpit from `make up` in the main checkout.
   nothing else, so merges stay mechanical. Regenerate `backend/openapi.json` and `schema.d.ts` after a
   merge rather than merging them by hand.
 
+## After the first integration (revision `0401`)
+
+The three lanes are merged; `docs/status/README.md` is the current state and its last section lists what a
+new module must know. The rules that integration added:
+
+- **Migrations** continue the one chain: your first revision has `down_revision = "0401"`. A lane database
+  from before `0401` must be dropped and recreated with `make lane-db`.
+- **A table with a foreign key to `client`** needs a merge handler (`clients.merge.register_merge_handler`)
+  and a data-subject handler (`platform.privacy.register_subject_handler`), in `<ctx>/subject.py`, imported
+  from the package `__init__`. A meta-test fails until both cover the table.
+- **Schema class names are unique across contexts** (kernel test): prefix with the aggregate.
+- **Periodic work** is an idempotent `@tenant_actor` whose name you add to `app/scheduler.py`
+  (`make scheduler`).
+- **`persist=True` on an error commits the whole request**: raise it before any other write.
+- **"Today"** is `platform.service.location_today`; a tenant-wide rule uses `earliest_today`. Never
+  `clock.now().date()`, in code or in tests.
+
 ## Kernel slices you build on (do not re-invent)
 
 Shipped ahead of their modules; details in each module `README.md` and `docs/status/kernel-slice.md`.

@@ -32,9 +32,9 @@ no scheduler): enqueue it daily per tenant after each location's `membership_ren
 
 ## Not built (by name)
 
-- Autopay and dunning, stored payment methods, `payment_schedule` for single-invoice contracts, account credit
-  auto-applied at sale, non-payment suspension: all wait for billing (build module 8). `is_autopay` is stored
-  and carried, nothing collects on it.
+- Non-payment suspension (billing emits `billing.invoice.past_due`; nothing here subscribes), account credit
+  auto-applied at sale, the card-save modes at sale. Since integration an invoice billed for an autopay
+  contract is an autopay invoice, and billing's autopay run collects it from the client's stored method.
 - Pre-defined billing items as add-ons (`catalog_item`), coupons on a contract.
 - `POST /plan-changes` (deferred by ADR 0005's reconciliation): upgrade and downgrade are "renew into another
   plan" (`renews_as_plan_id` on the contract or on a manual renew) or cancel with a reason and sell anew.

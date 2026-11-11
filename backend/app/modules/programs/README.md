@@ -36,3 +36,16 @@ fees, packages, checkout, forms, portal). Tables follow `docs/architecture/data-
 
 Multi-enrolment (CLS-02), roster email (CLS-03), open-offer waitlist mode and claims (CLS-06), portal and
 mobile self-booking (CLS-09), virtual meeting links (CLS-08), everything about groups (CLS-10, REG).
+
+## Changed at integration
+
+- **A package can pay for a place.** `POST /enrollments` takes `client_package_id`; `pricing` becomes
+  `entitlement` and one credit is held through `packages.service.reserve_credit` (source type `enrollment`).
+  The package must be of the session's reservation type, in date on the session's day at its location, and
+  owned by or shared with the client: otherwise 409 with the packages code.
+- **The credit follows the mark.** Attended consumes it; a no-show consumes or returns it per the package
+  settings; excused returns it. A corrected mark undoes the previous outcome first, so marks can change.
+- **Cancelling returns the credit**, or keeps it on a `late` cancel when the package settings say so.
+- **Merge and erasure** are handled in `subject.py`: a duplicate place in the same session is cancelled as
+  `client_merged`.
+- Not built: choosing a package when promoting from the waitlist (promotion is free), and a `pricing: fee`.

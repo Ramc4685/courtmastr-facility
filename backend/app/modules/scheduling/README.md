@@ -74,4 +74,4 @@ winner named. Moves delete and re-insert the booking's holds in one transaction 
 `slot_offer` and `slot_offer_resource` (split into slots, derived trainer slots: SCH-07, SCH-18), direct
 registration links (SCH-16; the token column exists and is filled), per-type staff grants (SCH-05), public
 schedule (SCH-20), calendar feeds (SCH-19), series merge (SCH-21), the `rpt_booking` and `rpt_session_fill`
-views, the `clients.client.merged` handler (the event does not exist yet), `enrollment_action` on reschedule.
+views, `enrollment_action` on reschedule. (Merge and erasure are handled since integration: `subject.py`.)

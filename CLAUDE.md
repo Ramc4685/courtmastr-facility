@@ -21,7 +21,7 @@ make up            Postgres :55432, Redis :56379, Mailpit SMTP :51025 / UI :5802
 make reset         stop and DELETE the data volume; then: make up migrate seed
 make migrate seed  Alembic upgrade head (as fh_owner); idempotent demo tenant (docs/dev/demo-accounts.md)
 make lane-db       parallel checkout: create + migrate the databases named in .env (FH_DB_NAME, FH_TEST_DB_NAME)
-make api           API on :8100 (FH_API_PORT; docs at /api/v1/docs); make worker / make relay: jobs, outbox
+make api           API on :8100 (FH_API_PORT; docs at /api/v1/docs); make worker / relay / scheduler: jobs, outbox, clock
 make test          pytest against the real Postgres as fh_app, then the 80% gate on domain logic
 make lint | fmt    ruff check + format
 make openapi       regenerate backend/openapi.json; then make web-api (web/src/api/schema.d.ts)
@@ -105,15 +105,15 @@ per location, WCAG 2.1 AA, docs updated).
 | # | Module | Status |
 |---|---|---|
 | 1 | Platform core (tenants, locations, staff, RBAC, auth, audit) | done; OIDC, MFA and step-up deferred |
-| - | Kernel slices: lane config, `clients` skeleton, `billing` kernel, notification port, counters | done: `docs/status/kernel-slice.md` |
-| 2 | Resources and scheduling | backend + staff screens: `docs/status/02-resources-scheduling{,-web}.md`; no lockers, slot offers |
-| 3 | Rentals and events | backend + staff screens: `docs/status/03-rentals.md`; no portal screen, lockers, plan sharing |
-| 4 | Members and households | done except photo, attachments, sharing: `docs/status/04-clients-households.md` |
-| 5 | Memberships and packages | backend and staff screens done; portal pages, autopay, post-billed not built: `docs/status/05-memberships-packages-web.md` |
-| 6 | Programs and registration | session slice only (enrol, attendance, waitlist) |
-| 7 | Waivers and documents (`documents`) | done: P0 all, P1 bar DOC-07 bulk send; `docs/status/07-waivers-documents.md` |
-| 8 | Billing and payments | backend and staff screens: `docs/status/08-billing-payments{,-web}.md` |
-| 9 | Point of sale and inventory | done, P1s partial: `docs/status/09-pos-inventory.md` |
+| - | Kernel: lanes, notification port, counters, storage port, scheduler, merge and erasure handlers | done: `docs/status/kernel-slice.md` |
+| 2 | Resources and scheduling | staff screens; P0 9 done, 7 partial; no lockers, slot offers |
+| 3 | Rentals and events | staff screens; P0 8 done, 1 partial (no portal screen); no lockers, plan sharing |
+| 4 | Clients and households | P0 15 done, 1 partial; no photo, attachments, preference centre |
+| 5 | Memberships and packages | staff screens; P0 10 done, 5 partial; no portal pages, post-billed, reports |
+| 6 | Programs and registration | session slice only: staff enrol (free or by package), attendance, waitlist |
+| 7 | Waivers and documents (`documents`) | all P0 done; P1 all but DOC-07 bulk send |
+| 8 | Billing and payments | staff screens; P0 13 done, 13 partial; no pre-defined items, disputes, PDFs |
+| 9 | Point of sale and inventory | all P0 done bar 2 partial; packages sell at the till |
 | 10-17 | Check-in, leagues, staff, engagement, assessments, reporting, integrations, mobile | not started |
-Known gaps later modules must not assume away: the `README.md` of `platform`, `clients` and `billing`.
+Per-feature state, known defects and notes for the next modules: `docs/status/README.md`; limits: module READMEs.
 Parallel lanes (worktrees), migration numbering and the kernel service APIs: top of `docs/dev/module-playbook.md`.

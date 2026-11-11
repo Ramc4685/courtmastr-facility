@@ -33,8 +33,10 @@ Memberships and packages: plans `Adult monthly` (prorated to the 1st, bundles th
 package, sold online), `Adult annual` and the free `Guest of a member`; Morgan Member holds an active monthly
 contract shared with Mia, Riley Reyes an annual one with a freeze two weeks out. Package plans `Ten private
 lessons` (sold online, shared with relatives), `Free trial lesson`, `Unlimited month` and the recurring `Four
-lessons a month`; Morgan has a ten-pack with two lessons used and one booked. No scheduler runs the daily jobs
-yet; run them by hand from `backend/`:
+lessons a month`; Morgan has a ten-pack with two lessons used and one booked. The lesson packages pay for
+Downtown's `Private Lesson` sessions (register Morgan from a lesson on the Schedule and pick "Pay with").
+`Court club monthly` is bound to the `Liability waiver`: a sale waits as upcoming until the client signs.
+`make scheduler` (with `make worker`) runs the daily jobs; to run them once by hand from `backend/`:
 
 ```
 uv run python -c "from app.bootstrap import bootstrap; bootstrap(); from app.modules import memberships, packages; from app.core.db.platform import resolve_tenant; t = str(resolve_tenant(slug='courtside-demo').id); print(memberships.service.run_membership_day.fn(t), packages.service.run_package_day.fn(t))"

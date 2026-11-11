@@ -42,12 +42,16 @@ paid by account credit go back to credit.
 
 ## Internal interface for other contexts
 
-Nothing outside `pos` calls it yet. The integration point for packages and memberships (POS-19) is a new
-`LineKind` value on `pos_sale_line` (widen its `line_kind` and `target` checks). Two changes are needed:
+Nothing outside `pos` calls it yet.
 
-- `add_line` resolves the package through the memberships context's top-level service.
-- `complete_sale` calls that context's issue function in the same transaction, after `post_charge`, passing
-  the line's charge id. A client is required for these lines, as it is for rentals.
+**Package lines (POS-19), built at integration.** `POST /pos-sales/{id}/lines` takes `package_plan_id`
+(`line_kind = package`, quantity 1, needs a client and `packages.package.sell`). The price is the plan's:
+cart discounts and coupons skip the line, and it cannot be re-priced. At completion `packages.sell` runs with
+`channel = pos` and leaves its charge uninvoiced so it joins the sale's invoice; `fulfilment_id` is the
+`client_package` it created. A plan's required document is checked before anything is written
+(409 `document-required`, the sale stays a draft). Free, recurring and choose-your-quantity plans are refused
+(`not-sold-at-register`). A package line cannot be returned or voided here: remove the package from the
+client's profile. Memberships are not sold at the till (not in the parity matrix).
 
 ## Assumptions (written down, not asked)
 

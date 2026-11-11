@@ -72,3 +72,15 @@ its own savepoint; idempotent through `uq_client_package_previous` and the serie
 - Online purchase: a `paid_in_full` plan needs a card or bank payment that is not declined; an `unknown`
   processor answer keeps the sale and is resolved by `billing.confirm_payment`.
 - **API.** Path ids `package_plan_id`, `package_share_id`; GET operation ids start with get/list.
+
+## Changed at integration
+
+- `reservation_type_id` on `package_plan` and `client_package` is a composite foreign key to scheduling's
+  `reservation_type` (revision `0401`); an unknown id is a 422.
+- New internal functions: `offer` (what a POS line shows), `require_documents` (the plan's document gate, for
+  a caller that sells inside a larger transaction) and `package_for` (the package a source last drew on).
+- Sold at the till through a POS cart line (PKG-08), and spent on session places through
+  `programs` (PKG-12, staff only).
+- An invoice created at sale carries the package's `is_autopay`, so billing's autopay run collects it.
+- The handlers on `scheduling.booking.created/.cancelled/.completed` stay, but scheduling's bookings carry no
+  package: places are enrolments, and `programs` calls `reserve_credit` and `settle_credit` directly.

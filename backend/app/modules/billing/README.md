@@ -104,8 +104,9 @@ scheduler or per-tenant fan-out. Until it does, autopay runs when staff start a 
   keeps what it was.
 - **Tax-exclusive only** (ADR 0003 section 10). **No late fees or interest** (ADR 0005: the reference shows
   none). **No surcharging** (ADR 0003 section 9).
-- **Bill To reassignment is not limited to the household**: `clients` has no relationship model yet. The
-  Manager-level permission and the audit event are the guard.
+- **Bill To reassignment is limited to the household** since integration: the new payer must be on the
+  invoice or have a pending or active relationship (`clients.households`) with someone on it, else 422
+  `payer-not-related`. The internal `service.reassign_payer` stays unrestricted for other contexts.
 - **Bulk invoicing runs in the request** (up to 1000 items) and is not stored; there is no
   `billing_bulk_action` table.
 - **Documents are data and plain-text email, not PDF.** `GET /invoices/{id}/document` and
