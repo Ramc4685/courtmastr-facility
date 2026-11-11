@@ -7,6 +7,7 @@ from uuid import UUID
 import dramatiq
 from dramatiq.brokers.redis import RedisBroker
 from dramatiq.brokers.stub import StubBroker
+from dramatiq.middleware import Retries
 
 from app.core.auth.principal import system_principal
 from app.core.db.session import tenant_session
@@ -15,6 +16,12 @@ from app.core.settings import get_settings
 _settings = get_settings()
 # Set at import so every actor declared afterwards binds to it. Tests use the in-memory stub broker.
 broker = StubBroker() if _settings.jobs.broker == "stub" else RedisBroker(url=_settings.redis.url)
+if isinstance(broker, StubBroker):
+    # Tests: a failing job dead-letters at once (fail_fast raises its error) instead of retrying with a backoff
+    # that keeps every later queue drain waiting.
+    for _middleware in broker.middleware:
+        if isinstance(_middleware, Retries):
+            _middleware.max_retries = 0
 dramatiq.set_broker(broker)
 
 
