@@ -472,7 +472,7 @@ def test_receipts_statements_credit_and_ageing(api, shop, emailed, mailbox):
 # --- payments through the API ------------------------------------------------------------------------------
 
 
-def test_payment_commands_and_their_gates(api, shop, desk):
+def test_payment_commands_and_their_gates(api, shop, desk, monkeypatch):
     who = {"client_id": str(shop.client_id), "location_id": str(shop.location_id)}
     charge_id = api("POST", "/charges", item(shop), 201)["id"]
     invoice = api("POST", "/invoices", {"charge_ids": [charge_id]}, 201)
@@ -533,6 +533,14 @@ def test_payment_commands_and_their_gates(api, shop, desk):
     api("POST", "/payments", who | {"amount_minor": 5, "tender_kind": "card", "method_token": "tok_card_ok"}, 409,
         "processor-not-connected")  # fmt: skip
     assert api("GET", f"/clients/{shop.client_id}/payment-methods") == []  # its stored methods went with it
+    fake = payment_provider.get("fake")
+
+    def refuse(**_):
+        raise ValueError("Review your platform profile.")
+
+    monkeypatch.setattr(fake, "create_account", refuse)
+    api("POST", "/provider-accounts", {"provider": "fake"}, 409, "provider-refused")  # the processor's no, not a 500
+    monkeypatch.undo()
     again = api("POST", "/provider-accounts", {"provider": "fake"}, 201)
     assert again["status"] == "active" and again["id"] != accounts[0]["id"]
     assert (

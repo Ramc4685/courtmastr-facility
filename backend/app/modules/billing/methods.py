@@ -51,10 +51,13 @@ def connect_provider_account(session: Session, principal: Principal, provider_na
     if live is not None:
         raise Conflict("A payment processor is already connected.", code="processor-already-connected")
     tenant = platform.service.get_tenant(session)
-    state = payment_provider.get(provider_name).create_account(
-        tenant_ref=str(tenant.id), email=principal.email, country=get_settings().payments.default_country,
-        currency=tenant.currency,
-    )  # fmt: skip
+    try:
+        state = payment_provider.get(provider_name).create_account(
+            tenant_ref=str(tenant.id), email=principal.email, country=get_settings().payments.default_country,
+            currency=tenant.currency,
+        )  # fmt: skip
+    except ValueError as error:  # the processor said no (its message says why): show it, not a bare 500
+        raise Conflict(str(error), code="provider-refused") from None
     account = ProviderAccount(provider=provider_name, provider_account_ref=state.provider_account_ref)
     _apply_account(account, state)
     session.add(account)
