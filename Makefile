@@ -2,7 +2,7 @@
 COMPOSE = docker compose --env-file .env -f infra/docker-compose.yml
 UV = cd backend && uv run
 
-.PHONY: up down reset migrate lane-db seed test lint fmt api worker relay scheduler openapi web-install web web-api web-check web-test web-e2e mobile-install mobile mobile-api mobile-check mobile-test
+.PHONY: up down reset migrate lane-db seed test lint fmt typecheck boundaries contract api-diff api worker relay scheduler openapi web-install web web-api web-check web-test web-e2e mobile-install mobile mobile-api mobile-check mobile-test
 
 .env:
 	cp .env.example .env
@@ -33,6 +33,20 @@ test: .env          ## full suite against the Compose Postgres, then the 80% gat
 
 lint:               ## ruff lint and format check
 	$(UV) ruff check . && uv run ruff format --check .
+
+typecheck:          ## mypy over backend/app (config and per-module overrides in backend/pyproject.toml)
+	$(UV) mypy
+
+boundaries:         ## import-linter: the bounded-context contracts of overview section 2
+	$(UV) lint-imports
+
+contract: .env      ## long Schemathesis run (FH_CONTRACT_EXAMPLES per operation, default 50); `make test` runs a small one
+	cd backend && FH_CONTRACT_EXAMPLES=$${FH_CONTRACT_EXAMPLES:-50} uv run pytest tests/test_contract_schemathesis.py --no-cov
+
+# Breaking changes against the merge base with main (API_DIFF_BASE overrides the ref); needs oasdiff on PATH.
+# Allowed exceptions live in docs/api/breaking-allow.txt, each with its reason.
+api-diff:           ## oasdiff: fail on breaking changes in backend/openapi.json unless listed in docs/api/breaking-allow.txt
+	git show $$(git merge-base $${API_DIFF_BASE:-main} HEAD):backend/openapi.json | oasdiff breaking - backend/openapi.json --fail-on ERR --err-ignore docs/api/breaking-allow.txt
 
 fmt:
 	$(UV) ruff check --fix . && uv run ruff format .
