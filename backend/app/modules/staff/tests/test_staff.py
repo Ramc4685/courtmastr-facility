@@ -776,3 +776,32 @@ def test_copying_a_shift_into_the_spring_forward_gap_skips_it(client, tenant, ow
         "copied_count": 0,
         "skipped_count": 1,
     }
+
+
+def test_own_pay_covers_commissions_relinking_and_the_calendar_column(client, tenant, owner, f):
+    _, me = add_staff(tenant, "coach", location_ids=[f.location])
+    _, other = add_staff(tenant, "front_desk", location_ids=[f.location])
+    mine = _post(client, owner, "/staff-payees", {"kind": "trainer", "display_name": "Me coaching",
+                                                  "location_id": f.location, "staff_user_id": str(me)})  # fmt: skip
+    unlinked = _post(client, owner, "/staff-payees", {"kind": "trainer", "display_name": "Nobody",
+                                                      "location_id": f.location})  # fmt: skip
+    pay_manager = Principal(kind="staff", tenant_id=tenant.id, staff_user_id=me,
+                            permissions={service.PAY_MANAGE: "all", service.PAYEE_MANAGE: "all"})  # fmt: skip
+    rule = [{"applies_to": "session_completion", "commission_pct": "50"}]
+    attempts = (
+        lambda s: service.put_commission_rules(s, pay_manager, UUID(mine["id"]), rule),
+        lambda s: service.update_payee(s, pay_manager, UUID(mine["id"]), {"staff_user_id": None}),  # unlink me
+        lambda s: service.update_payee(s, pay_manager, UUID(mine["id"]), {"staff_user_id": other}),
+        lambda s: service.update_payee(s, pay_manager, UUID(unlinked["id"]), {"staff_user_id": me}),  # link me
+        lambda s: service.create_payee(s, pay_manager, {"kind": "salesperson", "display_name": "Me selling",
+                                                        "location_id": UUID(f.location), "staff_user_id": me}),
+    )  # fmt: skip
+    for attempt in attempts:
+        with tenant_session(tenant.id, actor=pay_manager) as session, pytest.raises(PermissionDenied):
+            attempt(session)
+    # Unlinked from the payee row by an admin, the trainer's calendar column is still mine.
+    ok(client.patch(f"{API}/staff-payees/{mine['id']}", headers=owner, json={"staff_user_id": None}), 200)
+    with tenant_session(tenant.id, actor=pay_manager) as session, pytest.raises(PermissionDenied):
+        service.put_default_pay_rate(session, pay_manager, UUID(mine["id"]), {"pay_basis": "per_session"})
+    with tenant_session(tenant.id, actor=pay_manager) as session:  # someone else's pay is fine
+        service.put_default_pay_rate(session, pay_manager, UUID(unlinked["id"]), {"pay_basis": "per_session"})

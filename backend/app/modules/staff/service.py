@@ -145,6 +145,7 @@ def create_payee(session: Session, principal: Principal, data: dict) -> StaffPay
     staff_user_id = data.get("staff_user_id")
     if staff_user_id is not None:
         authorize(principal, PAY_MANAGE)  # the linked login gets the pay, as on update_payee (W2-03)
+        _not_self(principal, staff_user_id, *_OWN_PAY)
         _employee(session, staff_user_id, location_id)
     elif data["kind"] == "salesperson":
         raise ValidationFailed("A salesperson is a staff user.", pointer="/staff_user_id")
@@ -184,6 +185,8 @@ def update_payee(session: Session, principal: Principal, payee_id: UUID, data: d
     if "staff_user_id" in data and data["staff_user_id"] != payee.staff_user_id:
         # The linked login is who gets the payee's pay and commission, so relinking is a pay-rate change.
         authorize(principal, PAY_MANAGE)
+        _not_own_payee(session, principal, payee)  # never unlink yourself, edit the rates, then relink
+        _not_self(principal, data["staff_user_id"], *_OWN_PAY)
         if data["staff_user_id"] is None:
             if payee.kind == "salesperson":
                 raise ValidationFailed("A salesperson is a staff user.", pointer="/staff_user_id")
@@ -201,9 +204,24 @@ def update_payee(session: Session, principal: Principal, payee_id: UUID, data: d
 # --- pay and commission rules (tenant-wide keys, held by Admin) --------------------------------------------
 
 
+_OWN_PAY = ("Ask another manager to change your own pay.", "own-pay")
+
+
+def _not_own_payee(session: Session, principal: Principal, payee: StaffPayee) -> None:
+    """Below Owner and Admin nobody writes their own pay: the payee linked to their login, or whose calendar
+    column is their own trainer resource (the payee row may have been unlinked while the column stays theirs)."""
+    _not_self(principal, payee.staff_user_id, *_OWN_PAY)
+    if payee.resource_id is not None and principal.kind == "staff":
+        if payee.resource_id == platform.service.linked_resource_id(session, principal.staff_user_id):
+            _not_self(principal, principal.staff_user_id, *_OWN_PAY)
+
+
 def _payee_for_rates(session: Session, principal: Principal, payee_id: UUID, key: str) -> StaffPayee:
+    """Every rate, bonus and commission write meets the own-pay rule here."""
     payee = _scoped(session, principal, StaffPayee, payee_id)
     authorize(principal, key, location_id=payee.location_id)
+    if key == PAY_MANAGE:
+        _not_own_payee(session, principal, payee)
     return payee
 
 
@@ -240,7 +258,6 @@ def _save_pay_rate(session: Session, payee: StaffPayee, data: dict, **key) -> Pa
 
 def _trainer_for_rates(session: Session, principal: Principal, payee_id: UUID) -> StaffPayee:
     payee = _payee_for_rates(session, principal, payee_id, PAY_MANAGE)
-    _not_self(principal, payee.staff_user_id, "Ask another manager to change your own pay.", "own-pay")
     if payee.kind != "trainer":
         raise ValidationFailed("Session pay is for trainers.", pointer="/pay_basis")
     return payee

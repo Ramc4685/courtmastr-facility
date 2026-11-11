@@ -91,8 +91,9 @@ A sale already on a finalized run is flagged `was_paid_before` but still counted
 - Precedence is reservation type, then membership type, then default. A row names a type or a membership type,
   not both (`ck_pay_rate_one_override`). Floor, flat-activity and non-training rates live on the default row, so
   an empty session under an override row is paid the default row's non-training rate; an override row with no comp
-  rate takes the default row's comp rate. Pay-rate and bonus edits are refused (`own-pay`, 403) to anyone below
-  Owner and Admin who is the payee's own linked staff user.
+  rate takes the default row's comp rate. Below Owner and Admin, nobody writes their own pay (`own-pay`, 403):
+  pay-rate, bonus and commission writes are refused on the payee linked to the caller's login or whose calendar
+  column is the caller's trainer resource, and linking or unlinking the caller's own login on a payee is refused.
 - Membership-type pay is looked up only for bookings with one client (`booking.client_id`: private lessons and
   rentals), through `memberships.eligibility`; attendees of a group session are not looked up one by one.
 - Complimentary and session-completion facts come from `packages.session_credit_facts` (the one function added
