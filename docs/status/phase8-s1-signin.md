@@ -30,6 +30,24 @@ and 6, and PLT-07. The full behaviour description is in `backend/app/modules/pla
 - **Per-location networks and `staff_user.ip_policy`.** The allow-list is tenant-wide, as the brief asks.
 - **Mobile `schema.d.ts`** was not regenerated (no mobile route changed).
 
+## Gate results (2026-11-11, lane `facilityhub_p8s1`, API :8221)
+
+- `make lint`, `make web-check`: green.
+- `make test`: 2,987 passed in the full run; the other 1,172 hit a Postgres backend crash under machine load
+  ("server closed the connection unexpectedly", 1,170 errors) or were the two real failures below, and all
+  1,172 pass on `pytest --lf`. Real failures fixed: `test_settings_carry_the_display_name_in_one_place` (bucket
+  named `password-reset`, renamed `reset-request`); the 1,500-occurrence timing test is load-sensitive (127 s
+  against 120 s) and passed on the rerun. The 80% domain-coverage gate was not re-measured after the rerun.
+- `make web-test`: 133 of 134 on a loaded machine; the one failure (`app/auth.test.tsx` sign-in redirect) was a
+  timing miss now given the 5 s cold-start allowance; passes alone.
+- `make web-e2e`, once against the lane API: 27 of 32 on the first run, 29 of 32 after warm-up. Every spec
+  signs in as the same demo admin, so the new per-email bucket refused the eleventh sign-in;
+  `config/app.dev.yaml` now raises the two sign-in buckets for dev only. First-wave specs can miss their 5 s
+  wait while five argon2 sign-ins run at once on a cold API (5.3 to 5.8 s). Three fail for reasons outside S1:
+  `integrations.spec.ts` expects `GET /locations` with an API key to answer 200, but `13b12dd` refuses API keys
+  on keyless routes (403); `clients.spec.ts` and `documents.spec.ts` hit an axe color-contrast flag on the
+  hovered client-list row (`hover:bg-surface-2/60` under muted text and the success badge).
+
 ## Security review notes (automated review of the S1 commit)
 
 - **Fixed: credential oracle.** A staff sign-in from outside the allow-list is now refused with
