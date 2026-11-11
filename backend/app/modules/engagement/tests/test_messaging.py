@@ -412,3 +412,14 @@ def test_merge_moves_the_log_and_erasure_clears_it(client, tenant, owner, site):
         assert result["inbox_deleted"] == 1 and result["messages_cleared"] >= 1
         assert result["devices_deleted"] == 1  # the device's message rows are detached first
         assert session.scalar(select(Message.to_address).where(Message.client_id == survivor["id"]).limit(1)) is None
+
+
+def test_group_enrollment_events_without_a_session_are_handled(tenant):
+    """Programs publishes group enrollments and promotions with program_group_id, not session_id."""
+    from app.modules.engagement import handlers
+
+    ids = {"client_id": str(uuid4()), "enrollment_id": str(uuid4()), "program_group_id": str(uuid4())}
+    promoted = {"type": "programs.waitlist.promoted", "waitlist_entry_id": str(uuid4()), **ids}
+    # Called as the worker would: tenant id, event id, payload. A KeyError here once stalled every queue drain.
+    handlers.on_enrollment_created(str(tenant.id), str(uuid4()), {"type": "programs.enrollment.created", **ids})
+    handlers.on_waitlist_promoted(str(tenant.id), str(uuid4()), promoted)
