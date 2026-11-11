@@ -2,7 +2,7 @@
 COMPOSE = docker compose --env-file .env -f infra/docker-compose.yml
 UV = cd backend && uv run
 
-.PHONY: up down reset migrate lane-db seed test lint fmt api worker relay scheduler openapi web-install web web-api web-check web-test web-e2e
+.PHONY: up down reset migrate lane-db seed test lint fmt api worker relay scheduler openapi web-install web web-api web-check web-test web-e2e mobile-install mobile mobile-api mobile-check mobile-test
 
 .env:
 	cp .env.example .env
@@ -71,3 +71,20 @@ web-test:           ## Vitest unit and component tests
 
 web-e2e:            ## Playwright smoke test; needs make api running and seeded data
 	$(WEB) e2e
+
+MOBILE = cd mobile && pnpm
+
+mobile-install:     ## member app dependencies (Expo; Node 22 + pnpm)
+	$(MOBILE) install
+
+mobile:             ## Expo dev server; press i for the iOS Simulator (talks to EXPO_PUBLIC_API_ORIGIN, see mobile/README.md)
+	$(MOBILE) start
+
+mobile-api:         ## regenerate mobile/src/api/schema.d.ts from backend/openapi.json
+	$(MOBILE) gen:api
+
+mobile-check:       ## typecheck and lint the member app
+	$(MOBILE) typecheck && pnpm lint
+
+mobile-test:        ## Jest + React Native Testing Library
+	$(MOBILE) test

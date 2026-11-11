@@ -1,7 +1,7 @@
 """programs: groups, fees, registration config, checkout, session booking policy (build module 6)
 
 Revision ID: 0611
-Revises: 0401
+Revises: 0501
 """
 import sqlalchemy as sa
 from alembic import op
@@ -11,7 +11,7 @@ from app.core.db.rls import enable_rls
 
 
 revision = '0611'
-down_revision = '0401'
+down_revision = '0501'
 
 
 def upgrade() -> None:

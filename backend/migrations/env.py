@@ -12,6 +12,7 @@ import app.modules.billing.models  # noqa: F401
 import app.modules.clients.models  # noqa: F401
 import app.modules.documents.models  # noqa: F401
 import app.modules.engagement.models  # noqa: F401
+import app.modules.integrations.models  # noqa: F401
 import app.modules.memberships.models  # noqa: F401
 import app.modules.packages.models  # noqa: F401
 import app.modules.platform.models  # noqa: F401

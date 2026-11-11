@@ -1,0 +1,8 @@
+{
+  "slug": "shared",
+  "name": "Courtmastr Facility",
+  "scheme": "facilityhub",
+  "iosBundleIdentifier": "com.courtmastr.facility",
+  "androidPackage": "com.courtmastr.facility",
+  "pinnedTenant": null
+}

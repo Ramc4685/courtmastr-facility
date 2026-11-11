@@ -34,6 +34,7 @@ def bootstrap() -> None:
         clients,
         documents,
         engagement,  # noqa: F401
+        integrations,
         memberships,
         packages,
         platform,
@@ -41,6 +42,7 @@ def bootstrap() -> None:
     )
 
     deps.set_authenticator(platform.auth.authenticate)
+    deps.set_authenticator(integrations.auth.authenticate, prefix="fhk")
     from app.modules import access, programs, rentals, resources, scheduling  # noqa: F401  (modules 2, 3, 10: same registration)
 
     _done = True

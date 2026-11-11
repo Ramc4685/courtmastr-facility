@@ -17,7 +17,9 @@ type Ok<O> = O extends { responses: infer R }
     ? Json<X>
     : R extends { 201: infer X }
       ? Json<X>
-      : undefined
+      : R extends { 202: infer X }
+        ? Json<X>
+        : undefined
   : never
 type PathParams<O> = O extends { parameters: { path: infer PP } } ? PP : never
 
