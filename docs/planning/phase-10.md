@@ -151,5 +151,10 @@ table below is the record.
   `files.read` and nulls the FK on erasure with a TODO naming K1. The minor age is the key `minor_age` in the
   existing `tenant.settings` JSON (default 18 in code), read through one accessor chip B adds to
   `platform/service.py` and written only through the existing platform settings command.
+- From Phase 8 (its batch 1, `claude/phase8-wave7-5be825` at b29db43, not on this branch): `files.load`,
+  `files.remove`, `files.download_url` and `web/src/components/FileUpload.tsx` exist there, so chip F should be
+  cut after the two phase branches meet, or build on `clean`/`store`/`read` and be swapped later. Its sign-in
+  chip changed `pos/service.py` and `staff/service.py` to use `app.core.networks`; when the phases meet, keep
+  that version in `check_network` and `_network_allowed`.
 - To Phase 9: none yet. Chips record here any billing change they need (likely candidates: CHK-21 card entry
   at the window, the question 16 reversal).
