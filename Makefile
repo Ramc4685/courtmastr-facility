@@ -2,7 +2,7 @@
 COMPOSE = docker compose --env-file .env -f infra/docker-compose.yml
 UV = cd backend && uv run
 
-.PHONY: up down reset migrate lane-db seed test lint fmt api worker relay openapi web-install web web-api web-check web-test web-e2e mobile-install mobile mobile-api mobile-check mobile-test
+.PHONY: up down reset migrate lane-db seed test lint fmt api worker relay scheduler openapi web-install web web-api web-check web-test web-e2e mobile-install mobile mobile-api mobile-check mobile-test
 
 .env:
 	cp .env.example .env
@@ -29,7 +29,7 @@ seed: .env          ## idempotent demo data (docs/dev/demo-accounts.md)
 
 test: .env          ## full suite against the Compose Postgres, then the 80% gate on domain logic
 	$(UV) pytest
-	$(UV) coverage report --fail-under=80 --include='app/modules/*/service.py,app/modules/*/auth.py,app/modules/*/staff.py,app/modules/*/rbac.py,app/modules/*/domain/*,app/core/ids.py,app/core/pagination.py'
+	$(UV) coverage report --fail-under=80 --include='app/modules/*/service.py,app/modules/billing/*.py,app/modules/pos/*.py,app/adapters/stripe_connect.py,app/adapters/fake_payments.py,app/ports/payment_provider.py,app/core/inbound_webhooks.py,app/modules/clients/households.py,app/modules/clients/activity.py,app/modules/clients/merge.py,app/modules/platform/privacy.py,app/modules/platform/files.py,app/modules/*/auth.py,app/modules/*/staff.py,app/modules/*/rbac.py,app/modules/*/domain/*,app/core/ids.py,app/core/pagination.py'
 
 lint:               ## ruff lint and format check
 	$(UV) ruff check . && uv run ruff format --check .
@@ -45,6 +45,9 @@ worker: .env        ## Dramatiq worker
 
 relay: .env         ## outbox relay loop
 	$(UV) python -m app.relay
+
+scheduler: .env     ## the clock: enqueues the periodic jobs (autopay, renewals, expiries, hold reaper) per tenant
+	$(UV) python -m app.scheduler
 
 openapi: .env       ## export the generated OpenAPI document to backend/openapi.json
 	$(UV) python -m app.cli openapi > openapi.json

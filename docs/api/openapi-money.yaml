@@ -1613,7 +1613,7 @@ paths:
       tags: [billing]
       summary: Email or print a receipt
       x-priority: P0
-      x-permission: billing.payment.read
+      x-permission: billing.invoice.send
       x-features: [PAY-03]
       parameters:
       - {name: payment_id, in: path, required: true, schema: {type: string, format: uuid}}

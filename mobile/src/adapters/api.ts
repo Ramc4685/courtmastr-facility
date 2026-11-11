@@ -1,6 +1,8 @@
-// The real implementation against the planned portal/public operations (docs/api/openapi-*.yaml). On this
-// branch those endpoints do not exist yet; flip EXPO_PUBLIC_PORTAL_ADAPTER=api once they merge.
+// The real implementation. Portal clients, invoices, payment methods, payments, contracts and packages are
+// merged (backend/openapi.json) and mapped to the app shapes here; the rest targets the planned operations
+// in docs/api/openapi-*.yaml. Flip EXPO_PUBLIC_PORTAL_ADAPTER=api once those land too.
 import { raw } from '../api/client';
+import type { components } from '../api/schema';
 import type {
   ActableClient,
   AppCard,
@@ -33,11 +35,31 @@ const all = async <T>(path: string, query: Record<string, string | number | unde
 
 const DAY = 86_400_000;
 
+type S = components['schemas'];
+
+const toActable = (c: S['PortalClientList']['data'][number]): ActableClient => ({
+  client: {
+    id: c.id,
+    first_name: c.first_name,
+    last_name: c.last_name,
+    preferred_name: c.preferred_name ?? null,
+    member_number: c.member_number ?? null,
+    status: 'active',
+    home_location_id: null, // not in PortalClient; useZone falls back to the first location
+    photo_url: null,
+  },
+  basis: c.authority === 'self' ? 'self' : 'relationship',
+  relationship_label: c.authority === 'self' ? null : c.authority[0]!.toUpperCase() + c.authority.slice(1),
+});
+
+// shortcut: the invoice list has no lines; show them from getPortalInvoice when the screen needs detail.
+const toInvoice = (i: S['PortalInvoiceOut']): PortalInvoice => ({ ...i, is_past_due: i.past_due_since_on != null, charges: [] });
+
 export const apiAdapter: PortalAdapter = {
   isDemo: false,
   searchDirectory: async (q) => (await raw<Page<DirectoryEntry>>('/public/app-directory', { query: { q } })).data,
   getAppConfig: () => raw<AppConfig>('/public/app-config'),
-  listActableClients: () => all<ActableClient>('/portal/clients'),
+  listActableClients: async () => (await raw<S['PortalClientList']>('/portal/clients')).data.map(toActable),
   issueAppCard: (clientId, deviceLabel) =>
     raw<AppCard>('/portal/app-cards', {
       method: 'POST',
@@ -62,16 +84,35 @@ export const apiAdapter: PortalAdapter = {
       return session ? [{ enrollment: e, session }] : [];
     });
   },
-  listMemberships: (clientId) => all<MembershipContract>('/portal/membership-contracts', { client_id: clientId }),
-  listPackages: (clientId) => all<ClientPackage>('/portal/client-packages', { client_id: clientId }),
-  listInvoices: (clientId) => all<PortalInvoice>('/portal/invoices', { client_id: clientId }),
-  listPaymentMethods: () => all<PaymentMethod>('/portal/payment-methods'),
-  payInvoices: ({ invoiceIds, paymentMethodId, idempotencyKey }) =>
-    raw<PortalPayment>('/portal/payments', {
+  listMemberships: async (clientId) =>
+    (await raw<S['PortalContractOut'][]>('/portal/membership-contracts', { query: { client_id: clientId } })).map(
+      (c): MembershipContract => ({ ...c, status: c.effective_status as MembershipContract['status'] }),
+    ),
+  listPackages: async (clientId) =>
+    (await all<S['PortalPackageOut']>('/portal/client-packages', { client_id: clientId })).map(
+      (p): ClientPackage => ({ ...p, valid_during: [p.valid_from_on ?? null, p.valid_until_on ?? null] }),
+    ),
+  // The server scopes invoices to what this login may pay; there is no per-client filter.
+  listInvoices: async () => (await all<S['PortalInvoiceOut']>('/portal/invoices')).map(toInvoice),
+  listPaymentMethods: () => raw<PaymentMethod[]>('/portal/payment-methods'),
+  payInvoices: async ({ invoiceIds, paymentMethodId, idempotencyKey }) => {
+    const res = await raw<S['PortalPayment']>('/portal/payments', {
       method: 'POST',
       body: { invoice_ids: invoiceIds, payment_method_id: paymentMethodId },
       idempotencyKey,
-    }),
+    });
+    const p = res.payment;
+    return {
+      id: p?.id ?? '',
+      receipt_number: p?.receipt_number ?? 0,
+      amount_minor: p?.amount_minor ?? 0,
+      currency: p?.currency ?? '',
+      // No payment row means account credit covered it all.
+      status: (p?.status ?? 'succeeded') as PortalPayment['status'],
+      invoice_ids: invoiceIds,
+      next_action: res.client_secret ? { kind: 'confirm', provider: 'card' } : null,
+    };
+  },
   listInbox: () => all<InboxItem>('/portal/inbox'),
   markInboxRead: (id) => raw<InboxItem>(`/portal/inbox/${encodeURIComponent(id)}/read`, { method: 'POST' }),
   registerDevice: (registration) => raw<DeviceRegistration>('/portal/devices', { method: 'POST', body: registration }),

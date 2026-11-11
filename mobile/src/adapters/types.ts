@@ -1,6 +1,6 @@
-// Shapes of the planned portal and public operations, copied field-for-field (subset the app uses) from
-// docs/api/openapi-*.yaml. When the owning workstream merges, regenerate src/api/schema.d.ts and replace
-// these with the generated types; the field names already match.
+// The app-facing shapes. Operations not yet merged follow the planned docs/api/openapi-*.yaml field for
+// field; merged ones (portal clients, invoices, payment methods, payments, contracts, packages) are mapped
+// from backend/openapi.json in api.ts, so screens and the demo adapter share one shape.
 
 export type Page<T> = { data: T[]; page: { next_cursor: string | null; has_more: boolean } };
 
@@ -25,7 +25,7 @@ export type ActableClient = {
     preferred_name: string | null;
     member_number: string | null;
     status: 'active' | 'disabled';
-    home_location_id: string;
+    home_location_id: string | null;
     photo_url: string | null;
   };
   basis: 'self' | 'managed_profile' | 'relationship';
@@ -106,7 +106,7 @@ export type ClientPackage = {
 export type PortalInvoice = {
   id: string;
   number: number;
-  bill_to_client_id: string;
+  bill_to_client_id: string | null;
   invoice_on: string;
   due_on: string;
   is_autopay: boolean;

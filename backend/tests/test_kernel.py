@@ -410,7 +410,15 @@ def test_openapi_document(client):
     )
     assert len(operations) >= 47
     # SameSite=Lax means every state-changing route must be non-GET; GETs here are reads by name.
-    assert all(name.startswith(("get", "list")) for name, (method, _) in operations.items() if method == "get")
+    assert all(
+        name.startswith(("get", "list", "search")) for name, (method, _) in operations.items() if method == "get"
+    )
+
+
+def test_schema_names_are_unique_across_contexts():
+    """Two contexts naming a schema alike makes FastAPI emit `app__modules__x__schemas__Name` for both, which
+    renames the web client's types behind its back. Prefix the newer one with its aggregate instead."""
+    assert [name for name in app.openapi()["components"]["schemas"] if "__" in name] == []
 
 
 def test_committed_openapi_snapshot_is_current():

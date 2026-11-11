@@ -35,3 +35,11 @@ class IdentityLocked(Event):
     aggregate_type: ClassVar[str] = "identity"
     type: Literal["platform.identity.locked"] = "platform.identity.locked"
     identity_id: UUID
+
+
+class DataSubjectRequestCompleted(Event):
+    aggregate_type: ClassVar[str] = "data_subject_request"
+    type: Literal["platform.data_subject_request.completed"] = "platform.data_subject_request.completed"
+    request_id: UUID
+    client_id: UUID
+    kind: str

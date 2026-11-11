@@ -18,6 +18,9 @@ export default tseslint.config(
       'react-hooks/exhaustive-deps': 'warn',
       // autoFocus inside a just-opened dialog is the expected focus placement
       'jsx-a11y/no-autofocus': 'off',
+      // stored rich text renders only through components/SanitizedHtml.tsx (security-baseline 9.2)
+      'no-restricted-syntax': ['error', { selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']", message: 'Use <SanitizedHtml>.' }],
     },
   },
+  { files: ['src/components/SanitizedHtml.tsx'], rules: { 'no-restricted-syntax': 'off' } },
 )

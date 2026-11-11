@@ -232,7 +232,8 @@ def revoke_own_session(session_id: UUID, ctx: Ctx = Depends(current_ctx)) -> Non
 
 @me.post("/auth/password", status_code=204)
 def change_own_password(body: s.PasswordChange, ctx: Ctx = Depends(current_ctx)) -> None:
-    """Change the caller's password; other sessions are revoked. Errors: invalid-credentials, password-too-weak."""
+    """Change the caller's password; other sessions are revoked. A first password needs a magic-link session
+    from the last 15 minutes. Errors: invalid-credentials, password-too-weak, password-reset-required."""
     auth.change_password(ctx.session, ctx.principal, **body.model_dump())
 
 

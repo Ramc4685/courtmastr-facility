@@ -74,10 +74,31 @@ describe('api adapter', () => {
   });
 
   it('pays invoices with a saved method id only, never card data', async () => {
-    const calls = mockFetch([() => json({ id: 'p1', status: 'succeeded' }, 201)]);
-    await apiAdapter.payInvoices({ invoiceIds: ['i1'], paymentMethodId: 'pm1', idempotencyKey: 'pay-1' });
+    const payment = { id: 'p1', receipt_number: 7, amount_minor: 500, currency: 'USD', status: 'processing' };
+    const calls = mockFetch([() => json({ payment, client_secret: 'cs_1', credit_applied_minor: 0 }, 201)]);
+    const out = await apiAdapter.payInvoices({ invoiceIds: ['i1'], paymentMethodId: 'pm1', idempotencyKey: 'pay-1' });
     expect(calls[0]!.body).toEqual({ invoice_ids: ['i1'], payment_method_id: 'pm1' });
     expect(calls[0]!.headers['idempotency-key']).toBe('pay-1');
+    expect(out).toMatchObject({ id: 'p1', status: 'processing', invoice_ids: ['i1'], next_action: { kind: 'confirm' } });
+  });
+
+  it('treats a payment fully covered by account credit as succeeded', async () => {
+    mockFetch([() => json({ payment: null, client_secret: null, credit_applied_minor: 500 }, 201)]);
+    const out = await apiAdapter.payInvoices({ invoiceIds: ['i1'], paymentMethodId: 'pm1', idempotencyKey: 'pay-2' });
+    expect(out).toMatchObject({ status: 'succeeded', next_action: null });
+  });
+
+  it('maps merged portal clients and invoices to the app shapes', async () => {
+    const person = { id: 'c1', first_name: 'Ann', last_name: 'Lee', preferred_name: null, member_number: 'M1', can_edit: true };
+    mockFetch([() => json({ data: [{ ...person, authority: 'self' }, { ...person, id: 'c2', authority: 'guardian' }] })]);
+    const [self, dep] = await apiAdapter.listActableClients();
+    expect(self).toMatchObject({ basis: 'self', relationship_label: null, client: { id: 'c1', home_location_id: null } });
+    expect(dep).toMatchObject({ basis: 'relationship', relationship_label: 'Guardian' });
+
+    mockFetch([() => json(page([{ id: 'i1', status: 'open', past_due_since_on: '2026-11-01' }, { id: 'i2', status: 'open', past_due_since_on: null }]))]);
+    const [late, current] = await apiAdapter.listInvoices('c1');
+    expect(late).toMatchObject({ is_past_due: true, charges: [] });
+    expect(current!.is_past_due).toBe(false);
   });
 
   it('scopes session listings to the acting-for client', async () => {
@@ -91,7 +112,7 @@ describe('api adapter', () => {
 
   it('surfaces problem+json from a missing endpoint as an ApiError', async () => {
     mockFetch([() => json({ status: 404, code: 'not-found', title: 'Not found' }, 404)]);
-    await expect(apiAdapter.listMemberships('c1')).rejects.toMatchObject({ status: 404, code: 'not-found' });
+    await expect(apiAdapter.listInbox()).rejects.toMatchObject({ status: 404, code: 'not-found' });
   });
 });
 

@@ -109,3 +109,17 @@
 dialog::backdrop {
   background: rgb(0 0 0 / 0.45);
 }
+
+/* Stored rich text (documents): readable defaults for the tags the sanitiser allows. */
+.rich-text {
+  @apply space-y-3 leading-relaxed;
+}
+.rich-text h1 { @apply text-xl font-semibold; }
+.rich-text h2 { @apply text-lg font-semibold; }
+.rich-text h3, .rich-text h4 { @apply font-semibold; }
+.rich-text ul { @apply list-disc pl-6; }
+.rich-text ol { @apply list-decimal pl-6; }
+.rich-text a { @apply underline; }
+.rich-text blockquote { @apply border-l-4 border-border pl-3 text-muted; }
+.rich-text table { @apply w-full border-collapse; }
+.rich-text th, .rich-text td { @apply border border-border px-2 py-1 text-left; }

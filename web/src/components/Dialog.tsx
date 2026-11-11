@@ -8,7 +8,7 @@ type DialogProps = {
   description?: ReactNode
   children: ReactNode
   footer?: ReactNode
-  size?: 'md' | 'lg'
+  size?: 'md' | 'lg' | 'drawer'
 }
 
 /** Native modal <dialog>: the browser makes the page inert, traps focus and closes on Escape.
@@ -39,7 +39,7 @@ export function Dialog({ open, onClose, title, description, children, footer, si
         e.preventDefault()
         onClose()
       }}
-      className={`w-[calc(100%-2rem)] ${size === 'lg' ? 'max-w-2xl' : 'max-w-lg'} rounded-lg border border-border bg-surface p-0 text-fg shadow-xl`}
+      className={`${size === 'drawer' ? 'my-0 ml-auto mr-0 h-dvh max-h-dvh w-full max-w-xl rounded-none border-l' : `w-[calc(100%-2rem)] ${size === 'lg' ? 'max-w-2xl' : 'max-w-lg'} rounded-lg border`} border-border bg-surface p-0 text-fg shadow-xl`}
     >
       <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
         <div>
@@ -56,7 +56,7 @@ export function Dialog({ open, onClose, title, description, children, footer, si
           </svg>
         </button>
       </div>
-      <div className="max-h-[70vh] overflow-y-auto px-6 py-5">{children}</div>
+      <div className={`${size === 'drawer' ? 'max-h-[calc(100dvh-9rem)]' : 'max-h-[70vh]'} overflow-y-auto px-6 py-5`}>{children}</div>
       {footer && <div className="flex justify-end gap-2 border-t border-border bg-surface-2/50 px-6 py-3">{footer}</div>}
     </dialog>
   )

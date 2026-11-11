@@ -11,7 +11,10 @@ session refresh and rotation, sign-out, `GET /me`, signed-in devices (`GET`/`DEL
 facility hours. Everything else goes through one typed adapter (`mobile/src/adapters/`). `api.ts` targets the
 planned operations in `docs/api/openapi-*.yaml`. `demo.ts` is an in-memory stand-in. The switch is
 `EXPO_PUBLIC_PORTAL_ADAPTER` (default `demo`). Each screen fed by the demo adapter carries a **DEMO DATA**
-banner that names the API it waits on, and demo card tokens are signed `DEMO`. **Every row below marked
+banner that names the API it waits on, and demo card tokens are signed `DEMO`. After merging main (hardening included), `listPortalActableClients`, `listPortalMembershipContracts`,
+`listPortalClientPackages`, `listPortalInvoices`, `listPortalPaymentMethods` and `payPortalInvoices` exist;
+`api.ts` maps their real shapes to the app's (`adapters.test.ts`). Invoice lines are not in the list
+response, so the app shows none yet. **Every row below marked
 "partial" works end to end against the demo adapter only.** None of them has run against a real portal
 endpoint, because those endpoints do not exist yet.
 
@@ -60,7 +63,7 @@ app code.
 ## Verification
 
 - `make mobile-check`: `tsc --noEmit` and ESLint, clean.
-- `make mobile-test`: 5 suites, 36 tests, all passing (auth, offline card, household switching, adapters and theme contrast).
+- `make mobile-test`: 5 suites, 38 tests, all passing (auth, offline card, household switching, adapters and theme contrast).
 - iOS Simulator (iPhone 18 Pro, Expo Go) against the lane API on :8150. Signed in as
   `member@courtside-demo.example.com`, then walked facility search, both tenant themes, home, household
   switch, schedule, booking (with the push soft prompt), card (self and dependent), my bookings, more,

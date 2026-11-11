@@ -103,4 +103,5 @@ def require(*keys: str) -> Callable[..., Ctx]:
             raise PermissionDenied(f"Requires {keys[0]}", required=keys[0])
         return ctx
 
+    dependency.keys = keys  # read by the generated location-scope tests
     return dependency

@@ -1,0 +1,26 @@
+"""Wave 1 hardening, batch space: S-07 (docs/security/wave1-hardening-spec.md section 5)."""
+
+from conftest import add_staff, login
+
+API = "/api/v1"
+
+
+def test_limited_editor_cannot_remove_foreign_locations(client, owner, tenant):
+    body = {"time_zone": "UTC", "country_code": "US"}
+    a, b = (client.post(f"{API}/locations", headers=owner, json=body | {"name": n}).json()["id"] for n in "AB")
+    admin = login(client, tenant, add_staff(tenant, "admin", location_ids=[a])[0])
+    _, colleague = add_staff(tenant, "front_desk", location_ids=[b, a])  # primary at B
+    url = f"{API}/staff-users/{colleague}/locations"
+    # Emptying the set removes only what the editor reaches (A); B, outside its say, stays.
+    kept = client.put(url, headers=admin, json={"has_all_location_access": False, "location_ids": []})
+    assert kept.status_code == 200, kept.text
+    assert (kept.json()["location_ids"], kept.json()["primary_location_id"]) == ([b], b)
+    moved = client.put(url, headers=admin, json={"has_all_location_access": False, "primary_location_id": a})
+    assert sorted(moved.json()["location_ids"]) == sorted([a, b]) and moved.json()["primary_location_id"] == a
+    # Someone with every location cannot be narrowed by a limited editor.
+    _, everywhere = add_staff(tenant, "front_desk", all_locations=True)
+    refused = client.put(
+        f"{API}/staff-users/{everywhere}/locations", headers=admin,
+        json={"has_all_location_access": False, "location_ids": [a]},
+    )  # fmt: skip
+    assert (refused.status_code, refused.json()["code"]) == (403, "self-escalation")

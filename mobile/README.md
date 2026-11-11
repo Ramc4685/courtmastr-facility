@@ -32,7 +32,9 @@ Biometric unlock and push need a development build (`eas build --profile develop
 Facility lookup, sign-in (password and magic link), refresh, sign-out, `/me`, signed-in devices and facility
 hours call the real API on this branch. Household, card, schedule, booking, memberships, packages, invoices,
 payments, inbox and push registration go through `src/adapters/` because those endpoints are not merged yet.
-`api.ts` targets the planned operations in `docs/api/openapi-*.yaml`; `demo.ts` is an in-memory stand-in.
+Of those, household (`/portal/clients`), memberships, packages, invoices, payment methods and paying are now
+on main; `api.ts` maps them from `backend/openapi.json` (unit-tested, not yet run against a live server). The
+rest targets the planned operations in `docs/api/openapi-*.yaml`; `demo.ts` is an in-memory stand-in.
 Every screen fed by the demo adapter shows a **DEMO DATA** banner naming the API it waits on, and demo card
 tokens end in `.DEMO`. Flip `EXPO_PUBLIC_PORTAL_ADAPTER=api` once those endpoints land.
 

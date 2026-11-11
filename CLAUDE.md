@@ -21,7 +21,7 @@ make up            Postgres :55432, Redis :56379, Mailpit SMTP :51025 / UI :5802
 make reset         stop and DELETE the data volume; then: make up migrate seed
 make migrate seed  Alembic upgrade head (as fh_owner); idempotent demo tenant (docs/dev/demo-accounts.md)
 make lane-db       parallel checkout: create + migrate the databases named in .env (FH_DB_NAME, FH_TEST_DB_NAME)
-make api           API on :8100 (FH_API_PORT; docs at /api/v1/docs); make worker / make relay: jobs, outbox
+make api           API on :8100 (FH_API_PORT; docs at /api/v1/docs); make worker / relay / scheduler: jobs, outbox, clock
 make test          pytest against the real Postgres as fh_app, then the 80% gate on domain logic
 make lint | fmt    ruff check + format
 make openapi       regenerate backend/openapi.json; then make web-api (web/src/api/schema.d.ts)
@@ -59,10 +59,8 @@ docs/architecture/  docs/adr/  docs/api/  docs/discovery/  docs/dev/
   Outside tenant or location scope is 404, never 403. Keys are registered in the module's `permissions.py`.
 - **Audit (3.10, ADR 0007).** Every mutating service function calls `audit.record(...)` once per aggregate,
   in the same transaction. PII and free text are flag-only; secrets never.
-- **Events (3.11).** `events.publish(session, event, aggregate_id)` only; nothing goes to Redis from a request.
-  Subscribers are `@handles` + `@tenant_actor` and idempotent.
-- **Errors (3.13).** Services raise `DomainError` subclasses; routers never build error bodies. Constraint
-  names are API-relevant: map special ones in `core.api.CONSTRAINT_CODES`.
+- **Events (3.11).** `events.publish(session, event, aggregate_id)` only; subscribers are idempotent `@handles` + `@tenant_actor`.
+- **Errors (3.13).** Services raise `DomainError`; routers never build error bodies. Map special constraint names in `core.api.CONSTRAINT_CODES`.
 - **Lists (3.14).** Keyset pagination through `paginate()`; allow-listed sort and filter fields.
 - **Schema (3.1 to 3.3).** Singular snake_case tables; `text` + named CHECK instead of native enums
   (`enum_column` + `enum_check`); UUIDv7 ids; `_minor` bigint money; `timestamptz` in UTC; local wall time
@@ -78,11 +76,13 @@ docs/architecture/  docs/adr/  docs/api/  docs/discovery/  docs/dev/
 - **Tests (section 5).** Real PostgreSQL 16 from Compose, connected as `fh_app`. No SQLite, no database
   mocks. Every new table must be populated by `populate()` in `backend/conftest.py`, which enrols it in the
   generated isolation tests. Every new route is checked by `backend/tests/test_security.py`.
+- **Security (wave 1, playbook section "Security rules").** `L` keys: `authorize(..., location_id=record.location_id)`;
+  request ids only via scoped loaders; gates in the shared inner function; privileged flags need own key; money
+  only to its owner; portal sales end in `secure_online_checkout`; portal routes never reuse staff schemas.
 - **Web.** No tokens in browser storage; all calls through `src/api/client.ts`; WCAG 2.1 AA with an axe scan
   in every Playwright spec; colours from the CSS variables, never raw values.
-- **Secrets.** Environment only. `.env` is git-ignored; `.env.example` holds dev-only values. Emailed link
+- **Secrets.** (Document precedence: `docs/architecture/README.md` section 1.) Environment only. `.env` is git-ignored; `.env.example` holds dev-only values. Emailed link
   tokens ride in the URL fragment, never the query string (security-baseline 17.2).
-- Document precedence when two disagree: `docs/architecture/README.md` section 1.
 
 ## Adding a module
 
@@ -105,15 +105,15 @@ per location, WCAG 2.1 AA, docs updated).
 | # | Module | Status |
 |---|---|---|
 | 1 | Platform core (tenants, locations, staff, RBAC, auth, audit) | done; OIDC, MFA and step-up deferred |
-| - | Kernel slices: lane config, `clients` skeleton, `billing` kernel, notification port, counters | done: `docs/status/kernel-slice.md` |
-| 2 | Resources and scheduling | not started |
-| 3 | Rentals and events | not started |
-| 4 | Members and households | skeleton only (client, portal access, picker) |
-| 5 | Memberships and packages | not started |
-| 6 | Programs and registration | not started |
-| 7 | Waivers | not started |
-| 8 | Billing and payments | kernel only (charge to ledger, fake provider) |
-| 9-16 | POS, check-in, leagues, staff, engagement, assessments, reporting, integrations | not started |
-| 17 | Mobile member app (`mobile/`) | partial, real auth + demo adapter: `docs/status/17-mobile.md` |
-Known gaps later modules must not assume away: the `README.md` of `platform`, `clients` and `billing`.
+| - | Kernel: lanes, notification port, counters, storage port, scheduler, merge and erasure handlers | done: `docs/status/kernel-slice.md` |
+| 2 | Resources and scheduling | staff screens; P0 9 done, 7 partial; no lockers, slot offers |
+| 3 | Rentals and events | staff screens; P0 8 done, 1 partial (no portal screen); no lockers, plan sharing |
+| 4 | Clients and households | P0 15 done, 1 partial; no photo, attachments, preference centre |
+| 5 | Memberships and packages | staff screens; P0 10 done, 5 partial; no portal pages, post-billed, reports |
+| 6 | Programs and registration | session slice only: staff enrol (free or by package), attendance, waitlist |
+| 7 | Waivers and documents (`documents`) | all P0 done; P1 all but DOC-07 bulk send |
+| 8 | Billing and payments | staff screens; P0 13 done, 13 partial; no pre-defined items, disputes, PDFs |
+| 9 | Point of sale and inventory | all P0 done bar 2 partial; packages sell at the till |
+| 10-17 | Check-in, leagues, staff, engagement, assessments, reporting, integrations; mobile (`mobile/`) | not started; mobile partial, real auth + demo adapter: `docs/status/17-mobile.md` |
+Per-feature state, known defects and notes for the next modules: `docs/status/README.md`; limits: module READMEs.
 Parallel lanes (worktrees), migration numbering and the kernel service APIs: top of `docs/dev/module-playbook.md`.
