@@ -231,3 +231,16 @@ def test_merge_moves_results_and_erasure_deletes_them(client, tenant, owner, loc
         assert exported["assessment_results"][0]["values"][0]["value"].startswith("70")
         assert subject._erase(session, keep) == {"deleted_assessment_results": 1}
     assert client.get(f"{API}/assessment-results/{moved['id']}", headers=owner).status_code == 404
+
+
+def test_w2_09_an_out_of_reach_client_is_404_before_any_422(client, tenant, owner, location_id):
+    """A disabled or unknown client outside the coach's reach must not answer 422: that would confirm it exists."""
+    _, weight, _ = _setup(client, owner)
+    coach_email, _ = add_staff(tenant, "coach", location_ids=[location_id])
+    coach = login(client, tenant, coach_email)
+    theirs = new_client(client, owner, location_id)["id"]
+    ok(client.post(f"{API}/clients/{theirs}/disable", headers=owner, json={}))
+    for person in (theirs, str(uuid4())):
+        when, values = "2031-01-06T15:00:00Z", [(weight["id"], 70)]
+        assert _record(client, coach, person, location_id, when, values, 404)["code"] == "not-found"
+    assert _record(client, owner, theirs, location_id, "2031-01-06T15:00:00Z", [(weight["id"], 70)], 422)

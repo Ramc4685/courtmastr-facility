@@ -24,6 +24,8 @@ client-visible fields and personal bests on the portal when sharing is on.
 - Permissions (rbac-matrix 6.16): `assessment.read` and `assessment.record` are `C` keys with own reach for
   coaches (their own clients: default trainer or salesperson); `assessment.delete` is `L` on the entry's
   location; `definition.manage` is `T` (needs every location, as all tenant-wide writes do).
+- Recording a result loads the client through `clients.service.load` before checking it is active, so a client
+  outside the caller's reach (or unknown) is 404, never a 422 that confirms it exists (W2-09).
 - Merge moves every entry to the survivor; erasure deletes the client's entries (`subject.py`).
 - `clients.households.CAPABILITIES["assessments"]`: who may view a household member's results on the portal
   (the same edit authorities as documents and invoices).

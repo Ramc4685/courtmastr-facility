@@ -199,8 +199,8 @@ def get_result(session: Session, principal: Principal, result_id: UUID) -> dict:
 
 
 def create_result(session: Session, principal: Principal, data: dict) -> dict:
+    clients.service.load(session, principal, data["client_id"], RECORD)  # out of reach is 404 before 422 (W2-09)
     client = clients.service.require_active(session, data["client_id"])
-    clients.service.load(session, principal, client.id, RECORD)
     try:
         platform.service.get_location(session, principal, data["location_id"])
     except NotFound:
