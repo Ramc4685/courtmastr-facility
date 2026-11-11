@@ -1043,6 +1043,26 @@ def email_is_verified(session: Session, client_id: UUID, address: str) -> bool:
     )
 
 
+def audience(
+    session: Session, *, client_ids=None, tag_ids=None, home_location_ids=None, everyone: bool = False
+) -> list[Client]:
+    """Internal (engagement segments): live clients from the union of the sources (everyone, these ids,
+    these tags), narrowed to a home location when given. Disabled, merged and erased records are left out."""
+    stmt = select(Client).where(Client.status == "active", Client.erased_at.is_(None))
+    if not everyone:
+        picks = []
+        if client_ids:
+            picks.append(Client.id.in_(list(client_ids)))
+        if tag_ids:
+            picks.append(Client.id.in_(select(ClientTag.client_id).where(ClientTag.tag_id.in_(list(tag_ids)))))
+        if not picks:
+            return []
+        stmt = stmt.where(or_(*picks))
+    if home_location_ids is not None:
+        stmt = stmt.where(Client.home_location_id.in_(list(home_location_ids)))
+    return list(session.scalars(stmt.order_by(Client.id)))
+
+
 def client_addresses(session: Session, client_id: UUID) -> list[str]:
     return list(
         session.scalars(select(ClientEmail.email).where(ClientEmail.client_id == client_id).order_by(ClientEmail.email))

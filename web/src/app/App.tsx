@@ -11,12 +11,20 @@ import { MergePage } from '../features/clients/MergePage'
 import { TokenLinkPage } from '../features/auth/TokenLinkPage'
 import { IntegrationsPage } from '../features/integrations/IntegrationsPage'
 import { PayLinkPage } from '../features/billing/PayLinkPage'
+import { AutomationsPage, RemindersPage } from '../features/engagement/AutomationPages'
+import { CampaignDetailPage } from '../features/engagement/CampaignDetailPage'
+import { CampaignsPage } from '../features/engagement/CampaignsPage'
+import { EngagementLayout } from '../features/engagement/EngagementLayout'
+import { SegmentsPage, TemplatesPage as MessageTemplatesPage } from '../features/engagement/LibraryPages'
+import { MessageLogPage, SuppressionsPage } from '../features/engagement/MessagesPages'
+import { PortalSettingsPage } from '../features/engagement/PortalPage'
+import { UnsubscribePage } from '../features/engagement/UnsubscribePage'
 import { PublicSignPage } from '../features/documents/PublicSignPage'
 import { TemplateEditorPage } from '../features/documents/TemplateEditorPage'
 import { TemplatesPage } from '../features/documents/TemplatesPage'
 import { MembershipsPage } from '../features/memberships/MembershipsPage'
 import { PackagesPage } from '../features/packages/PackagesPage'
-import { PortalHome } from '../features/portal/PortalHome'
+import { PortalApp } from '../features/portal/PortalApp'
 import { AuditLogPage } from '../features/platform/AuditLogPage'
 import { DashboardPage } from '../features/platform/DashboardPage'
 import { LocationsPage } from '../features/platform/LocationsPage'
@@ -70,7 +78,8 @@ export function AppRoutes() {
       <Route path="/auth/accept-invite" element={<TokenLinkPage purpose="accept-invite" />} />
       <Route path="/pay" element={<PayLinkPage />} />
       <Route path="/sign" element={<PublicSignPage />} />
-      <Route path="/portal/*" element={<RequireClient><PortalHome /></RequireClient>} />
+      <Route path="/unsubscribe" element={<UnsubscribePage />} />
+      <Route path="/portal/*" element={<RequireClient><PortalApp /></RequireClient>} />
       <Route path="/billing/invoices/:id/document" element={<RequireStaff><RequirePermission permission="billing.invoice.read"><InvoiceDocumentPage /></RequirePermission></RequireStaff>} />
       <Route path="/billing/payments/:id/receipt" element={<RequireStaff><RequirePermission permission="billing.payment.read"><ReceiptPage /></RequirePermission></RequireStaff>} />
       <Route path="/pos/sales/:id/receipt" element={<RequireStaff><RequirePermission permission="pos.sale.read"><PosReceiptPage /></RequirePermission></RequireStaff>} />
@@ -106,6 +115,17 @@ export function AppRoutes() {
           <Route path="drawers" element={<RequirePermission permission="pos.drawer.operate"><DrawersPage /></RequirePermission>} />
           <Route path="reports" element={<PosReportsPage />} />
           <Route path="setup" element={<RequirePermission permission="pos.register.manage"><PosSetupPage /></RequirePermission>} />
+        </Route>
+        <Route path="engagement" element={<RequirePermission permission="engagement.campaign.read"><EngagementLayout /></RequirePermission>}>
+          <Route index element={<CampaignsPage />} />
+          <Route path="campaigns/:id" element={<CampaignDetailPage />} />
+          <Route path="templates" element={<MessageTemplatesPage />} />
+          <Route path="segments" element={<SegmentsPage />} />
+          <Route path="messages" element={<MessageLogPage />} />
+          <Route path="suppressions" element={<RequirePermission permission="engagement.suppression.manage"><SuppressionsPage /></RequirePermission>} />
+          <Route path="automations" element={<RequirePermission permission="engagement.automation.manage"><AutomationsPage /></RequirePermission>} />
+          <Route path="reminders" element={<RequirePermission permission="engagement.notification_rule.manage"><RemindersPage /></RequirePermission>} />
+          <Route path="portal" element={<PortalSettingsPage />} />
         </Route>
         <Route path="clients" element={<RequirePermission permission="clients.client.read"><ClientsPage /></RequirePermission>} />
         <Route path="clients/merge" element={<RequirePermission permission="clients.client.merge"><MergePage /></RequirePermission>} />

@@ -240,6 +240,16 @@ _BODIES = {
     "confirmPortalRental": {"provider_payment_token": "tok_card_ok"},
     "updateRentalPlan": {"name": "Renamed"},
     "cancelRentalPlanPurchase": {"cancel_mode": "keep_billing", "reason": "Mistake"},
+    # engagement (build module 14)
+    "updateMessageTemplate": {"name": "Renamed"},
+    "updateSegment": {"name": "Renamed"},
+    "updateCampaign": {"name": "Renamed"},
+    "scheduleCampaign": {"scheduled_at": "2031-01-01T00:00:00Z"},
+    "updateReminderRule": {"is_enabled": True},
+    "updateNotificationRoute": {"is_enabled": True},
+    "updateAutomationRule": {"is_enabled": True},
+    "putPortalSettings": {"welcome_text": "Hi"},
+    "updateVideo": {"title": "Renamed"},
     # integrations (module 16)
     "rotateApiKey": {},
     "updateWebhookEndpoint": {"description": "Renamed"},

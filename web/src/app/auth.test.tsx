@@ -99,8 +99,10 @@ describe('auth flow', () => {
     mockFetch({
       'GET /api/v1/auth/session': { status: 200, body: { csrf_token: 'c' } },
       'GET /api/v1/me': { status: 200, body: me([], 'client') },
+      'GET /api/v1/portal/clients': { status: 200, body: { data: [{ id: 'c1', first_name: 'Morgan', last_name: 'Member', preferred_name: null, authority: 'self', can_edit: true }] } },
+      'GET /api/v1/public/locations': { status: 200, body: { data: [], page: { next_cursor: null, has_more: false } } },
     })
     renderApp('/')
-    expect(await screen.findByRole('heading', { name: 'Member portal' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Hello, Morgan' })).toBeInTheDocument()
   })
 })

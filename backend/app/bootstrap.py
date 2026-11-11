@@ -33,7 +33,7 @@ def bootstrap() -> None:
         billing,
         clients,
         documents,
-        engagement,  # noqa: F401
+        engagement,
         integrations,
         memberships,
         packages,
@@ -43,6 +43,8 @@ def bootstrap() -> None:
 
     deps.set_authenticator(platform.auth.authenticate)
     deps.set_authenticator(integrations.auth.authenticate, prefix="fhk")
+    if settings.notifications.adapter != "noop":
+        engagement.service.install_notifier()  # transactional notices go through the delivery log and suppressions
     from app.modules import programs, rentals, resources, scheduling  # noqa: F401  (build modules 2, 3: same registration)
 
     _done = True
