@@ -83,7 +83,7 @@ def create_onboarding_link(session: Session, principal: Principal, account_id: U
     account = service._get(session, ProviderAccount, account_id)
     if account.status == "disabled":
         raise Conflict("This processor account is disconnected.", code="processor-not-connected")
-    back = f"{get_settings().app.web_base_url}/settings/billing"
+    back = f"{get_settings().app.web_base_url}/billing/setup"
     return payment_provider.get(account.provider).onboarding_link(
         account_ref=account.provider_account_ref, return_url=back, refresh_url=back
     )
@@ -162,7 +162,10 @@ def create_setup(session: Session, client_id: UUID, kinds: tuple[str, ...] = ("c
     setup = payment_provider.get(account.provider).create_setup(
         account_ref=account.provider_account_ref, customer_ref=_customer_ref(session, account, client_id), kinds=kinds
     )
-    return {"provider": account.provider, "client_secret": setup.client_secret}
+    return {
+        "provider": account.provider, "client_secret": setup.client_secret,
+        **payment_provider.browser_keys(account.provider, account.provider_account_ref),
+    }  # fmt: skip
 
 
 def attach_method(session: Session, client_id: UUID, method_token: str, *, is_autopay: bool | None = None):

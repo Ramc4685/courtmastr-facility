@@ -55,12 +55,12 @@ invoicing, `axe` the WCAG sweep (all in `web/e2e/billing.spec.ts`). `TPD` is
 | PAY-03 Client payment ledger and receipts | P0 | partial | Client billing > Payments; workbench Payments and Refunds tabs; payment page; printable receipt; email receipt | e2e1, axe | No PDF (backend gap). |
 | PAY-04 Void payment | P0 | done | Payment page > Void (record-only tenders, reason) | backend only | |
 | PAY-05 Refunds | P0 | partial | Payment page > Refund (to the original method or as an external refund, reason); refund from account credit | e2e1 | Only unapplied money can be refunded; the dialog defaults to that amount. Backend gaps carry over. |
-| PAY-06 Stored payment methods | P0 | partial | Client billing > Payment methods & autopay (add a method, autopay toggle, remove, verify a bank account) | TPD (stored method use), axe | Methods are added through the provider-agnostic `PaymentMethodField`: scripted test methods for the fake processor. Stripe Elements is not mounted yet, so a Stripe tenant cannot add a card here. |
+| PAY-06 Stored payment methods | P0 | partial | Client billing > Payment methods & autopay (add a method, autopay toggle, remove, verify a bank account) | TPD (stored method use), axe | Methods are added through the provider-agnostic `PaymentMethodField`: scripted test methods for the fake processor. With Stripe, cards go through Stripe Elements (`StripeCardField`); bank accounts through Stripe are not built (Financial Connections). |
 | PAY-07 Card expiry notifications and report | P1 | partial | No expiring-cards screen | backend only | |
 | PAY-08 Decline notifications | P0 | partial | The decline message shows in Take payment and on the pay page; no notices screen | TPD, PLP, e2e2 | |
 | PAY-09 Autopay collection run | P0 | partial | Autopay page: runs, run now (dry-run preview, then run), attempts per run, error queue with retry and clear | axe (preview and error queue) | The daily job is not scheduled (backend gap). |
 | PAY-10 ACH / direct debit | P0 | partial | Bank debit tender in Take payment; micro-deposit verification on the methods tab | backend only | Fake processor only. |
-| PAY-11 Merchant processor integration | P0 | partial | Set-up > Processor (connect Stripe or, in development, the fake processor; onboarding link; disconnect) | axe | Stripe Elements card entry is not mounted (`shortcut:` in `PaymentMethodField.tsx`). |
+| PAY-11 Merchant processor integration | P0 | partial | Set-up > Processor (connect Stripe or, in development, the fake processor; onboarding link; disconnect) | axe | Stripe test mode works end to end with Elements card entry and signed webhooks (`docs/dev/stripe-test-mode.md`); never run against Stripe live. Not built: browser bank-account entry through Stripe, 3-D Secure completion, platform application fee. |
 | PAY-12 EMV card terminals | v2-adapter | not built | none | none | |
 | PAY-13 Clover terminal integration | v2-adapter | not built | none | none | |
 | PAY-14 Credit card surcharging | P1 | not built | none | none | |
@@ -73,8 +73,8 @@ invoicing, `axe` the WCAG sweep (all in `web/e2e/billing.spec.ts`). `TPD` is
 ## Assumptions
 
 - Our inputs never collect a card number. With the fake processor, the dialog offers its scripted tokens
-  inside a fieldset labelled "Test processor: development only". With Stripe, the slot shows a notice until
-  Elements is mounted.
+  inside a fieldset labelled "Test processor: development only". With Stripe, the slot mounts Stripe Elements
+  (card) or a notice (bank accounts).
 - The pay-link lookup now returns `provider`, so the public page knows which card entry to show without
   listing provider accounts. `null` means online card payment is not available.
 - Money is entered as decimal text and parsed to minor units without floats. This assumes currencies with

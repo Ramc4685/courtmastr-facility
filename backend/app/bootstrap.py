@@ -23,7 +23,7 @@ def bootstrap() -> None:
     storage.configure(LocalStorage(REPO_ROOT / settings.storage.local_dir))
     if settings.payments.provider == "fake":
         payment_provider.register(FakeProvider())
-    if settings.payments.stripe.enabled:
+    elif settings.payments.provider == "stripe":
         from app.adapters.stripe_connect import StripeConnectProvider
 
         payment_provider.register(StripeConnectProvider.from_environment(settings.payments.stripe))

@@ -8,7 +8,8 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 
 from app.adapters.stripe_connect import ProviderUnavailable, StripeConnectProvider, _flatten
-from app.core.settings import get_settings
+from app.core.settings import REPO_ROOT, get_settings
+from app.ports import payment_provider
 from app.ports.payment_provider import WebhookRejected, sign, verify_signature
 
 ACCOUNT = "acct_tenant1"
@@ -55,16 +56,68 @@ def intent(status="succeeded", **over) -> dict:
             "latest_charge": {"payment_method_details": {"card": card}}} | over  # fmt: skip
 
 
-def test_form_encoding_and_disabled_by_default():
+def test_form_encoding_and_fake_by_default(monkeypatch):
     assert _flatten({"a": {"b": True, "c": None}, "d": ["x", 2], "e": 5}) == [
         ("a[b]", "true"),
         ("d[]", "x"),
         ("d[]", "2"),
         ("e", "5"),
     ]
-    assert get_settings().payments.stripe.enabled is False
-    with pytest.raises(RuntimeError, match="FH_STRIPE_SECRET_KEY"):
+    assert get_settings().payments.provider == "fake"  # tests and CI never reach Stripe
+    assert not payment_provider.registered("stripe")
+    monkeypatch.setenv("FH_PAYMENTS_PROVIDER", "stripe")
+    assert get_settings.__wrapped__().payments.provider == "fake"  # the override never applies to tests
+
+
+TEST_KEYS = {"FH_STRIPE_SECRET_KEY": "sk_test_x", "FH_STRIPE_PUBLISHABLE_KEY": "pk_test_x",
+             "FH_STRIPE_WEBHOOK_SECRET": "whsec_x"}  # fmt: skip  # noqa: S105
+
+
+@pytest.mark.parametrize(
+    ("override", "message"),
+    [
+        ({"FH_STRIPE_PUBLISHABLE_KEY": ""}, "needs FH_STRIPE_SECRET_KEY"),
+        ({"FH_STRIPE_SECRET_KEY": "pk_test_x"}, "wrong variables"),
+        ({"FH_STRIPE_WEBHOOK_SECRET": "sk_test_x"}, "wrong variables"),
+        ({"FH_STRIPE_SECRET_KEY": "rk_live_x"}, "different modes"),
+    ],
+)
+def test_the_adapter_refuses_missing_or_mismatched_keys(monkeypatch, override, message):
+    for name, value in (TEST_KEYS | override).items():
+        monkeypatch.setenv(name, value)
+    with pytest.raises(RuntimeError, match=message):
         StripeConnectProvider.from_environment(get_settings().payments.stripe)
+
+
+def test_test_mode_keys_build_a_pinned_adapter(monkeypatch, http):
+    for name, value in (TEST_KEYS | {"FH_STRIPE_SECRET_KEY": "rk_test_restricted"}).items():
+        monkeypatch.setenv(name, value)
+    adapter = StripeConnectProvider.from_environment(get_settings().payments.stripe)
+    assert adapter.publishable_key == "pk_test_x"
+    adapter._send = http.reply(200, intent())
+    adapter.get_payment(account_ref=ACCOUNT, provider_payment_ref="pi_1")
+    assert http.last["headers"]["Stripe-Version"] == get_settings().payments.stripe.api_version
+    assert http.last["headers"]["Authorization"] == "Bearer rk_test_restricted"
+
+
+@pytest.mark.parametrize("name", list(TEST_KEYS))
+@pytest.mark.parametrize("env", ["dev", "test", "staging"])
+def test_a_live_key_refuses_to_start_outside_production(monkeypatch, tmp_path, name, env):
+    config = (REPO_ROOT / "config" / "app.yaml").read_text().replace("cookie_secure: false", "cookie_secure: true")
+    (tmp_path / "app.yaml").write_text(config.replace("provider: fake ", "provider: stripe "))
+    (tmp_path / f"app.{env}.yaml").write_text("email:\n  log_links: false\n")
+    monkeypatch.setenv("FH_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("FH_ENV", env)
+    live = {"FH_STRIPE_SECRET_KEY": "sk_live_x", "FH_STRIPE_PUBLISHABLE_KEY": "pk_live_x"}.get(name, "rk_live_x")
+    monkeypatch.setenv(name, live)
+    with pytest.raises(RuntimeError, match="live Stripe key"):
+        get_settings.__wrapped__()
+    monkeypatch.setenv(name, TEST_KEYS[name])
+    assert get_settings.__wrapped__().payments.provider == "stripe"  # test-mode keys start anywhere
+    monkeypatch.setenv(name, live)
+    monkeypatch.setenv("FH_ENV", "production")
+    (tmp_path / "app.production.yaml").write_text("email:\n  log_links: false\n")
+    assert get_settings.__wrapped__().env == "production"  # only production may hold a live key
 
 
 def test_payment_is_a_direct_charge_on_the_connected_account_with_our_key(stripe, http):
@@ -90,6 +143,7 @@ def test_payment_is_a_direct_charge_on_the_connected_account_with_our_key(stripe
         ["pm_card"],
         ["true"],
     )
+    assert "payment_method_types[]" not in params and params["automatic_payment_methods[enabled]"] == ["true"]
     assert (params["customer"], params["off_session"], params["metadata[fh_key]"]) == (
         ["cus_1"],
         ["true"],
@@ -232,10 +286,8 @@ def test_accounts_customers_and_stored_methods(stripe, http):
         "client-1"
     ]
     setup = stripe.create_setup(account_ref=ACCOUNT, customer_ref="cus_1", kinds=("card", "bank_account"))
-    assert setup.client_secret == "seti_1_secret" and http.last["params"]["payment_method_types[]"] == [
-        "card",
-        "us_bank_account",
-    ]
+    assert setup.client_secret == "seti_1_secret" and "payment_method_types[]" not in http.last["params"]
+    assert http.last["params"]["automatic_payment_methods[allow_redirects]"] == ["never"]
     card = {"id": "pm_1", "type": "card", "card": {"brand": "mastercard", "last4": "4444", "exp_month": 8, "exp_year": 2030,
                                                     "funding": "credit", "wallet": {"type": "apple_pay"}}}  # fmt: skip
     bank = {
@@ -263,6 +315,22 @@ def test_accounts_customers_and_stored_methods(stripe, http):
         stripe.attach_method(account_ref=ACCOUNT, customer_ref="cus_1", method_token="pm_bad")
 
 
+@pytest.mark.parametrize(
+    ("status", "ours"),
+    [("needs_response", "open"), ("under_review", "open"), ("won", "won"), ("lost", "lost"),
+     ("warning_needs_response", None), ("warning_closed", None), ("prevented", None)],
+)  # fmt: skip
+def test_disputes_map_onto_the_port(stripe, http, status, ours):
+    http.reply(200, {"id": "du_1", "payment_intent": "pi_1", "amount": 1083, "status": status, "reason": "fraudulent",
+                     "evidence_details": {"due_by": 1_900_000_000}})  # fmt: skip
+    state = stripe.get_dispute(account_ref=ACCOUNT, provider_dispute_ref="du_1")
+    assert (state.provider_payment_ref, state.amount_minor, state.status, state.reason_code) == (
+        "pi_1", 1083, ours, "fraudulent",
+    )  # fmt: skip
+    assert state.evidence_due_at.year == 2030
+    assert (http.last["path"], http.last["headers"]["Stripe-Account"]) == ("/v1/disputes/du_1", ACCOUNT)
+
+
 def test_webhook_signature_and_normalisation(stripe):
     def event(kind: str, object_id: str = "pi_1") -> bytes:
         return json.dumps(
@@ -280,7 +348,7 @@ def test_webhook_signature_and_normalisation(stripe):
         "pi_1",
     )
     kinds = {"payment_intent.payment_failed": "payment", "refund.updated": "refund", "charge.refund.updated": "refund",
-             "payment_method.automatically_updated": "method", "charge.dispute.created": "other", "payout.paid": "other"}  # fmt: skip
+             "payment_method.automatically_updated": "method", "charge.dispute.created": "dispute", "charge.dispute.closed": "dispute", "payout.paid": "other"}  # fmt: skip
     assert {name: parse(event(name)).kind for name in kinds} == kinds
     updated = parse(event("account.updated", "acct_ignored"))
     assert (updated.kind, updated.object_ref) == ("account", ACCOUNT)  # the account the event is about

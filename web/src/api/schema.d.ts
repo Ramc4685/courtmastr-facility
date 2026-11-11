@@ -18985,6 +18985,8 @@ export interface components {
         };
         /** LinkInvoice */
         LinkInvoice: {
+            /** Account Ref */
+            account_ref?: string | null;
             /** Balance Minor */
             balance_minor: number;
             /** Bill To Name */
@@ -19007,6 +19009,8 @@ export interface components {
             number: number;
             /** Provider */
             provider: ("stripe" | "fake") | null;
+            /** Publishable Key */
+            publishable_key?: string | null;
             /** Status */
             status: string;
             /** Total Minor */
@@ -25244,6 +25248,13 @@ export interface components {
              * @enum {string}
              */
             provider: "stripe" | "fake";
+            /** Provider Account Ref */
+            provider_account_ref: string;
+            /**
+             * Publishable Key
+             * @description For Stripe.js on staff screens; null for the fake.
+             */
+            readonly publishable_key: string | null;
             /** Requirements Due */
             requirements_due: string[] | null;
             /**
@@ -28396,10 +28407,14 @@ export interface components {
         };
         /** SetupIntentOut */
         SetupIntentOut: {
+            /** Account Ref */
+            account_ref?: string | null;
             /** Client Secret */
             client_secret: string;
             /** Provider */
             provider: string;
+            /** Publishable Key */
+            publishable_key?: string | null;
         };
         /** SetupIntentRequest */
         SetupIntentRequest: {

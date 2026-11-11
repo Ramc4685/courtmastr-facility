@@ -23580,6 +23580,17 @@
       },
       "LinkInvoice": {
         "properties": {
+          "account_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Ref"
+          },
           "balance_minor": {
             "title": "Balance Minor",
             "type": "integer"
@@ -23634,6 +23645,17 @@
               }
             ],
             "title": "Provider"
+          },
+          "publishable_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publishable Key"
           },
           "status": {
             "title": "Status",
@@ -43758,6 +43780,23 @@
             "title": "Provider",
             "type": "string"
           },
+          "provider_account_ref": {
+            "title": "Provider Account Ref",
+            "type": "string"
+          },
+          "publishable_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For Stripe.js on staff screens; null for the fake.",
+            "readOnly": true,
+            "title": "Publishable Key"
+          },
           "requirements_due": {
             "anyOf": [
               {
@@ -43786,13 +43825,15 @@
         "required": [
           "id",
           "provider",
+          "provider_account_ref",
           "status",
           "has_card",
           "has_bank_debit",
           "is_payouts_enabled",
           "requirements_due",
           "connected_at",
-          "disabled_at"
+          "disabled_at",
+          "publishable_key"
         ],
         "title": "ProviderAccountOut",
         "type": "object"
@@ -53998,6 +54039,17 @@
       },
       "SetupIntentOut": {
         "properties": {
+          "account_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Ref"
+          },
           "client_secret": {
             "title": "Client Secret",
             "type": "string"
@@ -54005,6 +54057,17 @@
           "provider": {
             "title": "Provider",
             "type": "string"
+          },
+          "publishable_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publishable Key"
           }
         },
         "required": [
