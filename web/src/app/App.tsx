@@ -75,6 +75,7 @@ import { CheckInPage } from '../features/access/CheckInPage'
 import { HistoryPage as CheckInHistoryPage } from '../features/access/HistoryPage'
 import { KioskPage } from '../features/access/KioskPage'
 import { KioskSetupPage } from '../features/access/KioskSetupPage'
+import { AccessRulesPage } from '../features/access/AccessRulesPage'
 import { AppFrame } from './AppFrame'
 import { RequireClient, RequirePermission, RequireStaff } from './guards'
 
@@ -181,6 +182,7 @@ export function AppRoutes() {
         <Route path="check-in" element={<RequirePermission permission="access.checkin.create"><CheckInPage /></RequirePermission>} />
         <Route path="check-in/history" element={<RequirePermission permission="access.checkin.read"><CheckInHistoryPage /></RequirePermission>} />
         <Route path="check-in/kiosks" element={<KioskSetupPage />} />
+        <Route path="check-in/access" element={<AccessRulesPage />} />
         <Route path="leagues" element={<RequirePermission permission="leagues.competition.manage"><LeaguesPage /></RequirePermission>} />
         <Route path="leagues/:id" element={<RequirePermission permission="leagues.competition.manage"><LeaguePage /></RequirePermission>} />
         {import.meta.env.DEV && (

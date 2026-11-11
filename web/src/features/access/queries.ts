@@ -6,6 +6,37 @@ export type Decision = Schemas['AccessDecision']
 export type StatusCard = Schemas['CheckInClientOut']
 export type KioskSettings = Schemas['KioskSettingsOut']
 export type KioskDevice = Schemas['KioskDeviceOut']
+export type AccessSettings = Schemas['AccessSettingsOut']
+export type AccessRule = Schemas['AccessRuleOut']
+export type AccessSchedule = Schemas['AccessScheduleOut']
+export type AccessMode = Schemas['ClientAccessOut']['access_mode']
+
+/** Why entry was refused (check_in.denial_reason), in the front desk's words. */
+export const DENIAL_LABEL: Record<string, string> = {
+  client_disabled: 'Client is disabled',
+  access_mode_deny: 'Client is set to always deny',
+  frozen: 'Membership frozen',
+  suspended: 'Membership suspended',
+  cancelled: 'Membership cancelled',
+  depleted: 'No visits left on the membership',
+  over_daily_limit: 'Already visited today',
+  wrong_location: 'Membership not valid at this location',
+  outside_schedule: 'Outside the membership\'s access hours',
+}
+export const CONDITION_LABEL: Record<AccessRule['condition'], string> = {
+  frozen: 'Membership frozen',
+  suspended: 'Membership suspended',
+  depleted: 'No visits left',
+  over_daily_limit: 'Second visit on the same day',
+}
+export const MODE_LABEL: Record<AccessMode, string> = { normal: 'Normal (the rules decide)', always_admit: 'Always admit', always_deny: 'Always deny' }
+export const DETAIL_LABEL: Record<AccessSettings['hidden_detail_fields'][number], string> = {
+  balance_due: 'Balance due',
+  membership_dates: 'Membership end date',
+  visit_counts: 'Visits left',
+  staff_notes: 'Staff notes',
+}
+export const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 export const ALERT_LABEL: Record<string, string> = {
   client_disabled: 'Client is disabled',

@@ -83,6 +83,10 @@ def test_tenant_row_is_private(two_tenants):
 _BODIES = {
     "updateLocation": {"name": "Renamed"},
     "updateSavedReport": {"name": "Renamed"},
+    # access rules (phase 10 chip B)
+    "setClientAccessMode": {"access_mode": "always_admit", "reason": "Isolation"},
+    "updateAccessSchedule": {"name": "Renamed"},
+    "putMembershipTypeAccess": {"access_schedule_id": None, "location_ids": []},
     "replaceFacilityHours": {"days": WEEK},
     "updateStaffUser": {"first_name": "Renamed"},
     "assignStaffRole": "role",

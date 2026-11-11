@@ -22,6 +22,7 @@ register(
     _p("kiosk.launch", L, "Launch self check-in on a registered device", "", _FD),
     _p("kiosk.manage", L, "Register and revoke kiosk devices", "K", _MG),
     _p("rule.manage", L, "Manage access rules and schedules", "", _MG),
+    _p("client.set_access_mode", C, "Set a client to always admit or always deny", "P", _MG),
     _p("settings.manage", L, "Manage check-in and kiosk settings", "", _MG),
     _p("door.unlock", L, "Unlock a door", "P", _MG),
     _p("device.manage", L, "Manage access-control devices", "K", _AD),

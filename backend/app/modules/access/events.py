@@ -28,3 +28,10 @@ class CredentialAssigned(Event):
     credential_id: UUID
     client_id: UUID
     kind: str
+
+
+class ClientAccessModeChanged(Event):
+    aggregate_type: ClassVar[str] = "client_access"
+    type: Literal["access.client_access.changed"] = "access.client_access.changed"
+    client_id: UUID
+    access_mode: str

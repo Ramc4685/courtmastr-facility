@@ -13,6 +13,7 @@ from app.core.schemas import In, Out, Page  # noqa: F401  (Page is used by the r
 
 Value = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+Pin = Annotated[str, StringConstraints(pattern=r"^[0-9]{6,8}$")]
 Reason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 Code = Literal[
     "client_disabled", "access_denied", "membership_suspended", "membership_frozen", "membership_expired",
@@ -169,6 +170,7 @@ class KioskSettingsOut(Out):
     welcome_message: str | None
     displayed_alert_codes: list[str]
     confirmation_timeout_seconds: int
+    has_exit_pin: bool
 
 
 class KioskSettingsWrite(In):
@@ -178,6 +180,103 @@ class KioskSettingsWrite(In):
     welcome_message: Annotated[str, StringConstraints(max_length=500)] | None = None
     displayed_alert_codes: list[Code] | None = None
     confirmation_timeout_seconds: int | None = Field(None, ge=3, le=300)
+    exit_pin: Pin | None = None  # write-only; stored as an argon2id hash
+
+
+class KioskExitRequest(In):
+    staff_pin: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=16)]
+
+
+# --- access settings, rules, schedules (CHK-02, CHK-08, CHK-09, CHK-10) --------------------------------------
+
+DetailField = Literal["balance_due", "membership_dates", "visit_counts", "staff_notes"]
+Condition = Literal["frozen", "suspended", "depleted", "over_daily_limit"]
+Wall = Annotated[str, StringConstraints(pattern=r"^(([01][0-9]|2[0-3]):[0-5][0-9]|24:00)$")]
+
+
+class AccessSettingsOut(Out):
+    location_id: UUID
+    hidden_detail_fields: list[DetailField]
+    staff_early_minutes: int
+    staff_late_minutes: int
+
+
+class AccessSettingsWrite(In):
+    hidden_detail_fields: list[DetailField] | None = None
+    staff_early_minutes: int | None = Field(None, ge=0, le=1440)
+    staff_late_minutes: int | None = Field(None, ge=0, le=1440)
+
+
+class AccessRuleIn(In):
+    condition: Condition
+    outcome: Literal["allow", "deny"]
+
+
+class AccessRuleOut(Out):
+    condition: Condition
+    outcome: Literal["allow", "deny"]
+    is_default: bool
+
+
+class AccessRulesOut(Out):
+    location_id: UUID
+    rules: list[AccessRuleOut]
+
+
+class AccessRulesWrite(In):
+    rules: list[AccessRuleIn] = Field(max_length=4)
+
+
+class ClientAccessOut(Out):
+    client_id: UUID
+    access_mode: Literal["normal", "always_admit", "always_deny"]
+
+
+class ClientAccessWrite(In):
+    access_mode: Literal["normal", "always_admit", "always_deny"]
+    reason: Reason
+
+
+class AccessScheduleRangeIn(In):
+    weekday: int = Field(ge=1, le=7)
+    starts_time: Wall
+    ends_time: Wall
+
+
+class AccessScheduleRangeOut(Out):
+    weekday: int
+    starts_time: str
+    ends_time: str
+
+
+class AccessScheduleCreate(In):
+    name: Name
+    is_active: bool = True
+    ranges: list[AccessScheduleRangeIn] = Field(max_length=70)
+
+
+class AccessScheduleUpdate(In):
+    name: Name | None = None
+    is_active: bool | None = None
+    ranges: list[AccessScheduleRangeIn] | None = Field(None, max_length=70)
+
+
+class AccessScheduleOut(Out):
+    id: UUID
+    name: str
+    is_active: bool
+    ranges: list[AccessScheduleRangeOut]
+
+
+class MembershipTypeAccessWrite(In):
+    access_schedule_id: UUID | None = None
+    location_ids: list[UUID] = Field(default_factory=list, max_length=200)
+
+
+class MembershipTypeAccessOut(Out):
+    membership_type_id: UUID
+    access_schedule_id: UUID | None
+    location_ids: list[UUID]
 
 
 class KioskDeviceCreate(In):

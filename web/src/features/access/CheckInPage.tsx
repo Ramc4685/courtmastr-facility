@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
-import { Input } from '../../components/Field'
+import { Input, Select } from '../../components/Field'
 import { Card, PageHeader } from '../../components/PageHeader'
 import { ErrorState } from '../../components/States'
 import { Table, useKeysetQuery, type Column } from '../../components/Table'
@@ -13,7 +13,7 @@ import { useAuth } from '../../lib/auth'
 import { formatDateTime, formatMoney } from '../../lib/format'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { LocationSelect, useWorkingLocation } from '../scheduling/location'
-import { ALERT_LABEL, CHANNEL, RESULT, type CheckIn, type Decision } from './queries'
+import { ALERT_LABEL, CHANNEL, DENIAL_LABEL, MODE_LABEL, RESULT, type AccessMode, type CheckIn, type Decision } from './queries'
 import { useScanBurst } from './useScanBurst'
 
 type Subject = { client_id: string } | { credential_value: string }
@@ -79,6 +79,7 @@ export function CheckInPage() {
           <>
             <Link className="text-primary underline" to="/check-in/history">Client history</Link>
             {(can('access.settings.manage') || can('access.kiosk.launch')) && <Link className="text-primary underline" to="/check-in/kiosks">Kiosks</Link>}
+            {(can('access.rule.manage') || can('access.settings.manage')) && <Link className="text-primary underline" to="/check-in/access">Access rules</Link>}
           </>
         }
       />
@@ -144,6 +145,7 @@ function StatusCard({ decision, busy, canOverride, reason, onReason, onCheckIn, 
         </div>
         <Badge tone={decision.would_grant ? 'success' : 'danger'}>{decision.would_grant ? 'Entry allowed' : 'Entry denied'}</Badge>
       </div>
+      {decision.denial_reason && <p className="text-sm font-medium text-danger">Why: {DENIAL_LABEL[decision.denial_reason] ?? decision.denial_reason}</p>}
       <dl className="grid gap-3 text-sm sm:grid-cols-3">
         <div>
           <dt className="text-muted">Membership</dt>
@@ -192,6 +194,45 @@ function StatusCard({ decision, busy, canOverride, reason, onReason, onCheckIn, 
         )}
         <Button variant="ghost" onClick={onClear}>Clear</Button>
       </div>
+      <AccessModeControl clientId={c.client_id} />
+    </div>
+  )
+}
+
+/** The client's access mode (CHK-08): read by the desk, changed only with its own permission and a reason. */
+function AccessModeControl({ clientId }: { clientId: string }) {
+  const { can } = useAuth()
+  const toast = useToast()
+  const qc = useQueryClient()
+  const canSet = can('access.client.set_access_mode')
+  const mode = useQuery({ queryKey: ['access-mode', clientId], queryFn: () => api.get('/api/v1/clients/{client_id}/access-mode', { path: { client_id: clientId } }) })
+  const [next, setNext] = useState<AccessMode | ''>('')
+  const [why, setWhy] = useState('')
+  const save = useMutation({
+    mutationFn: () => api.put('/api/v1/clients/{client_id}/access-mode', { path: { client_id: clientId }, body: { access_mode: next as AccessMode, reason: why.trim() } }),
+    onSuccess: (saved) => {
+      qc.setQueryData(['access-mode', clientId], saved)
+      qc.invalidateQueries({ queryKey: ['check-in', 'evaluate'] })
+      setNext('')
+      setWhy('')
+      toast('success', `Access mode: ${MODE_LABEL[saved.access_mode]}.`)
+    },
+    onError: (e) => toast('error', e instanceof ApiError ? e.message : 'Saving failed.'),
+  })
+  if (!mode.data) return null
+  const current = mode.data.access_mode
+  return (
+    <div className="border-t border-border pt-3 text-sm">
+      <p>
+        <span className="text-muted">Access mode:</span> {MODE_LABEL[current]}
+      </p>
+      {canSet && (
+        <form className="mt-2 flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); save.mutate() }}>
+          <Select label="Change access mode" value={next || current} onChange={(e) => setNext(e.target.value as AccessMode)} options={(Object.keys(MODE_LABEL) as AccessMode[]).map((m) => ({ value: m, label: MODE_LABEL[m] }))} />
+          <Input className="w-64" label="Reason for the change" value={why} maxLength={500} onChange={(e) => setWhy(e.target.value)} />
+          <Button type="submit" variant="secondary" disabled={!next || next === current || !why.trim()} loading={save.isPending}>Save mode</Button>
+        </form>
+      )}
     </div>
   )
 }

@@ -173,7 +173,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 
 | Priority | Total | Done | Partial | Not built |
 |---|---|---|---|---|
-| P0 | 15 | 10 | 5 | 0 |
+| P0 | 15 | 11 | 4 | 0 |
 | P1 | 21 | 11 | 8 | 2 |
 | P2 | 3 | 1 | 0 | 2 |
 
@@ -198,7 +198,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | MEM-17 Shared membership | P1 | done |  |
 | MEM-18 Member auto-renew opt-out | P1 | done | Portal Memberships screen, "Stop renewal". |
 | MEM-19 Membership number and member card | P0 | partial | No card, QR code or RFID (check-in module). |
-| MEM-20 Visit limits and visit counting | P0 | partial | No check-in calls `record_visit`. Listing and adjusting visits are API only. |
+| MEM-20 Visit limits and visit counting | P0 | done | An admitted check-in records one visit (idempotent on the check-in id); used-up memberships deny at the door with an override. Visit screens belong to phase 10 chip E. |
 | MEM-21 Revenue and lifecycle reports | P1 | not built |  |
 | MEM-22 Membership data in the public API | P1 | partial | No API keys or scopes. |
 | MEM-23 Onboarding checklist | P2 | not built |  |

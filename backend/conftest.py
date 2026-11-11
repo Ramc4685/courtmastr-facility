@@ -209,6 +209,7 @@ def populate(client, tenant) -> SimpleNamespace:
     space |= _populate_assessments(client, headers, post, location["id"], person["id"])
     space |= _populate_programs(client, headers, post, location["id"], person["id"], space, category_id)
     space |= _populate_access(client, headers, post, tenant, location["id"], person["id"], space)
+    space |= _populate_access_rules(client, headers, post, location["id"], person["id"], people["membership_type_id"])
     space |= _populate_engagement(client, tenant, post, location["id"], person["id"], identity_id)
     leagues = _populate_leagues(client, headers, post, location["id"], person["id"], space["resource_id"], category_id)
     integration = _populate_integrations(client, headers, tenant, post, location, person)
@@ -802,7 +803,7 @@ def two_tenants():
 def _populate_access(client, headers, post, tenant, location_id, client_id, space) -> dict:
     """Module 10: a barcode, a staff check-in (its attendance row by hand: no session starts near now), kiosk
     settings and a registered kiosk device."""
-    from app.modules.access.models import CheckInAttendance
+    from app.modules.access.models import CheckInAttendance, KioskMatch
 
     credential = post(f"/clients/{client_id}/credentials", {"kind": "barcode", "value": f"POP-{uuid4().hex[:8]}"})
     checked = post("/check-ins", {"client_id": client_id, "location_id": location_id, "channel": "staff_window"})
@@ -816,10 +817,35 @@ def _populate_access(client, headers, post, tenant, location_id, client_id, spac
             check_in_id=checked["check_in"]["id"], target_id=space["enrollment_id"],
             session_id=space["schedule_session_id"],
         ))  # fmt: skip
+        session.add(KioskMatch(
+            kiosk_device_id=device["kiosk_device_id"], client_id=client_id, token_hash=f"pop-{uuid4().hex}",
+            expires_at=clock.now(),
+        ))  # fmt: skip
     return {
         "credential_id": credential["id"], "check_in_id": checked["check_in"]["id"],
         "kiosk_device_id": device["kiosk_device_id"],
     }  # fmt: skip
+
+
+def _populate_access_rules(client, headers, post, location_id, client_id, membership_type_id) -> dict:
+    """Phase 10 chip B: check-in settings, one rule, a client access mode, an always-open schedule mapped to the
+    membership type with its own location, and a kiosk exit PIN. None of it changes a decision."""
+    put = lambda path, body: client.put(f"/api/v1{path}", headers=headers, json=body)  # noqa: E731
+    for path, body in (
+        (f"/access-settings?location_id={location_id}", {"staff_early_minutes": 180}),
+        (
+            f"/access-rules?location_id={location_id}",
+            {"rules": [{"condition": "over_daily_limit", "outcome": "allow"}]},
+        ),
+        (f"/clients/{client_id}/access-mode", {"access_mode": "normal", "reason": "Populate"}),
+        (f"/kiosk-settings?location_id={location_id}", {"exit_pin": "246810"}),
+    ):
+        assert put(path, body).status_code == 200, path
+    week = [{"weekday": d, "starts_time": "00:00", "ends_time": "24:00"} for d in range(1, 8)]
+    schedule = post("/access-schedules", {"name": "Always open", "ranges": week})
+    body = {"access_schedule_id": schedule["id"], "location_ids": [location_id]}
+    assert put(f"/membership-types/{membership_type_id}/access", body).status_code == 200
+    return {"access_schedule_id": schedule["id"]}
 
 
 def _populate_integrations(client, headers, tenant, post, location, person) -> dict:

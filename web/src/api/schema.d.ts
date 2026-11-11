@@ -4,6 +4,86 @@
  */
 
 export interface paths {
+    "/api/v1/access-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Access Rules
+         * @description What each membership condition does at a location: allow or deny (CHK-08).
+         */
+        get: operations["listAccessRules"];
+        /** Put Access Rules */
+        put: operations["putAccessRules"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/access-schedules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Access Schedules
+         * @description Time-of-day schedules (CHK-09). Filter: is_active.
+         */
+        get: operations["listAccessSchedules"];
+        put?: never;
+        /** Create Access Schedule */
+        post: operations["createAccessSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/access-schedules/{access_schedule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Access Schedule */
+        patch: operations["updateAccessSchedule"];
+        trace?: never;
+    };
+    "/api/v1/access-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Access Settings
+         * @description Staff check-in settings and the status-card fields hidden without full details (CHK-02).
+         */
+        get: operations["getAccessSettings"];
+        /** Put Access Settings */
+        put: operations["putAccessSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/accounting-exports": {
         parameters: {
             query?: never;
@@ -2264,6 +2344,27 @@ export interface paths {
          *     Errors: version-conflict, already-exists, validation-failed.
          */
         patch: operations["updateClient"];
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/access-mode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Client Access Mode */
+        get: operations["getClientAccessMode"];
+        /**
+         * Set Client Access Mode
+         * @description Normal (the rules decide), always admit or always deny one client, with a reason (CHK-08).
+         */
+        put: operations["setClientAccessMode"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/clients/{client_id}/account-credit": {
@@ -4574,7 +4675,7 @@ export interface paths {
         put?: never;
         /**
          * Exit Kiosk
-         * @description Leave kiosk mode: the device token stops working until staff pair it again.
+         * @description Leave kiosk mode with the location's exit PIN: the device token stops working until staff pair it again.
          */
         post: operations["exitKiosk"];
         delete?: never;
@@ -5348,6 +5449,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/membership-type-access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Membership Type Access
+         * @description Membership types limited to a schedule or admitting at further locations (CHK-09, CHK-10).
+         */
+        get: operations["listMembershipTypeAccess"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/membership-types": {
         parameters: {
             query?: never;
@@ -5384,6 +5505,23 @@ export interface paths {
         head?: never;
         /** Update Membership Type */
         patch: operations["updateMembershipType"];
+        trace?: never;
+    };
+    "/api/v1/membership-types/{membership_type_id}/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Put Membership Type Access */
+        put: operations["putMembershipTypeAccess"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/message-templates": {
@@ -11736,6 +11874,125 @@ export interface components {
              */
             location_id: string;
         };
+        /** AccessRuleIn */
+        AccessRuleIn: {
+            /**
+             * Condition
+             * @enum {string}
+             */
+            condition: "frozen" | "suspended" | "depleted" | "over_daily_limit";
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "allow" | "deny";
+        };
+        /** AccessRuleOut */
+        AccessRuleOut: {
+            /**
+             * Condition
+             * @enum {string}
+             */
+            condition: "frozen" | "suspended" | "depleted" | "over_daily_limit";
+            /** Is Default */
+            is_default: boolean;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "allow" | "deny";
+        };
+        /** AccessRulesOut */
+        AccessRulesOut: {
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Rules */
+            rules: components["schemas"]["AccessRuleOut"][];
+        };
+        /** AccessRulesWrite */
+        AccessRulesWrite: {
+            /** Rules */
+            rules: components["schemas"]["AccessRuleIn"][];
+        };
+        /** AccessScheduleCreate */
+        AccessScheduleCreate: {
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Ranges */
+            ranges: components["schemas"]["AccessScheduleRangeIn"][];
+        };
+        /** AccessScheduleOut */
+        AccessScheduleOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+            /** Ranges */
+            ranges: components["schemas"]["AccessScheduleRangeOut"][];
+        };
+        /** AccessScheduleRangeIn */
+        AccessScheduleRangeIn: {
+            /** Ends Time */
+            ends_time: string;
+            /** Starts Time */
+            starts_time: string;
+            /** Weekday */
+            weekday: number;
+        };
+        /** AccessScheduleRangeOut */
+        AccessScheduleRangeOut: {
+            /** Ends Time */
+            ends_time: string;
+            /** Starts Time */
+            starts_time: string;
+            /** Weekday */
+            weekday: number;
+        };
+        /** AccessScheduleUpdate */
+        AccessScheduleUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Ranges */
+            ranges?: components["schemas"]["AccessScheduleRangeIn"][] | null;
+        };
+        /** AccessSettingsOut */
+        AccessSettingsOut: {
+            /** Hidden Detail Fields */
+            hidden_detail_fields: ("balance_due" | "membership_dates" | "visit_counts" | "staff_notes")[];
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Staff Early Minutes */
+            staff_early_minutes: number;
+            /** Staff Late Minutes */
+            staff_late_minutes: number;
+        };
+        /** AccessSettingsWrite */
+        AccessSettingsWrite: {
+            /** Hidden Detail Fields */
+            hidden_detail_fields?: ("balance_due" | "membership_dates" | "visit_counts" | "staff_notes")[] | null;
+            /** Staff Early Minutes */
+            staff_early_minutes?: number | null;
+            /** Staff Late Minutes */
+            staff_late_minutes?: number | null;
+        };
         /** AccountCredit */
         AccountCredit: {
             /**
@@ -14972,6 +15229,29 @@ export interface components {
             status: string;
             /** Total Minor */
             total_minor: number;
+        };
+        /** ClientAccessOut */
+        ClientAccessOut: {
+            /**
+             * Access Mode
+             * @enum {string}
+             */
+            access_mode: "normal" | "always_admit" | "always_deny";
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+        };
+        /** ClientAccessWrite */
+        ClientAccessWrite: {
+            /**
+             * Access Mode
+             * @enum {string}
+             */
+            access_mode: "normal" | "always_admit" | "always_deny";
+            /** Reason */
+            reason: string;
         };
         /** ClientCreate */
         ClientCreate: {
@@ -19002,6 +19282,11 @@ export interface components {
              */
             status: "pending_pairing" | "active" | "revoked";
         };
+        /** KioskExitRequest */
+        KioskExitRequest: {
+            /** Staff Pin */
+            staff_pin: string;
+        };
         /** KioskLookupRequest */
         KioskLookupRequest: {
             /** Credential Value */
@@ -19051,6 +19336,8 @@ export interface components {
             displayed_alert_codes: string[];
             /** Early Window Minutes */
             early_window_minutes: number;
+            /** Has Exit Pin */
+            has_exit_pin: boolean;
             /** Late Window Minutes */
             late_window_minutes: number;
             /**
@@ -19071,6 +19358,8 @@ export interface components {
             displayed_alert_codes?: ("client_disabled" | "access_denied" | "membership_suspended" | "membership_frozen" | "membership_expired" | "visits_depleted" | "balance_due" | "waiver_unsigned" | "payment_method_expired" | "staff_note" | "birthday" | "photo_missing" | "over_daily_limit")[] | null;
             /** Early Window Minutes */
             early_window_minutes?: number | null;
+            /** Exit Pin */
+            exit_pin?: string | null;
             /** Late Window Minutes */
             late_window_minutes?: number | null;
             /** Lookup Method */
@@ -19883,6 +20172,25 @@ export interface components {
             origin: string;
             /** Revoked At */
             revoked_at: string | null;
+        };
+        /** MembershipTypeAccessOut */
+        MembershipTypeAccessOut: {
+            /** Access Schedule Id */
+            access_schedule_id: string | null;
+            /** Location Ids */
+            location_ids: string[];
+            /**
+             * Membership Type Id
+             * Format: uuid
+             */
+            membership_type_id: string;
+        };
+        /** MembershipTypeAccessWrite */
+        MembershipTypeAccessWrite: {
+            /** Access Schedule Id */
+            access_schedule_id?: string | null;
+            /** Location Ids */
+            location_ids?: string[];
         };
         /** MembershipTypeCreate */
         MembershipTypeCreate: {
@@ -21336,6 +21644,12 @@ export interface components {
             /** Total */
             total?: number | null;
         };
+        /** Page[AccessScheduleOut] */
+        Page_AccessScheduleOut_: {
+            /** Data */
+            data: components["schemas"]["AccessScheduleOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[AccountingExportOut] */
         Page_AccountingExportOut_: {
             /** Data */
@@ -21616,6 +21930,12 @@ export interface components {
         Page_MembershipPlanOut_: {
             /** Data */
             data: components["schemas"]["MembershipPlanOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[MembershipTypeAccessOut] */
+        Page_MembershipTypeAccessOut_: {
+            /** Data */
+            data: components["schemas"]["MembershipTypeAccessOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[MembershipTypeOut] */
@@ -31358,6 +31678,267 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listAccessRules: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessRulesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putAccessRules: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccessRulesWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessRulesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listAccessSchedules: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AccessScheduleOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createAccessSchedule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccessScheduleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessScheduleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateAccessSchedule: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                access_schedule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccessScheduleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessScheduleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getAccessSettings: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putAccessSettings: {
+        parameters: {
+            query: {
+                location_id: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccessSettingsWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listAccountingExports: {
         parameters: {
             query?: {
@@ -37089,6 +37670,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClientOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getClientAccessMode: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientAccessOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    setClientAccessMode: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientAccessWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientAccessOut"];
                 };
             };
             /** @description Validation Error */
@@ -43130,7 +43783,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KioskExitRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             204: {
@@ -43138,6 +43795,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
@@ -44998,6 +45664,38 @@ export interface operations {
             };
         };
     };
+    listMembershipTypeAccess: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_MembershipTypeAccessOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listMembershipTypes: {
         parameters: {
             query?: {
@@ -45102,6 +45800,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MembershipTypeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putMembershipTypeAccess: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                membership_type_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MembershipTypeAccessWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MembershipTypeAccessOut"];
                 };
             };
             /** @description Validation Error */

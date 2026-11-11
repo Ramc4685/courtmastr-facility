@@ -2116,3 +2116,14 @@ def authorize_reach(session: Db, principal: Principal, key: str, booking_id: UUI
         session, principal, key, booking.location_id, _resource_ids(session, booking), booking.reservation_type_id
     )
     return booking
+
+
+def client_bookings_starting(
+    session: Db, *, client_id: UUID, location_id: UUID, start: datetime, end: datetime
+) -> list[UUID]:
+    """Internal (access, owner question 22): the client's confirmed court bookings and rentals at the location
+    starting from `start` to `end`, which a check-in marks as arrived."""
+    return list(session.scalars(select(Booking.id).where(
+        Booking.client_id == client_id, Booking.location_id == location_id, Booking.status == "confirmed",
+        Booking.kind.in_(("session", "rental")), Booking.starts_at >= start, Booking.starts_at <= end,
+    ).order_by(Booking.starts_at)))  # fmt: skip

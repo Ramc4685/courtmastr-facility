@@ -1,6 +1,7 @@
-"""access tables, P0 subset (docs/architecture/data-model-money.md section 3): the check-in log and its attendance
-marks, credentials, kiosk devices and kiosk settings. Stations, access rules and schedules, client access mode and
-ID card templates (P1) are not created; their columns are added by the module that builds them."""
+"""access tables (docs/architecture/data-model-money.md section 3): the check-in log and its attendance marks,
+credentials, kiosk devices and kiosk settings (module 10), and the access rules of Phase 10 chip B: check-in
+settings, rule outcomes, client access mode, time-of-day schedules and membership-type access (CHK-02, CHK-08,
+CHK-09, CHK-10). Stations and ID card templates are not created yet."""
 
 from datetime import date, datetime
 from enum import StrEnum
@@ -9,7 +10,7 @@ from uuid import UUID
 from sqlalchemy import ARRAY, CheckConstraint, Index, LargeBinary, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.db import Base, TenantOwned, Timestamps, enum_check, enum_column, tenant_args, tfk
+from app.core.db import Base, TenantOwned, Timestamps, WallTime, enum_check, enum_column, tenant_args, tfk
 
 
 class CheckInChannel(StrEnum):
@@ -59,6 +60,30 @@ class LookupMethod(StrEnum):
     NAME = "name"
     MEMBERSHIP_NUMBER = "membership_number"
     BOTH = "both"
+
+
+class AccessCondition(StrEnum):
+    """Membership states an access rule decides on (CHK-08); the evaluator's defaults apply without a row."""
+
+    FROZEN = "frozen"
+    SUSPENDED = "suspended"
+    DEPLETED = "depleted"
+    OVER_DAILY_LIMIT = "over_daily_limit"
+
+
+class AccessOutcome(StrEnum):
+    ALLOW = "allow"
+    DENY = "deny"
+
+
+class AccessMode(StrEnum):
+    NORMAL = "normal"
+    ALWAYS_ADMIT = "always_admit"
+    ALWAYS_DENY = "always_deny"
+
+
+# Status-card fields a location may hide from staff without access.checkin.read_full_details (CHK-02).
+DETAIL_FIELDS = ("balance_due", "membership_dates", "visit_counts", "staff_notes")
 
 
 class CheckIn(TenantOwned, Timestamps, Base):
@@ -173,6 +198,25 @@ class KioskDevice(TenantOwned, Timestamps, Base):
     enrolled_by_staff_user_id: Mapped[UUID | None]  # None: registered by a seed or job
     last_seen_at: Mapped[datetime | None]
     revoked_at: Mapped[datetime | None]
+    # Wrong kiosk exit PINs since the last right one; the fifth revokes the device (KIOSK_EXIT_ATTEMPTS).
+    exit_pin_failure_count: Mapped[int] = mapped_column(server_default=text("0"))
+
+
+class KioskMatch(TenantOwned, Timestamps, Base):
+    """A name-search result handed to a kiosk: an opaque token (stored hashed) that checks the client in once,
+    within two minutes, on that device only."""
+
+    __tablename__ = "kiosk_match"
+    __table_args__ = tenant_args(
+        *tfk("kiosk_device_id", "kiosk_device"),
+        *tfk("client_id", "client"),
+        Index("uq_kiosk_match_token", "tenant_id", "token_hash", unique=True),
+    )
+
+    kiosk_device_id: Mapped[UUID]
+    client_id: Mapped[UUID]
+    token_hash: Mapped[str] = mapped_column(info={"audit": "never"})
+    expires_at: Mapped[datetime]
 
 
 class KioskSettings(TenantOwned, Timestamps, Base):
@@ -197,3 +241,111 @@ class KioskSettings(TenantOwned, Timestamps, Base):
         ARRAY(Text), server_default=text("'{balance_due,membership_expired,visits_depleted}'"), info={"audit": "value"}
     )
     confirmation_timeout_seconds: Mapped[int] = mapped_column(server_default=text("10"))
+    exit_pin_hash: Mapped[str | None] = mapped_column(info={"audit": "never"})  # argon2id; required to leave kiosk mode
+
+
+class AccessSettings(TenantOwned, Timestamps, Base):
+    """Staff check-in behaviour of one location (CHK-02). A missing row reads as the defaults."""
+
+    __tablename__ = "access_settings"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", index=False),
+        UniqueConstraint("tenant_id", "location_id", name="uq_access_settings_location"),
+        CheckConstraint(
+            "hidden_detail_fields <@ ARRAY[" + ", ".join(f"'{f}'" for f in DETAIL_FIELDS) + "]::text[]",
+            name="hidden_fields",
+        ),
+        CheckConstraint("staff_early_minutes BETWEEN 0 AND 1440", name="early"),
+        CheckConstraint("staff_late_minutes BETWEEN 0 AND 1440", name="late"),
+    )
+
+    location_id: Mapped[UUID]
+    hidden_detail_fields: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), server_default=text("'{balance_due,membership_dates,visit_counts}'"), info={"audit": "value"}
+    )
+    staff_early_minutes: Mapped[int] = mapped_column(server_default=text("180"))
+    staff_late_minutes: Mapped[int] = mapped_column(server_default=text("300"))
+
+
+class AccessRule(TenantOwned, Timestamps, Base):
+    """The outcome a location chose for one membership condition (CHK-08)."""
+
+    __tablename__ = "access_rule"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", index=False),
+        UniqueConstraint("tenant_id", "location_id", "condition", name="uq_access_rule"),
+        enum_check("condition", AccessCondition),
+        enum_check("outcome", AccessOutcome),
+    )
+
+    location_id: Mapped[UUID]
+    condition: Mapped[str] = enum_column()
+    outcome: Mapped[str] = enum_column()
+
+
+class ClientAccess(TenantOwned, Timestamps, Base):
+    """A client's access mode (CHK-08). A missing row is `normal`: the rules decide."""
+
+    __tablename__ = "client_access"
+    __table_args__ = tenant_args(
+        *tfk("client_id", "client", index=False),
+        UniqueConstraint("tenant_id", "client_id", name="uq_client_access_client"),
+        enum_check("access_mode", AccessMode),
+    )
+
+    client_id: Mapped[UUID]
+    access_mode: Mapped[str] = enum_column()
+
+
+class AccessSchedule(TenantOwned, Timestamps, Base):
+    """Named weekly opening windows for members of mapped membership types (CHK-09)."""
+
+    __tablename__ = "access_schedule"
+    __table_args__ = tenant_args(UniqueConstraint("tenant_id", "name", name="uq_access_schedule_name"))
+
+    name: Mapped[str]
+    is_active: Mapped[bool] = mapped_column(server_default=text("true"))
+
+
+class AccessScheduleRange(TenantOwned, Timestamps, Base):
+    """One weekday window, in the zone of the location being entered. Across midnight is two rows."""
+
+    __tablename__ = "access_schedule_range"
+    __table_args__ = tenant_args(
+        *tfk("access_schedule_id", "access_schedule", ondelete="CASCADE"),
+        CheckConstraint("weekday BETWEEN 1 AND 7", name="weekday"),
+        CheckConstraint("ends_time > starts_time", name="order"),
+    )
+
+    access_schedule_id: Mapped[UUID]
+    weekday: Mapped[int]
+    starts_time: Mapped[str] = mapped_column(WallTime)
+    ends_time: Mapped[str] = mapped_column(WallTime)
+
+
+class MembershipTypeAccess(TenantOwned, Timestamps, Base):
+    """The schedule a membership type is limited to (CHK-09); no row or no schedule is unrestricted hours."""
+
+    __tablename__ = "membership_type_access"
+    __table_args__ = tenant_args(
+        *tfk("membership_type_id", "membership_type", index=False),
+        *tfk("access_schedule_id", "access_schedule"),
+        UniqueConstraint("tenant_id", "membership_type_id", name="uq_membership_type_access"),
+    )
+
+    membership_type_id: Mapped[UUID]
+    access_schedule_id: Mapped[UUID | None]
+
+
+class MembershipTypeLocation(TenantOwned, Timestamps, Base):
+    """A further location a membership type admits at (CHK-10). No rows: only the contract's own location."""
+
+    __tablename__ = "membership_type_location"
+    __table_args__ = tenant_args(
+        *tfk("membership_type_id", "membership_type", index=False),
+        *tfk("location_id", "location"),
+        UniqueConstraint("tenant_id", "membership_type_id", "location_id", name="uq_membership_type_location"),
+    )
+
+    membership_type_id: Mapped[UUID]
+    location_id: Mapped[UUID]

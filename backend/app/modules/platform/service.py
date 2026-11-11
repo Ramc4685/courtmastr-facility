@@ -71,6 +71,13 @@ def update_tenant(session: Session, principal: Principal, data: dict) -> Tenant:
     return tenant
 
 
+def minor_age(session: Session) -> int:
+    """Internal: under this age a client is a minor (key `minor_age` in tenant.settings, default 18; owner
+    question 21). Written only through update_tenant; a missing or unusable value reads as 18."""
+    value = (get_tenant(session).settings or {}).get("minor_age", 18)
+    return value if type(value) is int and 1 <= value <= 99 else 18
+
+
 # --- locations ---------------------------------------------------------------------------------------------
 
 

@@ -456,6 +456,7 @@ gating of cart price/quantity edits": permission wins over the Classic preferenc
 | `access.kiosk.manage` | L | K | | Y | Y | - | - | - | - | - | CHK-05 (register and revoke devices) |
 | `access.rule.manage` | L | | | Y | Y | - | - | - | - | - | CHK-08, CHK-09, CHK-10, CHK-17 |
 | `access.settings.manage` | L | | | Y | Y | - | - | - | - | - | CHK-02, CHK-06, CHK-07, CHK-12 |
+| `access.client.set_access_mode` | C | P | | Y | Y | - | - | - | - | - | CHK-08 (always admit, always deny one client) |
 | `access.door.unlock` | L | P | | Y | Y | - | - | - | - | - | CHK-16 (simulated adapter in v1) |
 | `access.device.manage` | L | K | | Y | - | - | - | - | - | - | CHK-15, CHK-16 |
 

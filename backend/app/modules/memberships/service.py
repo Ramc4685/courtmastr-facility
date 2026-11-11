@@ -1566,11 +1566,16 @@ def _covering(session: Session, client_id: UUID, on: date | None) -> tuple[Membe
     )
     stmt = select(c).where(c.status.in_(LIVE), or_(c.owner_client_id == client_id, c.id.in_(shared)))
     order = {"active": 0, "suspended": 1, "frozen": 2, "upcoming": 3}
-    best = None
+    best, best_rank = None, None
     for contract in session.scalars(stmt.order_by(c.start_on, c.id)):
         status = effective_status(session, contract, on or _today(session, contract.location_id))
-        if status in order and (best is None or order[status] < order[best[1]]):
-            best = (contract, status, "owner" if contract.owner_client_id == client_id else "share")
+        if status not in order:
+            continue
+        # Same status: a contract with visits left beats an earlier used-up pass (an owner pass and a share).
+        used_up = contract.max_visits_count is not None and contract.visits_used_count >= contract.max_visits_count
+        rank = (order[status], used_up)
+        if best_rank is None or rank < best_rank:
+            best, best_rank = (contract, status, "owner" if contract.owner_client_id == client_id else "share"), rank
     return best
 
 
@@ -1641,6 +1646,10 @@ def record_visit(session: Session, *, client_id: UUID, check_in_id: UUID, locati
                 MembershipVisit.local_on == local_on, MembershipVisit.is_counted,
             )  # fmt: skip
             counted = session.scalar(earlier.limit(1)) is None
+        # A staff override past a used-up limit is recorded, never counted beyond the cap.
+        counted = counted and (
+            contract.max_visits_count is None or contract.visits_used_count < contract.max_visits_count
+        )
         seen = MembershipVisit(
             membership_contract_id=contract.id, client_id=client_id, check_in_id=check_in_id, location_id=location_id,
             visited_at=clock.now(), local_on=local_on, is_counted=counted,

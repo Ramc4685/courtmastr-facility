@@ -182,9 +182,14 @@ def test_kiosk_pairing_lookup_check_in_and_exit(client, tenant, owner, f):
     assert row.channel == "kiosk" and row.identified_by == "name_search"
     tampered = found[0]["match_token"][:-2] + "00"
     assert client.post(f"{API}/kiosk/check-ins", json={"match_token": tampered}).status_code == 422
-    forged = f"{kid['id']}.{found[0]['match_token'].split('.')[1]}.{found[0]['match_token'].split('.')[2]}"
-    assert client.post(f"{API}/kiosk/check-ins", json={"match_token": forged}).status_code == 422
-    assert client.post(f"{API}/kiosk/exit").status_code == 204
+    assert client.post(f"{API}/kiosk/check-ins", json={"match_token": kid["id"]}).status_code == 422  # no forging
+    unset = client.post(f"{API}/kiosk/exit", json={"staff_pin": "123456"})
+    assert unset.status_code == 409 and unset.json()["code"] == "exit-pin-not-set"  # owner question 20
+    ok(client.put(f"{API}/kiosk-settings?location_id={f.loc}", headers=owner, json={"exit_pin": "246810"}))
+    wrong = client.post(f"{API}/kiosk/exit", json={"staff_pin": "000000"})
+    assert wrong.status_code == 422 and wrong.json()["code"] == "reauthentication-failed"
+    assert ok(client.get(f"{API}/kiosk/config"))["settings"]["has_exit_pin"]  # still paired after a wrong PIN
+    assert client.post(f"{API}/kiosk/exit", json={"staff_pin": "246810"}).status_code == 204
     assert client.get(f"{API}/kiosk/config").status_code == 401
 
 

@@ -170,6 +170,358 @@
         "title": "AccessEvaluateRequest",
         "type": "object"
       },
+      "AccessRuleIn": {
+        "additionalProperties": false,
+        "properties": {
+          "condition": {
+            "enum": [
+              "frozen",
+              "suspended",
+              "depleted",
+              "over_daily_limit"
+            ],
+            "title": "Condition",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "allow",
+              "deny"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "condition",
+          "outcome"
+        ],
+        "title": "AccessRuleIn",
+        "type": "object"
+      },
+      "AccessRuleOut": {
+        "properties": {
+          "condition": {
+            "enum": [
+              "frozen",
+              "suspended",
+              "depleted",
+              "over_daily_limit"
+            ],
+            "title": "Condition",
+            "type": "string"
+          },
+          "is_default": {
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "outcome": {
+            "enum": [
+              "allow",
+              "deny"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "condition",
+          "outcome",
+          "is_default"
+        ],
+        "title": "AccessRuleOut",
+        "type": "object"
+      },
+      "AccessRulesOut": {
+        "properties": {
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/AccessRuleOut"
+            },
+            "title": "Rules",
+            "type": "array"
+          }
+        },
+        "required": [
+          "location_id",
+          "rules"
+        ],
+        "title": "AccessRulesOut",
+        "type": "object"
+      },
+      "AccessRulesWrite": {
+        "additionalProperties": false,
+        "properties": {
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/AccessRuleIn"
+            },
+            "maxItems": 4,
+            "title": "Rules",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rules"
+        ],
+        "title": "AccessRulesWrite",
+        "type": "object"
+      },
+      "AccessScheduleCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "ranges": {
+            "items": {
+              "$ref": "#/components/schemas/AccessScheduleRangeIn"
+            },
+            "maxItems": 70,
+            "title": "Ranges",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "ranges"
+        ],
+        "title": "AccessScheduleCreate",
+        "type": "object"
+      },
+      "AccessScheduleOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ranges": {
+            "items": {
+              "$ref": "#/components/schemas/AccessScheduleRangeOut"
+            },
+            "title": "Ranges",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "is_active",
+          "ranges"
+        ],
+        "title": "AccessScheduleOut",
+        "type": "object"
+      },
+      "AccessScheduleRangeIn": {
+        "additionalProperties": false,
+        "properties": {
+          "ends_time": {
+            "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9]|24:00)$",
+            "title": "Ends Time",
+            "type": "string"
+          },
+          "starts_time": {
+            "pattern": "^(([01][0-9]|2[0-3]):[0-5][0-9]|24:00)$",
+            "title": "Starts Time",
+            "type": "string"
+          },
+          "weekday": {
+            "maximum": 7.0,
+            "minimum": 1.0,
+            "title": "Weekday",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "weekday",
+          "starts_time",
+          "ends_time"
+        ],
+        "title": "AccessScheduleRangeIn",
+        "type": "object"
+      },
+      "AccessScheduleRangeOut": {
+        "properties": {
+          "ends_time": {
+            "title": "Ends Time",
+            "type": "string"
+          },
+          "starts_time": {
+            "title": "Starts Time",
+            "type": "string"
+          },
+          "weekday": {
+            "title": "Weekday",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "weekday",
+          "starts_time",
+          "ends_time"
+        ],
+        "title": "AccessScheduleRangeOut",
+        "type": "object"
+      },
+      "AccessScheduleUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "ranges": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AccessScheduleRangeIn"
+                },
+                "maxItems": 70,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ranges"
+          }
+        },
+        "title": "AccessScheduleUpdate",
+        "type": "object"
+      },
+      "AccessSettingsOut": {
+        "properties": {
+          "hidden_detail_fields": {
+            "items": {
+              "enum": [
+                "balance_due",
+                "membership_dates",
+                "visit_counts",
+                "staff_notes"
+              ],
+              "type": "string"
+            },
+            "title": "Hidden Detail Fields",
+            "type": "array"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "staff_early_minutes": {
+            "title": "Staff Early Minutes",
+            "type": "integer"
+          },
+          "staff_late_minutes": {
+            "title": "Staff Late Minutes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "location_id",
+          "hidden_detail_fields",
+          "staff_early_minutes",
+          "staff_late_minutes"
+        ],
+        "title": "AccessSettingsOut",
+        "type": "object"
+      },
+      "AccessSettingsWrite": {
+        "additionalProperties": false,
+        "properties": {
+          "hidden_detail_fields": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "balance_due",
+                    "membership_dates",
+                    "visit_counts",
+                    "staff_notes"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hidden Detail Fields"
+          },
+          "staff_early_minutes": {
+            "anyOf": [
+              {
+                "maximum": 1440.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Early Minutes"
+          },
+          "staff_late_minutes": {
+            "anyOf": [
+              {
+                "maximum": 1440.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Late Minutes"
+          }
+        },
+        "title": "AccessSettingsWrite",
+        "type": "object"
+      },
       "AccountCredit": {
         "properties": {
           "client_id": {
@@ -9690,6 +10042,56 @@
           "items"
         ],
         "title": "CheckoutOut",
+        "type": "object"
+      },
+      "ClientAccessOut": {
+        "properties": {
+          "access_mode": {
+            "enum": [
+              "normal",
+              "always_admit",
+              "always_deny"
+            ],
+            "title": "Access Mode",
+            "type": "string"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "access_mode"
+        ],
+        "title": "ClientAccessOut",
+        "type": "object"
+      },
+      "ClientAccessWrite": {
+        "additionalProperties": false,
+        "properties": {
+          "access_mode": {
+            "enum": [
+              "normal",
+              "always_admit",
+              "always_deny"
+            ],
+            "title": "Access Mode",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_mode",
+          "reason"
+        ],
+        "title": "ClientAccessWrite",
         "type": "object"
       },
       "ClientCreate": {
@@ -23016,6 +23418,22 @@
         "title": "KioskDeviceOut",
         "type": "object"
       },
+      "KioskExitRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "staff_pin": {
+            "maxLength": 16,
+            "minLength": 1,
+            "title": "Staff Pin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "staff_pin"
+        ],
+        "title": "KioskExitRequest",
+        "type": "object"
+      },
       "KioskLookupRequest": {
         "additionalProperties": false,
         "properties": {
@@ -23146,6 +23564,10 @@
             "title": "Early Window Minutes",
             "type": "integer"
           },
+          "has_exit_pin": {
+            "title": "Has Exit Pin",
+            "type": "boolean"
+          },
           "late_window_minutes": {
             "title": "Late Window Minutes",
             "type": "integer"
@@ -23178,7 +23600,8 @@
           "late_window_minutes",
           "welcome_message",
           "displayed_alert_codes",
-          "confirmation_timeout_seconds"
+          "confirmation_timeout_seconds",
+          "has_exit_pin"
         ],
         "title": "KioskSettingsOut",
         "type": "object"
@@ -23240,6 +23663,18 @@
               }
             ],
             "title": "Early Window Minutes"
+          },
+          "exit_pin": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9]{6,8}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Pin"
           },
           "late_window_minutes": {
             "anyOf": [
@@ -26173,6 +26608,70 @@
           "created_at"
         ],
         "title": "MembershipShareOut",
+        "type": "object"
+      },
+      "MembershipTypeAccessOut": {
+        "properties": {
+          "access_schedule_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Schedule Id"
+          },
+          "location_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Location Ids",
+            "type": "array"
+          },
+          "membership_type_id": {
+            "format": "uuid",
+            "title": "Membership Type Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "membership_type_id",
+          "access_schedule_id",
+          "location_ids"
+        ],
+        "title": "MembershipTypeAccessOut",
+        "type": "object"
+      },
+      "MembershipTypeAccessWrite": {
+        "additionalProperties": false,
+        "properties": {
+          "access_schedule_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Schedule Id"
+          },
+          "location_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "title": "Location Ids",
+            "type": "array"
+          }
+        },
+        "title": "MembershipTypeAccessWrite",
         "type": "object"
       },
       "MembershipTypeCreate": {
@@ -30996,6 +31495,26 @@
         "title": "PageInfo",
         "type": "object"
       },
+      "Page_AccessScheduleOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AccessScheduleOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[AccessScheduleOut]",
+        "type": "object"
+      },
       "Page_AccountingExportOut_": {
         "properties": {
           "data": {
@@ -31934,6 +32453,26 @@
           "page"
         ],
         "title": "Page[MembershipPlanOut]",
+        "type": "object"
+      },
+      "Page_MembershipTypeAccessOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/MembershipTypeAccessOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[MembershipTypeAccessOut]",
         "type": "object"
       },
       "Page_MembershipTypeOut_": {
@@ -62125,6 +62664,543 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/access-rules": {
+      "get": {
+        "description": "What each membership condition does at a location: allow or deny (CHK-08).",
+        "operationId": "listAccessRules",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessRulesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Access Rules",
+        "tags": [
+          "access"
+        ]
+      },
+      "put": {
+        "operationId": "putAccessRules",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessRulesWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessRulesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Access Rules",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/access-schedules": {
+      "get": {
+        "description": "Time-of-day schedules (CHK-09). Filter: is_active.",
+        "operationId": "listAccessSchedules",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AccessScheduleOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Access Schedules",
+        "tags": [
+          "access"
+        ]
+      },
+      "post": {
+        "operationId": "createAccessSchedule",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessScheduleCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessScheduleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Access Schedule",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/access-schedules/{access_schedule_id}": {
+      "patch": {
+        "operationId": "updateAccessSchedule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "access_schedule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Access Schedule Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessScheduleUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessScheduleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Access Schedule",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/access-settings": {
+      "get": {
+        "description": "Staff check-in settings and the status-card fields hidden without full details (CHK-02).",
+        "operationId": "getAccessSettings",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Access Settings",
+        "tags": [
+          "access"
+        ]
+      },
+      "put": {
+        "operationId": "putAccessSettings",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessSettingsWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Access Settings",
+        "tags": [
+          "access"
+        ]
+      }
+    },
     "/api/v1/accounting-exports": {
       "get": {
         "description": "Filters: external_connection_id, location_id, status. Sort: business_on.",
@@ -73947,6 +75023,139 @@
         "summary": "Update Client",
         "tags": [
           "clients"
+        ]
+      }
+    },
+    "/api/v1/clients/{client_id}/access-mode": {
+      "get": {
+        "operationId": "getClientAccessMode",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Client Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientAccessOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Client Access Mode",
+        "tags": [
+          "access"
+        ]
+      },
+      "put": {
+        "description": "Normal (the rules decide), always admit or always deny one client, with a reason (CHK-08).",
+        "operationId": "setClientAccessMode",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Client Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientAccessWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientAccessOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Client Access Mode",
+        "tags": [
+          "access"
         ]
       }
     },
@@ -86270,11 +87479,31 @@
     },
     "/api/v1/kiosk/exit": {
       "post": {
-        "description": "Leave kiosk mode: the device token stops working until staff pair it again.",
+        "description": "Leave kiosk mode with the location's exit PIN: the device token stops working until staff pair it again.",
         "operationId": "exitKiosk",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KioskExitRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Exit Kiosk",
@@ -90061,6 +91290,59 @@
         ]
       }
     },
+    "/api/v1/membership-type-access": {
+      "get": {
+        "description": "Membership types limited to a schedule or admitting at further locations (CHK-09, CHK-10).",
+        "operationId": "listMembershipTypeAccess",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_MembershipTypeAccessOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Membership Type Access",
+        "tags": [
+          "access"
+        ]
+      }
+    },
     "/api/v1/membership-types": {
       "get": {
         "description": "Filters: is_active. q searches the name. Sort: sort_order, name.",
@@ -90329,6 +91611,78 @@
         "summary": "Update Membership Type",
         "tags": [
           "memberships"
+        ]
+      }
+    },
+    "/api/v1/membership-types/{membership_type_id}/access": {
+      "put": {
+        "operationId": "putMembershipTypeAccess",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "membership_type_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Membership Type Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MembershipTypeAccessWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MembershipTypeAccessOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Membership Type Access",
+        "tags": [
+          "access"
         ]
       }
     },
