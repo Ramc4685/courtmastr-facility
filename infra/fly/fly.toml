@@ -27,19 +27,20 @@ primary_region = "REPLACE-region"
 
 # Migrations are a separate, gated step in the deploy workflow, not a release_command.
 
-[http_service]
+# No [http_service] and no [[services]]: either would put the API on Fly's public edge. The API is reached only by the
+# proxy app over Fly's private network at <app>.internal:8100. Never allocate a public IP for this app; check with
+# `fly ips list` and release any with `fly ips release`.
+[checks.live]
+  type = "http"
+  port = 8100
+  method = "GET"
+  path = "/api/v1/health/live"
+  interval = "15s"
+  timeout = "3s"
+  grace_period = "20s"
   processes = ["api"]
-  internal_port = 8100
-  force_https = false          # only the proxy app is public; this service is reached over Fly's private network
-  auto_stop_machines = "off"   # the 99.9% target needs the API always on
-  min_machines_running = 2     # two machines in different hosts is what makes a single failure survivable
 
-  [[http_service.checks]]
-    method = "GET"
-    path = "/api/v1/health/live"
-    interval = "15s"
-    timeout = "3s"
-    grace_period = "20s"
+# Availability: run at least two api machines in different hosts (`fly scale count api=2`); auto-stop stays off.
 
 # Exactly one of each: the relay and the scheduler must not run twice (the relay is safe to duplicate because it uses
 # row locks, the scheduler's jobs are idempotent; one is still the intended shape).

@@ -5,12 +5,7 @@
 name: deploy
 
 on:
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: Commit, tag or branch to build (default: the ref this workflow runs on)
-        required: false
-        default: ""
+  workflow_dispatch: {}   # builds the branch or tag picked in the Run workflow dialog; no free-form ref input
 
 concurrency:
   group: deploy
@@ -29,8 +24,6 @@ jobs:
         image: [backend, web]
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.ref || github.sha }}
       - uses: docker/setup-buildx-action@v3
       - name: Build ${{ matrix.image }} image
         uses: docker/build-push-action@v6
@@ -40,8 +33,6 @@ jobs:
           tags: facilityhub-${{ matrix.image }}:${{ github.sha }}
           load: true
           push: false
-          cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,scope=${{ matrix.image }},mode=max
       # security-baseline 14: no HIGH or CRITICAL finding that has a fix ships.
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@0.28.0
