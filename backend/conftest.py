@@ -221,7 +221,18 @@ def populate(client, tenant) -> SimpleNamespace:
         payment_id=payment["id"], revenue_category_id=category_id, tax_id=tax_id, **billing_ids, **people, **documents, **space,
         **leagues,
         **integration, **reporting,
+        **_populate_files(tenant),
     )  # fmt: skip
+
+
+def _populate_files(tenant) -> dict:
+    """A ready stored file, for the signed download route (Phase 8 K1)."""
+    from app.modules.platform import files
+
+    with tenant_session(tenant.id) as session:
+        row = files.store(session, b"%PDF-1.4 populate", purpose="tests.populate", content_type=files.PDF,
+                          uploaded_by=("system", None))  # fmt: skip
+    return {"tenant_id": tenant.id, "file_id": row.id}
 
 
 def _populate_reporting(post, location_id) -> dict:

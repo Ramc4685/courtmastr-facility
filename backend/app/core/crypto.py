@@ -7,6 +7,8 @@ when the first hosted environment exists (ADR 0007 open question 5).
 """
 
 import base64
+import hashlib
+import hmac
 import os
 from functools import cache
 from uuid import UUID
@@ -45,3 +47,9 @@ def decrypt(ciphertext: str, tenant_id: UUID) -> str:
         raise ValueError(f"unknown data key {key_id}")
     raw = base64.b64decode(body)
     return AESGCM(_key()).decrypt(raw[:12], raw[12:], tenant_id.bytes).decode()
+
+
+def mac(message: str) -> str:
+    """HMAC-SHA256 under a key derived from FH_DATA_KEY: signs short-lived URLs such as file downloads."""
+    key = hmac.new(_key(), b"facilityhub-url-mac-v1", hashlib.sha256).digest()
+    return hmac.new(key, message.encode(), hashlib.sha256).hexdigest()

@@ -29,5 +29,22 @@ services:
   mailpit:
     image: axllent/mailpit:latest
     ports: ["127.0.0.1:51025:1025", "127.0.0.1:58025:8025"]
+  # Optional, off by default: `docker compose --profile storage up -d s3` (S3 adapter tests), and
+  # `--profile scan up -d clamav` (malware scanner tests; the first start downloads signatures for minutes).
+  # The S3 stand-in is RustFS, a MinIO-compatible server: MinIO no longer publishes container images.
+  s3:
+    image: rustfs/rustfs:latest
+    profiles: [storage]
+    environment:
+      RUSTFS_ACCESS_KEY: ${FH_S3_ACCESS_KEY_ID:-dev-minio}
+      RUSTFS_SECRET_KEY: ${FH_S3_SECRET_ACCESS_KEY:-dev-minio-secret}
+    ports: ["127.0.0.1:59000:9000", "127.0.0.1:59001:9001"]
+    volumes:
+      - s3data:/data
+  clamav:
+    image: clamav/clamav-debian:stable  # multi-arch; clamav/clamav has no arm64 image
+    profiles: [scan]
+    ports: ["127.0.0.1:53310:3310"]
 volumes:
   pgdata:
+  s3data:
