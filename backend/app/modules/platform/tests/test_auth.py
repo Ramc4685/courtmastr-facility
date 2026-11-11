@@ -291,8 +291,10 @@ def test_web_session_uses_cookies_and_csrf(client, tenant):
     response = _sign_in(client, tenant)  # client_kind defaults to web
     body = response.json()
     assert "access_token" not in body and "refresh_token" not in body
-    set_cookie = response.headers["set-cookie"].lower()
-    assert "fh_access=" in set_cookie and "httponly" in set_cookie and "samesite=lax" in set_cookie
+    # One cookie, nothing but Path, HttpOnly and SameSite (Secure and the __Host- prefix follow cookie_secure).
+    (set_cookie,) = response.headers.get_list("set-cookie")
+    name, _, rest = set_cookie.partition("=")
+    assert name == "fh_session" and sorted(rest.lower().split("; ")[1:]) == ["httponly", "path=/", "samesite=lax"]
     assert client.get(f"{API}/me").status_code == 200  # the cookie alone authenticates safe methods
     assert client.get(f"{API}/auth/session").json()["csrf_token"] == body["csrf_token"]
     patch = {"settings": {"onboarding": {"dismissed": ["hours"]}}}
@@ -300,12 +302,9 @@ def test_web_session_uses_cookies_and_csrf(client, tenant):
     assert denied.status_code == 403 and denied.json()["code"] == "csrf-failed"
     assert client.patch(f"{API}/tenant", json=patch, headers={"X-CSRF-Token": "wrong"}).status_code == 403
     assert client.patch(f"{API}/tenant", json=patch, headers={"X-CSRF-Token": body["csrf_token"]}).status_code == 200
-    # Refresh from the cookie rotates both cookies and the CSRF token with them.
-    refreshed = client.post(f"{API}/auth/refresh")
-    assert refreshed.status_code == 200 and refreshed.json()["csrf_token"] != body["csrf_token"]
-    assert (
-        client.post(f"{API}/auth/sign-out", headers={"X-CSRF-Token": refreshed.json()["csrf_token"]}).status_code == 204
-    )
+    # Web sessions have no refresh token: the cookie cannot be traded for a new pair.
+    assert client.post(f"{API}/auth/refresh").status_code == 401
+    assert client.post(f"{API}/auth/sign-out", headers={"X-CSRF-Token": body["csrf_token"]}).status_code == 204
     assert client.get(f"{API}/me").status_code == 401
 
 
@@ -361,8 +360,8 @@ def test_tenant_resolution(client, tenant, owner):
 def test_rate_limit_on_auth_endpoints(client, tenant, monkeypatch):
     cfg = get_settings().rate_limit
     monkeypatch.setattr(cfg, "enabled", True)
-    monkeypatch.setattr(cfg, "auth_per_minute", 2)
+    monkeypatch.setitem(cfg.buckets, "sign-in", cfg.buckets["sign-in"].model_copy(update={"limit": 2}))
     statuses = [_sign_in(client, tenant, password="not-the-password").status_code for _ in range(4)]
     assert statuses[-1] == 429
     limited = _sign_in(client, tenant)
-    assert limited.json()["code"] == "rate-limited" and limited.headers["retry-after"] == "60"
+    assert limited.json()["code"] == "rate-limited" and 0 < int(limited.headers["retry-after"]) <= 60

@@ -23,6 +23,7 @@ class Api(BaseModel):
     host: str
     port: int
     max_body_bytes: int = 1_048_576
+    trusted_proxies: list[str] = []  # peers whose X-Forwarded-For names the client
 
 
 class Db(BaseModel):
@@ -85,16 +86,25 @@ class Auth(BaseModel):
     password_reset_ttl_min: int
     invite_ttl_days: int
     lockout_threshold: int
+    lockout_window_min: int
     lockout_min: int
+    lockout_max_min: int
+    pre_session_ttl_min: int
     password_min_length: int
     cookie_secure: bool
     argon2: Argon2
     sessions: dict[str, SessionLifetime]
 
 
+class Bucket(BaseModel):
+    limit: int
+    window_sec: int
+    closed: bool = False  # refuse rather than allow while Redis is unreachable
+
+
 class RateLimit(BaseModel):
     enabled: bool
-    auth_per_minute: int
+    buckets: dict[str, Bucket]
     api_per_minute: int = 120  # per API key (ADR 0012 section 2)
 
 

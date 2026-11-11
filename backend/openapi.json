@@ -2538,7 +2538,7 @@
         "type": "object"
       },
       "AuthSessionOut": {
-        "description": "Tokens appear in the body only for bearer clients (mobile); web gets HttpOnly cookies plus csrf_token.",
+        "description": "Tokens appear in the body only for bearer clients (mobile); web gets the HttpOnly session cookie plus\ncsrf_token, which it sends as X-CSRF-Token on every non-GET.",
         "properties": {
           "absolute_expires_at": {
             "format": "date-time",
@@ -41341,6 +41341,20 @@
         "title": "PosTenderType",
         "type": "object"
       },
+      "PreSessionOut": {
+        "description": "The login-CSRF token: send it as X-CSRF-Token on sign-in, emailed-link and reset requests from a browser.",
+        "properties": {
+          "csrf_token": {
+            "title": "Csrf Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "csrf_token"
+        ],
+        "title": "PreSessionOut",
+        "type": "object"
+      },
       "PreferenceChange": {
         "additionalProperties": false,
         "properties": {
@@ -52608,6 +52622,46 @@
         "title": "SeasonWrite",
         "type": "object"
       },
+      "SecuritySettings": {
+        "description": "Tenant security policy (PLT-07). An empty staff_ip_allowlist means staff may act from anywhere.",
+        "properties": {
+          "staff_ip_allowlist": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Staff Ip Allowlist",
+            "type": "array"
+          }
+        },
+        "required": [
+          "staff_ip_allowlist"
+        ],
+        "title": "SecuritySettings",
+        "type": "object"
+      },
+      "SecuritySettingsUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "staff_ip_allowlist": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Staff Ip Allowlist"
+          }
+        },
+        "title": "SecuritySettingsUpdate",
+        "type": "object"
+      },
       "Seeding": {
         "additionalProperties": false,
         "properties": {
@@ -63527,9 +63581,31 @@
         ]
       }
     },
+    "/api/v1/auth/pre-session": {
+      "get": {
+        "description": "Start the login-CSRF pair for a browser: an HttpOnly pre-session cookie, and the same token in the body\nto send as X-CSRF-Token on sign-in, emailed-link, reset and link-consume requests. Reuses a live cookie,\nso several tabs share one token.",
+        "operationId": "getPreSession",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreSessionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Pre Session",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/api/v1/auth/refresh": {
       "post": {
-        "description": "Rotate the token pair. Web sends the refresh cookie; bearer clients send the body.\nErrors: session-revoked, refresh-reuse-detected.",
+        "description": "Rotate a mobile token pair (web sessions have no refresh token: their cookie slides on use).\nErrors: session-revoked, refresh-reuse-detected.",
         "operationId": "refreshSession",
         "requestBody": {
           "content": {
@@ -63663,7 +63739,7 @@
     },
     "/api/v1/auth/sign-in": {
       "post": {
-        "description": "Sign in with email and password. Errors: invalid-credentials, identity-locked, rate-limited.",
+        "description": "Sign in with email and password. Errors: invalid-credentials, identity-locked, ip-not-allowed,\ncsrf-failed, rate-limited.",
         "operationId": "signIn",
         "requestBody": {
           "content": {
@@ -114406,6 +114482,120 @@
         "summary": "Update Season",
         "tags": [
           "leagues"
+        ]
+      }
+    },
+    "/api/v1/security-settings": {
+      "get": {
+        "description": "Tenant security policy: the staff IP allow-list (PLT-07).",
+        "operationId": "getSecuritySettings",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecuritySettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Security Settings",
+        "tags": [
+          "platform"
+        ]
+      },
+      "patch": {
+        "description": "Replace the staff IP allow-list; empty lifts the restriction. A list that leaves out the caller's own\naddress is refused. Errors: ip-allowlist-excludes-you, validation-failed.",
+        "operationId": "updateSecuritySettings",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SecuritySettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecuritySettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Security Settings",
+        "tags": [
+          "platform"
         ]
       }
     },

@@ -436,6 +436,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/pre-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Pre Session
+         * @description Start the login-CSRF pair for a browser: an HttpOnly pre-session cookie, and the same token in the body
+         *     to send as X-CSRF-Token on sign-in, emailed-link, reset and link-consume requests. Reuses a live cookie,
+         *     so several tabs share one token.
+         */
+        get: operations["getPreSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/refresh": {
         parameters: {
             query?: never;
@@ -447,7 +469,7 @@ export interface paths {
         put?: never;
         /**
          * Refresh Session
-         * @description Rotate the token pair. Web sends the refresh cookie; bearer clients send the body.
+         * @description Rotate a mobile token pair (web sessions have no refresh token: their cookie slides on use).
          *     Errors: session-revoked, refresh-reuse-detected.
          */
         post: operations["refreshSession"];
@@ -528,7 +550,8 @@ export interface paths {
         put?: never;
         /**
          * Sign In
-         * @description Sign in with email and password. Errors: invalid-credentials, identity-locked, rate-limited.
+         * @description Sign in with email and password. Errors: invalid-credentials, identity-locked, ip-not-allowed,
+         *     csrf-failed, rate-limited.
          */
         post: operations["signIn"];
         delete?: never;
@@ -10048,6 +10071,31 @@ export interface paths {
         patch: operations["updateSeason"];
         trace?: never;
     };
+    "/api/v1/security-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Security Settings
+         * @description Tenant security policy: the staff IP allow-list (PLT-07).
+         */
+        get: operations["getSecuritySettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Security Settings
+         * @description Replace the staff IP allow-list; empty lifts the restriction. A list that leaves out the caller's own
+         *     address is refused. Errors: ip-allowlist-excludes-you, validation-failed.
+         */
+        patch: operations["updateSecuritySettings"];
+        trace?: never;
+    };
     "/api/v1/segments": {
         parameters: {
             query?: never;
@@ -12378,7 +12426,8 @@ export interface components {
         };
         /**
          * AuthSessionOut
-         * @description Tokens appear in the body only for bearer clients (mobile); web gets HttpOnly cookies plus csrf_token.
+         * @description Tokens appear in the body only for bearer clients (mobile); web gets the HttpOnly session cookie plus
+         *     csrf_token, which it sends as X-CSRF-Token on every non-GET.
          */
         AuthSessionOut: {
             /**
@@ -24641,6 +24690,14 @@ export interface components {
             /** Sort Order */
             sort_order: number;
         };
+        /**
+         * PreSessionOut
+         * @description The login-CSRF token: send it as X-CSRF-Token on sign-in, emailed-link and reset requests from a browser.
+         */
+        PreSessionOut: {
+            /** Csrf Token */
+            csrf_token: string;
+        };
         /** PreferenceChange */
         PreferenceChange: {
             /** Address */
@@ -27957,6 +28014,19 @@ export interface components {
             name?: string | null;
             /** Starts On */
             starts_on?: string | null;
+        };
+        /**
+         * SecuritySettings
+         * @description Tenant security policy (PLT-07). An empty staff_ip_allowlist means staff may act from anywhere.
+         */
+        SecuritySettings: {
+            /** Staff Ip Allowlist */
+            staff_ip_allowlist: string[];
+        };
+        /** SecuritySettingsUpdate */
+        SecuritySettingsUpdate: {
+            /** Staff Ip Allowlist */
+            staff_ip_allowlist?: string[] | null;
         };
         /** Seeding */
         Seeding: {
@@ -31902,6 +31972,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPreSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreSessionOut"];
                 };
             };
         };
@@ -56462,6 +56552,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeasonOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getSecuritySettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecuritySettings"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateSecuritySettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SecuritySettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecuritySettings"];
                 };
             };
             /** @description Validation Error */

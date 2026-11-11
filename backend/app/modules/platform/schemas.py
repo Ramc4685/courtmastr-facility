@@ -48,6 +48,12 @@ class RefreshRequest(In):
     refresh_token: str | None = Field(None, max_length=200)
 
 
+class PreSessionOut(Out):
+    """The login-CSRF token: send it as X-CSRF-Token on sign-in, emailed-link and reset requests from a browser."""
+
+    csrf_token: str
+
+
 class PasswordChange(In):
     current_password: str | None = Field(None, max_length=1024)
     new_password: str = Field(max_length=1024)
@@ -63,7 +69,8 @@ class PrincipalOut(Out):
 
 
 class AuthSessionOut(Out):
-    """Tokens appear in the body only for bearer clients (mobile); web gets HttpOnly cookies plus csrf_token."""
+    """Tokens appear in the body only for bearer clients (mobile); web gets the HttpOnly session cookie plus
+    csrf_token, which it sends as X-CSRF-Token on every non-GET."""
 
     id: UUID
     kind: Literal["web", "mobile", "impersonation"]
@@ -117,6 +124,18 @@ class TenantUpdate(In):
     locale: str | None = Field(None, pattern=r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$")
     currency: str | None = Field(None, pattern=r"^[A-Z]{3}$")
     settings: dict[str, Any] | None = None
+
+
+class SecuritySettings(Out):
+    """Tenant security policy (PLT-07). An empty staff_ip_allowlist means staff may act from anywhere."""
+
+    staff_ip_allowlist: list[str]
+
+
+class SecuritySettingsUpdate(In):
+    staff_ip_allowlist: (
+        Annotated[list[Annotated[str, StringConstraints(max_length=64)]], Field(max_length=100)] | None
+    ) = None
 
 
 class TenantOnboard(In):

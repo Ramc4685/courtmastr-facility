@@ -12,25 +12,26 @@ from fastapi import APIRouter, Depends, Header, Request, Response
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.core import clock
 from app.core.api import TxRoute
 from app.core.api import camel_id as _camel
 from app.core.auth import CATALOGUE, tokens
 from app.core.auth.deps import (
-    ACCESS_COOKIE,
-    REFRESH_COOKIE,
     Ctx,
+    cookie_parts,
     current_ctx,
+    pre_session_cookie,
+    pre_session_csrf,
     public_session,
     request_session,
     require,
+    session_cookie,
 )
 from app.core.db.platform import platform_engine
 from app.core.db.session import app_engine
 from app.core.errors import NotFound, Unauthenticated, ValidationFailed
 from app.core.idempotency import idempotency
 from app.core.pagination import ListQuery, list_query
-from app.core.ratelimit import _redis, rate_limit
+from app.core.ratelimit import _redis, hit, rate_limit
 from app.core.settings import get_settings
 from app.modules.platform import auth, service, staff
 from app.modules.platform import schemas as s
@@ -103,25 +104,28 @@ def get_readiness(response: Response):
 # --- auth: anonymous ---------------------------------------------------------------------------------------
 
 
-def _session_out(grant: auth.Grant, response: Response) -> dict:
-    """Bearer clients get the tokens in the body; web gets HttpOnly cookies and a CSRF token."""
-    cfg = get_settings().auth
-    row = grant.auth_session
-    out = {
-        "id": row.id, "kind": row.kind, "principal": grant.principal, "access_expires_at": row.access_expires_at,
+def _session_body(row, principal) -> dict:
+    return {
+        "id": row.id, "kind": row.kind, "principal": principal, "access_expires_at": row.access_expires_at,
         "idle_expires_at": row.idle_expires_at, "absolute_expires_at": row.absolute_expires_at,
         "mfa_verified_at": row.mfa_verified_at,
     }  # fmt: skip
-    if row.kind == "mobile":
+
+
+def _cookie_flags() -> dict:
+    # Path=/; Secure; HttpOnly; SameSite=Lax and nothing else: no Domain, no Max-Age (security-baseline 5.2).
+    return {"path": "/", "httponly": True, "secure": get_settings().auth.cookie_secure, "samesite": "lax"}
+
+
+def _session_out(grant: auth.Grant, response: Response) -> dict:
+    """Bearer clients get the tokens in the body; web gets the one HttpOnly session cookie and a CSRF token.
+    The cookie carries the CSRF token too, because the database keeps only its hash and GET /auth/session
+    must be able to hand it to a freshly loaded page."""
+    out = _session_body(grant.auth_session, grant.principal)
+    if grant.auth_session.kind == "mobile":
         return out | {"access_token": grant.access_token, "refresh_token": grant.refresh_token}
-    now = clock.now()
-    cookie = {"httponly": True, "secure": cfg.cookie_secure, "samesite": "lax"}
-    response.set_cookie(ACCESS_COOKIE, grant.access_token, max_age=cfg.access_ttl_min * 60, path="/", **cookie)
-    response.set_cookie(
-        REFRESH_COOKIE, grant.refresh_token, max_age=int((row.idle_expires_at - now).total_seconds()),
-        path=f"{API_PREFIX}/auth", **cookie,
-    )  # fmt: skip
-    return out | {"csrf_token": tokens.csrf_for(grant.access_token)}
+    response.set_cookie(session_cookie(), f"{grant.access_token}.{grant.csrf_token}", **_cookie_flags())
+    return out | {"csrf_token": grant.csrf_token}
 
 
 def _token_session(request: Request, token: str | None, prefix: str, code: str) -> Session:
@@ -135,32 +139,60 @@ def _token_session(request: Request, token: str | None, prefix: str, code: str) 
 _session_route = {"response_model": s.AuthSessionOut, "response_model_exclude_none": True}
 
 
-@public.post("/auth/sign-in", dependencies=[Depends(rate_limit("sign-in"))], **_session_route)
+def _guarded(bucket: str) -> list:
+    """Anonymous auth POSTs: the per-IP bucket, then the login-CSRF check for browsers (baseline 5.3 item 4)."""
+    return [Depends(rate_limit(bucket)), Depends(pre_session_csrf)]
+
+
+def _per_address(session: Session, bucket: str, body, response: Response) -> None:
+    """The per-identity or per-target-address bucket beside the per-IP one (baseline 6). Keyed by the address
+    asked for, whether or not it exists, so the limit itself reveals nothing."""
+    hit(bucket, f"{body.audience}:{body.email}", response, tenant=session.info["tenant_id"])
+
+
+@public.get("/auth/pre-session", response_model=s.PreSessionOut)
+def get_pre_session(request: Request, response: Response):
+    """Start the login-CSRF pair for a browser: an HttpOnly pre-session cookie, and the same token in the body
+    to send as X-CSRF-Token on sign-in, emailed-link, reset and link-consume requests. Reuses a live cookie,
+    so several tabs share one token."""
+    token = request.cookies.get(pre_session_cookie(), "")
+    if len(token) != 43:  # tokens.secret(): 32 bytes, url-safe base64
+        token = tokens.secret()
+    flags = _cookie_flags() | {"max_age": get_settings().auth.pre_session_ttl_min * 60}
+    response.set_cookie(pre_session_cookie(), token, **flags)
+    return {"csrf_token": token}
+
+
+@public.post("/auth/sign-in", dependencies=_guarded("sign-in"), **_session_route)
 def sign_in(body: s.SignInRequest, response: Response, session: PublicSession):
-    """Sign in with email and password. Errors: invalid-credentials, identity-locked, rate-limited."""
+    """Sign in with email and password. Errors: invalid-credentials, identity-locked, ip-not-allowed,
+    csrf-failed, rate-limited."""
+    _per_address(session, "sign-in-identity", body, response)
     return _session_out(auth.sign_in(session, **body.model_dump()), response)
 
 
-@public.post("/auth/magic-links", status_code=202, dependencies=[Depends(rate_limit("magic-link"))])
-def request_magic_link(body: s.EmailLinkRequest, session: PublicSession) -> None:
+@public.post("/auth/magic-links", status_code=202, dependencies=_guarded("magic-link"))
+def request_magic_link(body: s.EmailLinkRequest, response: Response, session: PublicSession) -> None:
     """Email a single-use 15-minute sign-in link. Always 202, whether or not the address exists."""
+    _per_address(session, "link-address", body, response)
     auth.request_magic_link(session, **body.model_dump())
 
 
-@public.post("/auth/magic-links/consume", dependencies=[Depends(rate_limit("consume"))], **_session_route)
+@public.post("/auth/magic-links/consume", dependencies=_guarded("consume"), **_session_route)
 def consume_magic_link(body: s.TokenConsumeRequest, request: Request, response: Response):
     """Exchange a magic-link token for a session. Errors: token-invalid, token-expired."""
     session = _token_session(request, body.token, "fhl", "token-invalid")
     return _session_out(auth.consume_magic_link(session, token=body.token, client_kind=body.client_kind), response)
 
 
-@public.post("/auth/password-resets", status_code=202, dependencies=[Depends(rate_limit("password-reset"))])
-def request_password_reset(body: s.EmailLinkRequest, session: PublicSession) -> None:
+@public.post("/auth/password-resets", status_code=202, dependencies=_guarded("reset-request"))
+def request_password_reset(body: s.EmailLinkRequest, response: Response, session: PublicSession) -> None:
     """Email a single-use 60-minute reset link. Always 202."""
+    _per_address(session, "link-address", body, response)
     auth.request_password_reset(session, email=body.email, audience=body.audience)
 
 
-@public.post("/auth/password-resets/consume", dependencies=[Depends(rate_limit("consume"))], **_session_route)
+@public.post("/auth/password-resets/consume", dependencies=_guarded("consume"), **_session_route)
 def consume_password_reset(body: s.TokenConsumeRequest, request: Request, response: Response):
     """Set a new password; revokes every other session. Errors: token-invalid, token-expired, password-too-weak."""
     if not body.new_password:
@@ -172,7 +204,7 @@ def consume_password_reset(body: s.TokenConsumeRequest, request: Request, respon
     return _session_out(grant, response)
 
 
-@public.post("/auth/invitations/accept", dependencies=[Depends(rate_limit("consume"))], **_session_route)
+@public.post("/auth/invitations/accept", dependencies=_guarded("consume"), **_session_route)
 def accept_invitation(body: s.TokenConsumeRequest, request: Request, response: Response):
     """Accept an invite and activate the identity; the password is optional (magic link remains available)."""
     session = _token_session(request, body.token, "fhl", "token-invalid")
@@ -181,9 +213,9 @@ def accept_invitation(body: s.TokenConsumeRequest, request: Request, response: R
 
 @public.post("/auth/refresh", dependencies=[Depends(rate_limit("refresh"))], **_session_route)
 def refresh_session(request: Request, response: Response, body: s.RefreshRequest | None = None):
-    """Rotate the token pair. Web sends the refresh cookie; bearer clients send the body.
+    """Rotate a mobile token pair (web sessions have no refresh token: their cookie slides on use).
     Errors: session-revoked, refresh-reuse-detected."""
-    token = (body.refresh_token if body else None) or request.cookies.get(REFRESH_COOKIE)
+    token = body.refresh_token if body else None
     session = _token_session(request, token, "fhr", "session-revoked")
     return _session_out(auth.refresh(session, refresh_token=token), response)
 
@@ -195,22 +227,16 @@ def refresh_session(request: Request, response: Response, body: s.RefreshRequest
 def sign_out(response: Response, ctx: Ctx = Depends(current_ctx)) -> None:
     """Revoke the current session."""
     auth.sign_out(ctx.session, ctx.principal)
-    response.delete_cookie(ACCESS_COOKIE, path="/")
-    response.delete_cookie(REFRESH_COOKIE, path=f"{API_PREFIX}/auth")
+    response.delete_cookie(session_cookie(), **_cookie_flags())
 
 
 @me.get("/auth/session", **_session_route)
 def get_current_session(request: Request, ctx: Ctx = Depends(current_ctx)):
     """The current session. For cookie sessions this is where the web app reads its CSRF token."""
-    row = auth.get_session(ctx.session, ctx.principal)
-    cookie = request.cookies.get(ACCESS_COOKIE)
-    out = {
-        "id": row.id, "kind": row.kind, "principal": ctx.principal, "access_expires_at": row.access_expires_at,
-        "idle_expires_at": row.idle_expires_at, "absolute_expires_at": row.absolute_expires_at,
-        "mfa_verified_at": row.mfa_verified_at,
-    }  # fmt: skip
-    if cookie and "authorization" not in request.headers:
-        out["csrf_token"] = tokens.csrf_for(cookie)
+    out = _session_body(auth.get_session(ctx.session, ctx.principal), ctx.principal)
+    csrf = cookie_parts(request)[1]
+    if csrf and "authorization" not in request.headers:
+        out["csrf_token"] = csrf
     return out
 
 
@@ -254,6 +280,22 @@ def get_tenant(ctx: Authenticated):
 @admin.patch("/tenant", response_model=s.TenantOut)
 def update_tenant(body: s.TenantUpdate, ctx: Ctx = Depends(require("platform.tenant.update"))):
     return service.update_tenant(ctx.session, ctx.principal, body.model_dump(exclude_unset=True))
+
+
+# --- security settings -------------------------------------------------------------------------------------
+
+
+@admin.get("/security-settings", response_model=s.SecuritySettings)
+def get_security_settings(ctx: Ctx = Depends(require("platform.security.manage"))):
+    """Tenant security policy: the staff IP allow-list (PLT-07)."""
+    return service.get_security_settings(ctx.session, ctx.principal)
+
+
+@admin.patch("/security-settings", response_model=s.SecuritySettings)
+def update_security_settings(body: s.SecuritySettingsUpdate, ctx: Ctx = Depends(require("platform.security.manage"))):
+    """Replace the staff IP allow-list; empty lifts the restriction. A list that leaves out the caller's own
+    address is refused. Errors: ip-allowlist-excludes-you, validation-failed."""
+    return service.update_security_settings(ctx.session, ctx.principal, body.model_dump(exclude_unset=True))
 
 
 # --- locations ---------------------------------------------------------------------------------------------

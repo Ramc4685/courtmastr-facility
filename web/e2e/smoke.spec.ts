@@ -46,7 +46,7 @@ test('every module 1 screen passes the axe WCAG 2.1 AA scan', async ({ page }) =
   // Both themes: the default follows the system setting, and contrast differs per theme.
   for (const colorScheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme })
-    for (const path of ['/', '/locations', '/staff', '/roles', '/audit', '/settings']) {
+    for (const path of ['/', '/locations', '/staff', '/roles', '/audit', '/settings', '/settings/security']) {
       await page.goto(path)
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
       await page.waitForLoadState('networkidle')

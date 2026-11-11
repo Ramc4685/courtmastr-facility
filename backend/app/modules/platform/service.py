@@ -13,7 +13,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from app.core import audit, clock, events
+from app.core import audit, clock, context, events, networks
 from app.core.audit import AuditEvent
 from app.core.auth import Principal, authorize, passwords, scope_query, system_principal
 from app.core.db import platform as platform_db
@@ -69,6 +69,35 @@ def update_tenant(session: Session, principal: Principal, data: dict) -> Tenant:
     audit.record(session, "platform.tenant.update", tenant, changes=audit.diff(tenant))
     session.flush()
     return tenant
+
+
+# --- security settings (PLT-07) -----------------------------------------------------------------------------
+
+
+def get_security_settings(session: Session, principal: Principal) -> dict:
+    authorize(principal, "platform.security.manage")
+    return {"staff_ip_allowlist": [str(net) for net in get_tenant(session).staff_ip_allowlist]}
+
+
+def update_security_settings(session: Session, principal: Principal, data: dict) -> dict:
+    """Replace the staff IP allow-list. A non-empty list must contain the caller's own address, so nobody can
+    lock themselves (or an Owner) out from where they stand; an empty list lifts the restriction."""
+    authorize(principal, "platform.security.manage")
+    tenant = get_tenant(session)
+    before = [str(net) for net in tenant.staff_ip_allowlist]
+    if data.get("staff_ip_allowlist") is not None:
+        allowed = networks.normalize(data["staff_ip_allowlist"], "/staff_ip_allowlist")
+        if allowed and not networks.contains(allowed, context.client_ip.get()):
+            raise ValidationFailed(
+                f"Add the address you are using now ({context.client_ip.get() or 'unknown'}), or you would be locked out.",
+                code="ip-allowlist-excludes-you", pointer="/staff_ip_allowlist",
+            )  # fmt: skip
+        tenant.staff_ip_allowlist = allowed
+    after = [str(net) for net in tenant.staff_ip_allowlist]
+    if after != before:
+        audit.record(session, "platform.security.manage", tenant, changes={"staff_ip_allowlist": [before, after]})
+    session.flush()
+    return {"staff_ip_allowlist": after}
 
 
 # --- locations ---------------------------------------------------------------------------------------------

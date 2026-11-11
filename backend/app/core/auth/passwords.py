@@ -1,6 +1,7 @@
 """argon2id password hashing and the one password policy for staff and clients (ADR 0002 section 3)."""
 
 from functools import cache
+from pathlib import Path
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError
@@ -8,12 +9,14 @@ from argon2.exceptions import InvalidHashError, VerificationError
 from app.core.errors import ValidationFailed
 from app.core.settings import get_settings
 
-# shortcut: a token list, not the bundled common-password corpus the ADR asks for; with the 12-character
-# minimum it only needs the long favourites. Replace with a real list file before launch.
-_COMMON = {
-    "password1234", "passwordpassword", "123456789012", "1234567890123", "qwertyuiop12", "qwertyuiopasdf",
-    "letmeinletmein", "iloveyou1234", "administrator", "welcome12345", "changemeplease", "password12345",
-}  # fmt: skip
+# The 10,000 most common passwords, bundled so the check never calls out (ADR 0002 section 3). Source and
+# licence: data/README.md. Most entries are shorter than the minimum length; the rest are refused here.
+_COMMON_FILE = Path(__file__).with_name("data") / "common-passwords.txt"
+
+
+@cache
+def _common() -> frozenset[str]:
+    return frozenset(line.strip().lower() for line in _COMMON_FILE.read_text().splitlines() if line.strip())
 
 
 @cache
@@ -52,7 +55,7 @@ def check_policy(password: str, *, forbidden: tuple[str, ...] = ()) -> None:
     lowered = password.lower()
     if (
         not minimum <= len(password) <= 128
-        or lowered in _COMMON
+        or lowered in _common()
         or any(lowered == value.lower() for value in forbidden if value)
     ):
         raise ValidationFailed(

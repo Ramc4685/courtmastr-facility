@@ -20,7 +20,7 @@ API = "/api/v1"
 ANONYMOUS = {
     "/health/live", "/health/ready", "/public/locations", "/operator/tenants",
     "/auth/sign-in", "/auth/magic-links", "/auth/magic-links/consume", "/auth/password-resets",
-    "/auth/password-resets/consume", "/auth/invitations/accept", "/auth/refresh",
+    "/auth/password-resets/consume", "/auth/invitations/accept", "/auth/refresh", "/auth/pre-session",
     "/webhooks/{provider}",  # authenticated by the provider's signature, not a session
     # authenticated by the paired device's kiosk cookie (pairing: the single-use code), not a session
     "/kiosk/pair", "/kiosk/config", "/kiosk/lookups", "/kiosk/check-ins", "/kiosk/exit",
@@ -69,7 +69,8 @@ def test_cross_site_unsafe_requests_are_refused(client, tenant):
     """Browsers send Origin on cross-origin POSTs; ours must match the host or the configured web app."""
     url = f"{API}/auth/sign-in"
     body = {"email": tenant.owner_email, "password": PASSWORD}
-    slug = {"X-Tenant-Slug": tenant.slug}
+    pre = {"X-CSRF-Token": client.get(f"{API}/auth/pre-session").json()["csrf_token"]}  # login CSRF, 5.3 item 4
+    slug = {"X-Tenant-Slug": tenant.slug} | pre
 
     for headers in ({"Origin": "https://evil.example"}, {"Sec-Fetch-Site": "cross-site"}):
         denied = client.post(url, json=body, headers=slug | headers)
@@ -80,11 +81,25 @@ def test_cross_site_unsafe_requests_are_refused(client, tenant):
     assert own_host.status_code == 200
     assert client.post(url, json=body, headers=slug | {"Origin": get_settings().app.web_base_url}).status_code == 200
 
-    # The refresh cookie is not covered by the session-bound CSRF token, so this check is its only guard.
+    # Bearer-free mobile refresh is guarded by the Origin check too.
     assert client.post(f"{API}/auth/refresh", headers={"Origin": "https://evil.example"}).status_code == 403
-    assert client.post(f"{API}/auth/refresh").status_code == 200
     # Safe methods and bearer callers are exempt.
     assert client.get(f"{API}/me", headers={"Origin": "https://evil.example"}).status_code == 200
+
+
+_READ_VERBS = ("get_", "list_", "search_")
+
+
+@pytest.mark.parametrize(
+    ("path", "route", "calls"),
+    [r for r in ROUTES if "GET" in r[1].methods],
+    ids=[p for p, r, _ in ROUTES if "GET" in r.methods],
+)
+def test_no_mutating_get(path, route, calls):
+    """SameSite=Lax sends the session cookie on cross-site top-level GETs, so no GET may change state
+    (security-baseline 5.2). GET handlers are named as reads and take no body."""
+    assert route.name.startswith(_READ_VERBS), f"{route.name}: a GET handler must be a read ({_READ_VERBS})"
+    assert route.body_field is None
 
 
 def test_cookie_secure_is_mandatory_outside_dev_and_test(monkeypatch):

@@ -1,5 +1,6 @@
 """Sign-in, emailed links and server-side sessions (ADR 0002 sections 3 and 4)."""
 
+import hmac
 from dataclasses import dataclass
 from datetime import timedelta
 from urllib.parse import quote
@@ -8,24 +9,36 @@ from uuid import UUID
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.core import audit, clock, context, events
+from app.core import audit, clock, context, events, networks
 from app.core.auth import Principal, passwords, tokens
 from app.core.errors import NotFound, PermissionDenied, Unauthenticated
 from app.core.settings import get_settings
 from app.modules.platform import rbac
 from app.modules.platform.events import IdentityLocked
 from app.modules.platform.models import AuthSession, AuthToken, Identity, StaffUser, Tenant, TokenPurpose
+from app.ports import notifications
 from app.ports.email import EmailMessage, send_after_commit
+
+notifications.register_template(
+    "platform.identity_locked",
+    subject="$app: sign-in paused after failed attempts",
+    body=(
+        "There were too many wrong passwords for your account, so password sign-in is paused for $minutes minutes.\n\n"
+        "You can still sign in with an emailed link. If these attempts were not you, reset your password."
+    ),
+)
 
 
 @dataclass
 class Grant:
-    """A freshly minted session. The raw tokens exist only here; the database keeps hashes."""
+    """A freshly minted session. The raw tokens exist only here; the database keeps hashes. Web sessions carry
+    the session token and a CSRF token; mobile sessions an access and a refresh token."""
 
     auth_session: AuthSession
     principal: Principal
     access_token: str
-    refresh_token: str
+    refresh_token: str | None = None
+    csrf_token: str | None = None
 
 
 def _invalid_credentials(persist: bool = False) -> Unauthenticated:
@@ -51,31 +64,68 @@ def _principal_for(session: Session, identity: Identity, session_id: UUID | None
     return rbac.staff_principal(session, staff, session_id)
 
 
+def check_ip_allowlist(session: Session, principal: Principal) -> None:
+    """PLT-07: staff act only from the tenant's listed networks, unless the list is empty or they hold the
+    bypass key. Checked at sign-in and on every staff request; client sessions and API keys are not staff."""
+    if principal.kind != "staff" or principal.has("platform.security.bypass_ip_allowlist"):
+        return
+    if _outside(session, principal.tenant_id):
+        raise _ip_not_allowed()
+
+
+def _outside(session: Session, tenant_id) -> bool:
+    allowed = session.get(Tenant, tenant_id).staff_ip_allowlist
+    return bool(allowed) and not networks.contains(allowed, context.client_ip.get())
+
+
+def _ip_not_allowed() -> PermissionDenied:
+    return PermissionDenied("Staff access is not allowed from this network.", code="ip-not-allowed")
+
+
+def _refused_before_password(session: Session, audience: str, identity: Identity | None) -> bool:
+    """Decided before the password is checked, and the same for an unknown email, so a refusal from outside
+    the allow-list says nothing about the credentials. Only bypass holders go on to the password check."""
+    if audience != "staff" or not _outside(session, session.info["tenant_id"]):
+        return False
+    principal = identity is not None and identity.kind == "staff" and _principal_for(session, identity)
+    return not (principal and principal.has("platform.security.bypass_ip_allowlist"))
+
+
 def _start_session(session: Session, identity: Identity, client_kind: str) -> Grant:
+    """Web: one token for the session cookie, valid until the sliding idle limit, plus a CSRF token whose hash
+    sits on the row (security-baseline 5.2, 5.3). Mobile: a short access token and a rotating refresh token."""
     cfg = get_settings().auth
     life = cfg.sessions[f"{identity.kind}_{client_kind}"]
     now = clock.now()
     absolute = now + timedelta(days=life.absolute_days)
+    idle = min(now + timedelta(hours=life.idle_hours), absolute)
     access, access_hash = tokens.mint("fhs", identity.tenant_id)
-    refresh, refresh_hash = tokens.mint("fhr", identity.tenant_id)
     row = AuthSession(
-        identity_id=identity.id,
-        kind=client_kind,
-        access_token_hash=access_hash,
-        access_expires_at=now + timedelta(minutes=cfg.access_ttl_min),
-        refresh_token_hash=refresh_hash,
-        idle_expires_at=min(now + timedelta(hours=life.idle_hours), absolute),
-        absolute_expires_at=absolute,
-        ip=context.client_ip.get(),
-        last_seen_at=now,
-    )
+        identity_id=identity.id, kind=client_kind, access_token_hash=access_hash, idle_expires_at=idle,
+        absolute_expires_at=absolute, ip=context.client_ip.get(), last_seen_at=now,
+    )  # fmt: skip
+    grant = Grant(row, None, access)
+    if client_kind == "web":
+        grant.csrf_token = tokens.secret()
+        row.access_expires_at, row.csrf_token_hash = idle, tokens.digest(grant.csrf_token)
+    else:
+        grant.refresh_token, row.refresh_token_hash = tokens.mint("fhr", identity.tenant_id)
+        row.access_expires_at = now + timedelta(minutes=cfg.access_ttl_min)
     session.add(row)
     session.flush()
-    principal = _principal_for(session, identity, row.id)
-    if principal is None:
+    grant.principal = _principal_for(session, identity, row.id)
+    if grant.principal is None:
         raise _invalid_credentials()
+    check_ip_allowlist(session, grant.principal)
     identity.last_sign_in_at = now
-    return Grant(row, principal, access, refresh)
+    return grant
+
+
+def verify_csrf(session: Session, principal: Principal, header: str) -> bool:
+    """A cookie session's X-CSRF-Token against the hash on its row (set by core.auth.deps)."""
+    row = session.get(AuthSession, principal.session_id)
+    expected = row.csrf_token_hash if row else None
+    return bool(expected and header) and hmac.compare_digest(tokens.digest(header), expected)
 
 
 def revoke_sessions(session: Session, identity_id: UUID, reason: str, *, keep: UUID | None = None) -> None:
@@ -88,10 +138,39 @@ def revoke_sessions(session: Session, identity_id: UUID, reason: str, *, keep: U
 # --- password ----------------------------------------------------------------------------------------------
 
 
-def sign_in(session: Session, *, email: str, password: str, audience: str = "staff", client_kind: str = "web") -> Grant:
+def _password_failed(session: Session, identity: Identity) -> None:
+    """Count a wrong password inside the lockout window (baseline 5.1). The threshold locks password sign-in:
+    15 minutes, doubling with each further lockout up to the cap, and mails the owner once per lockout.
+    Attempts while locked are refused before they get here, so they neither count nor mail."""
     cfg = get_settings().auth
     now = clock.now()
+    started = identity.failed_window_started_at
+    if started is None or now - started > timedelta(minutes=cfg.lockout_window_min):
+        identity.failed_window_started_at, identity.failed_attempt_count = now, 0
+    identity.failed_attempt_count += 1
+    if identity.failed_attempt_count < cfg.lockout_threshold:
+        return
+    minutes = min(cfg.lockout_min * 2 ** min(identity.lockout_count, 16), cfg.lockout_max_min)
+    identity.locked_until_at = now + timedelta(minutes=minutes)
+    identity.lockout_count += 1
+    identity.failed_attempt_count, identity.failed_window_started_at = 0, None
+    events.publish(session, IdentityLocked(identity_id=identity.id), identity.id)
+    data = {"app": get_settings().app.display_name, "minutes": minutes}
+    notifications.send(session, "platform.identity_locked", identity.email, data)
+
+
+def _clear_failures(identity: Identity) -> None:
+    """A proven sign-in (right password, redeemed link) ends the failure window and the doubling."""
+    identity.failed_attempt_count, identity.failed_window_started_at = 0, None
+    identity.locked_until_at, identity.lockout_count = None, 0
+
+
+def sign_in(session: Session, *, email: str, password: str, audience: str = "staff", client_kind: str = "web") -> Grant:
+    now = clock.now()
     identity = _find_identity(session, audience, email)
+    if _refused_before_password(session, audience, identity):
+        passwords.burn(password)
+        raise _ip_not_allowed()
     if identity is None or identity.password_hash is None:
         passwords.burn(password)
         raise _invalid_credentials()
@@ -102,18 +181,14 @@ def sign_in(session: Session, *, email: str, password: str, audience: str = "sta
         )
     actor = Principal(kind=identity.kind, tenant_id=identity.tenant_id, identity_id=identity.id, email=identity.email)
     if not passwords.verify_password(identity.password_hash, password):
-        identity.failed_attempt_count += 1
-        if identity.failed_attempt_count >= cfg.lockout_threshold:
-            identity.failed_attempt_count = 0
-            identity.locked_until_at = now + timedelta(minutes=cfg.lockout_min)
-            events.publish(session, IdentityLocked(identity_id=identity.id), identity.id)
+        _password_failed(session, identity)
         audit.record(session, "platform.identity.sign_in_failed", identity, actor=actor)
         raise _invalid_credentials(persist=True)
     if identity.status != "active":
         raise _invalid_credentials()
     if passwords.needs_rehash(identity.password_hash):
         identity.password_hash = passwords.hash_password(password)
-    identity.failed_attempt_count, identity.locked_until_at = 0, None
+    _clear_failures(identity)
     grant = _start_session(session, identity, client_kind)
     audit.record(session, "platform.identity.sign_in", identity, actor=grant.principal)
     return grant
@@ -122,21 +197,16 @@ def sign_in(session: Session, *, email: str, password: str, audience: str = "sta
 def reauthenticate(session: Session, principal: Principal, password: str) -> None:
     """Re-check the signed-in staff user's own password before a time-clock punch (STF-07). Failures count
     toward the same lockout as sign-in, so a punch screen cannot be used to guess. Raise before any write."""
-    cfg = get_settings().auth
     now = clock.now()
     identity = session.get(Identity, principal.identity_id)
     if identity is None or identity.password_hash is None or (identity.locked_until_at or now) > now:
         passwords.burn(password)
         raise PermissionDenied("Password is incorrect.", code="reauthentication-failed")
     if not passwords.verify_password(identity.password_hash, password):
-        identity.failed_attempt_count += 1
-        if identity.failed_attempt_count >= cfg.lockout_threshold:
-            identity.failed_attempt_count = 0
-            identity.locked_until_at = now + timedelta(minutes=cfg.lockout_min)
-            events.publish(session, IdentityLocked(identity_id=identity.id), identity.id)
+        _password_failed(session, identity)
         audit.record(session, "platform.identity.reauthentication_failed", identity)
         raise PermissionDenied("Password is incorrect.", code="reauthentication-failed", persist=True)
-    identity.failed_attempt_count = 0
+    _clear_failures(identity)
 
 
 _FRESH_PROOF = timedelta(minutes=15)  # the step-up window of rbac-matrix.md section 2
@@ -181,7 +251,7 @@ def _set_password(session: Session, identity: Identity, new_password: str, *name
     passwords.check_policy(new_password, forbidden=(identity.email, *names))
     identity.password_hash = passwords.hash_password(new_password)
     identity.password_changed_at = clock.now()
-    identity.failed_attempt_count, identity.locked_until_at = 0, None
+    _clear_failures(identity)
     settings = get_settings()
     body = "The password for your account was just set or changed. If this was not you, reset it now."
     send_after_commit(
@@ -273,7 +343,7 @@ def consume_magic_link(session: Session, *, token: str, client_kind: str = "web"
         raise Unauthenticated("This link is not valid or was already used.", code="token-invalid")
     # Redeeming the link proves the mailbox: verify the address and clear a password lockout.
     identity.email_verified_at = identity.email_verified_at or clock.now()
-    identity.failed_attempt_count, identity.locked_until_at = 0, None
+    _clear_failures(identity)
     grant = _start_session(session, identity, client_kind)
     audit.record(session, "platform.identity.sign_in", identity, actor=grant.principal, reason="magic_link")
     return grant
@@ -323,7 +393,8 @@ def accept_invitation(
 
 
 def authenticate(session: Session, access_token: str) -> Principal:
-    """Access token -> Principal: one indexed lookup under the tenant named by the token prefix."""
+    """Session or access token -> Principal: one indexed lookup under the tenant named by the token prefix.
+    A web session slides its idle limit on use (never past the absolute one)."""
     now = clock.now()
     row = session.execute(
         select(AuthSession).where(AuthSession.access_token_hash == tokens.digest(access_token))
@@ -336,8 +407,13 @@ def authenticate(session: Session, access_token: str) -> Principal:
     principal = _principal_for(session, identity, row.id) if identity.status == "active" else None
     if principal is None:  # deactivation is immediate: the next request fails
         raise Unauthenticated("Your session has expired. Sign in again.")
+    check_ip_allowlist(session, principal)
     if row.last_seen_at is None or now - row.last_seen_at > timedelta(minutes=1):
         row.last_seen_at = now
+        if row.kind == "web":
+            life = get_settings().auth.sessions[f"{identity.kind}_web"]
+            row.idle_expires_at = min(now + timedelta(hours=life.idle_hours), row.absolute_expires_at)
+            row.access_expires_at = row.idle_expires_at
     return principal
 
 

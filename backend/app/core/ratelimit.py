@@ -1,14 +1,20 @@
-"""Fixed-window Redis rate limit for the anonymous auth endpoints (ADR 0002 abuse controls)."""
+"""Redis rate limits for the auth endpoints (security-baseline 6). Buckets and their defaults are configuration
+(`rate_limit.buckets`); a bucket marked closed refuses while Redis is unreachable, the rest allow.
+
+shortcut: fixed windows rather than the baseline's sliding window, so a burst straddling a window edge can
+reach twice the limit once; move to a Lua sliding log if that ever matters.
+"""
 
 import logging
 from functools import cache
 
 import redis
-from fastapi import Request
+from fastapi import Response
 
-from app.core import clock
+from app.core import clock, context
+from app.core.auth.tokens import digest
 from app.core.errors import DomainError
-from app.core.settings import get_settings
+from app.core.settings import Bucket, get_settings
 
 log = logging.getLogger(__name__)
 
@@ -18,24 +24,51 @@ def _redis() -> redis.Redis:
     return redis.Redis.from_url(get_settings().redis.url, socket_timeout=0.5)
 
 
+def _bucket(name: str) -> Bucket:
+    buckets = get_settings().rate_limit.buckets
+    return buckets.get(name) or buckets["default"]
+
+
+def hit(name: str, subject: str, response: Response | None = None, *, tenant: object = "-") -> None:
+    """Count one request against `name` for `subject` (an IP, an email, an identity). Over the limit: 429 with
+    Retry-After. Within it: RateLimit-* headers on `response`. Subjects are hashed: no addresses in Redis."""
+    if not get_settings().rate_limit.enabled:
+        return
+    bucket = _bucket(name)
+    now = clock.now().timestamp()
+    window = int(now // bucket.window_sec)
+    reset = max(int(bucket.window_sec - now % bucket.window_sec), 1)
+    key = f"rl:{tenant}:{name}:{digest(subject.lower())[:32]}:{window}"
+    try:
+        pipe = _redis().pipeline()
+        pipe.incr(key)
+        pipe.expire(key, bucket.window_sec)
+        count = pipe.execute()[0]
+    except redis.RedisError:
+        log.warning("rate limit unavailable", extra={"bucket": name})
+        if bucket.closed:
+            raise DomainError(
+                "This is briefly unavailable. Try again shortly.",
+                status=503, code="rate-limit-unavailable", headers={"Retry-After": "30"},
+            ) from None  # fmt: skip
+        return
+    headers = {
+        "RateLimit-Limit": str(bucket.limit),
+        "RateLimit-Remaining": str(max(bucket.limit - count, 0)),
+        "RateLimit-Reset": str(reset),
+    }
+    if count > bucket.limit:
+        raise DomainError(
+            "Too many requests", status=429, code="rate-limited", headers=headers | {"Retry-After": str(reset)}
+        )
+    if response is not None:
+        response.headers.update(headers)
+
+
 def rate_limit(name: str):
-    def dependency(request: Request) -> None:
-        cfg = get_settings().rate_limit
-        if not cfg.enabled:
-            return
-        ip = request.client.host if request.client else "unknown"
-        window = int(clock.now().timestamp() // 60)
-        key = f"rl:{name}:{ip}:{window}"
-        try:
-            pipe = _redis().pipeline()
-            pipe.incr(key)
-            pipe.expire(key, 60)
-            count = pipe.execute()[0]
-        except redis.RedisError:
-            # Fail open: sign-in must survive a Redis outage; per-identity lockout still applies.
-            log.warning("rate limit unavailable")
-            return
-        if count > cfg.auth_per_minute:
-            raise DomainError("Too many requests", status=429, code="rate-limited", headers={"Retry-After": "60"})
+    """Route dependency: one bucket keyed by the client IP (trusted-proxy aware, see core.api)."""
+
+    def dependency(response: Response) -> None:
+        hit(name, context.client_ip.get() or "unknown", response)
 
     return dependency

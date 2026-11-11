@@ -17,7 +17,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import CITEXT, INET
+from sqlalchemy.dialects.postgresql import CIDR, CITEXT, INET
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base, JsonDict, TenantOwned, Timestamps, WallTime, enum_check, enum_column, tenant_args, tfk
@@ -123,6 +123,8 @@ class Tenant(Timestamps, Base):
     is_listed_in_app_directory: Mapped[bool] = _false()
     app_directory_name: Mapped[str | None]
     settings: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))
+    # Staff may act only from these networks unless they hold platform.security.bypass_ip_allowlist (PLT-07).
+    staff_ip_allowlist: Mapped[list[Any]] = mapped_column(ARRAY(CIDR), server_default=text("'{}'"))
 
 
 class TenantDomain(TenantOwned, Timestamps, Base):
@@ -283,7 +285,9 @@ class Identity(TenantOwned, Timestamps, Base):
     status: Mapped[str] = enum_column(server_default=text("'invited'"))
     merged_into_identity_id: Mapped[UUID | None]
     failed_attempt_count: Mapped[int] = mapped_column(server_default=text("0"))
+    failed_window_started_at: Mapped[datetime | None]  # failures count inside one lockout window
     locked_until_at: Mapped[datetime | None]
+    lockout_count: Mapped[int] = mapped_column(server_default=text("0"))  # doubles the next lockout
     password_changed_at: Mapped[datetime | None]
     last_sign_in_at: Mapped[datetime | None]
 
@@ -418,7 +422,8 @@ class AuthToken(TenantOwned, Timestamps, Base):
 
 
 class AuthSession(TenantOwned, Timestamps, Base):
-    """One row per sign-in: a 30-minute access token and a rotating refresh token, both hashed."""
+    """One row per sign-in, every secret hashed. Web: one sliding session token in the session cookie plus a
+    CSRF token. Mobile: a short access token and a rotating refresh token."""
 
     __tablename__ = "auth_session"
     __table_args__ = tenant_args(
@@ -446,6 +451,7 @@ class AuthSession(TenantOwned, Timestamps, Base):
     kind: Mapped[str] = enum_column()
     access_token_hash: Mapped[str] = mapped_column(info={"audit": "never"})
     access_expires_at: Mapped[datetime]
+    csrf_token_hash: Mapped[str | None] = mapped_column(info={"audit": "never"})  # web sessions only
     refresh_token_hash: Mapped[str | None] = mapped_column(info={"audit": "never"})
     previous_refresh_token_hash: Mapped[str | None] = mapped_column(info={"audit": "never"})
     refresh_rotated_at: Mapped[datetime | None]

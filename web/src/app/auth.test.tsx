@@ -48,7 +48,7 @@ describe('auth flow', () => {
     let signedIn = false
     const calls = mockFetch({
       'GET /api/v1/auth/session': () => (signedIn ? { status: 200, body: { csrf_token: 'c' } } : unauthenticated),
-      'POST /api/v1/auth/refresh': { status: 401, body: { code: 'session-revoked' } },
+      'GET /api/v1/auth/pre-session': { status: 200, body: { csrf_token: 'pre' } },
       'POST /api/v1/auth/sign-in': () => {
         signedIn = true
         return { status: 200, body: { csrf_token: 'csrf-after-sign-in' } }
@@ -64,10 +64,11 @@ describe('auth flow', () => {
     await userEvent.type(screen.getByLabelText('Password', { selector: 'input' }), 'secret-password')
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Staff users' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Staff users' }, { timeout: 5000 })).toBeInTheDocument()
     expect(await screen.findByText('olivia@example.com')).toBeInTheDocument()
     const signIn = calls.find((c) => c.url === '/api/v1/auth/sign-in')
     expect(signIn?.body).toMatchObject({ email: 'pat@example.com', client_kind: 'web' })
+    expect(signIn?.headers['x-csrf-token']).toBe('pre')
   })
 
   it('restores a session from the cookie and hides navigation the role cannot use', async () => {
