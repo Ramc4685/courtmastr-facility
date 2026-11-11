@@ -647,6 +647,8 @@ def copy_competition_teams(session: Db, principal: Principal, competition_id: UU
                 select(RosterEntry).where(RosterEntry.competition_team_id == old.id, RosterEntry.status == "active")
             )
             for person in people:
+                if person.client_id is not None:  # the same client reach as adding the place by hand
+                    clients.service.load(session, principal, person.client_id, ROSTER)
                 session.add(RosterEntry(
                     competition_team_id=entry.id, client_id=person.client_id, first_name=person.first_name,
                     last_name=person.last_name, role=person.role, jersey_number=person.jersey_number,

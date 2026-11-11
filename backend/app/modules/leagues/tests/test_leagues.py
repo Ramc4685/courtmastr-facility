@@ -526,6 +526,15 @@ def test_w2_07_bracket_booking_needs_the_games_key_and_copied_rosters_the_roster
                 session, teams_only, UUID(target["id"]),
                 {"source_competition_id": UUID(comp["id"]), "includes_rosters": True},
             )  # fmt: skip
+        narrow = Principal(
+            kind="staff", tenant_id=tenant.id, staff_user_id=uuid4(),
+            permissions={service.TEAMS: "all", service.ROSTER: "own"},
+        )  # fmt: skip
+    # A copied roster client is loaded like a hand-added one; the raise rolls the whole copy back.
+    with pytest.raises(NotFound), tenant_session(tenant.id, actor=narrow) as session:
+        service.copy_competition_teams(
+            session, narrow, UUID(target["id"]), {"source_competition_id": UUID(comp["id"]), "includes_rosters": True}
+        )
     copied = ok(client.post(f"{API}/competitions/{target['id']}/teams/copy", headers=owner,
                             json={"source_competition_id": comp["id"], "includes_rosters": True}), 201)  # fmt: skip
     assert len(copied) == 2
