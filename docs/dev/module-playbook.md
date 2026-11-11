@@ -49,6 +49,37 @@ new module must know. The rules that integration added:
 - **"Today"** is `platform.service.location_today`; a tenant-wide rule uses `earliest_today`. Never
   `clock.now().date()`, in code or in tests.
 
+## Security rules for new modules (wave 1 hardening)
+
+Full findings and tests: `docs/security/wave1-hardening-spec.md`, `docs/status/security-wave1.md`.
+
+- **Scope comes from the key.** An `L` key is always `authorize(principal, key,
+  location_id=record.location_id)` on the loaded record; a `C` key needs no location but does need the
+  client loaded through `clients.service.load`; a write to a tenant-wide row uses `authorize_tenant_wide`.
+- **Every id from a request goes through the context's scoped loader**, including ids in the body and
+  bulk-by-ids lists, which get the same reach filter as the list endpoint. No bare `session.get` in a
+  command.
+- **Gates live in the shared inner function.** If two paths reach the same effect (create and promote,
+  create and "add more", single and series), the check sits where they meet, not in one caller.
+- **A privileged flag is a permission, wherever it is set.** `override_*`, `allows_free_*`,
+  complimentary, price and commission fields need their own key on create, on generic update and on bulk
+  edit; a copied template never carries one over.
+- **Money goes only where its owner points it.** A payment, stored method or account credit is used for
+  the client it belongs to (or a live relative); each tender type checks its own billing key.
+- **Online checkout secures payment first.** Every portal sale with a non-zero total ends in
+  `billing.checkout.secure_online_checkout` inside the sale's transaction; never decide "paid" from
+  `invoice is not None` or from a client-supplied mode, date or autopay flag.
+- **Portal routes have portal schemas and derived inputs.** No response model shared with a staff route, no
+  staff notes or actor ids, no other client's id; the payer, signer role, verification state and anything
+  age-related are derived on the server, never taken from the client.
+- **Evidence is append-only.** Signed-document hashes, ledger rows and decided records are never rewritten;
+  a correction is a new row under a void-level key. Logs of a change store field names, not personal values.
+- **Nothing a caller sends is formatted into a provider query.** Validate at the edge, escape at the sink,
+  and check that what came back is what was asked for.
+- **Three generated guards must stay green without edits to their allow-lists:** `test_isolation.py`
+  (tenant), `test_location_scope.py` (location), `test_portal_schemas.py` (portal). Adding a route to an
+  allow-list is a reviewed decision with a one-line reason.
+
 ## Kernel slices you build on (do not re-invent)
 
 Shipped ahead of their modules; details in each module `README.md` and `docs/status/kernel-slice.md`.

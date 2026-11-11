@@ -152,3 +152,10 @@ def test_platform_role_reaches_only_its_grant_list():
     }  # fmt: skip
     with pytest.raises(DBAPIError, match="permission denied"), platform.platform_engine().connect() as conn:
         conn.execute(text("SELECT count(*) FROM identity"))
+
+
+@pytest.mark.parametrize("key", ["x' OR status:'succeeded", "a b", "k" * 256, ""])
+def test_idempotency_keys_are_plain_tokens(client, owner, key):
+    """The key reaches provider queries (Stripe Search) and logs: only [A-Za-z0-9_.:-]{1,255} is accepted."""
+    response = client.post(f"{API}/locations", headers=owner | {"Idempotency-Key": key}, json={})
+    assert response.status_code == 422 and "idempotency-key" in response.text.lower(), response.text

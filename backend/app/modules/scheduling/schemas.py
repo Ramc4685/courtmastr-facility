@@ -379,6 +379,7 @@ class SeriesRuleAdd(In):
     resources: Resources | None = None
     on_conflict: OnConflict = "abort"
     preview: bool = False
+    override_policy: bool = False
 
 
 class SeriesRuleAdded(BookingCreated):

@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, current_ctx, public_session, require
 from app.core.errors import ValidationFailed
-from app.core.idempotency import idempotency
+from app.core.idempotency import KEY_PATTERN, idempotency
 from app.core.pagination import ListQuery, list_query
 from app.modules.packages import schemas as s
 from app.modules.packages import service
@@ -26,8 +26,12 @@ router = APIRouter(
 )
 public = APIRouter(route_class=TxRoute, tags=["packages"], generate_unique_id_function=camel_id)
 Lists = Annotated[ListQuery, Depends(list_query)]
-Key = Annotated[str | None, Header(max_length=255, description="Required with a card or bank payment.")]
-RequiredKey = Annotated[str, Header(min_length=8, max_length=255, description="Required; keys live 24 hours.")]
+Key = Annotated[
+    str | None, Header(max_length=255, pattern=KEY_PATTERN, description="Required with a card or bank payment.")
+]
+RequiredKey = Annotated[
+    str, Header(min_length=8, max_length=255, pattern=KEY_PATTERN, description="Required; keys live 24 hours.")
+]
 Read = Annotated[Ctx, Depends(require("packages.package.read"))]
 Sell = Annotated[Ctx, Depends(require("packages.package.sell"))]
 Manage = Annotated[Ctx, Depends(require("packages.plan.manage"))]
@@ -216,7 +220,7 @@ def portal_buy_client_package(body: s.PortalPackageBuy, ctx: Portal, idempotency
     return service.portal_buy(ctx.session, ctx.principal, body.model_dump(), idempotency_key)
 
 
-@router.get("/portal/client-packages/{package_id}/ledger", response_model=s.Page[s.CreditLedgerEntryOut])
+@router.get("/portal/client-packages/{package_id}/ledger", response_model=s.Page[s.PortalCreditLedgerEntryOut])
 def list_portal_client_package_ledger(package_id: UUID, query: Lists, ctx: Portal):
     return service.portal_list_ledger(ctx.session, ctx.principal, package_id, query)
 
@@ -233,7 +237,7 @@ def portal_opt_out_package_auto_renew(package_id: UUID, ctx: Portal):
     return service.portal_disable_auto_renew(ctx.session, ctx.principal, package_id)
 
 
-@router.post("/portal/package-series/{series_id}/auto-renew-opt-out", response_model=s.PackageSeriesOut)
+@router.post("/portal/package-series/{series_id}/auto-renew-opt-out", response_model=s.PortalPackageSeriesOut)
 def portal_opt_out_series_auto_renew(series_id: UUID, ctx: Portal):
     return service.portal_disable_series_auto_renew(ctx.session, ctx.principal, series_id)
 

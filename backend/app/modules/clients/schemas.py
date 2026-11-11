@@ -619,9 +619,17 @@ class MergeBlocker(Out):
     client_id: UUID
 
 
+class MergeReviewItem(Out):
+    client_id: UUID
+    kind: Literal["portal_access", "relationship"]
+    id: UUID
+    detail: str
+
+
 class MergePrecheck(Out):
     survivor_client_id: UUID
     merged_client_ids: list[UUID]
     blockers: list[MergeBlocker]
+    review: list[MergeReviewItem]
     backfill_fields: list[str]
     can_merge: bool

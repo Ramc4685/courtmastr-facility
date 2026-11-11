@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.core import clock
 from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, current_ctx, public_session, require
-from app.core.idempotency import idempotency
+from app.core.idempotency import KEY_PATTERN, idempotency
 from app.core.pagination import ListQuery, list_query, paginate
 from app.core.ratelimit import rate_limit
 from app.modules.billing import autopay, catalogue, desk, documents, methods, portal, service, webhooks
@@ -26,7 +26,9 @@ router = APIRouter(
 Lists = Annotated[ListQuery, Depends(list_query)]
 # Money movement must be replay-safe (overview 3.12): these routes refuse a request without the header.
 # The parameter must be called idempotency_key: it then merges with the router-level optional header in OpenAPI.
-RequiredKey = Annotated[str, Header(min_length=8, max_length=255, description="Required; keys live 24 hours.")]
+RequiredKey = Annotated[
+    str, Header(min_length=8, max_length=255, pattern=KEY_PATTERN, description="Required; keys live 24 hours.")
+]
 
 
 @router.get("/revenue-categories", response_model=s.Page[s.RevenueCategoryOut])
@@ -493,7 +495,7 @@ def get_receipt(payment_id: UUID, ctx: Ctx = Depends(require("billing.payment.re
 
 
 @router.post("/payments/{payment_id}/receipt-deliveries", response_model=s.DeliveryOut, status_code=201)
-def send_receipt(payment_id: UUID, body: s.DocumentSendRequest, ctx: Ctx = Depends(require("billing.payment.read"))):
+def send_receipt(payment_id: UUID, body: s.DocumentSendRequest, ctx: Ctx = Depends(require("billing.invoice.send"))):
     return documents.send_receipt(ctx.session, ctx.principal, payment_id, body.model_dump())
 
 
@@ -665,7 +667,7 @@ def disconnect_provider_account(provider_account_id: UUID, ctx: Ctx = Depends(re
 # --- client portal: ownership is checked in billing.portal -------------------------------------------------
 
 
-@router.get("/portal/invoices", response_model=s.Page[s.InvoiceOut])
+@router.get("/portal/invoices", response_model=s.Page[s.PortalInvoiceOut])
 def list_portal_invoices(query: Lists, ctx: Client):
     """The caller's invoices. Filter is_payable=true for what can be paid now."""
     return portal.list_invoices(ctx.session, ctx.principal, query)
@@ -676,7 +678,7 @@ def get_portal_invoice(invoice_id: UUID, ctx: Client):
     return portal.get_invoice(ctx.session, ctx.principal, invoice_id)
 
 
-@router.get("/portal/payments", response_model=s.Page[s.PaymentOut])
+@router.get("/portal/payments", response_model=s.Page[s.PortalPaymentOut])
 def list_portal_payments(query: Lists, ctx: Client):
     return portal.list_payments(ctx.session, ctx.principal, query)
 

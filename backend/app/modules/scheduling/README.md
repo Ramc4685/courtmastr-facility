@@ -75,3 +75,13 @@ winner named. Moves delete and re-insert the booking's holds in one transaction 
 registration links (SCH-16; the token column exists and is filled), per-type staff grants (SCH-05), public
 schedule (SCH-20), calendar feeds (SCH-19), series merge (SCH-21), the `rpt_booking` and `rpt_session_fill`
 views, `enrollment_action` on reschedule. (Merge and erasure are handled since integration: `subject.py`.)
+
+## Security hardening (wave 1, S-02 to S-04)
+
+- Turning `allows_free_booking` on (create, `PATCH /sessions/{id}`, series mass edit) needs
+  `scheduling.enrollment.free_book` at the location; re-sending a value that is already on does not.
+- `add_rule` never copies the policy override or the original creator into a new pass: `override_policy` is
+  true only when the request asks and the caller holds `override_policy` at the series' location, and the
+  new occurrences are attributed to the caller. `key` both gates and audits the pass.
+- The tenant-wide scheduling settings (`location_id` absent) need `platform.location.update` at every
+  location (`authorize_tenant_wide`).

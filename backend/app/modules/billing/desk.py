@@ -216,14 +216,7 @@ def reassign_invoice_payer(session: Session, principal: Principal, invoice_id: U
     relationship in `clients`): a parent pays for a child, never a stranger. Manager and above; audited."""
     invoice = _invoice(session, principal, invoice_id, "billing.invoice.reassign_payer")
     on_invoice = set(session.scalars(select(Charge.client_id).where(Charge.invoice_id == invoice.id)))
-    on_invoice = (on_invoice | {invoice.bill_to_client_id}) - {None}
-    relatives = {
-        other
-        for person in on_invoice
-        for rel in clients.households.relationships_of(session, person, live_only=True)
-        for other in (rel.from_client_id, rel.to_client_id)
-    }
-    if data["bill_to_client_id"] not in on_invoice | relatives:
+    if data["bill_to_client_id"] not in service.related_clients(session, on_invoice | {invoice.bill_to_client_id}):
         raise ValidationFailed(
             "Choose someone on the invoice or a relative of theirs.", pointer="/bill_to_client_id",
             code="payer-not-related",
@@ -235,8 +228,7 @@ def reassign_invoice_payer(session: Session, principal: Principal, invoice_id: U
 def mark_invoice_paid(session: Session, principal: Principal, invoice_id: UUID, data: dict, key: str) -> dict:
     """BIL-23: record that the invoice was paid elsewhere. It never sets a status: it inserts a record-only
     `external` payment for the balance and allocates it."""
-    invoice = service._get(session, Invoice, invoice_id)
-    authorize(principal, "billing.payment.take")
+    invoice = _invoice(session, principal, invoice_id, "billing.payment.take")
     if invoice.status not in ("open", "partially_paid") or invoice.balance_minor <= 0:
         raise Conflict("Nothing is owed on this invoice.", code="invoice-not-payable")
     payment = service.take_payment(
@@ -283,8 +275,7 @@ def _payment(session: Session, principal: Principal, payment_id: UUID, key: str)
 
 
 def cancel_payment(session: Session, principal: Principal, payment_id: UUID) -> dict:
-    authorize(principal, "billing.payment.take")
-    service._get(session, Payment, payment_id)
+    _payment(session, principal, payment_id, "billing.payment.take")
     return service._payment_detail(session, service.cancel_payment(session, payment_id))
 
 
@@ -333,4 +324,5 @@ def refund_account_credit(session: Session, principal: Principal, client_id: UUI
         amount_minor=data["amount_minor"],
         reason=data["reason"],
         idempotency_key=f"staff:{principal.actor_id}:{key}",
+        location_ids=None if principal.kind == "system" else principal.location_ids,
     )

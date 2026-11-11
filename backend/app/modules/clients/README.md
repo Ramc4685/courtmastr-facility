@@ -45,3 +45,20 @@ the portal member card, a scheduler for task reminders, derived system alerts, a
 - `is_own_clients_scope_enabled` is stored only; RBAC reach decides visibility.
 - A user's saved list filters live in browser localStorage; the named views are server code.
 - Merge runs synchronously in one transaction; `client_merge` history is never re-pointed.
+
+## Security hardening (wave 1, P-01 to P-07)
+
+- Every client command loads the client through `service.load`, including task and relationship bodies; a
+  body id outside the caller's reach is 422 at its pointer, a path id is 404.
+- A portal request for a guardianship over a minor (either side of the type) is stored `pending` with no
+  token and no email; only staff `approve_relationship` activates it, and the minor cannot end it in the
+  portal (409 `staff-approval-required`). Minor tests use the home location's date.
+- The portal may set `birth_on` only while it is blank (422 `field-locked`).
+- Merge never carries acting rights: the loser's manager access rows are revoked and its live relationships
+  that grant acting rights (from either side) end. `merge-precheck` lists them under `review` so staff
+  re-grant on purpose. Rights already held on the survivor's own record are untouched.
+  A portal-created record cannot survive a merge with a staff-created one (blocker `survivor-portal-created`):
+  the staff record must be the survivor, so a portal manager never inherits the real record's history.
+- A portal-created record matches as a duplicate on email only through a verified address.
+- `client_merge.backfilled_fields` stores field names only (`{field: true}`): the table is append-only and
+  erasure cannot clear values. Rows written before this change exist only in demo tenants.

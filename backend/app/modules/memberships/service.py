@@ -62,6 +62,8 @@ _CANCEL, _SHARE, _VISITS = (
     "memberships.contract.adjust_visits",
 )
 _SOLD_BY, _SCHEDULE = "memberships.contract.edit_sold_by", "memberships.billing_schedule.update"
+# shortcut: a fixed window for online start dates, no plan setting; make it a plan field when owners ask
+ONLINE_START_WINDOW_DAYS = 30
 _ONE_DAY = timedelta(days=1)
 _SOURCE = ("memberships", "membership_contract")
 Period = BillingSchedulePeriod
@@ -500,6 +502,12 @@ def _add_share(session: Session, contract: MembershipContract, client_id: UUID, 
 def _sell(session: Session, principal: Principal, data: dict, channel: str):
     """The sale itself, shared by the desk and the portal. Returns (contract, invoice for what is due now)."""
     fields, periods = _draft(session, principal, data, channel)
+    if channel == "staff":  # what the sale carries is gated like the commands that would set it later
+        if data.get("share_client_ids"):
+            authorize(principal, _SHARE, location_id=fields["location_id"])
+        sold_by = data.get("sold_by_staff_user_id")
+        if sold_by and sold_by != _staff_id(principal):
+            authorize(principal, _SOLD_BY, location_id=fields["location_id"])
     contract = MembershipContract(**fields)
     session.add(contract)
     session.flush()
@@ -1709,9 +1717,22 @@ def public_list_plans(session: Session, query: ListQuery) -> dict:
 
 
 def _portal_sale(session: Session, principal: Principal, data: dict) -> dict:
+    """The sale a portal caller may ask for. The server decides autopay (on: whatever falls due later is
+    charged to the stored method) and the start date stays within ONLINE_START_WINDOW_DAYS from today."""
     subject = _portal_client(session, principal, data.get("client_id"), "buy")
+    start_on = data.get("start_on")
+    if start_on is not None:
+        try:
+            today = _today(session, data["location_id"])
+        except NotFound:
+            raise ValidationFailed("Unknown location.", pointer="/location_id") from None
+        if not today <= start_on <= today + timedelta(days=ONLINE_START_WINDOW_DAYS):
+            raise ValidationFailed(
+                f"An online membership starts within {ONLINE_START_WINDOW_DAYS} days from today.",
+                pointer="/start_on",
+            )  # fmt: skip
     keys = ("location_id", "membership_plan_id", "start_on", "proration_tail", "is_auto_renew")
-    return {key: data.get(key) for key in keys} | {"client_id": subject, "is_autopay": data.get("is_autopay")}
+    return {key: data.get(key) for key in keys} | {"client_id": subject, "is_autopay": True}
 
 
 def portal_quote(session: Session, principal: Principal, data: dict) -> dict:
@@ -1720,21 +1741,16 @@ def portal_quote(session: Session, principal: Principal, data: dict) -> dict:
 
 def portal_buy(session: Session, principal: Principal, data: dict, idempotency_key: str) -> dict:
     """Buy a membership online, for oneself or a client one may buy for (MEM-09). Whatever is due now must be
-    paid by card or bank debit and go through, or nothing is sold. A plan whose document is enforced online
-    leaves the contract `upcoming` until that document is accepted in the portal (MEM-08)."""
+    paid by card or bank debit and go through, or nothing is sold; with nothing due now, the card or bank
+    account is stored as the owner's autopay method for what falls due later. A plan whose document is
+    enforced online leaves the contract `upcoming` until that document is accepted in the portal (MEM-08)."""
     contract, invoice = _sell(session, principal, _portal_sale(session, principal, data), "portal")
-    payment = None
-    if invoice is not None:
-        if not data.get("method_token"):
-            raise ValidationFailed("A payment method is needed for what is due now.", pointer="/method_token")
-        payment = billing.service.take_payment(
-            session, client_id=contract.owner_client_id, location_id=contract.location_id, origin="portal",
-            amount_minor=invoice.balance_minor, tender_kind=data.get("tender_kind") or "card",
-            method_token=data["method_token"], idempotency_key=idempotency_key, invoice_id=invoice.id,
-        )  # fmt: skip
-        # `unknown` (the processor did not answer) is not a decline: the sale stands, the payment is confirmed later
-        if payment.status not in ("succeeded", "processing", "unknown"):
-            raise Conflict("The payment did not go through, so nothing was bought.", code="payment-failed")
+    payment = billing.checkout.secure_online_checkout(
+        session, client_id=contract.owner_client_id, location_id=contract.location_id,
+        total_minor=sum(row.amount_minor for row in _rows(session, contract.id)), invoice=invoice,
+        idempotency_key=idempotency_key, method_token=data.get("method_token"),
+        tender_kind=data.get("tender_kind") or "card", must_pay_now=False,
+    )  # fmt: skip
     return _sale_view(session, contract, invoice, payment)
 
 

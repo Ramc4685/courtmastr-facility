@@ -272,7 +272,7 @@ def get_receipt(session: Session, principal: Principal, payment_id: UUID) -> dic
 
 
 def send_receipt(session: Session, principal: Principal, payment_id: UUID, data: dict) -> BillingDocumentDelivery:
-    authorize(principal, "billing.payment.read")
+    authorize(principal, "billing.invoice.send")
     payment = service._get(session, Payment, payment_id)
     if payment.status not in ("succeeded", "voided", "disputed", "charged_back"):
         raise Conflict("A receipt exists once the payment has settled.", code="payment-not-settled")

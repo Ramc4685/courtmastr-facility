@@ -81,3 +81,12 @@ a `refund` charge action on cancel (billing's refund of a specific payment is mo
 the `rpt_rental_booking` and `rpt_rental_plan_sale` views (RNT-12), lockers (RNT-17, RNT-18: no locker
 tables), POS rental items (RNT-14 to RNT-16, module 9). Web: no portal booking screen, no extend, move or
 public-schedule control, no tax picker on rates (no tax list endpoint), one resource per rental in the form.
+
+## Security hardening (wave 1, S-05, S-06)
+
+- Extending a rental checks the given resources against the rental type's resources, as create does, and
+  passes the principal to `scheduling.add_rule` under `rentals.booking.update`; an override is never
+  inherited from the series.
+- Portal rental routes answer `PortalRentalOut`, `PortalRentalCheckout` and `PortalRentalCancelResult`:
+  no co-party ids, no charge or invoice ids. Confirmation decides "secured" through
+  `billing.checkout.is_secured`.

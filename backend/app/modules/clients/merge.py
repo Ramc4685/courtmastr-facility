@@ -17,7 +17,7 @@ from app.core import audit, clock, events
 from app.core.auth import Principal, authorize
 from app.core.errors import Conflict, ValidationFailed
 from app.modules import platform
-from app.modules.clients import service
+from app.modules.clients import households, service
 from app.modules.clients.events import ClientMerged
 from app.modules.clients.models import (
     Client,
@@ -61,7 +61,7 @@ def _reasons(session: Session, a: Client, b: Client) -> list[str]:
     reasons = []
     if a.birth_on and a.birth_on == b.birth_on:
         reasons.append("same_birth_date")
-    if set(service.client_addresses(session, a.id)) & set(service.client_addresses(session, b.id)):
+    if service.matchable_addresses(session, a) & service.matchable_addresses(session, b):
         reasons.append("shared_email")
     if a.phone_mobile and a.phone_mobile == b.phone_mobile:
         reasons.append("shared_mobile")
@@ -122,6 +122,11 @@ def _load_pair(session: Session, survivor_id: UUID, loser_ids: list[UUID]) -> tu
 def _blockers(session: Session, survivor: Client, losers: list[Client]) -> list[dict]:
     blockers = []
     for loser in losers:
+        if survivor.created_via == "portal" and loser.created_via != "portal":
+            # the portal record's manager access would otherwise reach the real record's history (P-06)
+            blockers.append({"context": "clients", "client_id": loser.id, "code": "survivor-portal-created",
+                             "detail": "A record created in the portal cannot absorb one created by staff; "
+                                       "keep the staff record as the survivor."})  # fmt: skip
         for handler in HANDLERS.values():
             for b in handler.precheck(session, loser.id, survivor.id) if handler.precheck else []:
                 blockers.append({"context": handler.context, "client_id": loser.id, **b})
@@ -132,13 +137,50 @@ def _backfill_fields(survivor: Client, losers: list[Client]) -> list[str]:
     return [f for f in BACKFILL if getattr(survivor, f) is None and any(getattr(x, f) is not None for x in losers)]
 
 
+def _carried_rights(session: Session, loser_id: UUID) -> tuple[list[ClientPortalAccess], list[ClientRelationship]]:
+    """What a merge would otherwise carry over as acting rights: the loser's live manager access rows and its
+    live relationships whose type grants acting rights from either side. Merge revokes or ends them."""
+    access = list(
+        session.scalars(
+            select(ClientPortalAccess).where(
+                ClientPortalAccess.client_id == loser_id,
+                ClientPortalAccess.is_primary.is_(False),
+                ClientPortalAccess.status != "revoked",
+            )
+        )
+    )
+    types = households._types(session)
+    rels = [
+        r
+        for r in households.relationships_of(session, loser_id, live_only=True)
+        if any(
+            households._side_type(r, side, types).grants_acting_rights for side in (r.from_client_id, r.to_client_id)
+        )
+    ]
+    return access, rels
+
+
+def _review(session: Session, losers: list[Client]) -> list[dict]:
+    items = []
+    for loser in losers:
+        access, rels = _carried_rights(session, loser.id)
+        items += [{"client_id": loser.id, "kind": "portal_access", "id": row.id,
+                   "detail": "A manager's portal access to the merged record is revoked; grant it again if needed."}
+                  for row in access]  # fmt: skip
+        items += [{"client_id": loser.id, "kind": "relationship", "id": rel.id,
+                   "detail": "A family link with acting rights on the merged record ends; link it again if needed."}
+                  for rel in rels]  # fmt: skip
+    return items
+
+
 def precheck(session: Session, principal: Principal, survivor_id: UUID, loser_ids: list[UUID]) -> dict:
     authorize(principal, "clients.client.merge")
     survivor, losers = _load_pair(session, survivor_id, loser_ids)
     blockers = _blockers(session, survivor, losers)
     return {
         "survivor_client_id": survivor.id, "merged_client_ids": [x.id for x in losers], "blockers": blockers,
-        "backfill_fields": _backfill_fields(survivor, losers), "can_merge": not blockers,
+        "review": _review(session, losers), "backfill_fields": _backfill_fields(survivor, losers),
+        "can_merge": not blockers,
     }  # fmt: skip
 
 
@@ -158,7 +200,7 @@ def merge(session: Session, principal: Principal, survivor_id: UUID, loser_ids: 
     for loser in losers:
         filled = {}
         for field in _backfill_fields(survivor, [loser]):
-            filled[field] = str(getattr(loser, field))
+            filled[field] = True  # names only: client_merge is append-only and erasure cannot clear values
             value = getattr(loser, field)
             if field == "member_number":  # unique per tenant: free it before the survivor takes it
                 source, loser.member_number, loser.member_number_source = loser.member_number_source, None, None
@@ -230,6 +272,7 @@ def _repoint_clients(session: Session, loser_id: UUID, survivor_id: UUID) -> Non
 
 def _repoint_relationships(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
     now = clock.now()
+    carried = {r.id for r in _carried_rights(session, loser_id)[1]}
     for rel in session.scalars(
         select(ClientRelationship).where(
             or_(ClientRelationship.from_client_id == loser_id, ClientRelationship.to_client_id == loser_id)
@@ -246,8 +289,8 @@ def _repoint_relationships(session: Session, loser_id: UUID, survivor_id: UUID) 
                 ),
             )
         )
-        if other == survivor_id or duplicate:
-            if live:  # a link between the two merged records, or one the survivor already has, ends
+        if other == survivor_id or duplicate or rel.id in carried:
+            if live:  # a link between the pair, one the survivor has, or one granting acting rights, ends
                 rel.status, rel.ended_at, rel.confirmation_token_hash = "ended", now, None
             continue  # ended history stays on the tombstone
         if rel.from_client_id == loser_id:
@@ -259,7 +302,7 @@ def _repoint_relationships(session: Session, loser_id: UUID, survivor_id: UUID) 
 
 def _repoint_access(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
     """A survivor with its own login keeps it: the loser's login is retired (identity `merged`, signed out).
-    Otherwise the loser's login moves over. Manager rows move unless the identity already has a row."""
+    Otherwise the loser's login moves over. Manager rows never move: they are revoked (staff re-grant them)."""
     survivor_has_self = session.scalar(
         select(ClientPortalAccess.id).where(
             ClientPortalAccess.client_id == survivor_id,
@@ -273,7 +316,7 @@ def _repoint_access(session: Session, loser_id: UUID, survivor_id: UUID) -> None
                 ClientPortalAccess.client_id == survivor_id, ClientPortalAccess.identity_id == row.identity_id
             )
         )
-        if taken or (row.is_primary and survivor_has_self and row.status != "revoked"):
+        if taken or not row.is_primary or (survivor_has_self and row.status != "revoked"):
             if row.status != "revoked":
                 row.status, row.revoked_at = "revoked", clock.now()
                 session.flush()

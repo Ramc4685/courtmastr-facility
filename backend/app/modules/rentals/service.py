@@ -736,17 +736,21 @@ def _parties(session: Db, data: dict) -> list[dict]:
     return parties
 
 
-def _rental_template(session: Db, principal: Principal, data: dict) -> tuple[RentalType, dict]:
-    location_id = _location(session, principal, data["location_id"])
-    authorize(principal, CREATE, location_id=location_id)
-    rtype = _type_for(session, data["rental_type_id"], location_id)
-    allowed = _type_resources(session, rtype.id)
-    for index, resource in enumerate(data["resources"]):
+def _check_type_resources(session: Db, rental_type_id: UUID, resources: list[dict]) -> None:
+    allowed = _type_resources(session, rental_type_id)
+    for index, resource in enumerate(resources):
         if allowed and resource["resource_id"] not in allowed:
             raise ValidationFailed(
                 "This resource is not offered for this rental type.", pointer=f"/resources/{index}/resource_id",
                 code="resource-not-allowed",
             )  # fmt: skip
+
+
+def _rental_template(session: Db, principal: Principal, data: dict) -> tuple[RentalType, dict]:
+    location_id = _location(session, principal, data["location_id"])
+    authorize(principal, CREATE, location_id=location_id)
+    rtype = _type_for(session, data["rental_type_id"], location_id)
+    _check_type_resources(session, rtype.id, data["resources"])
     if data.get("override_policy"):
         authorize(principal, scheduling.service.OVERRIDE, location_id=location_id)
     _check_override(principal, data["charge"], location_id)
@@ -873,8 +877,9 @@ def extend_rental(session: Db, principal: Principal, rental_id: UUID, data: dict
         raise ValidationFailed(
             "Only a recurring rental can be extended; book a new rental instead.", pointer="/rule", code="not-a-series"
         )
+    _check_type_resources(session, row.rental_type_id, data.get("resources") or ())
     result = scheduling.service.add_rule(
-        session, booking["booking_series_id"], data, principal.staff_user_id, audit_key=UPDATE
+        session, booking["booking_series_id"], data, principal.staff_user_id, principal=principal, key=UPDATE
     )
     if data.get("preview"):
         return {"booking_series_id": booking["booking_series_id"], "created_count": 0, "conflict_count": 0} | result
@@ -1371,7 +1376,7 @@ def confirm_portal_rental(session: Db, principal: Principal, rental_id: UUID, da
     )  # fmt: skip
     if payment.status == "failed":
         raise Conflict("The payment was declined.", code="payment-declined")
-    if payment.status in ("succeeded", "processing"):
+    if billing.checkout.is_secured(payment):
         booking = scheduling.service.confirm_booking(session, booking.id)
         audit.record(session, UPDATE, row, location_id=row.location_id, changes={"status": ["tentative", "confirmed"]})
     return _checkout(session, row, booking, quote, invoice_id, booking.status == "tentative", payment.status)

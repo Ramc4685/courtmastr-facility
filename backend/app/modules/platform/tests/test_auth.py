@@ -246,6 +246,47 @@ def test_change_own_password(client, tenant):
     assert _sign_in(client, tenant, password="another-long-passphrase").status_code == 200
 
 
+def test_password_change_sends_a_notification(client, tenant, mailbox):
+    here = login(client, tenant)
+    body = {"current_password": PASSWORD, "new_password": "another-long-passphrase"}
+    assert client.post(f"{API}/auth/password", headers=here, json=body).status_code == 204
+    assert mailbox[-1].to == tenant.owner_email and "password was changed" in mailbox[-1].subject
+
+
+def test_first_password_needs_a_fresh_magic_link_session(client, tenant, owner, mailbox):
+    email, _ = add_staff(tenant, "front_desk", password=None)
+    body = {"new_password": "a-first-long-passphrase"}
+
+    def magic_link_session() -> dict:
+        client.post(f"{API}/auth/magic-links", headers={"X-Tenant-Slug": tenant.slug}, json={"email": email})
+        consumed = client.post(
+            f"{API}/auth/magic-links/consume", json={"token": link_token(mailbox[-1]), "client_kind": "mobile"}
+        )
+        return _bearer(consumed)
+
+    def refused(response) -> bool:
+        return response.status_code == 403 and response.json()["code"] == "password-reset-required"
+
+    # A magic-link session older than the proof window cannot set a first password (stolen-session case).
+    stale = magic_link_session()
+    with clock.freeze(clock.now() + timedelta(minutes=16)):
+        assert refused(client.post(f"{API}/auth/password", headers=stale, json=body))
+    # Nor can a session established some other way, however fresh: here an invite accepted without a password.
+    invite = {"email": f"new@{tenant.slug}.example.com", "first_name": "N", "last_name": "U"}
+    client.post(f"{API}/staff-users", headers=owner, json=invite | {"role_id": str(role_id(tenant, "front_desk"))})
+    accepted = client.post(
+        f"{API}/auth/invitations/accept", json={"token": link_token(mailbox[-1]), "client_kind": "mobile"}
+    )
+    assert refused(client.post(f"{API}/auth/password", headers=_bearer(accepted), json=body))
+    assert scalar(tenant, select(Identity.password_hash).where(Identity.email == email)) is None
+
+    # A fresh magic-link session can, and the owner of the mailbox is told.
+    mailbox.clear()
+    assert client.post(f"{API}/auth/password", headers=magic_link_session(), json=body).status_code == 204
+    assert mailbox[-1].to == email and "password was changed" in mailbox[-1].subject
+    assert _sign_in(client, tenant, email=email, password=body["new_password"]).status_code == 200
+
+
 def test_web_session_uses_cookies_and_csrf(client, tenant):
     response = _sign_in(client, tenant)  # client_kind defaults to web
     body = response.json()

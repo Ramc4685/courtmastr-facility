@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, current_ctx, public_session, require
 from app.core.errors import ValidationFailed
-from app.core.idempotency import idempotency
+from app.core.idempotency import KEY_PATTERN, idempotency
 from app.core.pagination import ListQuery, list_query
 from app.modules.memberships import schemas as s
 from app.modules.memberships import service
@@ -27,8 +27,13 @@ router = APIRouter(
 )  # fmt: skip
 public = APIRouter(route_class=TxRoute, tags=["memberships"], generate_unique_id_function=camel_id)
 Lists = Annotated[ListQuery, Depends(list_query)]
-RequiredKey = Annotated[str, Header(min_length=8, max_length=255, description="Required; keys live 24 hours.")]
-Key = Annotated[str | None, Header(max_length=255, description="Required with a card or bank payment or a refund.")]
+RequiredKey = Annotated[
+    str, Header(min_length=8, max_length=255, pattern=KEY_PATTERN, description="Required; keys live 24 hours.")
+]
+Key = Annotated[
+    str | None,
+    Header(max_length=255, pattern=KEY_PATTERN, description="Required with a card or bank payment or a refund."),
+]
 Read = Annotated[Ctx, Depends(require("memberships.contract.read"))]
 Sell = Annotated[Ctx, Depends(require("memberships.contract.sell"))]
 Manage = Annotated[Ctx, Depends(require("memberships.plan.manage"))]

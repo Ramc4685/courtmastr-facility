@@ -145,7 +145,7 @@ def test_reading_finding_and_cancelling_a_payment(stripe, http):
         "/v1/payment_intents/pi_1",
         ["latest_charge"],
     )
-    http.reply(200, {"data": [intent()]}).reply(200, {"data": []})
+    http.reply(200, {"data": [intent(metadata={"fh_key": "t1:payment:k1"})]}).reply(200, {"data": []})
     assert stripe.find_payment(account_ref=ACCOUNT, idempotency_key="t1:payment:k1").provider_payment_ref == "pi_1"
     assert http.last["params"]["query"] == ["metadata['fh_key']:'t1:payment:k1'"]
     assert stripe.find_payment(account_ref=ACCOUNT, idempotency_key="never-sent") is None
@@ -156,6 +156,17 @@ def test_reading_finding_and_cancelling_a_payment(stripe, http):
     http.reply(404, {"error": {"message": "No such payment_intent"}})
     with pytest.raises(ValueError, match="No such payment_intent"):
         stripe.get_payment(account_ref=ACCOUNT, provider_payment_ref="pi_missing")
+
+
+def test_find_payment_cannot_be_steered(stripe, http):
+    """M-07: the key is escaped in the search query, and only an intent carrying exactly our key is adopted."""
+    steer = "x' OR status:'succeeded"
+    http.reply(200, {"data": [intent(metadata={"fh_key": "someone-else"})]})
+    assert stripe.find_payment(account_ref=ACCOUNT, idempotency_key=steer) is None
+    assert http.last["params"]["query"] == ["metadata['fh_key']:'x\\' OR status:\\'succeeded'"]
+    http.reply(200, {"data": [intent(metadata={"fh_key": "a\\b"})]})
+    assert stripe.find_payment(account_ref=ACCOUNT, idempotency_key="a\\b").provider_payment_ref == "pi_1"
+    assert http.last["params"]["query"] == ["metadata['fh_key']:'a\\\\b'"]
 
 
 def test_refunds(stripe, http):

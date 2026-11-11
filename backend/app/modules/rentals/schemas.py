@@ -318,6 +318,7 @@ class Extension(In):
     resources: Resources | None = None
     on_conflict: OnConflict = "abort"
     preview: bool = False
+    override_policy: bool = False
 
 
 class Extended(Out):
@@ -348,6 +349,41 @@ class RentalCancelResult(Out):
     late_fee_minor: int
     plan_quantity_returned: Decimal
     rentals: list[RentalOut]
+
+
+class PortalRentalResourceOut(Out):
+    resource_id: UUID
+    role: str
+
+
+class PortalRentalOut(Out):
+    """The client's view of a rental: no co-party ids, no charge or invoice ids (S-06)."""
+
+    id: UUID
+    location_id: UUID
+    booking_id: UUID
+    booking_number: int
+    booking_series_id: UUID | None
+    rental_type_id: UUID
+    client_id: UUID
+    resources: list[PortalRentalResourceOut]
+    starts_at: datetime
+    ends_at: datetime
+    status: str
+    expires_at: datetime | None
+    charge_state: str
+    cancelled_at: datetime | None
+    amount_minor: int | None
+    title: str
+
+
+class PortalRentalCancelResult(Out):
+    cancelled_count: int
+    reversed_minor: int
+    reposted_minor: int
+    late_fee_minor: int
+    plan_quantity_returned: Decimal
+    rentals: list[PortalRentalOut]
 
 
 class PublicSchedule(In):
@@ -400,8 +436,8 @@ class PortalRentalConfirm(In):
     provider_payment_token: Annotated[str, StringConstraints(min_length=1, max_length=200)]
 
 
-class RentalCheckout(Out):
-    rental: RentalOut
+class PortalRentalCheckout(Out):
+    rental: PortalRentalOut
     quote: Quote
     expires_at: datetime | None
     invoice_id: UUID | None

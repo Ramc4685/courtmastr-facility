@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Header, Query, Request
 
 from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, require
-from app.core.idempotency import idempotency
+from app.core.idempotency import KEY_PATTERN, idempotency
 from app.core.pagination import ListQuery, list_query
 from app.modules.pos import catalogue, drawer, equipment, inventory, reports, returns, sales, service
 from app.modules.pos import schemas as s
@@ -18,7 +18,9 @@ router = APIRouter(
     route_class=TxRoute, tags=["pos"], generate_unique_id_function=camel_id, dependencies=[Depends(idempotency)]
 )
 Lists = Annotated[ListQuery, Depends(list_query)]
-RequiredKey = Annotated[str, Header(min_length=8, max_length=255, description="Required; keys live 24 hours.")]
+RequiredKey = Annotated[
+    str, Header(min_length=8, max_length=255, pattern=KEY_PATTERN, description="Required; keys live 24 hours.")
+]
 _STAFF = require()
 
 

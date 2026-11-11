@@ -96,7 +96,8 @@ export interface paths {
         put?: never;
         /**
          * Change Own Password
-         * @description Change the caller's password; other sessions are revoked. Errors: invalid-credentials, password-too-weak.
+         * @description Change the caller's password; other sessions are revoked. A first password needs a magic-link session
+         *     from the last 15 minutes. Errors: invalid-credentials, password-too-weak, password-reset-required.
          */
         post: operations["changeOwnPassword"];
         delete?: never;
@@ -11574,6 +11575,11 @@ export interface components {
              */
             on_conflict: "skip" | "abort";
             /**
+             * Override Policy
+             * @default false
+             */
+            override_policy: boolean;
+            /**
              * Preview
              * @default false
              */
@@ -12827,6 +12833,8 @@ export interface components {
             can_merge: boolean;
             /** Merged Client Ids */
             merged_client_ids: string[];
+            /** Review */
+            review: components["schemas"]["MergeReviewItem"][];
             /**
              * Survivor Client Id
              * Format: uuid
@@ -12837,6 +12845,26 @@ export interface components {
         MergeRequest: {
             /** Merged Client Ids */
             merged_client_ids: string[];
+        };
+        /** MergeReviewItem */
+        MergeReviewItem: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Detail */
+            detail: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "portal_access" | "relationship";
         };
         /** NoSaleRequest */
         NoSaleRequest: {
@@ -14108,6 +14136,24 @@ export interface components {
             data: components["schemas"]["PermissionDefinition"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[PortalClientDocumentOut] */
+        Page_PortalClientDocumentOut_: {
+            /** Data */
+            data: components["schemas"]["PortalClientDocumentOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PortalCreditLedgerEntryOut] */
+        Page_PortalCreditLedgerEntryOut_: {
+            /** Data */
+            data: components["schemas"]["PortalCreditLedgerEntryOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PortalInvoiceOut] */
+        Page_PortalInvoiceOut_: {
+            /** Data */
+            data: components["schemas"]["PortalInvoiceOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[PortalPackageOut] */
         Page_PortalPackageOut_: {
             /** Data */
@@ -14118,6 +14164,18 @@ export interface components {
         Page_PortalPackagePlanOut_: {
             /** Data */
             data: components["schemas"]["PortalPackagePlanOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PortalPaymentOut] */
+        Page_PortalPaymentOut_: {
+            /** Data */
+            data: components["schemas"]["PortalPaymentOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PortalRentalOut] */
+        Page_PortalRentalOut_: {
+            /** Data */
+            data: components["schemas"]["PortalRentalOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[PosSaleOut] */
@@ -14746,6 +14804,90 @@ export interface components {
             /** Status */
             status: string;
         };
+        /** PortalAllocationOut */
+        PortalAllocationOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Applied At */
+            applied_at: string | null;
+            /**
+             * Charge Id
+             * Format: uuid
+             */
+            charge_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Released At */
+            released_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "provisional" | "applied" | "released";
+        };
+        /**
+         * PortalClientDocumentOut
+         * @description The portal view: no source, binding, deletion or stored-file references (P-11).
+         */
+        PortalClientDocumentOut: {
+            /** Acceptance Method */
+            acceptance_method: string;
+            /** Acceptance Text */
+            acceptance_text: string;
+            /** Acceptances */
+            acceptances: components["schemas"]["PortalDocumentAcceptanceOut"][];
+            /** Body Html */
+            body_html: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Name */
+            client_name: string;
+            /** Content Sha256 */
+            content_sha256: string;
+            /** Decided At */
+            decided_at: string | null;
+            /** Description */
+            description: string | null;
+            /** Expires On */
+            expires_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Paper Signed */
+            is_paper_signed: boolean;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Required Roles */
+            required_roles: string[];
+            /** Requires Guardian */
+            requires_guardian: boolean;
+            /** Signature Blocks */
+            signature_blocks: {
+                [key: string]: unknown;
+            }[];
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
+            /** Version */
+            version: number;
+        };
         /** PortalClientList */
         PortalClientList: {
             /** Data */
@@ -15007,6 +15149,42 @@ export interface components {
             /** Visits Used Count */
             visits_used_count: number;
         };
+        /**
+         * PortalCreditLedgerEntryOut
+         * @description The portal view of a credit movement: no staff note, actor, source or client id (P-11).
+         */
+        PortalCreditLedgerEntryOut: {
+            /**
+             * Client Package Id
+             * Format: uuid
+             */
+            client_package_id: string;
+            /** Consumed Delta */
+            consumed_delta: number;
+            /**
+             * Entry Type
+             * @enum {string}
+             */
+            entry_type: "grant" | "reserve" | "release" | "consume" | "restore" | "forfeit" | "adjust";
+            /** Forfeited Delta */
+            forfeited_delta: number;
+            /** Granted Delta */
+            granted_delta: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Reason */
+            reason: string;
+            /** Reserved Delta */
+            reserved_delta: number;
+        };
         /** PortalDependentCreate */
         PortalDependentCreate: {
             /** Birth On */
@@ -15025,6 +15203,30 @@ export interface components {
              */
             relationship_type_id: string;
         };
+        /**
+         * PortalDocumentAcceptanceOut
+         * @description No witness, signer client id or signature file (P-11).
+         */
+        PortalDocumentAcceptanceOut: {
+            /**
+             * Decided At
+             * Format: date-time
+             */
+            decided_at: string;
+            /** Decision */
+            decision: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Method */
+            method: string;
+            /** Signer Name */
+            signer_name: string;
+            /** Signer Role */
+            signer_role: string;
+        };
         /** PortalInvite */
         PortalInvite: {
             /**
@@ -15034,6 +15236,55 @@ export interface components {
             attach_as_manager: boolean;
             /** Email */
             email?: string | null;
+        };
+        /** PortalInvoiceOut */
+        PortalInvoiceOut: {
+            /** Balance Minor */
+            balance_minor: number;
+            /** Bill To Client Id */
+            bill_to_client_id: string | null;
+            /** Comments */
+            comments: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Due On
+             * Format: date
+             */
+            due_on: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Invoice On
+             * Format: date
+             */
+            invoice_on: string;
+            /** Is Autopay */
+            is_autopay: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Number */
+            number: number;
+            /** Organization Name */
+            organization_name: string | null;
+            /** Past Due Since On */
+            past_due_since_on: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "payment_pending" | "partially_paid" | "paid" | "voided";
+            /** Total Minor */
+            total_minor: number;
         };
         /** PortalPackageBuy */
         PortalPackageBuy: {
@@ -15252,13 +15503,39 @@ export interface components {
             /** Valid Until On */
             valid_until_on: string | null;
         };
+        /** PortalPackageSeriesOut */
+        PortalPackageSeriesOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /** Next Period Start On */
+            next_period_start_on: string | null;
+            /** Occurrences Generated Count */
+            occurrences_generated_count: number;
+            /** Occurrences Total Count */
+            occurrences_total_count: number;
+            /**
+             * Package Plan Id
+             * Format: uuid
+             */
+            package_plan_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "completed" | "cancelled";
+        };
         /** PortalPayment */
         PortalPayment: {
             /** Client Secret */
             client_secret: string | null;
             /** Credit Applied Minor */
             credit_applied_minor: number;
-            payment: components["schemas"]["PaymentDetail"] | null;
+            payment: components["schemas"]["PortalPaymentDetail"] | null;
         };
         /** PortalPaymentCreate */
         PortalPaymentCreate: {
@@ -15279,10 +15556,149 @@ export interface components {
              */
             use_account_credit: boolean;
         };
+        /** PortalPaymentDetail */
+        PortalPaymentDetail: {
+            /** Allocations */
+            allocations: components["schemas"]["PortalAllocationOut"][];
+            /** Amount Minor */
+            amount_minor: number;
+            /** Client Id */
+            client_id: string | null;
+            /** Currency */
+            currency: string;
+            /** Failure Category */
+            failure_category: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "staff" | "portal" | "pos" | "kiosk" | "autopay" | "api";
+            /** Receipt Number */
+            receipt_number: number;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Refunded Minor */
+            refunded_minor: number;
+            /** Refunds */
+            refunds: components["schemas"]["PortalRefundOut"][];
+            /** Settled At */
+            settled_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "initiated" | "requires_action" | "processing" | "succeeded" | "failed" | "unknown" | "cancelled" | "disputed" | "charged_back" | "voided";
+            /**
+             * Tender Kind
+             * @enum {string}
+             */
+            tender_kind: "card" | "bank_debit" | "cash" | "cheque" | "bank_transfer" | "gift_card" | "external" | "other";
+            /** Unapplied Minor */
+            unapplied_minor: number;
+        };
+        /** PortalPaymentOut */
+        PortalPaymentOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Client Id */
+            client_id: string | null;
+            /** Currency */
+            currency: string;
+            /** Failure Category */
+            failure_category: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "staff" | "portal" | "pos" | "kiosk" | "autopay" | "api";
+            /** Receipt Number */
+            receipt_number: number;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Refunded Minor */
+            refunded_minor: number;
+            /** Settled At */
+            settled_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "initiated" | "requires_action" | "processing" | "succeeded" | "failed" | "unknown" | "cancelled" | "disputed" | "charged_back" | "voided";
+            /**
+             * Tender Kind
+             * @enum {string}
+             */
+            tender_kind: "card" | "bank_debit" | "cash" | "cheque" | "bank_transfer" | "gift_card" | "external" | "other";
+            /** Unapplied Minor */
+            unapplied_minor: number;
+        };
         /** PortalPreferencesReplace */
         PortalPreferencesReplace: {
             /** Changes */
             changes: components["schemas"]["PreferenceChange"][];
+        };
+        /** PortalRefundOut */
+        PortalRefundOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "original" | "external";
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            /**
+             * Refund On
+             * Format: date
+             */
+            refund_on: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "succeeded" | "failed" | "cancelled";
         };
         /** PortalRelationshipList */
         PortalRelationshipList: {
@@ -15308,6 +15724,36 @@ export interface components {
              * Format: uuid
              */
             relationship_type_id: string;
+        };
+        /** PortalRentalCancelResult */
+        PortalRentalCancelResult: {
+            /** Cancelled Count */
+            cancelled_count: number;
+            /** Late Fee Minor */
+            late_fee_minor: number;
+            /** Plan Quantity Returned */
+            plan_quantity_returned: string;
+            /** Rentals */
+            rentals: components["schemas"]["PortalRentalOut"][];
+            /** Reposted Minor */
+            reposted_minor: number;
+            /** Reversed Minor */
+            reversed_minor: number;
+        };
+        /** PortalRentalCheckout */
+        PortalRentalCheckout: {
+            /** Amount Due Minor */
+            amount_due_minor: number;
+            /** Expires At */
+            expires_at: string | null;
+            /** Invoice Id */
+            invoice_id: string | null;
+            /** Payment Required */
+            payment_required: boolean;
+            /** Payment Status */
+            payment_status?: string | null;
+            quote: components["schemas"]["Quote"];
+            rental: components["schemas"]["PortalRentalOut"];
         };
         /**
          * PortalRentalConfirm
@@ -15346,6 +15792,75 @@ export interface components {
              * Format: date-time
              */
             starts_at: string;
+        };
+        /**
+         * PortalRentalOut
+         * @description The client's view of a rental: no co-party ids, no charge or invoice ids (S-06).
+         */
+        PortalRentalOut: {
+            /** Amount Minor */
+            amount_minor: number | null;
+            /**
+             * Booking Id
+             * Format: uuid
+             */
+            booking_id: string;
+            /** Booking Number */
+            booking_number: number;
+            /** Booking Series Id */
+            booking_series_id: string | null;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Charge State */
+            charge_state: string;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Expires At */
+            expires_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Rental Type Id
+             * Format: uuid
+             */
+            rental_type_id: string;
+            /** Resources */
+            resources: components["schemas"]["PortalRentalResourceOut"][];
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
+        };
+        /** PortalRentalResourceOut */
+        PortalRentalResourceOut: {
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /** Role */
+            role: string;
         };
         /** PortalSigner */
         PortalSigner: {
@@ -17121,21 +17636,6 @@ export interface components {
             /** Reversed Minor */
             reversed_minor: number;
         };
-        /** RentalCheckout */
-        RentalCheckout: {
-            /** Amount Due Minor */
-            amount_due_minor: number;
-            /** Expires At */
-            expires_at: string | null;
-            /** Invoice Id */
-            invoice_id: string | null;
-            /** Payment Required */
-            payment_required: boolean;
-            /** Payment Status */
-            payment_status?: string | null;
-            quote: components["schemas"]["Quote"];
-            rental: components["schemas"]["RentalOut"];
-        };
         /** RentalCreate */
         RentalCreate: {
             /** Buffer After Min */
@@ -18434,6 +18934,11 @@ export interface components {
              * @enum {string}
              */
             on_conflict: "skip" | "abort";
+            /**
+             * Override Policy
+             * @default false
+             */
+            override_policy: boolean;
             /**
              * Preview
              * @default false
@@ -30558,7 +31063,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Page_ClientDocumentOut_"];
+                    "application/json": components["schemas"]["Page_PortalClientDocumentOut_"];
                 };
             };
             /** @description Validation Error */
@@ -30594,7 +31099,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ClientDocumentOut"];
+                    "application/json": components["schemas"]["PortalClientDocumentOut"];
                 };
             };
             /** @description Validation Error */
@@ -30634,7 +31139,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ClientDocumentOut"];
+                    "application/json": components["schemas"]["PortalClientDocumentOut"];
                 };
             };
             /** @description Validation Error */
@@ -30827,7 +31332,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Page_CreditLedgerEntryOut_"];
+                    "application/json": components["schemas"]["Page_PortalCreditLedgerEntryOut_"];
                 };
             };
             /** @description Validation Error */
@@ -31222,7 +31727,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Page_InvoiceOut_"];
+                    "application/json": components["schemas"]["Page_PortalInvoiceOut_"];
                 };
             };
             /** @description Validation Error */
@@ -31508,7 +32013,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PackageSeriesOut"];
+                    "application/json": components["schemas"]["PortalPackageSeriesOut"];
                 };
             };
             /** @description Validation Error */
@@ -31725,7 +32230,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Page_PaymentOut_"];
+                    "application/json": components["schemas"]["Page_PortalPaymentOut_"];
                 };
             };
             /** @description Validation Error */
@@ -31938,7 +32443,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Page_RentalOut_"];
+                    "application/json": components["schemas"]["Page_PortalRentalOut_"];
                 };
             };
             /** @description Validation Error */
@@ -31974,7 +32479,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RentalCheckout"];
+                    "application/json": components["schemas"]["PortalRentalCheckout"];
                 };
             };
             /** @description Validation Error */
@@ -32040,7 +32545,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RentalCancelResult"];
+                    "application/json": components["schemas"]["PortalRentalCancelResult"];
                 };
             };
             /** @description Validation Error */
@@ -32078,7 +32583,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RentalCheckout"];
+                    "application/json": components["schemas"]["PortalRentalCheckout"];
                 };
             };
             /** @description Validation Error */

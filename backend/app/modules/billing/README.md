@@ -105,8 +105,24 @@ scheduler or per-tenant fan-out. Until it does, autopay runs when staff start a 
 - **Tax-exclusive only** (ADR 0003 section 10). **No late fees or interest** (ADR 0005: the reference shows
   none). **No surcharging** (ADR 0003 section 9).
 - **Bill To reassignment is limited to the household** since integration: the new payer must be on the
-  invoice or have a pending or active relationship (`clients.households`) with someone on it, else 422
-  `payer-not-related`. The internal `service.reassign_payer` stays unrestricted for other contexts.
+  invoice or have an active relationship (`clients.households`) with someone on it, else 422
+  `payer-not-related`. The internal `service.reassign_payer` stays unrestricted for other contexts. The staff
+  `POST /invoices` with `bill_to_client_id` applies the same rule (wave 1 hardening M-06).
+- **Money pays only its owner's items** (M-01): every allocation (take, allocate, account credit) targets
+  items of the payer, items on an invoice billed to the payer, or items of an active relative
+  (`service.related_clients`); otherwise 422 `payer-mismatch`. A walk-in payment settles only items with no
+  client. Moving a payment checks `billing.payment.reallocate` at each target's location, and a
+  location-limited caller must name the targets (M-02); a credit refund draws only on payments taken at the
+  caller's locations (M-03); mark-paid, cancel and confirm are checked at the record's location (M-04).
+- **Sending a receipt needs `billing.invoice.send`**, not the read key (M-05).
+- **Online checkout** (packages, memberships) goes through `checkout.secure_online_checkout`: nothing is sold
+  until what is due now is secured, `unknown` is a 503 that rolls the sale back, and a sale with nothing due
+  now stores the card as the owner's autopay method. Online package sales never defer their invoice; online
+  memberships are always autopay and start within 30 days (`memberships.service.ONLINE_START_WINDOW_DAYS`).
+  A payment found by the Idempotency-Key secures the sale only if it is the same client's and, once applied,
+  covers this invoice; otherwise 422 `idempotency-key-reused` and nothing is sold.
+- **Portal responses use portal schemas** (`PortalInvoiceOut`, `PortalPaymentOut`, `PortalPaymentDetail`):
+  no memo, external reference, failure message, refund reason, void reason or collection state (M-13).
 - **Bulk invoicing runs in the request** (up to 1000 items) and is not stored; there is no
   `billing_bulk_action` table.
 - **Documents are data and plain-text email, not PDF.** `GET /invoices/{id}/document` and
