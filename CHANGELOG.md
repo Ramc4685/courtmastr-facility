@@ -7,6 +7,12 @@ under `Unreleased` in the same change that makes the behaviour visible.
 ## [Unreleased]
 
 ### Added
+- Collections: tag clients in collections, keep notes on their billing page, and see a collections report with what each owes.
+- The portal refuses online buying and booking while an account is past due, when the billing setting is on; paying unlocks it.
+- Billing notices and expiring-cards screens, and a staff daily digest of failed and upcoming autopay.
+- Memberships can suspend automatically when an invoice stays past due (a billing setting, off by default) and resume when it is paid.
+- Membership preferences for payment-method capture, online card saving and freeze resume billing now take effect; the portal can ask to save the card.
+- Autopay at sale follows the plan, then the billing setting for the sales channel.
 - Phase 8 (platform, security and operations) is in progress; the entries below have landed.
 - File storage in a cloud bucket with malware scanning and expiring download links.
 - Background jobs retry automatically, and failed jobs land in a dead-letter list an operator can requeue.

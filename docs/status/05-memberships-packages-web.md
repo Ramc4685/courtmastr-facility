@@ -57,7 +57,7 @@ have no screen, and PKG-09 is partial because it has no portal page.
 | MEM-02 Membership plan templates | P0 | done | Memberships > Plans (dialog, Duplicate) | backend; e2e scan of the dialog | Edits reach later sales only (snapshot). |
 | MEM-03 Plan proration rules | P1 | done | plan dialog (mode, tail); sell dialog periods table | backend `test_schedule`; Vitest sale test | With seller's choice, the sell dialog asks whether to prorate. |
 | MEM-04 Plan add-ons | P1 | done | plan dialog "Included packages" and "Billed add-ons" (pre-defined items) (PUT addons) | backend `test_credits`, `test_catalog_addons`; e2e `memberships.spec` (axe) | The sale dialog sells the plan's own add-ons; changing them for one sale is API only (`addons` on the sale, behind `memberships.contract.customize_terms`). |
-| MEM-05 Membership preferences | P0 | partial | Memberships > Preferences | backend; e2e scan | The payment-method capture settings are stored but have no effect (no stored payment methods). |
+| MEM-05 Membership preferences | P0 | done | Memberships > Preferences (capture, card save, freeze resume); portal Save this card | backend; e2e scan | |
 | MEM-06 Simple (record-only) membership | P2 | done | a zero-fee plan sold from the client tab | backend `test_sale::test_record_only...` | |
 | MEM-07 Staff sale of a membership contract | P0 | done | client Memberships > Sell membership | backend; Vitest sale test; e2e scan | Per-sale customised terms (fee, discount, end date, occurrences, visit cap) are API only. No card saving or coupons. |
 | MEM-08 Contract document acceptance at sale | P1 | done | plan dialog "Required document"; sell dialog requirements | backend `test_sale::test_contract_document_gates...`; Vitest asserts the text | The contract waits as upcoming; signing is on the Documents tab. |
@@ -66,7 +66,7 @@ have no screen, and PKG-09 is partial because it has no portal page.
 | MEM-11 Contract renewal | P0 | done | Upcoming renewals tab; Renew dialog (same terms or another plan) | backend `test_renewal_jobs` | Still needs a scheduler for automatic renewals (backend gap). |
 | MEM-12 Freeze a contract | P0 | done | Freeze dialog; Unfreeze | backend `test_lifecycle` | Unfreeze removes the live freeze. |
 | MEM-13 Edit or remove a freeze and re-bill | P1 | done | Details dialog: freeze end date, Remove freeze, period Edit, Reprice, Invoice deferred periods; Unfreeze | backend, Vitest `desk.test`, e2e `desk.spec` | |
-| MEM-14 Suspend and unsuspend a contract | P1 | partial | Suspend dialog; Unsuspend; Details dialog edits and removes a suspension | backend | Automatic suspension for non-payment is not built. |
+| MEM-14 Suspend and unsuspend a contract | P1 | done | Suspend dialog; Unsuspend; Details dialog edits and removes a suspension; Billing > Settings suspend-after days | backend | |
 | MEM-15 Cancel a contract | P0 | done | Cancel dialog; Undo cancel | backend; Vitest cancel test | Reason-coded; bundled packages choice. |
 | MEM-16 Cancel with full or partial refund | P1 | done | Cancel dialog (quote, credit, refund checkbox) | backend; Vitest asserts the cancel body | The refund checkbox appears only with `billing.refund.create`. |
 | MEM-17 Shared membership | P1 | done | Shares dialog (ClientPicker add, revoke) | backend | |
