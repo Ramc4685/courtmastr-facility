@@ -387,7 +387,8 @@ export interface paths {
         /**
          * Start Mfa Challenge Enrolment
          * @description Forced enrolment inside a pending sign-in: a new TOTP secret as an otpauth URI (render the QR on the
-         *     device). Errors: mfa-challenge-invalid, mfa-already-enrolled.
+         *     device). Only after an emailed link: a password-only sign-in gets a sign-in link by email instead. Errors:
+         *     mfa-challenge-invalid, mfa-already-enrolled, mfa-enrolment-needs-email-link.
          */
         post: operations["startMfaChallengeEnrolment"];
         delete?: never;
@@ -409,7 +410,8 @@ export interface paths {
          * Verify Mfa Challenge
          * @description Complete a pending sign-in with a TOTP code or a recovery code (consumed); for a forced enrolment, the
          *     first code of the new factor, and the response carries the ten recovery codes once. Errors:
-         *     mfa-challenge-invalid, mfa-code-invalid, mfa-enrolment-not-started, identity-locked, rate-limited.
+         *     mfa-challenge-invalid, mfa-code-invalid, mfa-enrolment-not-started, mfa-enrolment-needs-email-link, mfa-locked,
+         *     rate-limited.
          */
         post: operations["verifyMfaChallenge"];
         delete?: never;
@@ -636,7 +638,7 @@ export interface paths {
          * Step Up
          * @description Re-authenticate (TOTP or recovery code when enrolled, else password) so `+` permissions work for 10
          *     minutes. The session rotates: new cookie and CSRF token (web) or token pair (mobile). Errors:
-         *     reauthentication-failed, identity-locked, step-up-unavailable, rate-limited.
+         *     reauthentication-failed, identity-locked, mfa-locked, mfa-enrolment-required, step-up-unavailable, rate-limited.
          */
         post: operations["stepUp"];
         delete?: never;
