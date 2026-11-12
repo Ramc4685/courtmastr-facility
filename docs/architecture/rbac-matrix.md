@@ -204,6 +204,7 @@ Cells: `Y` granted (reach all), `own` granted with reach own, `-` not granted. O
 | `platform.role.read` | T | | | Y | Y | - | - | - | - | - | PLT-04 |
 | `platform.role.manage` | T | A + | | Y | - | - | - | - | - | - | PLT-04, PLT-06 |
 | `platform.security.manage` | T | A + | | Y | - | - | - | - | - | - | PLT-07 (IP allow-list, password and session policy, OIDC) |
+| `platform.identity_provider.manage` | T | OO + | | - | - | - | - | - | - | - | PLT-07 (OIDC providers; Phase 8 S3 review: a provider decides who can sign in, so not Admin) |
 | `platform.audit.read` | L | | | Y | Y | - | - | - | - | - | PLT-17, BIL-09 |
 | `platform.audit.export` | T | X | | Y | - | - | - | - | - | - | PLT-17 |
 | `platform.client_session.impersonate` | T | I + | | Y | - | - | - | - | - | - | our design (support view of the portal) |

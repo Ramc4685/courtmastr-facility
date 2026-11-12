@@ -10,6 +10,7 @@ import { ClientProfilePage } from '../features/clients/ClientProfilePage'
 import { ClientsPage } from '../features/clients/ClientsPage'
 import { MergePage } from '../features/clients/MergePage'
 import { TokenLinkPage } from '../features/auth/TokenLinkPage'
+import { OidcCallbackPage, OidcLinkPage } from '../features/auth/oidc'
 import { IntegrationsPage } from '../features/integrations/IntegrationsPage'
 import { PayLinkPage } from '../features/billing/PayLinkPage'
 import { AutomationsPage, RemindersPage } from '../features/engagement/AutomationPages'
@@ -106,6 +107,8 @@ export function AppRoutes() {
       <Route path="/auth/magic-link" element={<TokenLinkPage purpose="magic-link" />} />
       <Route path="/auth/reset-password" element={<TokenLinkPage purpose="reset-password" />} />
       <Route path="/auth/accept-invite" element={<TokenLinkPage purpose="accept-invite" />} />
+      <Route path="/auth/oidc/callback" element={<OidcCallbackPage />} />
+      <Route path="/auth/oidc/link" element={<OidcLinkPage />} />
       <Route path="/pay" element={<PayLinkPage />} />
       <Route path="/sign" element={<PublicSignPage />} />
       <Route path="/unsubscribe" element={<UnsubscribePage />} />

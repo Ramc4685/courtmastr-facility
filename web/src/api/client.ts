@@ -91,7 +91,7 @@ const TENANT_SLUG: string | undefined =
 const PRE_SESSION = [
   '/api/v1/auth/sign-in', '/api/v1/auth/magic-links', '/api/v1/auth/password-resets', '/api/v1/auth/magic-links/consume',
   '/api/v1/auth/password-resets/consume', '/api/v1/auth/invitations/accept', '/api/v1/auth/mfa/enrolment',
-  '/api/v1/auth/mfa/verify',
+  '/api/v1/auth/mfa/verify', '/api/v1/auth/oidc/authorize', '/api/v1/auth/oidc/callback', '/api/v1/auth/oidc/link',
 ]
 // A 401 from these is an answer, not an expired session. Kiosk routes use the device's kiosk cookie.
 const NOT_SESSION = [...PRE_SESSION, '/api/v1/kiosk/pair', '/api/v1/kiosk/config', '/api/v1/kiosk/lookups', '/api/v1/kiosk/check-ins', '/api/v1/kiosk/exit']
