@@ -18,6 +18,10 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Sign-in is harder to abuse: per-address and per-account rate limits, escalating lockouts, a common-password check, and a sign-in token that expires with the page.
 - Staff can only sign in from the networks the owner lists, when a list is set.
 
+### Fixed
+- Accessibility: form errors are announced to screen readers, date and time fields show a focus ring on every Tab stop, the member portal's skip link moves focus, checkboxes have larger targets, and the calendar and portal no longer scroll sideways on narrow screens.
+- POS sales and payments make fewer database round trips.
+
 ## [MVP] - 2026-11-11
 
 ### Added
