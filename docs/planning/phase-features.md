@@ -257,7 +257,7 @@ step-up, purge and retention jobs, dead-letter table, contract checks, load test
 
 ## Phase 14: Programs, leagues and facility extras
 
-**Status:** Not started (can start any time)
+**Status:** Planned in `docs/planning/phase-14.md` (five chips in three lanes; REG-25, DOC-10, POS-20 parked)
 
 **P0** (3)
 
