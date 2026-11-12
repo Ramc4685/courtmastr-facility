@@ -257,3 +257,4 @@ at hand-back (Phase 14's `14xx` or Phase 12's `16xx` may land first).
 | 2026-11-12 | core | approved: A's slug-mismatch 404 in `core/auth/deps.py` `current_ctx`; C1's read-only `search_app_directory` in `core/db/platform.py` (column grants to fh_platform, limit 20, 2-char prefix); brand colours live on the tenant (A), C1 reads them | |
 | 2026-11-12 | all | desktop app restart stopped A, B, C1 mid-build (no commits yet); resumed by message | |
 | 2026-11-12 | main | main 3353e92 merged in (`make lane-env`, `lane-drop`); lane setup switched to `lane-env` for A and C2 | 995e47d |
+| 2026-11-12 | all | paused by Phase 0 (machine out of memory with nine chips gating); WIP safe: A 452247f, B 1524c81, C1 7f5164d; no chips, tests or servers until Phase 0 says resume | |
