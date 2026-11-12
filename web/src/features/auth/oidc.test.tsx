@@ -9,6 +9,7 @@ import { ToastProvider } from '../../components/Toast'
 import { AuthProvider } from '../../lib/auth'
 import { mockFetch } from '../../test/fetchMock'
 import { SCREEN } from '../scheduling/testing'
+import { stepUpWithProvider } from './oidc'
 import { StepUpDialog } from './StepUpDialog'
 
 const tenant = { id: 't1', name: 'Courtside Demo Club', slug: 'courtside-demo', status: 'active', currency: 'USD', default_time_zone: 'America/Chicago', locale: 'en-US', staff_mfa_policy: 'privileged', trial_ends_on: null, settings: {} }
@@ -211,5 +212,17 @@ describe('step-up through the provider', SCREEN, () => {
     await userEvent.click(await within(dialog).findByRole('button', { name: 'Sign in again with your provider' }))
     await waitFor(() => expect(calls.some((c) => c.url === '/api/v1/auth/oidc/step-up')).toBe(true))
     expect(sessionStorage.getItem('fh.oidc.next')).toBe('/settings/security')
+  })
+
+  it('renews the pre-session cookie before starting, so a lapsed one does not refuse the step-up', async () => {
+    const calls = mockFetch({
+      'GET /api/v1/auth/pre-session': { status: 200, body: { csrf_token: 'pre' } },
+      'POST /api/v1/auth/oidc/step-up': { status: 200, body: { authorization_url: 'https://accounts.google.com/o/oauth2/v2/auth?prompt=login' } },
+    })
+    await stepUpWithProvider() // first trip fetches a pair
+    await stepUpWithProvider() // an hour later the cached pair may be dead: fetch again, never reuse
+    const urls = calls.map((c) => c.url)
+    expect(urls.filter((u) => u === '/api/v1/auth/pre-session')).toHaveLength(2)
+    expect(urls.indexOf('/api/v1/auth/pre-session')).toBeLessThan(urls.indexOf('/api/v1/auth/oidc/step-up'))
   })
 })

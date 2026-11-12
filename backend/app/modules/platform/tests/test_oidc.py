@@ -510,6 +510,24 @@ def test_step_up_unavailable_without_a_link(client, tenant):
     assert answer.status_code == 403 and answer.json()["code"] == "oidc-step-up-unavailable"
 
 
+def test_step_up_after_the_pre_session_cookie_lapsed(client, tenant, idp, mailbox):
+    """The pre-session cookie lives an hour; the session lives longer. A fresh GET /auth/pre-session (the web
+    client makes one before the step-up POST) is all a lapsed cookie needs, and the state stays bound to it."""
+    from app.core.auth.deps import pre_session_cookie
+
+    browser, _, csrf = _oidc_user(client, tenant, idp, mailbox)
+    for cookie in [c for c in browser.cookies.jar if c.name == pre_session_cookie()]:
+        browser.cookies.jar.clear(cookie.domain, cookie.path, cookie.name)
+    lapsed = browser.post(f"{API}/auth/oidc/step-up", headers={"X-CSRF-Token": csrf})
+    assert lapsed.status_code == 403 and lapsed.json()["code"] == "csrf-failed"
+
+    assert browser.get(f"{API}/auth/pre-session").status_code == 200
+    started = browser.post(f"{API}/auth/oidc/step-up", headers={"X-CSRF-Token": csrf})
+    assert started.status_code == 200, started.text
+    state, code = idp.authorize(started.json()["authorization_url"], sub="admin-subject", auth_time=int(time.time()))
+    assert _callback(browser, state, code).json()["elevated_until_at"] is not None
+
+
 # --- provider settings ---------------------------------------------------------------------------------------------------
 
 

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { api, ApiError } from '../../api/client'
+import { api, ApiError, refreshPreSession } from '../../api/client'
 import { Button } from '../../components/Button'
 import { useAuth } from '../../lib/auth'
 import { AuthLayout, safeNext } from './AuthLayout'
@@ -34,6 +34,7 @@ export function goToProvider(url: string, next: string) {
 
 /** Step-up for a user whose only way in is a sign-in provider: a fresh sign-in there, then back to this page. */
 export async function stepUpWithProvider() {
+  await refreshPreSession() // the state is bound to this browser's pre-session cookie, which lapses after an hour
   const out = await api.post('/api/v1/auth/oidc/step-up')
   goToProvider(out.authorization_url, window.location.pathname + window.location.search)
 }

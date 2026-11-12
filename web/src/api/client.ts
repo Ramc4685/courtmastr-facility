@@ -114,6 +114,13 @@ function preSessionToken(): Promise<string | null> {
   return preToken
 }
 
+/** A fresh pre-session pair, not the cached one: a signed-in round trip that ends at a guarded route (OIDC
+ * step-up ends at the callback) needs the cookie live for the whole trip, and the GET also renews its Max-Age. */
+export function refreshPreSession(): Promise<string | null> {
+  preToken = null
+  return preSessionToken()
+}
+
 const refusedWith = async (res: Response, code: string) =>
   res.status === 403 && ((await res.clone().json().catch(() => ({}))) as Problem).code === code
 
