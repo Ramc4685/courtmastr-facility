@@ -17,8 +17,8 @@ from app.core.jobs import broker
 from app.modules import billing
 from app.modules.platform.models import StoredFile
 from app.modules.reporting import jobs, views
-from app.modules.reporting.domain import csv_file, periods
 from app.modules.reporting.catalogue import REGISTRY
+from app.modules.reporting.domain import csv_file, periods
 from app.modules.reporting.models import ExportJob, ReportRun
 from conftest import add_staff, login, new_client
 
