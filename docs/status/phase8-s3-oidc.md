@@ -175,19 +175,28 @@ provider probably differ, or (Microsoft) the `xms_edov` claim is missing.
 
 ## Gate results (2026-11-11, lane `facilityhub_p8s3`, API :8243, web :5243)
 
-After the security review fixes, on the full tree:
+After the re-review fixes (N1 to N3) and the merge of the phase branch at `2612e84` (T1, T2 with its fix round,
+S4, `main` with Phase 10):
 
 | Gate | Result |
 |---|---|
-| `make lint typecheck boundaries` | ruff clean, 421 files formatted; mypy 277 files clean; 19 import contracts kept |
-| `make test` (full, run to the end) | 4366 passed, 806 skipped (schemathesis cases), 1 xfailed in 15 min; domain coverage gate 93% (80% required) |
-| `test_oidc.py` | 48 passed |
+| Migrations | one head `1241` (`1240` on `1280`); lane databases rebuilt, down to `1081` and up again clean; `alembic check` clean |
+| `make lint typecheck boundaries` | ruff clean, 444 files formatted; mypy 287 files clean; 19 import contracts kept |
+| `make test` (full, run to the end) | 4806 passed, 875 skipped (schemathesis cases), **9 failed**: all `test_stripe.py::test_a_live_key_refuses_to_start_outside_production`, see below |
+| `test_oidc.py`, `test_rbac.py`, `test_mfa_step_up.py` | all passed |
 | `make openapi web-api` | regenerated, no drift on a second run |
-| `make web-check web-test` | tsc and eslint clean; Vitest 34 files, 161 tests passed |
-| Playwright `e2e/oidc.spec.ts` (+ `smoke.spec.ts`) | passed, 3 of 3 repeats; now signs in as the Owner and scans the link page |
-| Migration `1241` | up, down, up checked; `alembic check` clean |
+| `make web-check web-test` | tsc and eslint clean; Vitest 42 files, 190 of 191 passed; the one failure is the `mfa.test.tsx` load flake below |
+| Playwright `e2e/oidc.spec.ts` + `smoke.spec.ts` | 3 passed |
 
-Load flake seen once in a combined Vitest run and once alone, then green three times in a row:
-`mfa.test.tsx` "walks a required role through enrolment with a local QR code". The OIDC spec's first run
-caught buttons mid colour transition (a false colour-contrast hit); its scans now use reduced motion, as the
-Phase 10 engagement spec does.
+**Inherited failure, not S3:** `test_a_live_key_refuses_to_start_outside_production` (9 cases) fails on its last
+step (line 151): starting with `FH_ENV=production` and a live key now trips the production check
+`storage.scanner must not be noop`, because the test's config keeps the noop scanner. `core/settings.py`, the
+test and `config/app.yaml` (bar the S3 `oidc` rate bucket) are identical to the phase branch tip `2612e84`, so
+it fails there too; the fix belongs to the owner of the K1 scanner check or the Stripe test (give the test's
+`app.production.yaml` a real scanner).
+
+**Load flake:** `mfa.test.tsx`, a different test each time ("asks for a code after the password, then signs in",
+"walks a required role through enrolment with a local QR code"), fails only in full parallel Vitest runs on a
+5 s `findBy` wait; the file passes alone every time (4 of 4 here). S3 changes only the security-settings tests in
+that file. The OIDC spec's scans use reduced motion, as the Phase 10 engagement spec does, because axe once
+caught buttons mid colour transition.
