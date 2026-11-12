@@ -149,6 +149,7 @@ class Client(TenantOwned, Timestamps, Base):
         *tfk("merged_into_id", "client", index=False),
         *tfk("created_by_staff_user_id", "staff_user"),
         *tfk("updated_by_staff_user_id", "staff_user"),
+        *tfk("photo_file_id", "stored_file"),  # CLI-12, clients/files.py
         CheckConstraint("btrim(first_name) <> ''", name="first_name"),
         CheckConstraint("btrim(last_name) <> ''", name="last_name"),
         _phone_check("phone_mobile"),
@@ -229,6 +230,7 @@ class Client(TenantOwned, Timestamps, Base):
     created_via: Mapped[str] = enum_column(server_default=text("'staff'"))
     created_by_staff_user_id: Mapped[UUID | None]
     updated_by_staff_user_id: Mapped[UUID | None]
+    photo_file_id: Mapped[UUID | None] = mapped_column(info=_FLAG)
     phone_digits: Mapped[str | None] = mapped_column(
         Computed(
             "regexp_replace(coalesce(phone_mobile,'') || ' ' || coalesce(phone_home,'') || ' ' || "
@@ -608,3 +610,19 @@ class ClientRecentView(TenantOwned, Timestamps, Base):
     staff_user_id: Mapped[UUID]
     client_id: Mapped[UUID]
     viewed_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+# --- client files (phase 10 chip F): note attachments (CLI-09); the photo is client.photo_file_id (CLI-12) -----
+
+
+class ClientNoteAttachment(TenantOwned, Timestamps, Base):
+    """A stored file on an activity note. Deleting the note deletes the link (the bytes wait for a purge job)."""
+
+    __tablename__ = "client_note_attachment"
+    __table_args__ = tenant_args(
+        *tfk("client_note_id", "client_note", ondelete="CASCADE"),
+        *tfk("stored_file_id", "stored_file"),
+    )
+
+    client_note_id: Mapped[UUID]
+    stored_file_id: Mapped[UUID]

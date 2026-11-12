@@ -7,7 +7,7 @@ section 3. Calls `platform` only.
 | File | What |
 |---|---|
 | `models.py` | `resource_group`, `resource`, `resource_link`, `availability_window` |
-| `service.py` | staff commands (both gates, audit, events) and the internal interface scheduling uses: `get_many`, `in_location`, `descendants`, `ancestors`, `linked_ids`, `windows_for`, `HOOKS` |
+| `service.py` | staff commands (both gates, audit, events) and the internal interface scheduling uses: `get_many`, `in_location`, `descendants`, `ancestors`, `linked_ids`, `windows_for`, `get_window`, `HOOKS` |
 | `router.py` | 14 operations of `openapi-core.yaml` tag `resources` |
 
 ## Rules worth knowing
@@ -29,6 +29,8 @@ section 3. Calls `platform` only.
 - Names sort by `sort_order, name` with the database default collation, not ICU numeric ("Court 10" sorts
   before "Court 9" unless `sort_order` is set).
 - A coach holds `resources.availability.manage` with `own` reach: only the windows of their linked resource.
+- A window can be offered as bookable slots (scheduling `slot_offer`, SCH-07). Deleting the window drops its
+  offer, unless a slot was already taken; then the delete is refused and the window should be paused.
 
 ## Not built
 

@@ -65,14 +65,14 @@ have no screen, and PKG-09 is partial because it has no portal page.
 | MEM-10 Contract list, status views and edit | P0 | done | Memberships > Contracts; client tab; Details dialog | backend; e2e scan | The auto-renew toggle is on screen. Salesperson, referrer, notes and visit-cap edits are API only. |
 | MEM-11 Contract renewal | P0 | done | Upcoming renewals tab; Renew dialog (same terms or another plan) | backend `test_renewal_jobs` | Still needs a scheduler for automatic renewals (backend gap). |
 | MEM-12 Freeze a contract | P0 | done | Freeze dialog; Unfreeze | backend `test_lifecycle` | Unfreeze removes the live freeze. |
-| MEM-13 Edit or remove a freeze and re-bill | P1 | partial | Unfreeze (remove) only | backend | Editing a freeze, repricing, editing a period and invoicing deferred periods are API only. |
-| MEM-14 Suspend and unsuspend a contract | P1 | partial | Suspend dialog; Unsuspend | backend | Editing a suspension is API only. Automatic suspension for non-payment is not built. |
+| MEM-13 Edit or remove a freeze and re-bill | P1 | done | Details dialog: freeze end date, Remove freeze, period Edit, Reprice, Invoice deferred periods; Unfreeze | backend, Vitest `desk.test`, e2e `desk.spec` | |
+| MEM-14 Suspend and unsuspend a contract | P1 | partial | Suspend dialog; Unsuspend; Details dialog edits and removes a suspension | backend | Automatic suspension for non-payment is not built. |
 | MEM-15 Cancel a contract | P0 | done | Cancel dialog; Undo cancel | backend; Vitest cancel test | Reason-coded; bundled packages choice. |
 | MEM-16 Cancel with full or partial refund | P1 | done | Cancel dialog (quote, credit, refund checkbox) | backend; Vitest asserts the cancel body | The refund checkbox appears only with `billing.refund.create`. |
 | MEM-17 Shared membership | P1 | done | Shares dialog (ClientPicker add, revoke) | backend | |
 | MEM-18 Member auto-renew opt-out | P1 | partial | staff toggle on the client tab; portal API | backend | No portal page for the member's own opt-out. |
 | MEM-19 Membership number and member card | P0 | partial | the member number is on the client profile | backend | No card, QR code or RFID (check-in module). |
-| MEM-20 Visit limits and visit counting | P0 | partial | the visit cap shows on contracts | backend | No check-in calls `record_visit`. Listing and adjusting visits are API only. |
+| MEM-20 Visit limits and visit counting | P0 | done | Details dialog lists recent visits and adjusts the count with a reason | backend, Vitest `desk.test` | Check-in records visits (phase 10 chip B). |
 | MEM-21 Revenue and lifecycle reports | P1 | not built | none | none | |
 | MEM-22 Membership data in the public API | P1 | partial | OpenAPI | `test_kernel` snapshot | No API keys or scopes. |
 | MEM-23 Onboarding checklist | P2 | not built | none | none | |
@@ -92,8 +92,8 @@ have no screen, and PKG-09 is partial because it has no portal page.
 | PKG-09 Online package sales | P1 | partial | plan online settings; API | backend | No portal web page. |
 | PKG-10 Member-only plans | P1 | done | plan dialog members-only checkboxes | backend | |
 | PKG-11 Post-billed packages | P2 | not built | none | none | No tables, rate table or batch close. Not built here either. |
-| PKG-12 Session registration, roster and attendance | P0 | partial | ledger shows reserve and consume entries | backend `test_credits` | Registration, roster and attendance belong to scheduling and programs. |
-| PKG-13 Remove a package and reverse or refund | P1 | done | Remove dialog (removal quote, billing mode) | backend | |
+| PKG-12 Session registration, roster and attendance | P0 | done | Session panel: Pay with, Speed register, Sell a package inline; Book across sessions pays with a package | backend `test_credits`, `test_session_desk` | |
+| PKG-13 Remove a package and reverse or refund | P1 | done | Remove dialog (removal quote, billing mode, override reason when sessions were used) | backend, Vitest `desk.test` | |
 | PKG-14 Client ledger and balance views | P0 | done | client Packages tab; Ledger dialog with adjustment | backend; Vitest ledger test; e2e scan | Available = granted − reserved − consumed − forfeited. |
 | PKG-15 Sales and usage reports | P1 | not built | none | none | |
 | PKG-16 Package data in the public and self-service APIs | P1 | partial | OpenAPI | as PKG-09 | No API keys or cart. |

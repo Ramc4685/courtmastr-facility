@@ -49,6 +49,7 @@ from app.modules.pos.service import (
     open_drawer,
     product_revenue_category,
     product_tax_ids,
+    receipt_footer,
     settings_for,
 )
 from app.ports import notifications
@@ -212,8 +213,11 @@ def _attach_client(session: Session, principal: Principal, client_id: UUID) -> N
     clients.service.require_active(session, client_id)
 
 
-def update_sale(session: Session, principal: Principal, sale_id: UUID, data: dict, client_ip: str | None) -> dict:
-    """Attach or detach the client (POS-08), edit the note. `version` guards a cart handed between devices."""
+def update_sale(
+    session: Session, principal: Principal, sale_id: UUID, data: dict, client_ip: str | None, *, created: bool = False
+) -> dict:
+    """Attach or detach the client (POS-08), edit the note. `version` guards a cart handed between devices.
+    `created`: the client was made by this cashier a moment ago (quick-create), so own reach does not apply."""
     sale = _draft(session, principal, sale_id, client_ip)
     if data.get("version") is not None and data["version"] != sale.version:
         raise Conflict("The sale changed on another device; reload it.", code="version-conflict")
@@ -223,7 +227,7 @@ def update_sale(session: Session, principal: Principal, sale_id: UUID, data: dic
         if data["client_id"] is None:
             if any(line.line_kind == "equipment" for line in _lines(session, sale.id)):
                 raise ValidationFailed("Equipment rentals need a client.", pointer="/client_id", code="client-required")
-        else:
+        elif not created:
             _attach_client(session, principal, data["client_id"])
         sale.client_id = data["client_id"]
     if "note" in data:
@@ -231,6 +235,28 @@ def update_sale(session: Session, principal: Principal, sale_id: UUID, data: dic
     audit.record(session, _CREATE, sale, location_id=sale.location_id, changes=audit.diff(sale))
     recompute(session, sale)
     return sale_detail(session, sale)
+
+
+def quick_create_client(
+    session: Session, principal: Principal, sale_id: UUID, data: dict, client_ip: str | None
+) -> dict:
+    """Create a client from the register with minimal fields and attach them to the open sale (POS-08). Through
+    `clients.service` (its key, field policy and audit); the duplicate precheck answers 409 possible-duplicate
+    with the candidates unless the cashier confirms the person is new. The client's home is the sale's location."""
+    sale = _draft(session, principal, sale_id, client_ip)
+    data = dict(data)
+    version, confirmed = data.pop("version"), data.pop("confirm_new")
+    authorize(principal, "clients.client.create")
+    if not confirmed and (found := clients.service.possible_duplicates(session, principal, data)):
+        raise Conflict("This person may already be a client.", code="possible-duplicate", candidates=[
+            {"id": str(c.id), "display_name": clients.service.display_name(c), "member_number": c.member_number,
+             "primary_email": c.primary_email, "phone_mobile": c.phone_mobile}
+            for c in found
+        ])  # fmt: skip
+    client = clients.service.create_client(session, principal, {**data, "home_location_id": sale.location_id})
+    return update_sale(
+        session, principal, sale.id, {"version": version, "client_id": client.id}, client_ip, created=True
+    )
 
 
 def _find_product(session: Session, data: dict) -> Product:
@@ -840,7 +866,7 @@ def receipt(session: Session, principal: Principal, sale_id: UUID, return_id: UU
 
 def build_receipt(session: Session, principal: Principal, sale: PosSale, return_id: UUID | None) -> dict:
     """Rendered from the sale snapshot, so a re-send from history is identical to the original. Header from
-    the location, footer from billing settings; price overrides and every discount are itemised."""
+    the location, footer from POS settings or else billing's; price overrides and every discount are itemised."""
     if sale.status != "completed":
         raise Conflict("Only a completed sale has a receipt.")
     location = platform.service.get_location(session, principal, sale.location_id)
@@ -877,7 +903,7 @@ def build_receipt(session: Session, principal: Principal, sale: PosSale, return_
                      "amount_minor": t["amount_minor"]} for t in detail["tenders"] if t["status"] == "captured"],
         "subtotal_minor": sale.subtotal_minor, "discount_minor": sale.discount_minor, "tax_minor": sale.tax_minor,
         "total_minor": sale.total_minor, "pos_return": returned,
-        "footer": billing.catalogue.settings_for(session, sale.location_id).receipt_footer,
+        "footer": receipt_footer(session, sale.location_id),
     }  # fmt: skip
     content["html"] = _receipt_html(content)
     return content

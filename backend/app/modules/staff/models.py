@@ -1,4 +1,4 @@
-"""staff tables (docs/architecture/data-model-money.md section 4). Bonus rules (STF-04) are not built.
+"""staff tables (docs/architecture/data-model-money.md section 4).
 
 Deviations, recorded in the module README: the time-clock network allow-list is a column on `staff_settings`
 (no `location_network` table exists), and `pay_statement_line` carries no `client_id` (no client reference, so
@@ -11,7 +11,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, Index, Numeric, Text, UniqueConstraint, text
+from sqlalchemy import CheckConstraint, Index, Integer, Numeric, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import ARRAY, CIDR, INET, ExcludeConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -46,6 +46,11 @@ class PayPeriod(StrEnum):
     BIWEEKLY = "biweekly"
     SEMI_MONTHLY = "semi_monthly"
     MONTHLY = "monthly"
+
+
+class BonusKind(StrEnum):
+    TRAINED_HOURS = "trained_hours"
+    OFF_HOURS = "off_hours"
 
 
 class EntrySource(StrEnum):
@@ -111,18 +116,21 @@ class StaffPayee(TenantOwned, Timestamps, Base):
 
 
 class PayRate(TenantOwned, Timestamps, Base):
-    """Trainer session pay: one default row (no reservation type) plus P1 override rows (STF-02, STF-03)."""
+    """Trainer session pay: one default row plus override rows for one reservation type or one membership type
+    (STF-02, STF-03)."""
 
     __tablename__ = "pay_rate"
     __table_args__ = tenant_args(
         *tfk("staff_payee_id", "staff_payee", ondelete="CASCADE", index=False),
         *tfk("reservation_type_id", "reservation_type"),
+        *tfk("membership_type_id", "membership_type"),
         enum_check("pay_basis", PayBasis),
-        UniqueConstraint("tenant_id", "staff_payee_id", "reservation_type_id", name="uq_pay_rate",
+        UniqueConstraint("tenant_id", "staff_payee_id", "reservation_type_id", "membership_type_id", name="uq_pay_rate",
                          postgresql_nulls_not_distinct=True),
+        CheckConstraint("num_nonnulls(reservation_type_id, membership_type_id) <= 1", name="one_override"),
         CheckConstraint(
-            "reservation_type_id IS NULL OR (program_instruction_rate_minor IS NULL AND non_training_rate_minor IS NULL"
-            " AND floor_rate_minor IS NULL)", name="flat_default",
+            "(reservation_type_id IS NULL AND membership_type_id IS NULL) OR (program_instruction_rate_minor IS NULL"
+            " AND non_training_rate_minor IS NULL AND floor_rate_minor IS NULL)", name="flat_default",
         ),
         CheckConstraint(
             "rate_60_minor >= 0 AND rate_45_minor >= 0 AND rate_30_minor >= 0 AND comp_session_rate_minor >= 0"
@@ -132,6 +140,7 @@ class PayRate(TenantOwned, Timestamps, Base):
 
     staff_payee_id: Mapped[UUID]
     reservation_type_id: Mapped[UUID | None]
+    membership_type_id: Mapped[UUID | None]
     pay_basis: Mapped[str] = enum_column()
     rate_60_minor: Mapped[int] = mapped_column(server_default=text("0"))
     rate_45_minor: Mapped[int] = mapped_column(server_default=text("0"))
@@ -141,6 +150,33 @@ class PayRate(TenantOwned, Timestamps, Base):
     program_instruction_rate_minor: Mapped[int | None]
     non_training_rate_minor: Mapped[int | None]
     floor_rate_minor: Mapped[int | None]
+
+
+class BonusRule(TenantOwned, Timestamps, Base):
+    """A trainer's bonus (STF-04). `trained_hours`: a flat `amount_minor` once trained time in the pay period
+    reaches `threshold_minutes`. `off_hours`: `amount_minor` extra per hour of session time inside the window
+    (minutes after local midnight, `to_minute` up to 1440) on the listed weekdays (0 = Monday)."""
+
+    __tablename__ = "bonus_rule"
+    __table_args__ = tenant_args(
+        *tfk("staff_payee_id", "staff_payee", ondelete="CASCADE"),
+        enum_check("kind", BonusKind),
+        CheckConstraint("amount_minor >= 0", name="amount"),
+        CheckConstraint(
+            "(kind = 'trained_hours' AND threshold_minutes > 0 AND from_minute IS NULL AND to_minute IS NULL"
+            " AND weekdays IS NULL) OR (kind = 'off_hours' AND threshold_minutes IS NULL AND from_minute >= 0"
+            " AND to_minute <= 1440 AND to_minute > from_minute AND cardinality(weekdays) > 0"
+            " AND weekdays <@ ARRAY[0,1,2,3,4,5,6])", name="shape",
+        ),
+    )  # fmt: skip
+
+    staff_payee_id: Mapped[UUID]
+    kind: Mapped[str] = enum_column()
+    threshold_minutes: Mapped[int | None]
+    from_minute: Mapped[int | None]
+    to_minute: Mapped[int | None]
+    weekdays: Mapped[list[int] | None] = mapped_column(ARRAY(Integer))
+    amount_minor: Mapped[int]
 
 
 class CommissionRule(TenantOwned, Timestamps, Base):

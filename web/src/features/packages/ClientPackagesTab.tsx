@@ -21,7 +21,8 @@ const ENTRY: Record<string, string> = { grant: 'Granted', reserve: 'Booked', rel
 const saleError = (e: Error | null) =>
   e instanceof ApiError && e.code === 'document-required' ? 'The client must accept the plan’s document first. It is waiting on the Documents tab; sign it there, then sell again.' : e?.message
 
-export function SellPackageDialog({ client, onClose }: { client: Client; onClose: () => void }) {
+/** Also opened inline from the session panel (PKG-12), so it takes only the fields it needs and reports the sale. */
+export function SellPackageDialog({ client, onClose, onSold }: { client: Pick<Client, 'id' | 'home_location_id'>; onClose: () => void; onSold?: (sold: { id: string }) => void }) {
   const qc = useQueryClient()
   const toast = useToast()
   const money = useMoney()
@@ -56,6 +57,7 @@ export function SellPackageDialog({ client, onClose }: { client: Client; onClose
       void qc.invalidateQueries({ queryKey: ['client-packages'] })
       void qc.invalidateQueries({ queryKey: ['package-series'] })
       toast('success', `Sold ${sold.name}.${sold.payment_status ? ` Payment ${sold.payment_status}.` : ''}`)
+      onSold?.(sold)
       onClose()
     },
     onError: (e) => {
@@ -337,8 +339,11 @@ function RemoveDialog({ pack, onClose }: { pack: PackageOut; onClose: () => void
   const money = useMoney()
   const quote = useQuery({ queryKey: ['client-packages', pack.id, 'removal-quote'], queryFn: () => api.post('/api/v1/client-packages/{package_id}/removal-quote', { path: { package_id: pack.id } }) })
   const [mode, setMode] = useState<'billing_reversed' | 'billing_kept'>('billing_kept')
+  const [reason, setReason] = useState('')
+  // Question 16: reversing after sessions were used is a manager override with a reason (audited).
+  const override = mode === 'billing_reversed' && Boolean(quote.data?.needs_override_reason)
   const remove = useMutation({
-    mutationFn: () => api.post('/api/v1/client-packages/{package_id}/remove', { path: { package_id: pack.id }, body: { removal_mode: mode } }),
+    mutationFn: () => api.post('/api/v1/client-packages/{package_id}/remove', { path: { package_id: pack.id }, body: { removal_mode: mode, override_reason: override ? reason.trim() : null } }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['client-packages'] })
       toast('success', mode === 'billing_reversed' ? 'Removed; the charge was reversed and any payment became account credit' : 'Removed; billing kept')
@@ -351,7 +356,7 @@ function RemoveDialog({ pack, onClose }: { pack: PackageOut; onClose: () => void
       title={`Remove ${pack.name}`}
       onClose={onClose}
       footer={
-        <Button variant="danger" onClick={() => remove.mutate()} loading={remove.isPending} disabled={!q}>
+        <Button variant="danger" onClick={() => remove.mutate()} loading={remove.isPending} disabled={!q || (override && !reason.trim())}>
           Remove package
         </Button>
       }
@@ -367,10 +372,11 @@ function RemoveDialog({ pack, onClose }: { pack: PackageOut; onClose: () => void
         onChange={(e) => setMode(e.target.value as typeof mode)}
         options={[
           { value: 'billing_kept', label: 'Keep the charge' },
-          ...(q?.can_reverse_billing ? [{ value: 'billing_reversed', label: 'Reverse the charge (payments become account credit)' }] : []),
+          ...(q?.can_reverse_billing ? [{ value: 'billing_reversed', label: q.needs_override_reason ? 'Reverse the charge anyway (manager override)' : 'Reverse the charge (payments become account credit)' }] : []),
         ]}
       />
-      {q && !q.can_reverse_billing && q.charge_id && <p className="text-xs text-muted">The charge cannot be reversed once sessions were used.</p>}
+      {override && <Input label="Reason for the override" required value={reason} onChange={(e) => setReason(e.target.value)} hint="Sessions were used. The reason is kept in the history." maxLength={500} />}
+      {q && !q.can_reverse_billing && q.charge_id && <p className="text-xs text-muted">The charge cannot be reversed once sessions were used without a manager override.</p>}
       {remove.error && (
         <p role="alert" className="text-sm text-danger">
           {remove.error.message}

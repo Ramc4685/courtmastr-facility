@@ -10,7 +10,8 @@ import { useMe } from '../../lib/auth'
 import { formatDateTime } from '../../lib/format'
 import { fromLocalInput } from '../assessments/queries'
 import { FormDialog, ListTable, LocationSelect, StatusBadge } from '../billing/shared'
-import { SHIFT_STATUS, useNames } from './shared'
+import { today } from '../billing/money'
+import { hours, SHIFT_STATUS, useNames, VARIANCE_STATE } from './shared'
 
 function ShiftDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient()
@@ -40,6 +41,63 @@ function ShiftDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
+function CopyDialog({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const me = useMe()
+  const [f, setF] = useState({ location_id: me.primary_location_id ?? '', from_starts_on: '', to_starts_on: '' })
+  const save = useMutation({
+    mutationFn: () => api.post('/api/v1/shifts/copy', { body: f }),
+    onSuccess: (out) => {
+      void qc.invalidateQueries({ queryKey: ['staff', 'shifts'] })
+      toast('success', `${out.copied_count} copied as drafts, ${out.skipped_count} skipped.`)
+      onClose()
+    },
+  })
+  const e = fieldErrors(save.error)
+  return (
+    <FormDialog title="Copy a week of shifts" description="Copies seven days of shifts as drafts. A shift that would overlap another of the same person is skipped." submitLabel="Copy shifts" busy={save.isPending} error={save.error} onClose={onClose} onSubmit={() => save.mutate()}>
+      <LocationSelect value={f.location_id} onChange={(v) => setF({ ...f, location_id: v })} error={e.location_id} />
+      <Input label="Copy the week starting" type="date" required value={f.from_starts_on} error={e.from_starts_on} onChange={(ev) => setF({ ...f, from_starts_on: ev.target.value })} />
+      <Input label="Onto the week starting" type="date" required value={f.to_starts_on} error={e.to_starts_on} onChange={(ev) => setF({ ...f, to_starts_on: ev.target.value })} />
+    </FormDialog>
+  )
+}
+
+const daysAgo = (n: number) => new Date(new Date(`${today()}T12:00:00`).getTime() - n * 86_400_000).toISOString().slice(0, 10)
+
+/** Published shifts against the hours people clocked, so a manager sees who was short or missing (STF-15). */
+function VariancePanel() {
+  const names = useNames()
+  const [range, setRange] = useState({ from: daysAgo(6), to: today() })
+  const rows = useQuery({ queryKey: ['staff', 'shift-variance', range], queryFn: () => api.get('/api/v1/shifts/variance', { query: { from: range.from, to: range.to } }) })
+  return (
+    <section aria-labelledby="variance-heading" className="mt-8">
+      <h2 id="variance-heading" className="mb-1 text-lg font-semibold">Scheduled against worked</h2>
+      <p className="mb-3 text-sm text-muted">Published shifts compared with closed time entries at the same location.</p>
+      <div className="mb-3 flex flex-wrap items-end gap-3">
+        <Input label="From" type="date" value={range.from} onChange={(ev) => setRange({ ...range, from: ev.target.value })} />
+        <Input label="To" type="date" value={range.to} onChange={(ev) => setRange({ ...range, to: ev.target.value })} />
+      </div>
+      {rows.error && <ErrorState error={rows.error} />}
+      <ListTable
+        caption="Shift variance"
+        rows={rows.data ?? []}
+        rowKey={(r) => r.shift_id}
+        empty={<EmptyState title="No published shifts in this range" />}
+        columns={[
+          { header: 'Staff member', cell: (r) => names.user(r.staff_user_id) },
+          { header: 'Shift', cell: (r) => `${formatDateTime(r.starts_at)} to ${formatDateTime(r.ends_at)}` },
+          { header: 'Scheduled', cell: (r) => hours(r.scheduled_minutes) },
+          { header: 'Worked', cell: (r) => (r.state === 'upcoming' ? '—' : hours(r.worked_minutes)) },
+          { header: 'Difference', cell: (r) => (r.state === 'upcoming' ? '—' : `${r.variance_minutes < 0 ? '−' : '+'}${hours(Math.abs(r.variance_minutes))}`) },
+          { header: 'Result', cell: (r) => <StatusBadge map={VARIANCE_STATE} value={r.state} /> },
+        ]}
+      />
+    </section>
+  )
+}
+
 /** Plan shifts as drafts, publish them so staff see them, cancel what changes (STF-15). */
 export function ShiftsPage() {
   const qc = useQueryClient()
@@ -47,6 +105,7 @@ export function ShiftsPage() {
   const names = useNames()
   const shifts = useQuery({ queryKey: ['staff', 'shifts'], queryFn: () => api.get('/api/v1/shifts', { query: { limit: 200 } }) })
   const [adding, setAdding] = useState(false)
+  const [copying, setCopying] = useState(false)
   const drafts = (shifts.data?.data ?? []).filter((s) => s.status === 'draft').map((s) => s.id)
   const done = () => void qc.invalidateQueries({ queryKey: ['staff', 'shifts'] })
   const publish = useMutation({
@@ -65,6 +124,7 @@ export function ShiftsPage() {
         actions={
           <>
             <Button variant="secondary" disabled={drafts.length === 0} loading={publish.isPending} onClick={() => publish.mutate(drafts)}>Publish drafts ({drafts.length})</Button>
+            <Button variant="secondary" onClick={() => setCopying(true)}>Copy a week</Button>
             <Button onClick={() => setAdding(true)}>New shift</Button>
           </>
         }
@@ -87,7 +147,9 @@ export function ShiftsPage() {
           },
         ]}
       />
+      <VariancePanel />
       {adding && <ShiftDialog onClose={() => setAdding(false)} />}
+      {copying && <CopyDialog onClose={() => setCopying(false)} />}
     </>
   )
 }

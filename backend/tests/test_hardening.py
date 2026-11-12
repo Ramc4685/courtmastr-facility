@@ -4,7 +4,7 @@ the URL fragment, security headers, the body-size cap, lane overrides, notificat
 import pytest
 
 from app.adapters.fake_payments import FakeProvider
-from app.adapters.notifications import EmailNotifier, NoopNotifier
+from app.adapters.notifications import NoopNotifier
 from app.core.db.session import tenant_session
 from app.core.settings import REPO_ROOT, get_settings
 from app.modules.platform.auth import safe_redirect_path
@@ -162,12 +162,13 @@ def test_notification_goes_out_by_email_only_when_the_transaction_commits(tenant
 
 def test_noop_notifier_delivers_nothing(tenant, mailbox):
     notifications.TEMPLATES.setdefault("tests.noop", notifications.NotificationTemplate("s", "b"))
+    before = notifications._notifier  # restore what was installed, or later tests run without engagement's log
     notifications.configure(NoopNotifier())
     try:
         with tenant_session(tenant.id) as session:
             notifications.send(session, "tests.noop", "casey@example.com", {})
     finally:
-        notifications.configure(EmailNotifier())
+        notifications.configure(before)
     assert mailbox == []
 
 

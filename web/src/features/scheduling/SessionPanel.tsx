@@ -9,6 +9,7 @@ import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { CancelDialog } from '../programs/CancelDialog'
+import { SellPackageDialog } from '../packages/ClientPackagesTab'
 import { BatchBookDialog, MessageDialog, RebookDialog } from '../programs/SessionTools'
 
 type Attendance = Schemas['Participant']['attendance']
@@ -40,9 +41,13 @@ export function SessionPanel({ sessionId, canEdit }: { sessionId: string; canEdi
     queryFn: () => api.get('/api/v1/client-packages', { query: { usable_by_client_id: client?.id, reservation_type_id: typeId ?? undefined, status: 'active', limit: 50 } }),
     enabled: Boolean(client && typeId) && can('packages.package.read'),
   })
+  const [selling, setSelling] = useState(false)
+  // Speed register (PKG-12): each pick registers at once with the client's first usable package; the picker stays open.
+  const [speed, setSpeed] = useState(false)
   const pick = (c: ClientSummary | null) => {
     setClient(c)
     setPackageId('')
+    if (c && speed) quick.mutate(c)
   }
   const [capacity, setCapacity] = useState<string | null>(null)
   const [tool, setTool] = useState<'batch' | 'message' | null>(null)
@@ -63,6 +68,23 @@ export function SessionPanel({ sessionId, canEdit }: { sessionId: string; canEdi
       refresh()
       void qc.invalidateQueries({ queryKey: ['client-packages'] })
     },
+  })
+  const quick = useMutation({
+    mutationFn: async (c: ClientSummary) => {
+      const usable =
+        typeId && can('packages.package.read')
+          ? (await api.get('/api/v1/client-packages', { query: { usable_by_client_id: c.id, reservation_type_id: typeId, status: 'active', limit: 1 } })).data[0]
+          : undefined
+      await api.post('/api/v1/enrollments', { body: { client_id: c.id, session_id: sessionId, client_package_id: usable?.id ?? null, program_fee_ids: [] } })
+      return usable
+    },
+    onSuccess: (usable, c) => {
+      toast('success', `${c.first_name} registered${usable ? ` with ${usable.name}` : ''}.`)
+      setClient(null)
+      refresh()
+      void qc.invalidateQueries({ queryKey: ['client-packages'] })
+    },
+    onError: (e, c) => toast('error', `${c.first_name}: ${e.message}`),
   })
   const queue = useMutation({
     mutationFn: (c: ClientSummary) => api.post('/api/v1/waitlist-entries', { body: { client_id: c.id, session_id: sessionId, mode: 'auto_promote' } }),
@@ -256,10 +278,16 @@ export function SessionPanel({ sessionId, canEdit }: { sessionId: string; canEdi
               ]}
             />
           )}
+          {can('scheduling.enrollment.create') && <Checkbox label="Speed register: register each client as soon as they are picked" checked={speed} onChange={(e) => setSpeed(e.target.checked)} />}
           <div className="flex flex-wrap gap-2">
             {can('scheduling.enrollment.create') && (
-              <Button size="sm" disabled={!client} loading={enrol.isPending} onClick={() => client && enrol.mutate(client)}>
+              <Button size="sm" disabled={!client} loading={enrol.isPending || quick.isPending} onClick={() => client && enrol.mutate(client)}>
                 Register
+              </Button>
+            )}
+            {client && can('packages.package.sell') && (
+              <Button size="sm" variant="secondary" onClick={() => setSelling(true)}>
+                Sell a package
               </Button>
             )}
             {can('scheduling.waitlist.manage') && (
@@ -300,7 +328,17 @@ export function SessionPanel({ sessionId, canEdit }: { sessionId: string; canEdi
           </ol>
         </div>
       )}
-      {tool === 'batch' && <BatchBookDialog sessionId={sessionId} onClose={() => setTool(null)} />}
+      {tool === 'batch' && <BatchBookDialog sessionId={sessionId} reservationTypeId={typeId ?? null} onClose={() => setTool(null)} />}
+      {selling && client && (
+        <SellPackageDialog
+          client={client}
+          onClose={() => setSelling(false)}
+          onSold={(sold) => {
+            void qc.invalidateQueries({ queryKey: ['session', sessionId, 'packages'] })
+            setPackageId(sold.id)
+          }}
+        />
+      )}
       {tool === 'message' && <MessageDialog sessionId={sessionId} onClose={() => setTool(null)} />}
       {moving && <RebookDialog enrollmentId={moving.id} who={moving.name} sessionId={sessionId} onClose={() => setMoving(null)} />}
       {removing && <CancelDialog enrollmentId={removing.id} who={`${removing.name}'s place`} showScope onClose={() => setRemoving(null)} onDone={refresh} />}

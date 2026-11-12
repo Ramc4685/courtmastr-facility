@@ -3,7 +3,7 @@
 Generated from the model, then completed by hand: enable_rls().
 
 Revision ID: 1301
-Revises: 0310
+Revises: 1081
 """
 
 import sqlalchemy as sa
@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 from app.core.db.rls import enable_rls
 
 revision = "1301"
-down_revision = "0310"
+down_revision = "1081"
 
 
 def upgrade() -> None:

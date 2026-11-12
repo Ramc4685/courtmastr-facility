@@ -17,8 +17,9 @@ import { ClientAssessmentsTab } from '../assessments/ClientAssessmentsTab'
 import { ClientDocumentsTab, WaiverBadge } from '../documents/ClientDocumentsTab'
 import { ClientMembershipsTab } from '../memberships/ClientMembershipsTab'
 import { ClientPackagesTab } from '../packages/ClientPackagesTab'
-import { formatDateTime, fullName } from '../../lib/format'
+import { formatDate, formatDateTime, formatMoney, fullName } from '../../lib/format'
 import { ClientPicker, type ClientSummary } from './ClientPicker'
+import { NoteAttachments, PhotoCard } from './ClientFiles'
 import { useCategories } from './ClientsPage'
 
 type Client = Schemas['ClientOut']
@@ -26,10 +27,20 @@ const key = (id: string, part?: string) => ['clients', id, ...(part ? [part] : [
 
 function Alerts({ id }: { id: string }) {
   const alerts = useQuery({ queryKey: key(id, 'alerts'), queryFn: () => api.get('/api/v1/clients/{client_id}/alerts', { path: { client_id: id } }) })
+  // Derived alerts (CLI-20): balance, membership expiry and missing waiver, served by memberships.
+  const system = useQuery({ queryKey: key(id, 'system-alerts'), queryFn: () => api.get('/api/v1/clients/{client_id}/system-alerts', { path: { client_id: id } }) })
   const live = (alerts.data ?? []).filter((a) => a.is_active && a.shows_on_profile)
-  if (!live.length) return null
+  const derived = system.data ?? []
+  if (!live.length && !derived.length) return null
   return (
     <section aria-label="Client alerts" className="mb-4 space-y-2">
+      {derived.map((a) => (
+        <p key={a.code} role="note" className={`rounded-md border px-3 py-2 text-sm ${a.severity === 'danger' ? 'border-danger bg-danger/10' : 'border-warning bg-warning/10'}`}>
+          <strong className="mr-2">{a.message}</strong>
+          {a.amount_minor != null && formatMoney(a.amount_minor)}
+          {a.amount_minor == null && a.on && formatDate(a.on)}
+        </p>
+      ))}
       {live.map((a) => (
         <p key={a.id} role="note" className={`rounded-md border px-3 py-2 text-sm ${a.severity === 'info' ? 'border-border' : 'border-warning bg-warning/10'}`}>
           <strong className="mr-2 capitalize">{a.kind}:</strong>
@@ -148,6 +159,7 @@ function Overview({ client }: { client: Client }) {
           {client.is_sensitive_masked && <p className="text-muted">Birth date, address and medical notes are hidden for your role.</p>}
         </dl>
       </Card>
+      <PhotoCard client={client} />
     </div>
   )
 }
@@ -316,6 +328,7 @@ function Notes({ client }: { client: Client }) {
                 </p>
                 {n.body && <p>{n.body}</p>}
                 <p className="text-xs text-muted">{formatDateTime(n.occurred_at)}</p>
+                <NoteAttachments noteId={n.id} />
               </li>
             ))}
           </ul>

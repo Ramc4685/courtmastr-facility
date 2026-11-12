@@ -376,10 +376,14 @@ class RemovalQuoteOut(Out):
     charge_total_minor: int
     paid_minor: int
     can_reverse_billing: bool
+    needs_override_reason: bool
 
 
 class PackageRemove(In):
     removal_mode: Literal["billing_reversed", "billing_kept"]
+    override_reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)] | None = (
+        None
+    )
 
 
 class PortalPackageSeriesOut(Out):

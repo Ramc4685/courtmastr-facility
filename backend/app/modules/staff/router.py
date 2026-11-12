@@ -1,6 +1,6 @@
-"""staff HTTP surface (docs/api/openapi-money.yaml, tag staff). Pay-rate overrides, bonus rules and shift copy
-(P1) are not built. Two routes beyond the spec: `listMyShifts` (a user's own published shifts) and the
-instructor routes, which put a trainer on a scheduling session through scheduling's service."""
+"""staff HTTP surface (docs/api/openapi-money.yaml, tag staff). Routes beyond the spec: `listMyShifts` (a user's
+own published shifts), `getShiftVariance`, the membership-type pay-rate overrides, and the instructor routes, which
+put a trainer on a scheduling session through scheduling's service."""
 
 from datetime import date
 from typing import Annotated
@@ -72,6 +72,49 @@ def list_pay_rates(staff_payee_id: UUID, ctx: Ctx = PayRead):
 @router.put("/staff-payees/{staff_payee_id}/pay-rates/default", response_model=s.PayRateOut)
 def put_default_pay_rate(staff_payee_id: UUID, body: s.PayRateWrite, ctx: Ctx = PayManage):
     return service.put_default_pay_rate(ctx.session, ctx.principal, staff_payee_id, body.model_dump())
+
+
+@router.put(
+    "/staff-payees/{staff_payee_id}/pay-rates/membership-types/{membership_type_id}", response_model=s.PayRateOut
+)
+def put_membership_pay_rate(staff_payee_id: UUID, membership_type_id: UUID, body: s.PayRateWrite, ctx: Ctx = PayManage):
+    """Pay for sessions of a client holding this membership type (any 60/45/30, comp and commission fields)."""
+    return service.put_pay_rate_override(
+        ctx.session, ctx.principal, staff_payee_id, body.model_dump(), membership_type_id=membership_type_id
+    )
+
+
+@router.delete("/staff-payees/{staff_payee_id}/pay-rates/membership-types/{membership_type_id}", status_code=204)
+def delete_membership_pay_rate(staff_payee_id: UUID, membership_type_id: UUID, ctx: Ctx = PayManage):
+    service.delete_pay_rate_override(ctx.session, ctx.principal, staff_payee_id, membership_type_id=membership_type_id)
+    return Response(status_code=204)
+
+
+@router.put("/staff-payees/{staff_payee_id}/pay-rates/{reservation_type_id}", response_model=s.PayRateOut)
+def put_pay_rate_override(staff_payee_id: UUID, reservation_type_id: UUID, body: s.PayRateWrite, ctx: Ctx = PayManage):
+    """Pay for one reservation type instead of the default row."""
+    return service.put_pay_rate_override(
+        ctx.session, ctx.principal, staff_payee_id, body.model_dump(), reservation_type_id=reservation_type_id
+    )
+
+
+@router.delete("/staff-payees/{staff_payee_id}/pay-rates/{reservation_type_id}", status_code=204)
+def delete_pay_rate_override(staff_payee_id: UUID, reservation_type_id: UUID, ctx: Ctx = PayManage):
+    service.delete_pay_rate_override(
+        ctx.session, ctx.principal, staff_payee_id, reservation_type_id=reservation_type_id
+    )
+    return Response(status_code=204)
+
+
+@router.get("/staff-payees/{staff_payee_id}/bonus-rules", response_model=s.BonusRuleSet)
+def list_bonus_rules(staff_payee_id: UUID, ctx: Ctx = PayRead):
+    return service.list_bonus_rules(ctx.session, ctx.principal, staff_payee_id)
+
+
+@router.put("/staff-payees/{staff_payee_id}/bonus-rules", response_model=s.BonusRuleSet)
+def put_bonus_rules(staff_payee_id: UUID, body: s.BonusRulesPut, ctx: Ctx = PayManage):
+    """Replaces the trainer's trained-hour and off-hour bonuses; applied by payroll runs from then on."""
+    return service.put_bonus_rules(ctx.session, ctx.principal, staff_payee_id, [r.model_dump() for r in body.rules])
 
 
 @router.get("/staff-payees/{staff_payee_id}/commission-rules", response_model=s.CommissionRuleSet)
@@ -217,6 +260,21 @@ def create_shift(body: s.ShiftCreate, ctx: Ctx = ShiftManage):
 @router.post("/shifts/publish", response_model=s.ShiftPublishResult)
 def publish_shifts(body: s.ShiftPublish, ctx: Ctx = ShiftManage):
     return service.publish_shifts(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.post("/shifts/copy", response_model=s.ShiftCopyResult)
+def copy_shifts(body: s.ShiftCopy, ctx: Ctx = ShiftManage):
+    """Copies a week of shifts as drafts; one that would overlap another shift is skipped and counted."""
+    return service.copy_shifts(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.get("/shifts/variance", response_model=list[s.ShiftVarianceOut])
+def get_shift_variance(
+    starts_on: From, ends_on: To, location_id: UUID | None = None, staff_user_id: UUID | None = None,
+    ctx: Ctx = ShiftManage,
+):  # fmt: skip
+    """Published shifts (local dates, at most 62 days) against time entries: minutes scheduled, worked, the gap."""
+    return service.shift_variance(ctx.session, ctx.principal, starts_on, ends_on, location_id, staff_user_id)
 
 
 @router.patch("/shifts/{shift_id}", response_model=s.ShiftOut)

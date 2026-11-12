@@ -17,10 +17,20 @@ from app.core import audit, clock, events
 from app.core.auth import Principal, authorize, scope_query
 from app.core.errors import Conflict, ValidationFailed
 from app.core.ids import new_id
+from app.core.jobs import tenant_actor
 from app.core.pagination import ListQuery, paginate
+from app.core.settings import get_settings
+from app.modules import platform
 from app.modules.pos.events import StockLow
-from app.modules.pos.models import Product, ProductStock, StockMovement
+from app.modules.pos.models import PosLowStockDigest, Product, ProductStock, StockMovement
 from app.modules.pos.service import check_location, get_row, settings_for
+from app.ports import notifications
+
+notifications.register_template(
+    "pos.low_stock_digest",
+    subject="$app: $count products low on stock at $location",
+    body="Hello,\n\nThese products are at or below their reorder level at $location on $day:\n\n$items\n",
+)
 
 _ADJUST = "pos.inventory.adjust"
 
@@ -174,3 +184,60 @@ def list_product_stock(session: Session, principal: Principal, product_id: UUID,
         for row in page["data"]
     ]  # fmt: skip
     return page
+
+
+# --- daily low-stock digest (POS-22) -------------------------------------------------------------------------
+
+
+def send_low_stock_digests(session: Session) -> int:
+    """Email each location's `low_stock_alert_email` the products at or below their reorder level, once per
+    location per local day (a `pos_low_stock_digest` row is the key, so a repeated or concurrent run sends
+    nothing more). A day with nothing low sends nothing and records nothing; a later run that day may send.
+    Internal; the hourly actor below calls it. Returns how many digests went out."""
+    sent = 0
+    app_name = get_settings().app.display_name
+    for location_id in session.scalars(select(ProductStock.location_id).distinct().order_by(ProductStock.location_id)):
+        email = settings_for(session, location_id).low_stock_alert_email
+        if not email:
+            continue
+        today = platform.service.location_today(session, location_id)
+        done = select(PosLowStockDigest.id).where(
+            PosLowStockDigest.location_id == location_id, PosLowStockDigest.local_on == today
+        )
+        if session.scalar(done) is not None:
+            continue
+        low = session.execute(
+            select(Product.name, Product.sku, ProductStock.on_hand_count, Product.reorder_level)
+            .join(ProductStock, ProductStock.product_id == Product.id)
+            .where(
+                ProductStock.location_id == location_id, Product.is_active, Product.is_stock_tracked,
+                Product.reorder_level.is_not(None), ProductStock.on_hand_count <= Product.reorder_level,
+            )
+            .order_by(Product.name, Product.id)
+        ).all()  # fmt: skip
+        if not low:
+            continue
+        claimed = session.scalar(
+            pg_insert(PosLowStockDigest)
+            .values(id=new_id(), tenant_id=session.info["tenant_id"], location_id=location_id, local_on=today,
+                    sent_to=email, item_count=len(low))
+            .on_conflict_do_nothing()
+            .returning(PosLowStockDigest.id)
+        )  # fmt: skip
+        if claimed is None:
+            continue
+        location = platform.service.location_name(session, location_id)
+        items = "\n".join(f"- {name}{f' ({sku})' if sku else ''}: {on_hand} on hand, reorder at {level}"
+                          for name, sku, on_hand, level in low)  # fmt: skip
+        notifications.send(session, "pos.low_stock_digest", email, {
+            "app": app_name, "count": str(len(low)), "location": location, "day": today.isoformat(), "items": items,
+        })  # fmt: skip
+        sent += 1
+    session.flush()
+    return sent
+
+
+@tenant_actor
+def send_low_stock_digest(session: Session) -> int:
+    """Hourly per tenant (app/scheduler.py); sends at most once per location per local day."""
+    return send_low_stock_digests(session)
