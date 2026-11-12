@@ -8,7 +8,7 @@ strips its free text and stored payment methods, and is blocked while money is s
 
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import case, delete, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.core import clock
@@ -26,6 +26,7 @@ from app.modules.billing.models import (
     StatementRecipient,
 )
 
+ERASED_EMAIL = "erased@erased.invalid"
 _OPEN_INVOICE = ("open", "payment_pending", "partially_paid")
 _OPEN_PAYMENT = ("initiated", "requires_action", "processing", "unknown")
 
@@ -127,10 +128,23 @@ def _erase(session: Session, client_id: UUID) -> dict:
     session.execute(update(Payment).where(Payment.client_id == client_id).values(memo=None, external_reference=None))
     session.execute(update(Refund).where(Refund.client_id == client_id).values(comments=None))
     d = BillingDocumentDelivery
-    session.execute(update(d).where(d.client_id == client_id).values(to_email=None))
+    mine = or_(
+        d.client_id == client_id,
+        d.invoice_id.in_(select(Invoice.id).where(Invoice.bill_to_client_id == client_id)),
+        d.payment_id.in_(select(Payment.id).where(Payment.client_id == client_id)),
+    )
+    # An emailed delivery must keep an address (check constraint), so the erased one is replaced, not nulled.
+    session.execute(update(d).where(mine).values(to_email=case((d.channel == "email", ERASED_EMAIL), else_=None)))
     sr = StatementRecipient
     session.execute(update(sr).where(sr.client_id == client_id).values(to_email=None, failure_message=None))
-    return {"retained_invoices": kept, "removed_payment_methods": removed, "erased_at": clock.now().isoformat()}
+    # The PDFs sent to the client carry their name and address: the bytes are blanked and the file purged
+    # (the invoices and payments themselves are the retained financial record).
+    file_ids = select(d.stored_file_id).where(mine).union(select(sr.stored_file_id).where(sr.client_id == client_id))
+    purged = platform.files.purge(session, file_ids)
+    return {
+        "retained_invoices": kept, "removed_payment_methods": removed, "purged_documents": purged,
+        "erased_at": clock.now().isoformat(),
+    }  # fmt: skip
 
 
 _TABLES = (

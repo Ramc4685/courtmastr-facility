@@ -2,13 +2,14 @@
 per-recipient status, the portal statement, and the location's day in statements and AR ageing (REL-04)."""
 
 from datetime import UTC, date, datetime
+from uuid import UUID
 
 import pytest
 from sqlalchemy import select
 
 from app.core import clock
 from app.core.audit import AuditEvent
-from app.core.errors import ValidationFailed
+from app.core.errors import NotFound, ValidationFailed
 from app.core.events import OutboxEvent
 from app.modules import clients, platform
 from app.modules.billing import documents, statements
@@ -124,6 +125,11 @@ def test_sending_a_document_stores_its_pdf_and_links_to_it(api, shop, mailbox):
             "application/pdf", "billing.invoice", f"invoice-{invoice['number']}.pdf",
         )  # fmt: skip
         assert f"Invoice {invoice['number']}".encode() in data
+        emailed_id = UUID(emailed["id"])
+        # Erasure purges the PDFs sent to the client; the invoice itself is the retained record.
+        assert platform.privacy.HANDLERS["billing"].erase(session, emailed_id)["purged_documents"] == 2
+        with pytest.raises(NotFound):
+            platform.files.read(session, row.stored_file_id)
 
 
 @pytest.fixture

@@ -168,6 +168,9 @@ scheduler or per-tenant fan-out. Until it does, autopay runs when staff start a 
 - **Statement periods and the AR "as at" cut use the location's day.** A statement's dates are read in the
   client's home location's zone; ageing cuts each charge at the end of the "as at" day in its own location's
   zone (UTC only when a location has no zone). The default "as at" is the earliest local today of the tenant.
+- **Erasure purges the sent PDFs.** The client's invoice, receipt and statement PDFs are blanked and marked
+  purged (`platform.files.purge`, empty bytes until the storage port can delete); an emailed delivery's
+  address becomes `erased@erased.invalid` because the row must keep one. Invoices and payments stay.
 - **A statement batch belongs to one location** (`location_id` NOT NULL, where the data model allows null), so
   the location gate applies; its requester is null when an API key asked. Recipients are the payers of non-void
   invoices at that location in the period; `message_id` stays null until engagement returns a message id.
