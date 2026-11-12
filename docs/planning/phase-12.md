@@ -161,4 +161,4 @@ at merge (in merge order) and again onto main's head at hand-back if Phase 14 or
 
 | Date | Step | Result | Commit |
 |---|---|---|---|
-| 2026-11-12 | plan, `last_30_days` fix, catalogue seam | written; regression test pending a lane database | |
+| 2026-11-12 | plan, `last_30_days` fix, catalogue seam | reporting suite green on lane p12; A, B, C proposed | 9d9ffa8 |
