@@ -26,6 +26,7 @@ def create_app() -> FastAPI:
     from app.modules.packages.router import public as packages_public
     from app.modules.packages.router import router as packages_router
     from app.modules.platform.files_router import router as files_router
+    from app.modules.platform.oidc_router import router as oidc_router
     from app.modules.platform.privacy_router import router as privacy_router
     from app.modules.platform.router import API_PREFIX, router
     from app.modules.pos.router import router as pos_router
@@ -64,6 +65,7 @@ def create_app() -> FastAPI:
         app.include_router(each, prefix=API_PREFIX)
     app.include_router(leagues_router, prefix=API_PREFIX)
     app.include_router(files_router, prefix=API_PREFIX)
+    app.include_router(oidc_router, prefix=API_PREFIX)
     app.include_router(integrations_router, prefix=API_PREFIX)
     app.include_router(reporting_router, prefix=API_PREFIX)
     _document_auth(app)

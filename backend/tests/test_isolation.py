@@ -326,6 +326,8 @@ _BODIES = {
     # integrations (module 16)
     "rotateApiKey": {},
     "updateWebhookEndpoint": {"description": "Renamed"},
+    # platform OIDC (Phase 8 S3)
+    "updateIdentityProvider": {"display_name": "Renamed"},
 }
 _ACCEPTANCE = {"content_sha256": "0" * 64, "signers": [
     {"decision": "accepted", "signer_role": "client", "signer_name": "X", "method": "checkbox"}]}  # fmt: skip

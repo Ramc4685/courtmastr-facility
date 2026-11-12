@@ -6,6 +6,7 @@ import { Input, Select } from '../../components/Field'
 import { Card, PageHeader } from '../../components/PageHeader'
 import { ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
+import { IdentityProvidersCard } from './IdentityProviders'
 
 const lines = (text: string) => text.split('\n').map((l) => l.trim()).filter(Boolean)
 
@@ -134,6 +135,7 @@ export function SecuritySettingsPage() {
         <div className="space-y-6">
           <SignInPolicyForm settings={query.data} />
           <AllowListForm settings={query.data} />
+          <IdentityProvidersCard />
         </div>
       )}
     </>

@@ -420,6 +420,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/oidc/authorize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Oidc Sign In
+         * @description Begin a sign-in at the provider: navigate the browser to authorization_url. Bound to this browser's
+         *     pre-session cookie. Errors: not-found, csrf-failed, oidc-unavailable, rate-limited.
+         */
+        post: operations["startOidcSignIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/oidc/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Oidc Sign In
+         * @description Finish the round trip with the provider's code and state: a session, 202 with an MFA challenge, or (for a
+         *     step-up round trip) the rotated session. Errors: oidc-failed, oidc-sign-in-refused, ip-not-allowed,
+         *     oidc-reauthentication-stale, step-up-needs-code, csrf-failed, rate-limited.
+         */
+        post: operations["completeOidcSignIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/oidc/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Sign In Providers
+         * @description The tenant's enabled staff sign-in providers, for "Continue with" buttons. Tenant from host or slug.
+         */
+        get: operations["listSignInProviders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/oidc/step-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Oidc Step Up
+         * @description Re-authenticate at the caller's linked provider (prompt=login, max_age=0); the callback rotates the
+         *     session like /auth/step-up. Web staff sessions only. Errors: oidc-step-up-unavailable, oidc-unavailable.
+         */
+        post: operations["startOidcStepUp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/password": {
         parameters: {
             query?: never;
@@ -4251,6 +4335,53 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity-providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Identity Providers
+         * @description The tenant's OIDC providers. Sort: display_name, created_at. The client secret is never returned.
+         */
+        get: operations["listIdentityProviders"];
+        put?: never;
+        /**
+         * Create Identity Provider
+         * @description Add a provider; its discovery document is fetched to check the issuer. Errors: oidc-issuer-invalid,
+         *     oidc-discovery-failed, url-not-allowed, already-exists, step-up-required.
+         */
+        post: operations["createIdentityProvider"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/identity-providers/{identity_provider_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Identity Provider */
+        get: operations["getIdentityProvider"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Identity Provider
+         * @description Remove a provider. Staff linked to it sign in another way; adding it back restores their links.
+         */
+        delete: operations["deleteIdentityProvider"];
+        options?: never;
+        head?: never;
+        /** Update Identity Provider */
+        patch: operations["updateIdentityProvider"];
         trace?: never;
     };
     "/api/v1/integration-adapters": {
@@ -18518,6 +18649,100 @@ export interface components {
             /** Weekday */
             weekday: number;
         };
+        /** IdentityProviderCreate */
+        IdentityProviderCreate: {
+            /** Allowed Email Domains */
+            allowed_email_domains?: string[];
+            /**
+             * Asserts Mfa
+             * @default false
+             */
+            asserts_mfa: boolean;
+            /** Client Id */
+            client_id: string;
+            /** Client Secret */
+            client_secret: string;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Is Enabled
+             * @default true
+             */
+            is_enabled: boolean;
+            /**
+             * Issuer Url
+             * @description Optional for Google (https://accounts.google.com).
+             */
+            issuer_url?: string | null;
+            /**
+             * Preset
+             * @enum {string}
+             */
+            preset: "google" | "microsoft" | "generic";
+            /** Scopes */
+            scopes?: string[] | null;
+        };
+        /** IdentityProviderOut */
+        IdentityProviderOut: {
+            /** Allowed Email Domains */
+            allowed_email_domains: string[];
+            /** Asserts Mfa */
+            asserts_mfa: boolean;
+            /** Client Id */
+            client_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Display Name */
+            display_name: string;
+            /** Has Client Secret */
+            has_client_secret: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Enabled */
+            is_enabled: boolean;
+            /** Issuer Url */
+            issuer_url: string;
+            /** Preset */
+            preset: string;
+            /**
+             * Redirect Uri
+             * @description Register exactly this URI with the provider.
+             */
+            redirect_uri: string;
+            /** Scopes */
+            scopes: string[];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * IdentityProviderUpdate
+         * @description The issuer and preset are fixed: links are keyed by issuer. Leave client_secret out to keep it.
+         */
+        IdentityProviderUpdate: {
+            /** Allowed Email Domains */
+            allowed_email_domains?: string[] | null;
+            /** Asserts Mfa */
+            asserts_mfa?: boolean | null;
+            /** Client Id */
+            client_id?: string | null;
+            /** Client Secret */
+            client_secret?: string | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Is Enabled */
+            is_enabled?: boolean | null;
+            /** Scopes */
+            scopes?: string[] | null;
+        };
         /** InstalmentIn */
         InstalmentIn: {
             /** Amount Minor */
@@ -20079,6 +20304,11 @@ export interface components {
             confirmed_at: string | null;
             /** Enrolled */
             enrolled: boolean;
+            /**
+             * Provider Step Up
+             * @default false
+             */
+            provider_step_up: boolean;
             /** Recovery Codes Remaining */
             recovery_codes_remaining: number;
             /** Required */
@@ -20438,6 +20668,26 @@ export interface components {
             sport_ids?: string[] | null;
             /** Staff User Id */
             staff_user_id?: string | null;
+        };
+        /** OidcAuthorizeOut */
+        OidcAuthorizeOut: {
+            /** Authorization Url */
+            authorization_url: string;
+        };
+        /** OidcAuthorizeRequest */
+        OidcAuthorizeRequest: {
+            /**
+             * Provider Id
+             * Format: uuid
+             */
+            provider_id: string;
+        };
+        /** OidcCallbackRequest */
+        OidcCallbackRequest: {
+            /** Code */
+            code: string;
+            /** State */
+            state: string;
         };
         /** OnboardingLink */
         OnboardingLink: {
@@ -21549,6 +21799,12 @@ export interface components {
         Page_HistoryOut_: {
             /** Data */
             data: components["schemas"]["HistoryOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[IdentityProviderOut] */
+        Page_IdentityProviderOut_: {
+            /** Data */
+            data: components["schemas"]["IdentityProviderOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[InvoiceOut] */
@@ -28832,6 +29088,18 @@ export interface components {
             /** Starts At */
             starts_at?: string | null;
         };
+        /** SignInProvider */
+        SignInProvider: {
+            /** Display Name */
+            display_name: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Preset */
+            preset: string;
+        };
         /** SignInRequest */
         SignInRequest: {
             /**
@@ -32199,6 +32467,121 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    startOidcSignIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OidcAuthorizeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OidcAuthorizeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    completeOidcSignIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OidcCallbackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthSessionOut"] | components["schemas"]["MfaChallengeOut"];
+                };
+            };
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaChallengeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listSignInProviders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignInProvider"][];
+                };
+            };
+        };
+    };
+    startOidcStepUp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OidcAuthorizeOut"];
                 };
             };
         };
@@ -41933,6 +42316,189 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthStatus"];
+                };
+            };
+        };
+    };
+    listIdentityProviders: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_IdentityProviderOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createIdentityProvider: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdentityProviderCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentityProviderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getIdentityProvider: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                identity_provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentityProviderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteIdentityProvider: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                identity_provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateIdentityProvider: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                identity_provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdentityProviderUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentityProviderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

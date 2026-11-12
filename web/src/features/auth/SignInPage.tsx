@@ -7,6 +7,7 @@ import { Tabs } from '../../components/Tabs'
 import { useAuth } from '../../lib/auth'
 import { AuthLayout, safeNext } from './AuthLayout'
 import { MfaStep, type Challenge } from './mfa'
+import { OidcButtons } from './oidc'
 
 function messageFor(error: unknown): string {
   if (!(error instanceof ApiError)) return 'We could not reach the server. Check your connection and try again.'
@@ -117,6 +118,7 @@ export function SignInPage() {
   if (me) return <Navigate to={me.principal.kind === 'staff' ? next : '/portal'} replace />
   return (
     <AuthLayout title={audience === 'client' ? 'Member sign in' : 'Sign in'}>
+      {audience === 'staff' && <OidcButtons next={next} />}
       <Tabs
         key={audience}
         label="Sign-in method"

@@ -66,6 +66,7 @@ class TokenPurpose(StrEnum):
     EMAIL_CHANGE = "email_change"
     RELATIONSHIP_CONFIRM = "relationship_confirm"
     MFA_CHALLENGE = "mfa_challenge"  # the pending sign-in between the first and second factor (S2)
+    OIDC_STATE = "oidc_state"  # an OIDC round trip in flight: state, nonce and PKCE verifier (S3)
 
 
 class SessionKind(StrEnum):
@@ -509,6 +510,58 @@ class AuthSession(TenantOwned, Timestamps, Base):
     ip: Mapped[Any | None] = mapped_column(INET)
     user_agent: Mapped[str | None]
     last_seen_at: Mapped[datetime | None]
+
+
+# --- 2.4 OIDC sign-in (Phase 8 S3; ADR 0002 sections 3 and 9) ------------------------------------------------
+
+
+class OidcPreset(StrEnum):
+    GOOGLE = "google"
+    MICROSOFT = "microsoft"
+    GENERIC = "generic"
+
+
+class IdentityProviderConfig(TenantOwned, Timestamps, Base):
+    """A tenant's OpenID Connect provider for staff sign-in. The client secret is sealed with core.crypto (tenant
+    id as associated data): never returned by the API, never logged or audited. Deviation from data-model-core:
+    the sealed secret lives on the row, not as a secret-store reference (no secret store in v1), and the issuer
+    is the natural key (one provider per issuer and audience) instead of a separate provider_key."""
+
+    __tablename__ = "identity_provider_config"
+    __table_args__ = tenant_args(
+        UniqueConstraint("tenant_id", "audience", "issuer_url", name="uq_identity_provider_config"),
+        CheckConstraint("audience IN ('staff', 'client')", name="audience"),
+        enum_check("preset", OidcPreset),
+    )
+
+    audience: Mapped[str] = mapped_column(server_default=text("'staff'"))
+    preset: Mapped[str] = enum_column()
+    display_name: Mapped[str]
+    issuer_url: Mapped[str] = mapped_column(info={"audit": "value"})
+    client_id: Mapped[str] = mapped_column(info={"audit": "value"})
+    client_secret_encrypted: Mapped[str] = mapped_column(info={"audit": "never"})
+    scopes: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{openid,email,profile}'"))
+    allowed_email_domains: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+    asserts_mfa: Mapped[bool] = _false()
+    is_enabled: Mapped[bool] = mapped_column(server_default=text("true"))
+
+
+class ExternalLogin(TenantOwned, Timestamps, Base):
+    """An identity's link to an OIDC account: issuer and subject, stored on the first verified-email match and
+    matched on afterwards. One link per identity and issuer, so a second account at the same provider that
+    happens to carry the same email cannot take over."""
+
+    __tablename__ = "external_login"
+    __table_args__ = tenant_args(
+        *tfk("identity_id", "identity", ondelete="CASCADE", index=False),
+        UniqueConstraint("tenant_id", "issuer", "subject", name="uq_external_login"),
+        UniqueConstraint("tenant_id", "identity_id", "issuer", name="uq_external_login_identity_issuer"),
+    )
+
+    identity_id: Mapped[UUID]
+    issuer: Mapped[str] = mapped_column(info={"audit": "value"})
+    subject: Mapped[str] = mapped_column(info={"audit": "flag"})
+    last_used_at: Mapped[datetime | None]
 
 
 # --- 2.6 Data-subject requests (IMP-04, PLT-16) --------------------------------------------------------------

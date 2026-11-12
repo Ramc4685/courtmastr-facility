@@ -4,8 +4,9 @@ import { Button } from '../../components/Button'
 import { Dialog } from '../../components/Dialog'
 import { Input } from '../../components/Field'
 import { codeMessage } from './mfa'
+import { stepUpWithProvider } from './oidc'
 
-const STUCK = ['mfa-enrolment-required', 'step-up-unavailable']
+const STUCK = ['mfa-enrolment-required', 'step-up-unavailable', 'oidc-step-up-unavailable']
 
 /** The one prompt for every `+` permission (ADR 0002 section 4). Mounted once; the API client opens it when a
  * request is refused with step-up-required and retries that request after the user confirms. */
@@ -61,6 +62,16 @@ export function StepUpDialog() {
     }
   }
 
+  const viaProvider = async () => {
+    setBusy(true)
+    try {
+      await stepUpWithProvider()
+    } catch (err) {
+      setError(err)
+      setBusy(false)
+    }
+  }
+
   const stuck = error instanceof ApiError && STUCK.includes(error.code ?? '')
   return (
     <Dialog
@@ -73,7 +84,7 @@ export function StepUpDialog() {
           <Button variant="secondary" onClick={() => finish(false)}>
             Cancel
           </Button>
-          {!stuck && (
+          {!stuck && !status?.provider_step_up && (
             <Button type="submit" form="step-up-form" loading={busy} disabled={!status}>
               Confirm
             </Button>
@@ -81,7 +92,20 @@ export function StepUpDialog() {
         </>
       }
     >
-      {stuck ? (
+      {status?.provider_step_up && !stuck ? (
+        <div className="space-y-4">
+          {/* No password and no code: a fresh sign-in at the provider; this page is left and loaded again. */}
+          <p>Sign in again with your organisation&apos;s sign-in provider to continue. You come back to this page.</p>
+          {error instanceof ApiError && (
+            <p role="alert" className="text-danger">
+              {error.message}
+            </p>
+          )}
+          <Button loading={busy} onClick={() => void viaProvider()}>
+            Sign in again with your provider
+          </Button>
+        </div>
+      ) : stuck ? (
         <p role="alert" className="text-danger">
           {(error as ApiError).message}
         </p>

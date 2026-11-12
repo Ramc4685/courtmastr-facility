@@ -21593,6 +21593,283 @@
         "title": "HoursDay",
         "type": "object"
       },
+      "IdentityProviderCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_email_domains": {
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Allowed Email Domains",
+            "type": "array"
+          },
+          "asserts_mfa": {
+            "default": false,
+            "title": "Asserts Mfa",
+            "type": "boolean"
+          },
+          "client_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_secret": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Client Secret",
+            "type": "string"
+          },
+          "display_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "is_enabled": {
+            "default": true,
+            "title": "Is Enabled",
+            "type": "boolean"
+          },
+          "issuer_url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional for Google (https://accounts.google.com).",
+            "title": "Issuer Url"
+          },
+          "preset": {
+            "enum": [
+              "google",
+              "microsoft",
+              "generic"
+            ],
+            "title": "Preset",
+            "type": "string"
+          },
+          "scopes": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scopes"
+          }
+        },
+        "required": [
+          "preset",
+          "display_name",
+          "client_id",
+          "client_secret"
+        ],
+        "title": "IdentityProviderCreate",
+        "type": "object"
+      },
+      "IdentityProviderOut": {
+        "properties": {
+          "allowed_email_domains": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Email Domains",
+            "type": "array"
+          },
+          "asserts_mfa": {
+            "title": "Asserts Mfa",
+            "type": "boolean"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "has_client_secret": {
+            "title": "Has Client Secret",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_enabled": {
+            "title": "Is Enabled",
+            "type": "boolean"
+          },
+          "issuer_url": {
+            "title": "Issuer Url",
+            "type": "string"
+          },
+          "preset": {
+            "title": "Preset",
+            "type": "string"
+          },
+          "redirect_uri": {
+            "description": "Register exactly this URI with the provider.",
+            "title": "Redirect Uri",
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Scopes",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "preset",
+          "display_name",
+          "issuer_url",
+          "client_id",
+          "has_client_secret",
+          "scopes",
+          "allowed_email_domains",
+          "asserts_mfa",
+          "is_enabled",
+          "redirect_uri",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "IdentityProviderOut",
+        "type": "object"
+      },
+      "IdentityProviderUpdate": {
+        "additionalProperties": false,
+        "description": "The issuer and preset are fixed: links are keyed by issuer. Leave client_secret out to keep it.",
+        "properties": {
+          "allowed_email_domains": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Email Domains"
+          },
+          "asserts_mfa": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asserts Mfa"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "client_secret": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Secret"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "is_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Enabled"
+          },
+          "scopes": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scopes"
+          }
+        },
+        "title": "IdentityProviderUpdate",
+        "type": "object"
+      },
       "InstalmentIn": {
         "additionalProperties": false,
         "properties": {
@@ -26725,6 +27002,11 @@
             "title": "Enrolled",
             "type": "boolean"
           },
+          "provider_step_up": {
+            "default": false,
+            "title": "Provider Step Up",
+            "type": "boolean"
+          },
           "recovery_codes_remaining": {
             "title": "Recovery Codes Remaining",
             "type": "integer"
@@ -27788,6 +28070,55 @@
           }
         },
         "title": "OfficialUpdate",
+        "type": "object"
+      },
+      "OidcAuthorizeOut": {
+        "properties": {
+          "authorization_url": {
+            "title": "Authorization Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorization_url"
+        ],
+        "title": "OidcAuthorizeOut",
+        "type": "object"
+      },
+      "OidcAuthorizeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "provider_id": {
+            "format": "uuid",
+            "title": "Provider Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider_id"
+        ],
+        "title": "OidcAuthorizeRequest",
+        "type": "object"
+      },
+      "OidcCallbackRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "maxLength": 4000,
+            "title": "Code",
+            "type": "string"
+          },
+          "state": {
+            "maxLength": 200,
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "code"
+        ],
+        "title": "OidcCallbackRequest",
         "type": "object"
       },
       "OnboardingLink": {
@@ -31666,6 +31997,26 @@
           "page"
         ],
         "title": "Page[HistoryOut]",
+        "type": "object"
+      },
+      "Page_IdentityProviderOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/IdentityProviderOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[IdentityProviderOut]",
         "type": "object"
       },
       "Page_InvoiceOut_": {
@@ -54586,6 +54937,30 @@
         "title": "ShiftUpdate",
         "type": "object"
       },
+      "SignInProvider": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "preset": {
+            "title": "Preset",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "display_name",
+          "preset"
+        ],
+        "title": "SignInProvider",
+        "type": "object"
+      },
       "SignInRequest": {
         "additionalProperties": false,
         "properties": {
@@ -63828,6 +64203,156 @@
           }
         },
         "summary": "Verify Mfa Challenge",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/auth/oidc/authorize": {
+      "post": {
+        "description": "Begin a sign-in at the provider: navigate the browser to authorization_url. Bound to this browser's\npre-session cookie. Errors: not-found, csrf-failed, oidc-unavailable, rate-limited.",
+        "operationId": "startOidcSignIn",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OidcAuthorizeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OidcAuthorizeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Oidc Sign In",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/auth/oidc/callback": {
+      "post": {
+        "description": "Finish the round trip with the provider's code and state: a session, 202 with an MFA challenge, or (for a\nstep-up round trip) the rotated session. Errors: oidc-failed, oidc-sign-in-refused, ip-not-allowed,\noidc-reauthentication-stale, step-up-needs-code, csrf-failed, rate-limited.",
+        "operationId": "completeOidcSignIn",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OidcCallbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AuthSessionOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MfaChallengeOut"
+                    }
+                  ],
+                  "title": "Response Completeoidcsignin"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaChallengeOut"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Complete Oidc Sign In",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/auth/oidc/providers": {
+      "get": {
+        "description": "The tenant's enabled staff sign-in providers, for \"Continue with\" buttons. Tenant from host or slug.",
+        "operationId": "listSignInProviders",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SignInProvider"
+                  },
+                  "title": "Response Listsigninproviders",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Sign In Providers",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/auth/oidc/step-up": {
+      "post": {
+        "description": "Re-authenticate at the caller's linked provider (prompt=login, max_age=0); the callback rotates the\nsession like /auth/step-up. Web staff sessions only. Errors: oidc-step-up-unavailable, oidc-unavailable.",
+        "operationId": "startOidcStepUp",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OidcAuthorizeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Start Oidc Step Up",
         "tags": [
           "platform"
         ]
@@ -83650,6 +84175,392 @@
           }
         },
         "summary": "Get Readiness",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/identity-providers": {
+      "get": {
+        "description": "The tenant's OIDC providers. Sort: display_name, created_at. The client secret is never returned.",
+        "operationId": "listIdentityProviders",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_IdentityProviderOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Identity Providers",
+        "tags": [
+          "platform"
+        ]
+      },
+      "post": {
+        "description": "Add a provider; its discovery document is fetched to check the issuer. Errors: oidc-issuer-invalid,\noidc-discovery-failed, url-not-allowed, already-exists, step-up-required.",
+        "operationId": "createIdentityProvider",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityProviderCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityProviderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Identity Provider",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/identity-providers/{identity_provider_id}": {
+      "delete": {
+        "description": "Remove a provider. Staff linked to it sign in another way; adding it back restores their links.",
+        "operationId": "deleteIdentityProvider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity_provider_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Identity Provider Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Identity Provider",
+        "tags": [
+          "platform"
+        ]
+      },
+      "get": {
+        "operationId": "getIdentityProvider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity_provider_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Identity Provider Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityProviderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Identity Provider",
+        "tags": [
+          "platform"
+        ]
+      },
+      "patch": {
+        "operationId": "updateIdentityProvider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity_provider_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Identity Provider Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityProviderUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityProviderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Identity Provider",
         "tags": [
           "platform"
         ]

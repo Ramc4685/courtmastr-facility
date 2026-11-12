@@ -24,6 +24,7 @@ const me = {
 }
 const unauthenticated = { status: 401, body: { code: 'unauthenticated' } }
 const challenge = (enrolment_required: boolean) => ({ status: 202, body: { mfa_token: 'fhm_x', expires_at: '2026-11-11T12:05:00Z', enrolment_required } })
+const noProviders = { status: 200, body: { data: [], page: { has_more: false, next_cursor: null } } }
 const codes = Array.from({ length: 10 }, (_, i) => `abcde-fgh${i}k`)
 
 function renderApp(path: string) {
@@ -132,6 +133,7 @@ describe('step-up and the sign-in policy', SCREEN, () => {
       'GET /api/v1/me': { status: 200, body: me },
       'GET /api/v1/me/mfa': { status: 200, body: { enrolled: false, confirmed_at: null, recovery_codes_remaining: 0, required: false } },
       'GET /api/v1/security-settings': { status: 200, body: settings },
+      'GET /api/v1/identity-providers': noProviders,
       'PATCH /api/v1/security-settings': (call) =>
         elevated ? { status: 200, body: { ...settings, ...(call.body as object) } } : { status: 403, body: { code: 'step-up-required', detail: 'Confirm it is you.' } },
       'POST /api/v1/auth/step-up': (call) => {
@@ -174,6 +176,7 @@ describe('step-up and the sign-in policy', SCREEN, () => {
       'GET /api/v1/auth/session': { status: 200, body: { csrf_token: 'c' } },
       'GET /api/v1/me': { status: 200, body: me },
       'GET /api/v1/security-settings': { status: 200, body: settings },
+      'GET /api/v1/identity-providers': noProviders,
       'PATCH /api/v1/security-settings': { status: 403, body: { code: 'owner-only', detail: 'Only the Owner can relax two-step verification.' } },
     })
     renderApp('/settings/security')

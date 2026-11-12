@@ -269,6 +269,7 @@ def populate(client, tenant) -> SimpleNamespace:
         **integration, **reporting,
         **_populate_files(tenant),
         **_populate_mfa(tenant),
+        **_populate_oidc(tenant),
     )  # fmt: skip
 
 
@@ -285,6 +286,25 @@ def _populate_mfa(tenant) -> dict:
         mfa.factor(session, identity.id).confirmed_at = clock.now()
         mfa.new_recovery_codes(session, identity.id)
     return {"mfa_staff_user_id": staff_user_id}
+
+
+def _populate_oidc(tenant) -> dict:
+    """An OIDC provider and the owner's link to it (Phase 8 S3); straight in the database, no discovery fetch."""
+    from sqlalchemy import select
+
+    from app.core import crypto
+    from app.modules.platform.models import ExternalLogin, IdentityProviderConfig
+
+    with tenant_session(tenant.id) as session:
+        provider = IdentityProviderConfig(
+            preset="generic", display_name="Club SSO", issuer_url="https://idp.example.com", client_id="populate",
+            client_secret_encrypted=crypto.encrypt("populate-secret", tenant.id),
+        )  # fmt: skip
+        session.add(provider)
+        owner = session.scalar(select(Identity).where(Identity.email == tenant.owner_email))
+        session.add(ExternalLogin(identity_id=owner.id, issuer=provider.issuer_url, subject="populate-subject"))
+        session.flush()
+        return {"identity_provider_id": provider.id}
 
 
 def _populate_files(tenant) -> dict:

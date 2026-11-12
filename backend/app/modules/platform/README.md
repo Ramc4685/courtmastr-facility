@@ -206,6 +206,55 @@ Evidence and open questions: `docs/status/phase8-s2-mfa.md`. Migrations `1230`, 
 - **IP allow-list**: unchanged from S1, including the Owner and Admin bypass (the owner has been asked
   whether to remove it).
 
+## OIDC sign-in for staff (Phase 8 chip S3)
+
+Evidence, owner setup steps and open questions: `docs/status/phase8-s3-oidc.md`. Migration `1240`. Code:
+`oidc.py` (service), `oidc_router.py` (routes), tests `tests/test_oidc.py` (an in-process fake provider).
+
+- **Provider settings** (`identity_provider_config`, `/identity-providers`, web: Security settings, "Sign-in
+  providers"): preset `google`, `microsoft` or `generic`, button name, issuer URL, client id, client secret
+  (sealed with `core.crypto` under the tenant id; write-only, never returned, logged or audited, only a
+  `changed` flag), scopes, allowed email domains, `asserts_mfa`, enabled. Gated by `platform.security.manage`
+  (Owner, Admin; a `+` key, so every change needs step-up). The issuer is the natural key and cannot be
+  changed after creation, because links are keyed by issuer. Saving fetches the issuer's discovery document
+  and refuses a mismatched issuer (`oidc-issuer-invalid`). Deleting a provider keeps the links, so adding it
+  back restores them.
+- **Round trip**: `POST /auth/oidc/authorize` (needs the pre-session cookie) returns the provider URL with
+  PKCE S256, `state` and `nonce`; the state is an `fho_` `auth_token` (purpose `oidc_state`, 10 minutes,
+  single use, bound to a digest of the pre-session cookie). `POST /auth/oidc/callback` takes the code and
+  state, exchanges the code at the token endpoint with the exact redirect URI `<web origin>/auth/oidc/callback`,
+  and checks the ID token: signature (RS256, PS256 or ES256 from the JWKS; `none` and HMAC refused), `iss`,
+  `aud` (and `azp` when there are several audiences), `exp`, `iat`, `nonce`, and a `sub`. A spent or foreign
+  state is refused and stays spent. Rate limited by the `oidc` bucket.
+- **Outbound fetches** (discovery, JWKS, token): https only, 5 s timeout, 1 MiB cap, no redirects, and the
+  SSRF guard (`core.networks.blocked_reason`, moved here from integrations) checked on the resolved address,
+  which the connection is pinned to. Discovery and JWKS are cached per process for an hour; an unknown `kid`
+  refetches the JWKS once (key rotation).
+- **Email claims.** Only a verified email links: `email_verified` must be true. Microsoft Entra ID often omits
+  it, so for the `microsoft` preset `xms_edov` (email domain owner verified, an optional claim the owner adds)
+  counts as well; without either, Microsoft users cannot link. Google sends `email_verified`, and its issuer
+  appears with and without `https://`; both are accepted.
+- **Linking**: by `(issuer, sub)` once linked (`external_login`); the first time, by verified email to an
+  existing, active staff identity of this tenant whose own email is verified. Users are never created, a
+  tenant never reaches another tenant's identities, a different `sub` for an already linked issuer is
+  refused, and every refusal (unknown email, unverified, member account, disabled user, wrong domain) is the
+  same neutral `401 oidc-sign-in-refused`.
+- **Sessions**: through `auth._second_factor` and `auth._start_session` like every other sign-in. MFA counts as
+  done only when the provider is marked `asserts_mfa` and the token shows a second factor (`amr` contains
+  `mfa`, `otp`, `hwk`, `swk`, `sms`, `fido` and similar, or `acr` names a multi-factor level); otherwise
+  the user's own factor is asked for (`202`), or enrolment when required. Forced enrolment is allowed after
+  an OIDC sign-in (method `oidc`), since the provider proved control of the account the way an emailed link
+  does. An OIDC sign-in is not elevated. The IP allow-list applies before anything else; the password lockout
+  does not, since no password is involved.
+- **Step-up for OIDC-only users** (`POST /auth/oidc/step-up`, then the callback): `prompt=login` and
+  `max_age=0`; the callback requires the same session and identity, an `auth_time` no older than the start
+  of the round trip (`oidc-reauthentication-stale`), and a code when the user has a factor or MFA is required
+  and the provider did not show one (`step-up-needs-code`). It ends in `auth.rotate_for_step_up`, the same
+  rotation `/auth/step-up` uses. `GET /me/mfa` reports `provider_step_up` so the web shows "Sign in again
+  with your provider" instead of a password field.
+- **Break-glass.** Password and magic-link sign-in stay available to every staff user, so an Owner can always
+  sign in when a provider is down or misconfigured. "Require SSO for staff" is not built.
+
 ## Security hardening (wave 1, S-07)
 
 - An editor limited to some locations replaces only the part of a colleague's location set it reaches;
