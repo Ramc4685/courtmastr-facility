@@ -572,6 +572,64 @@ def sell_contract(session: Session, principal: Principal, data: dict, idempotenc
     return _sale_view(session, contract, invoice, payment)
 
 
+def import_contract(session: Session, data: dict) -> tuple[MembershipContract, bool]:
+    """Internal (imports, MEM-23): a member's existing contract carried over from a spreadsheet. `data`: client_id,
+    location_id, plan_name, start_on, and optionally end_on, next_bill_on, status, term_fee_minor (the price per
+    period). The plan's terms are snapshotted as at a sale, with these differences: nothing before
+    `next_bill_on` is scheduled (the old system billed it), so a contract without one is record-only; no
+    enrolment fee, add-ons, shares or document gate; an expired contract does not renew. A contract with the same
+    owner, plan and start already exists: returned with created False. `status`, when given, must be what the
+    dates say (never guessed). Caller runs it in a savepoint and authorizes the import."""
+    matches = list(session.scalars(
+        select(MembershipPlan).where(func.lower(MembershipPlan.name) == data["plan_name"].lower(),
+                                     MembershipPlan.is_active).limit(2)
+    ))  # fmt: skip
+    if len(matches) != 1:
+        problem = "No active membership plan has this name." if not matches else "Two active plans have this name."
+        raise ValidationFailed(problem, pointer="/plan_name", code="unknown-plan")
+    plan = matches[0]
+    existing = session.scalar(select(MembershipContract).where(
+        MembershipContract.owner_client_id == data["client_id"], MembershipContract.membership_plan_id == plan.id,
+        MembershipContract.start_on == data["start_on"],
+    ))  # fmt: skip
+    if existing is not None:
+        return existing, False
+    custom = {} if data.get("term_fee_minor") is None else {"term_fee_minor": data["term_fee_minor"]}
+    draft = {"location_id": data["location_id"], "client_id": data["client_id"], "membership_plan_id": plan.id,
+             "start_on": data["start_on"], "customize": custom}  # fmt: skip
+    fields, periods = _draft(session, session.info["actor"], draft, "import")
+    today = _today(session, data["location_id"])
+    end = data.get("end_on") or fields["end_on"]
+    if end < fields["start_on"]:
+        raise ValidationFailed("The end date is before the start date.", pointer="/end_on")
+    next_bill = data.get("next_bill_on")
+    if next_bill is not None and not today <= next_bill <= end:
+        raise ValidationFailed("The next bill date must be from today to the end date.", pointer="/next_bill_on")
+    status = domain.effective_status("upcoming", fields["start_on"], end, [], [], today)
+    if data.get("status") and data["status"] != status:
+        raise ValidationFailed(f"The dates make this membership {status}.", pointer="/status", code="status-mismatch")
+    keep = [p for p in periods if p.kind == "dues" and next_bill is not None and next_bill <= p.starts_on <= end]
+    renews = status != "expired" and fields["is_auto_renew"]
+    fields |= {
+        "end_on": end, "original_end_on": end, "initiation_fee_minor": 0, "is_auto_renew": renews,
+        "renew_on": domain.renew_on(end, fields["auto_renew_lead_count"], fields["auto_renew_lead_unit"]) if renews else None,
+        "invoice_mode": fields["invoice_mode"] if keep else "none", "is_prorated": False, "proration_tail": None,
+    }  # fmt: skip
+    contract = MembershipContract(**fields)
+    session.add(contract)
+    session.flush()
+    _check_overlap(session, contract)
+    _add_periods(session, contract, keep, today)
+    clients.service.ensure_member_number(session, contract.owner_client_id)
+    audit.record(
+        session, "memberships.contract.import", contract, location_id=contract.location_id,
+        changes={"start_on": [None, str(contract.start_on)], "end_on": [None, str(contract.end_on)],
+                 "term_fee_minor": [None, contract.term_fee_minor], "invoice_mode": [None, contract.invoice_mode]},
+    )  # fmt: skip
+    _converge(session, contract, today, reason="import")
+    return contract, True
+
+
 # --- status: the one place it changes ----------------------------------------------------------------------------
 
 

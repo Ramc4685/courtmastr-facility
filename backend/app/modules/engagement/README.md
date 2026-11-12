@@ -66,6 +66,10 @@ routes, the portal inbox and push devices, portal settings and videos. Feature s
 9. Campaign fan-out runs in the sending transaction (`shortcut:` move it to a chunked job past a few thousand
    recipients).
 
+Imports (Phase 8 I1): `service.import_consent` records consent carried over from another system with source
+`import`, actor system, basis express, and skips the verified-address gate (owner to confirm: no double opt-in for
+imported email consent).
+
 ## Endpoints the mobile app depends on (keep stable)
 
 `GET /portal/inbox` (page of `{id, campaign_id, title, body, link_url, read_at, created_at}`),

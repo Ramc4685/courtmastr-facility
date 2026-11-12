@@ -82,7 +82,10 @@ def preferences(session: Session, client) -> list[dict]:
     return out
 
 
-def _apply(session: Session, client, changes: list[dict], *, source: str, actor_type: str, actor_id, basis: str, note):
+def _apply(
+    session: Session, client, changes: list[dict], *, source: str, actor_type: str, actor_id, basis: str, note,
+    verified_only: bool = True,
+):  # fmt: skip
     current = _addresses(session, client)
     for index, change in enumerate(changes):
         channel, topic = change["channel"], change["topic"]
@@ -93,7 +96,8 @@ def _apply(session: Session, client, changes: list[dict], *, source: str, actor_
         if address not in [a.lower() if a and channel == "email" else a for a in current[channel]]:
             raise ValidationFailed("Not one of the client's addresses.", pointer=f"/changes/{index}/address")
         if (
-            change["is_subscribed"]
+            verified_only
+            and change["is_subscribed"]
             and channel == "email"
             and not clients.email_is_verified(session, client.id, address)
         ):
@@ -129,6 +133,25 @@ def _apply(session: Session, client, changes: list[dict], *, source: str, actor_
     audit.record(session, "clients.consent.update", client, location_id=client.home_location_id,
                  changes={"communication_preferences": True})  # fmt: skip
     session.flush()
+
+
+def import_consent(
+    session: Session, client_id: UUID, *, email_marketing: bool | None, sms_marketing: bool | None, note: str
+) -> None:
+    """Internal (imports): marketing consent carried over from a spreadsheet, source `import`, actor system. The
+    double opt-in rule for email is not applied: the tenant attests the consent was given before (owner decision
+    in the imports README). A choice for a channel the client has no address on is ignored."""
+    client = clients.get(session, client_id)
+    changes = []
+    if email_marketing is not None and client.primary_email:
+        changes.append({"channel": "email", "address": client.primary_email, "topic": "email_campaigns",
+                        "is_subscribed": email_marketing})  # fmt: skip
+    if sms_marketing is not None and client.phone_mobile:
+        changes.append({"channel": "sms", "address": client.phone_mobile, "topic": "sms_marketing",
+                        "is_subscribed": sms_marketing})  # fmt: skip
+    if changes:
+        _apply(session, client, changes, source="import", actor_type="system", actor_id=None, basis="express",
+               note=note, verified_only=False)  # fmt: skip
 
 
 def get_client_preferences(session: Session, principal: Principal, client_id: UUID) -> list[dict]:

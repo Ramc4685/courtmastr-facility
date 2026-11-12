@@ -11,6 +11,8 @@ from app.core import audit
 from app.core.auth import Principal, authorize, scope_query
 from app.core.errors import Conflict, ValidationFailed
 from app.core.pagination import ListQuery, paginate
+from app.modules import billing
+from app.modules.pos import inventory
 from app.modules.pos.models import (
     DiscountPreset,
     EquipmentCategory,
@@ -305,6 +307,44 @@ def update_product(session: Session, principal: Principal, product_id: UUID, dat
     _save_product(session, product, tax_ids)
     audit.record(session, _MANAGE, product, changes=changes)
     return product_out(session, product)
+
+
+def import_product(session: Session, data: dict, location_id: UUID) -> tuple[Product, bool]:
+    """Internal (imports): create, or update by SKU, a product from a spreadsheet row through the staff commands
+    above, so every catalogue rule applies (the caller authorizes the import). `data`: sku, name, category (a
+    top-level category by name, created when missing), unit_price_minor, optional tax_codes (the product's own
+    taxes; none keeps the category's) and stock_on_hand (counted at `location_id`, written as a `set` movement
+    when it differs). The SKU is also the product ID. Returns (product, created)."""
+    actor = session.info["actor"]
+    fields: dict = {"name": data["name"], "unit_price_minor": data["unit_price_minor"]}
+    if data.get("tax_codes"):
+        found = billing.service.tax_ids_by_code(session, data["tax_codes"])
+        if any(code.lower() not in found for code in data["tax_codes"]):
+            raise ValidationFailed("Unknown tax code.", pointer="/tax_codes", code="unknown-tax")
+        fields |= {"tax_ids": [found[code.lower()] for code in data["tax_codes"]], "is_tax_inherited": False}
+    category_id = session.scalar(select(ProductCategory.id).where(
+        func.lower(ProductCategory.name) == data["category"].lower(), ProductCategory.parent_id.is_(None)
+    ).limit(1))  # fmt: skip
+    if category_id is None:
+        category_id = create_category(session, actor, {"name": data["category"]})["id"]
+    fields["product_category_id"] = category_id
+    product = session.scalar(select(Product).where(Product.sku == data["sku"]))
+    created = product is None
+    if product is None:
+        product_id = create_product(session, actor, fields | {"sku": data["sku"], "product_code": data["sku"]})["id"]
+    else:
+        product_id = product.id
+        changed = {k: v for k, v in fields.items() if k == "tax_ids" or getattr(product, k) != v}
+        if changed:
+            update_product(session, actor, product_id, changed)
+    product = get_row(session, Product, product_id)
+    count = data.get("stock_on_hand")
+    if count is not None and product.is_stock_tracked and inventory.on_hand(session, product_id, location_id) != count:
+        inventory.create_movement(session, actor, {
+            "product_id": product_id, "location_id": location_id, "kind": "set", "set_to_count": count,
+            "reason": "other", "comment": "Stock count from an import",
+        })  # fmt: skip
+    return product, created
 
 
 # --- preset discounts (POS-10) -----------------------------------------------------------------------------

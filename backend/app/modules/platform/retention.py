@@ -9,6 +9,7 @@ Not purged here: unpublished outbox rows (never), report result bytes (deferred 
 webhook deliveries and inbound provider events (their owning contexts; not built yet).
 """
 
+from collections.abc import Callable
 from datetime import timedelta
 from uuid import UUID
 
@@ -32,6 +33,15 @@ _PAST_RETENTION = {
 }
 
 
+# name -> purge(session) -> rows handled: other contexts' expiring data (imports: source files and error reports),
+# registered from their own package so platform imports none of them (overview section 2).
+_PURGERS: dict[str, Callable[[Session], int]] = {}
+
+
+def register_purge(name: str, purger: Callable[[Session], int]) -> None:
+    _PURGERS[name] = purger
+
+
 def purge(session: Session) -> dict[str, int]:
     """Delete one batch per table in the session's tenant; returns rows deleted per table."""
     cfg = get_settings().retention
@@ -51,6 +61,8 @@ def purge(session: Session) -> dict[str, int]:
     # Append-only: fh_app cannot delete audit rows, only call the owner's function, which removes rows whose
     # retain_until_on (24 months, or 7 years for the long class, fixed at insert) has passed (migration 1210).
     deleted["audit_event"] = session.execute(text("SELECT app.purge_audit_event(:n)"), params).scalar_one()
+    for name, purger in _PURGERS.items():
+        deleted[name] = purger(session)
     return deleted
 
 
