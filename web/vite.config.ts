@@ -25,5 +25,8 @@ export default defineConfig({
     setupFiles: ['src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
     css: false,
+    // The default (one fewer than the cores) lets parallel checkouts' suites oversubscribe the machine until 1 s
+    // findBy waits and 5 s test limits lapse at random; half the cores kept four concurrent suites green.
+    maxWorkers: '50%',
   },
 })
