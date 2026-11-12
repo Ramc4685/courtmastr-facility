@@ -108,6 +108,14 @@ def _outside(session: Session, tenant_id) -> bool:
     return bool(allowed) and not networks.contains(allowed, context.client_ip.get())
 
 
+def refuse_staff_outside_allowlist(session: Session, identity: Identity) -> None:
+    """For emailed-link and link-confirm paths, straight after the token checks and before any state changes:
+    with MFA pending they answer a challenge before _start_session would check the address, so a reset or an
+    activation would otherwise commit from outside the list. Nothing is consumed: the link still works inside."""
+    if identity.kind == "staff" and _outside(session, identity.tenant_id):
+        raise _ip_not_allowed()
+
+
 def _ip_not_allowed() -> PermissionDenied:
     return PermissionDenied("Staff access is not allowed from this network.", code="ip-not-allowed")
 
@@ -419,8 +427,10 @@ def _consume(session: Session, token: str, purpose: TokenPurpose) -> Identity:
         raise Unauthenticated("This link is not valid or was already used.", code="token-invalid")
     if row.expires_at <= clock.now():
         raise Unauthenticated("This link has expired. Ask for a new one.", code="token-expired")
+    identity = session.get(Identity, row.identity_id)
+    refuse_staff_outside_allowlist(session, identity)
     row.consumed_at = clock.now()
-    return session.get(Identity, row.identity_id)
+    return identity
 
 
 def request_magic_link(

@@ -595,6 +595,8 @@ def confirm_link(session: Session, *, token: str, pre_session: str | None) -> Id
     ).scalar_one_or_none()
     if row is None or row.consumed_at is not None or row.identity_id is None or row.expires_at <= clock.now():
         raise _link_refused()
+    if (owner := session.get(Identity, row.identity_id)) is not None:
+        auth.refuse_staff_outside_allowlist(session, owner)
     row.consumed_at = clock.now()
     if not hmac.compare_digest(row.payload["pre_session"], tokens.digest(pre_session or "")):
         raise Unauthenticated(

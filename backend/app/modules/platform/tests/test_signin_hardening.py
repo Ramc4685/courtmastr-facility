@@ -263,6 +263,33 @@ def test_client_ip_comes_from_the_proxy_header_only_behind_a_trusted_proxy(tenan
     assert _sign_in(proxy, tenant, email=desk_email, headers=spoofed).json()["code"] == "ip-not-allowed"
 
 
+def test_emailed_links_with_mfa_pending_commit_nothing_from_outside_the_list(tenant, mailbox):
+    """With a confirmed factor the reset answers a challenge before any session (and its IP check) starts, so the
+    allow-list is checked straight after the token: nothing changes, and the link still works from inside."""
+    from app.core.db.session import tenant_session
+    from app.modules.platform import mfa
+    from conftest import link_token
+
+    inside, outside = _from(INSIDE), _from(OUTSIDE)
+    desk_email, _ = add_staff(tenant, "front_desk", all_locations=True)
+    with tenant_session(tenant.id) as session:
+        identity = session.scalar(select(Identity).where(Identity.email == desk_email))
+        mfa.start_enrolment(session, identity)
+        mfa.factor(session, identity.id).confirmed_at = clock.now()
+    assert _allowlist(inside, login(inside, tenant), [f"{INSIDE}/32"]).status_code == 200
+    before = scalar(tenant, select(Identity.password_hash).where(Identity.email == desk_email))
+    live = select(func.count()).select_from(AuthSession).where(AuthSession.revoked_at.is_(None))
+    sessions = scalar(tenant, live)
+
+    inside.post(f"{API}/auth/password-resets", headers={"X-Tenant-Slug": tenant.slug}, json={"email": desk_email})
+    body = {"token": link_token(mailbox[-1]), "new_password": "a-brand-new-passphrase"}
+    refused = outside.post(f"{API}/auth/password-resets/consume", json=body)
+    assert refused.status_code == 403 and refused.json()["code"] == "ip-not-allowed"
+    assert scalar(tenant, select(Identity.password_hash).where(Identity.email == desk_email)) == before
+    assert scalar(tenant, live) == sessions
+    assert inside.post(f"{API}/auth/password-resets/consume", json=body).status_code == 202  # the MFA challenge
+
+
 def test_allowlist_refuses_ranges_that_only_a_proxy_could_match(tenant, monkeypatch):
     """A private, loopback or link-local entry, or one covering a trusted proxy, would match the proxy, not a
     facility, and let every client behind it in."""

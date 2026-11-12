@@ -155,7 +155,9 @@ bytes of purged rows and logs objects that have no row.
   screen (`/settings/security`). Evaluated at every staff sign-in and on every staff request (web and mobile
   sessions); outside the list is `403 ip-not-allowed` (at sign-in decided before the password is checked, the same for unknown emails, so it is no credential oracle); empty means no restriction; no role is exempt,
   Owners included (phase 8 S4 removed the old Owner and Admin bypass key). A list that leaves out the caller's
-  own address is refused (`422 ip-allowlist-excludes-you`), whoever the caller is. Entries covering a private,
+  own address is refused (`422 ip-allowlist-excludes-you`), whoever the caller is. Emailed-link consumers (reset,
+  invitation, magic link) and the OIDC link confirmation check the list for staff straight after the token,
+  before anything changes, so an MFA challenge cannot let a reset or activation commit from outside (phase 8 S5). Entries covering a private,
   shared, loopback or link-local range (`core/networks.py` `NOT_A_CLIENT`) or a trusted proxy are refused
   (`422 ip-allowlist-not-public`): they could only match a proxy and would admit everyone behind it. When the
   caller is itself seen as such an address the answer is `422 ip-allowlist-proxy-misconfigured` (phase 8 S5). **Break-glass:** a tenant
