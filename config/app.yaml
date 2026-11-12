@@ -9,6 +9,7 @@ api:
   host: 127.0.0.1
   port: 8100
   max_body_bytes: 1048576             # request bodies over this are refused with 413
+  trusted_proxies: []                 # CIDRs of reverse proxies whose X-Forwarded-For is believed (baseline 5.1)
 db:
   host: 127.0.0.1
   port: 55432
@@ -36,22 +37,67 @@ auth:
   magic_link_ttl_min: 15
   password_reset_ttl_min: 60
   invite_ttl_days: 7
-  lockout_threshold: 10
-  lockout_min: 15
+  lockout_threshold: 10               # failed passwords inside lockout_window_min lock password sign-in
+  lockout_window_min: 15
+  lockout_min: 15                     # first lockout; each further one doubles, up to lockout_max_min
+  lockout_max_min: 240
+  pre_session_ttl_min: 60             # the login-CSRF cookie (baseline 5.3 item 4)
   password_min_length: 12
-  cookie_secure: false                # true behind TLS
+  cookie_secure: false                # true behind TLS; also switches the cookie names to __Host-fh_*
   argon2: {memory_kib: 65536, time_cost: 3, parallelism: 4}
-  sessions:                           # idle slides on refresh; absolute does not (ADR 0002 section 4)
-    staff_web:     {idle_hours: 12,   absolute_days: 7}
-    staff_mobile:  {idle_hours: 12,   absolute_days: 7}
-    client_web:    {idle_hours: 720,  absolute_days: 180}
-    client_mobile: {idle_hours: 2160, absolute_days: 400}
-rate_limit:
+  step_up_min: 10                     # a re-authentication satisfies `+` keys this long
+  mfa_challenge_ttl_min: 5            # pending sign-in between the first and second factor
+  sessions:                           # idle slides on use; absolute does not (security-baseline 5.1)
+    staff_web:     {idle_min: 30,     absolute_hours: 12}    # idle: tenant may set 15 to 60
+    staff_mobile:  {idle_min: 720,    absolute_hours: 168}
+    client_web:    {idle_min: 43200,  absolute_hours: 2160}  # 30 days idle, 90 days absolute (D2)
+    client_mobile: {idle_min: 129600, absolute_hours: 9600}
+rate_limit:                           # security-baseline 6; fixed windows. closed: refuse when Redis is down
   enabled: true
-  auth_per_minute: 20                 # per client IP, per auth endpoint
+  buckets:
+    sign-in:          {limit: 10, window_sec: 60,   closed: true}   # per IP
+    sign-in-identity: {limit: 10, window_sec: 900,  closed: true}   # per email, then lockout (5.1)
+    magic-link:       {limit: 5,  window_sec: 900,  closed: true}   # per IP
+    reset-request:    {limit: 5,  window_sec: 900,  closed: true}   # per IP
+    link-address:     {limit: 3,  window_sec: 3600, closed: true}   # per target address, link and reset
+    consume:          {limit: 20, window_sec: 900,  closed: true}   # token confirm, per IP
+    document-link:    {limit: 20, window_sec: 900,  closed: true}   # token confirm (DOC-04), per IP
+    mfa:              {limit: 10, window_sec: 60,   closed: true}   # second-factor code, per IP
+    mfa-challenge:    {limit: 5,  window_sec: 300,  closed: true}   # codes per pending sign-in
+    step-up:          {limit: 10, window_sec: 300,  closed: true}   # re-authentication, per IP
+    step-up-identity: {limit: 10, window_sec: 300,  closed: true}   # re-authentication, per identity
+    oidc:             {limit: 20, window_sec: 300,  closed: true}   # OIDC authorize and callback, per IP
+    refresh:          {limit: 60, window_sec: 60}                   # mobile token rotation, per IP
+    support-request:  {limit: 10, window_sec: 3600}                 # support requests and screenshots, per staff user
+    default:          {limit: 20, window_sec: 60}                   # any other named bucket, per IP
 audit:
   retention_days: 730                 # standard class, 24 months
   retention_days_long: 2557           # role and permission changes, 7 years
+retention:                            # purge periods in days (ADR 0007 section 9; platform/retention.py)
+  auth_session_days: 90               # after expiry or revocation
+  auth_token_days: 30                 # after expiry or use
+  outbox_days: 30                     # published events only
+  processed_event_days: 45            # longer than the outbox plus the retry window
+  batch_rows: 10000                   # per table per hourly run
+  gdpr_auth_session_days: 30          # the shorter periods a tenant in GDPR mode gets (PLT-16)
+  gdpr_auth_token_days: 7
+  tenant_export_days: 7               # a tenant export bundle is downloadable this long, then purged (IMP-04)
+  support_screenshot_days: 1          # a support screenshot never attached to a request (ONB-03)
 storage:
   local_dir: var/storage              # relative to the repository root (git-ignored)
-  max_upload_bytes: 20971520          # the one route that takes file bytes (scanned documents, 20 MiB)
+  max_upload_bytes: 20971520          # the one route that takes file bytes (scanned documents, 20 MiB). clamd's
+                                      # StreamMaxLength must be at least this (ClamAV's sample default is 25M)
+                                      # or user uploads fail closed; system-generated files are not scanned
+  adapter: local                      # local | s3 (AWS S3, Fly Tigris, MinIO; keys from FH_S3_* env vars)
+  s3: {bucket: facilityhub, endpoint_url: null, region: us-east-1, path_style: false}
+  scanner: noop                       # noop | clamd. Refused outside dev and test: production must scan uploads
+  clamd_host: 127.0.0.1
+  clamd_port: 53310                   # docker compose --profile scan (ClamAV)
+  public_base_url: null               # bucket or CDN origin serving t/*/public/* (logos); null: the app's /public/objects route
+imports:                              # CSV imports (Phase 8 I1)
+  max_opening_balance_minor: 10000000 # one opening balance at most 100,000.00 in the account currency
+  stalled_minutes: 60                 # a running import with no progress this long is marked failed
+entitlements:
+  default_plan: complete              # subscription_plan.code for new tenants and tenants with none (PLT-14)
+support:
+  operator_email: support@facilityhub.localhost  # ONB-03: where staff "Contact support" requests are emailed

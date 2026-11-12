@@ -74,8 +74,8 @@ def test_photo_upload_replace_and_remove(client, tenant, owner, location_id):
         (b'<svg xmlns="http://www.w3.org/2000/svg"/>', "image/svg+xml", "file-type-mismatch"),
         (PDF, "application/pdf", "file-type-mismatch"),  # a PDF is no photo
         (b"", "image/png", "file-empty"),
-        # over api.max_body_bytes: refused before the route (413) until Phase 8 lists the route in UPLOAD_PATHS
-        (b"\x89PNG\r\n\x1a\n" + b"0" * 5_242_881, "image/png", "payload-too-large"),
+        # over api.max_body_bytes but an UPLOAD_PATHS route: the route's own 5 MiB photo cap refuses it
+        (b"\x89PNG\r\n\x1a\n" + b"0" * 5_242_881, "image/png", "file-too-large"),
     ],
 )
 def test_photo_refuses_what_is_not_a_small_image(client, owner, location_id, data, kind, code):
@@ -203,6 +203,27 @@ def test_erasing_a_tombstone_keeps_a_photo_its_survivor_still_shows(client, tena
     with tenant_session(tenant.id) as session:
         assert session.get(StoredFile, photo).status == "ready"
     assert client.get(f"{API}/clients/{survivor['id']}/photo", headers=owner).status_code == 200
+
+
+def test_replaced_or_removed_files_are_purged_unless_a_tombstone_shares_them(client, tenant, owner, location_id):
+    person = new_client(client, owner, location_id)
+    first = _put_photo(client, owner, person["id"], png_bytes()).json()["photo_file_id"]
+    second = _put_photo(client, owner, person["id"], png_bytes((8, 8))).json()["photo_file_id"]
+    client.delete(f"{API}/clients/{person['id']}/photo", headers=owner)
+    note_id = _note(client, owner, person["id"])
+    item = _attach(client, owner, note_id).json()
+    with tenant_session(tenant.id) as session:
+        attached = session.get(ClientNoteAttachment, item["id"]).stored_file_id
+    client.delete(f"{API}/client-notes/{note_id}/attachments/{item['id']}", headers=owner)
+
+    survivor = new_client(client, owner, location_id, first_name="Sam")
+    loser = new_client(client, owner, location_id, first_name="Sammy", last_name=survivor["last_name"])
+    shared = _put_photo(client, owner, loser["id"], png_bytes()).json()["photo_file_id"]
+    client.post(f"{API}/clients/{survivor['id']}/merge", headers=owner, json={"merged_client_ids": [loser["id"]]})
+    client.delete(f"{API}/clients/{survivor['id']}/photo", headers=owner)  # the tombstone still points at it
+    with tenant_session(tenant.id) as session:
+        status = {i: session.get(StoredFile, i).status for i in (first, second, attached, shared)}
+    assert status == {first: "purged", second: "purged", attached: "purged", shared: "ready"}
 
 
 def test_export_lists_note_attachments(client, tenant, owner, location_id):

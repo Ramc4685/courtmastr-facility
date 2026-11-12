@@ -19,7 +19,7 @@ const me = (permissions: string[], kind = 'staff') => ({
   has_all_location_access: false,
   locations: [{ id: 'l1', name: 'Courtside Downtown', slug: 'downtown', time_zone: 'America/Chicago' }],
   primary_location_id: 'l1',
-  entitlements: [],
+  entitlements: { plan: { code: 'complete', name: 'Complete' }, features: ['api_access', 'branded_app'], limits: [] },
 })
 const staffPage = { data: [{ id: 's2', identity_id: 'i2', email: 'olivia@example.com', first_name: 'Olivia', last_name: 'Owner', mobile_phone: null, role: { id: 'r0', name: 'Owner' }, identity_status: 'active', is_active: true, has_all_location_access: true, location_ids: [], primary_location_id: null, linked_resource_id: null, is_attendance_notified: false, ip_policy: 'any', access_expires_on: null, has_permission_overrides: false, last_sign_in_at: null, created_at: '2026-11-10T00:00:00Z' }], page: { next_cursor: null, has_more: false } }
 const unauthenticated = { status: 401, body: { code: 'unauthenticated' } }
@@ -44,11 +44,13 @@ afterEach(() => {
 })
 
 describe('auth flow', () => {
+  // Typing into two fields through userEvent is slow on a loaded machine: the 5 s default test timeout and the
+  // 1 s findBy default were the flake. Each wait below is still on the real condition; only the ceiling is higher.
   it('sends a signed-out visitor to sign-in, then back to the page they asked for', async () => {
     let signedIn = false
     const calls = mockFetch({
       'GET /api/v1/auth/session': () => (signedIn ? { status: 200, body: { csrf_token: 'c' } } : unauthenticated),
-      'POST /api/v1/auth/refresh': { status: 401, body: { code: 'session-revoked' } },
+      'GET /api/v1/auth/pre-session': { status: 200, body: { csrf_token: 'pre' } },
       'POST /api/v1/auth/sign-in': () => {
         signedIn = true
         return { status: 200, body: { csrf_token: 'csrf-after-sign-in' } }
@@ -59,17 +61,17 @@ describe('auth flow', () => {
     })
     renderApp('/staff')
 
-    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Sign in' }, { timeout: 15000 })).toBeInTheDocument()
     await userEvent.type(screen.getByRole('textbox', { name: 'Email' }), 'pat@example.com')
     await userEvent.type(screen.getByLabelText('Password', { selector: 'input' }), 'secret-password')
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    // The page is a lazy route: under a loaded machine its import outlasts the default 1 s.
-    expect(await screen.findByRole('heading', { level: 1, name: 'Staff users' }, { timeout: 5000 })).toBeInTheDocument()
-    expect(await screen.findByText('olivia@example.com')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Staff users' }, { timeout: 20000 })).toBeInTheDocument()
+    expect(await screen.findByText('olivia@example.com', {}, { timeout: 15000 })).toBeInTheDocument()
     const signIn = calls.find((c) => c.url === '/api/v1/auth/sign-in')
     expect(signIn?.body).toMatchObject({ email: 'pat@example.com', client_kind: 'web' })
-  })
+    expect(signIn?.headers['x-csrf-token']).toBe('pre')
+  }, 60000)
 
   it('restores a session from the cookie and hides navigation the role cannot use', async () => {
     mockFetch({

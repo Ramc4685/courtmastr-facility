@@ -2,7 +2,8 @@
 
 Membership types and plans, sold contracts and their lifecycle, the billing schedule, freezes, suspensions,
 renewals, cancellations, sharing and visit counting (build module 5; ADR 0005; data-model-people section 3).
-Backend only: the web screens are a separate piece of work. Feature status: `docs/status/05-memberships-packages.md`.
+Staff and portal screens live in `web/src/features/` (`docs/status/README.md` module 5). Feature status:
+`docs/status/05-memberships-packages.md`.
 
 | File | What it holds |
 |---|---|
@@ -27,8 +28,19 @@ a late job never admits or refuses anyone wrongly. One live contract per owner i
 
 **The daily job.** `run_daily(session)` / the actor `run_membership_day`: per live contract, in its own
 savepoint, converge the status, create the successor when `renew_on` has come, bill periods whose `bill_on`
-has come. Idempotent; a missed day is caught up by the next run. **Nothing schedules it yet** (the kernel has
-no scheduler): enqueue it daily per tenant after each location's `membership_renewal_run_time`.
+has come. Idempotent; a missed day is caught up by the next run. `app/scheduler.py` enqueues it hourly per
+tenant (`EVERY_HOUR`).
+
+## Imported contracts (Phase 8 I1, MEM-23)
+
+`service.import_contract` (internal, for `imports`) carries over an existing contract: plan by active name, the
+plan's terms snapshotted as at a sale, an optional price per period, dues scheduled only from the next bill date
+(none: record-only), no enrolment fee, add-ons, shares or document gate, and an expired contract does not renew.
+The same owner, plan and start is returned as existing. A given status must match the dates (422
+`status-mismatch`). Refused rather than adjusted: a start other than the plan's
+fixed start (`plan-fixed-start`) and a first bill (due date less the billing lead) before the next bill date
+(`bills-before-next-bill-date`). Activation converges with reason `import`, and so does the later start of an imported
+upcoming contract (`sales_channel` import), so engagement sends no "membership started" automation for either.
 
 ## Not built (by name)
 
@@ -42,7 +54,6 @@ no scheduler): enqueue it daily per tenant after each location's `membership_ren
   reference). `freeze_resume_invoice_mode` is stored, the schedule always resumes per period.
 - MEM-21 reports and `rpt_*` views, MEM-22 API keys, MEM-23 checklist, member card rendering (MEM-19: the
   number lives on `client`; `ensure_member_number` is called at sale).
-- Web screens.
 
 ## Assumptions and deviations
 

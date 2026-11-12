@@ -425,3 +425,34 @@ def test_committed_openapi_snapshot_is_current():
     """backend/openapi.json feeds the web client's generated types; `make openapi` after any API change."""
     snapshot = json.loads((Path(__file__).resolve().parents[1] / "openapi.json").read_text())
     assert snapshot == json.loads(json.dumps(app.openapi())), "run `make openapi` and `make web-api`"
+
+
+def test_reference_rows_are_read_once_per_session(tenant):
+    """Perf (O2): tenant and location rows stay pinned for the session instead of being re-selected on every
+    session.get, and billing defaults that already exist cost one read, not ten upserts."""
+    from sqlalchemy import event
+
+    from app.core.auth import system_principal
+    from app.modules.billing import service as billing
+    from app.modules.platform import service as platform
+    from app.modules.platform.models import Tenant
+
+    with tenant_session(tenant.id, system_principal("tests.perf")) as session:
+        location_id = platform.create_location(
+            session, system_principal("tests.perf"), {"name": "Pinned", "time_zone": "UTC"}
+        ).id
+    statements: list[str] = []
+    count = lambda conn, cursor, statement, *_: statements.append(statement)  # noqa: E731
+    with tenant_session(tenant.id) as session:
+        billing.ensure_defaults(session)
+        event.listen(app_engine(), "before_cursor_execute", count)
+        try:
+            for _ in range(3):
+                assert session.get(Tenant, tenant.id).status == "active"
+                assert session.get(Location, location_id).time_zone
+            billing.ensure_defaults(session)
+        finally:
+            event.remove(app_engine(), "before_cursor_execute", count)
+    assert len([s for s in statements if "FROM tenant" in s]) <= 1
+    assert len([s for s in statements if "FROM location" in s]) <= 1
+    assert not [s for s in statements if s.lstrip().upper().startswith("INSERT")]

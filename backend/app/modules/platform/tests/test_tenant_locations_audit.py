@@ -13,7 +13,7 @@ from app.core.errors import ValidationFailed
 from app.core.settings import get_settings
 from app.modules.platform import service
 from app.modules.platform.models import FacilityHours
-from conftest import WEEK, add_staff, link_token, login, make_tenant, scalar
+from conftest import WEEK, add_staff, finish_enrolment, link_token, login, make_tenant, scalar
 
 API = "/api/v1"
 MAIN = {"name": "Main Street", "time_zone": "America/Chicago", "country_code": "US"}
@@ -157,11 +157,15 @@ def test_onboarding_through_the_operator_endpoint(client, mailbox):
     body["slug"] = f"net-gain-{clock.now().timestamp():.0f}"
     created = client.post(f"{API}/operator/tenants", headers=token, json=body)
     assert created.status_code == 201
-    # Without a password the owner is invited; accepting the link signs them in as Owner.
+    # Without a password the owner is invited; accepting the link starts the forced MFA enrolment (the
+    # `privileged` default requires it for Owner), and its first code signs them in as Owner.
     accepted = client.post(
         f"{API}/auth/invitations/accept", json={"token": link_token(mailbox[-1]), "client_kind": "mobile"}
     )
-    headers = {"Authorization": f"Bearer {accepted.json()['access_token']}"}
+    assert accepted.status_code == 202
+    signed_in, _ = finish_enrolment(client, accepted.json())
+    assert len(signed_in["recovery_codes"]) == 10
+    headers = {"Authorization": f"Bearer {signed_in['access_token']}"}
     me = client.get(f"{API}/me", headers=headers).json()
     assert me["role"]["system_key"] == "owner" and me["tenant"]["default_time_zone"] == "Europe/London"
     assert len(client.get(f"{API}/roles", headers=headers).json()["data"]) == 8  # the seeded system roles

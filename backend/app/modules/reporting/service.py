@@ -200,7 +200,7 @@ def create_run(session: Session, principal: Principal, data: dict) -> dict:
     frozen["scope"] = {"own_only": scope.own_only, "own_resource_id": own}  # re-checked on every read
     stored = platform.files.store(
         session, _snapshot(spec, result), purpose="report_result", content_type="application/json",
-        uploaded_by=("staff", staff_user_id), original_name=f"{spec.key}.json",
+        uploaded_by=("staff", staff_user_id), original_name=f"{spec.key}.json", generated=True,
     )  # fmt: skip
     run = ReportRun(
         report_key=spec.key, saved_report_id=saved.id if saved else None, requested_by_staff_user_id=staff_user_id,
@@ -428,40 +428,75 @@ def list_exports(session: Session, principal: Principal, query: ListQuery) -> di
 
 def download_export(session: Session, principal: Principal, job_id: UUID):
     job = _load_export(session, principal, job_id)
+    if job.status == RunStatus.SUCCEEDED and _expired(job.expires_at):
+        raise NotFound("The export has expired")
     if job.status != RunStatus.SUCCEEDED or job.file_id is None:
         raise Conflict("The export is not ready")
-    if _expired(job.expires_at):
-        raise NotFound("The export has expired")
     return platform.files.read(session, job.file_id)
 
 
-def render_export(session: Session, job_id: UUID) -> None:
-    """Internal, for the `run_export` job (system session): render a queued job's CSV from its run snapshot.
-    Idempotent: a job that is no longer queued is left alone."""
-    job = session.get(ExportJob, job_id)
-    if job is None or job.status != RunStatus.QUEUED:
-        return
-    job.started_at = clock.now()
+def purge_expired_results(session: Session) -> int:
+    """Internal, for the hourly job: the snapshot of an expired run and the file of an expired export go through
+    `files.remove`, and the reference is cleared; the rows stay as history and read `expired`. Idempotent."""
+    now, removed = clock.now(), 0
+    for model, column in ((ReportRun, "result_file_id"), (ExportJob, "file_id")):
+        ref = getattr(model, column)
+        stmt = select(model).where(model.expires_at <= now, ref.is_not(None)).with_for_update(skip_locked=True)
+        for row in session.scalars(stmt):
+            platform.files.remove(session, getattr(row, column))
+            setattr(row, column, None)
+            removed += 1
+    session.flush()
+    return removed
+
+
+EXPORT_CHUNK_ROWS = 1_000  # rows rendered per job message (ADR 0008 section 3)
+
+
+def render_export_chunk(session: Session, job_id: UUID) -> bool:
+    """Internal, for the chunked `run_export` job (system session): render the next EXPORT_CHUNK_ROWS rows of a
+    job's CSV from its run snapshot; True while rows remain. The cursor and the bytes so far live on the locked
+    job row, so a crash or a redelivery re-renders at most one chunk. A job no longer queued or running is left
+    alone."""
+    job = session.scalars(select(ExportJob).where(ExportJob.id == job_id).with_for_update()).one_or_none()
+    if job is None or job.status not in (RunStatus.QUEUED, RunStatus.RUNNING):
+        return False
     run = session.get(ReportRun, job.report_run_id)
     try:
         snapshot = _read_snapshot(session, run)
     except (NotFound, Conflict) as error:
         job.status, job.error, job.finished_at = RunStatus.FAILED, error.detail or "Source unavailable", clock.now()
+        job.partial = None
         audit.record(session, "reporting.export_job.fail", job, changes={"status": job.status})
-        return
+        return False
+    if job.status == RunStatus.QUEUED:
+        job.status, job.started_at, job.partial = RunStatus.RUNNING, clock.now(), b""
     currency = platform.service.get_tenant(session).currency
-    data = csv_file.render(snapshot["columns"], snapshot["rows"], currency=currency)
+    # One row sequence over two sections: the rows, then after a blank line the detail rows, each with its header.
+    sections = [(snapshot["columns"], snapshot["rows"], csv_file.BOM)]
     if job.includes_details and snapshot["details"]:
-        # A second section after a blank line: the detail columns and rows (BOM stripped from the second render).
-        data += b"\r\n" + csv_file.render(snapshot["detail_columns"], snapshot["details"], currency=currency)[3:]
+        sections.append((snapshot["detail_columns"], snapshot["details"], b"\r\n"))
+    start = job.progress.get("next", 0)
+    end, offset, piece = start + EXPORT_CHUNK_ROWS, 0, b""
+    for columns, rows, lead in sections:
+        if start <= offset < end:
+            piece += lead + csv_file.header(columns, currency=currency)
+        piece += csv_file.body(columns, rows[max(start - offset, 0) : max(end - offset, 0)])
+        offset += len(rows)
+    job.partial = (job.partial or b"") + piece
+    job.progress = {"next": min(end, offset), "total": offset}
+    if end < offset:
+        return True
     stored = platform.files.store(
-        session, data, purpose="report_export", content_type="text/csv; charset=utf-8",
+        session, job.partial, purpose="report_export", content_type="text/csv; charset=utf-8",
         uploaded_by=("system", None), original_name=f"{run.report_key}-{run.finished_at.date().isoformat()}.csv",
+        generated=True,
     )  # fmt: skip
     job.file_id, job.row_count, job.status = stored.id, len(snapshot["rows"]), RunStatus.SUCCEEDED
-    job.finished_at = clock.now()
+    job.finished_at, job.partial = clock.now(), None
     job.expires_at = job.finished_at + RETENTION
     session.flush()
     audit.record(session, "reporting.export_job.complete", job, changes=audit.diff(job))
     event = ExportCompleted(export_job_id=job.id, requested_by_staff_user_id=job.requested_by_staff_user_id)
     events.publish(session, event, job.id)
+    return False

@@ -15,6 +15,7 @@ register(
     _p("campaign.edit", L, "Edit message templates and segments", "", _AD_MG),
     _p("campaign.create", L, "Create and edit campaigns", "", _AD_MG),
     _p("campaign.send", L, "Send email campaigns", "B", _AD_MG),
+    _p("campaign.send_all", L, "Send campaigns to every client", "B", _AD_MG),
     _p("sms_campaign.send", L, "Send SMS campaigns", "B", _AD_MG),
     _p("push.send", L, "Send announcements and push notifications", "B", _AD_MG),
     _p("message.send_direct", C, "Email one client directly", "",

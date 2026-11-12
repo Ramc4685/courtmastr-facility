@@ -21,7 +21,7 @@ const me = (permissions: string[]) => ({
   has_all_location_access: false,
   locations: [LOCATION],
   primary_location_id: 'l1',
-  entitlements: [],
+  entitlements: { plan: { code: 'complete', name: 'Complete' }, features: ['api_access', 'branded_app'], limits: [] },
 })
 
 export const resource = (id: string, name: string, extra: Record<string, unknown> = {}) => ({

@@ -156,7 +156,8 @@ function Register({ session }: { session: Session }) {
         }
       />
       {done && <SaleDone sale={done} onNext={() => setDone(null)} />}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      {/* minmax(0,1fr) below lg too: an implicit auto column grows to the cart table and scrolls the page at 320 px. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div className="space-y-6">
           <AddItems session={session} ensureSale={ensureSale} onSale={put} onError={onError} />
           {current ? <Cart session={session} sale={current} onSale={put} onError={onError} onAbandoned={() => setSaleId(null)} /> : <Card title="Cart"><p className="text-sm text-muted">Scan an item or pick one to start a sale.</p></Card>}
@@ -246,7 +247,7 @@ function AddItems({ session, ensureSale, onSale, onError }: { session: Session; 
   return (
     <Card title="Add items">
       <form ref={scanRef} onSubmit={scan} className="flex items-end gap-2">
-        <Input label="Scan or type a barcode" className="flex-1" autoFocus autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} hint="A barcode scanner types here and presses Enter. The product code works too." />
+        <Input label="Scan or type a barcode" className="min-w-0 flex-1" autoFocus autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} hint="A barcode scanner types here and presses Enter. The product code works too." />
         <Button type="submit" loading={add.isPending} className="mb-6">
           Add
         </Button>
@@ -295,7 +296,7 @@ function AddItems({ session, ensureSale, onSale, onError }: { session: Session; 
         >
           <Select
             label="Rent equipment"
-            className="flex-1"
+            className="min-w-0 flex-1"
             value={rental}
             onChange={(e) => setRental(e.target.value)}
             placeholder="Choose an item"
@@ -317,7 +318,7 @@ function AddItems({ session, ensureSale, onSale, onError }: { session: Session; 
         >
           <Select
             label="Sell a package"
-            className="flex-1"
+            className="min-w-0 flex-1"
             value={plan}
             onChange={(e) => setPlan(e.target.value)}
             placeholder="Choose a package"
@@ -437,7 +438,7 @@ function Cart({ onAbandoned, ...props }: CartProps) {
             </Button>
           </p>
         ) : can('clients.client.read') ? (
-          <div className="min-w-64 flex-1">
+          <div className="min-w-0 flex-1 basis-64">
             <ClientPicker
               label="Client (optional)"
               value={client}
@@ -547,7 +548,7 @@ function Discounts({ session, sale, onSale, onError }: SaleProps) {
               if (preset) add.mutate({ source: 'preset', scope: 'sale', discount_preset_id: preset })
             }}
           >
-            <Select label="Preset" className="flex-1" value={preset} placeholder="Choose" onChange={(e) => setPreset(e.target.value)} options={session.discount_presets.map((p) => ({ value: p.id, label: p.name }))} />
+            <Select label="Preset" className="min-w-0 flex-1" value={preset} placeholder="Choose" onChange={(e) => setPreset(e.target.value)} options={session.discount_presets.map((p) => ({ value: p.id, label: p.name }))} />
             <Button type="submit" variant="secondary" size="sm" disabled={!preset}>
               Apply
             </Button>
@@ -562,7 +563,7 @@ function Discounts({ session, sale, onSale, onError }: SaleProps) {
               if (minor) add.mutate({ source: 'custom', scope: 'sale', discount_minor: minor })
             }}
           >
-            <Input label="Amount off" className="flex-1" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <Input label="Amount off" className="min-w-0 flex-1" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
             <Button type="submit" variant="secondary" size="sm" disabled={!amount}>
               Apply
             </Button>
@@ -575,7 +576,7 @@ function Discounts({ session, sale, onSale, onError }: SaleProps) {
             if (coupon.trim()) add.mutate({ source: 'coupon', scope: 'sale', coupon_code: coupon.trim() })
           }}
         >
-          <Input label="Coupon code" className="flex-1" autoComplete="off" value={coupon} onChange={(e) => setCoupon(e.target.value)} />
+          <Input label="Coupon code" className="min-w-0 flex-1" autoComplete="off" value={coupon} onChange={(e) => setCoupon(e.target.value)} />
           <Button type="submit" variant="secondary" size="sm" disabled={!coupon.trim()}>
             Apply
           </Button>

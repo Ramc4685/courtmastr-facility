@@ -15,9 +15,10 @@ from app.core.auth import system_principal
 from app.core.db.session import tenant_session
 from app.core.jobs import broker
 from app.modules import billing
-from app.modules.reporting import views
+from app.modules.platform.models import StoredFile
+from app.modules.reporting import jobs, views
 from app.modules.reporting.domain import csv_file, periods
-from app.modules.reporting.models import ReportRun
+from app.modules.reporting.models import ExportJob, ReportRun
 from conftest import add_staff, login, new_client
 
 API = "/api/v1"
@@ -238,8 +239,18 @@ def test_coaches_see_only_their_own_sessions_and_no_other_family(client, tenant,
 
 def test_expired_results_are_gone(client, tenant, owner, world):
     done = ran(client, owner, "deposits", period="last_30_days")
+    job = ok(client.post(f"{API}/export-jobs", headers=owner, json={"report_run_id": done["id"]}), 202)
+    drain()
     with tenant_session(tenant.id) as session:
-        session.execute(update(ReportRun).values(expires_at=clock.now() - timedelta(seconds=1)))
+        files_before = [session.get(ReportRun, done["id"]).result_file_id, session.get(ExportJob, job["id"]).file_id]
+        past = clock.now() - timedelta(seconds=1)
+        session.execute(update(ReportRun).values(expires_at=past))
+        session.execute(update(ExportJob).values(expires_at=past))
+    assert jobs.purge_expired_results.fn(str(tenant.id)) == 2  # T2: the bytes go once the result expires
+    assert jobs.purge_expired_results.fn(str(tenant.id)) == 0
+    with tenant_session(tenant.id) as session:
+        assert all(session.get(StoredFile, f).status != "ready" for f in files_before if f)
+    assert code(client.get(f"{API}/export-jobs/{job['id']}/download", headers=owner), 404) == "not-found"
     assert ok(client.get(f"{API}/report-runs/{done['id']}", headers=owner))["status"] == "expired"
     assert code(client.get(f"{API}/report-runs/{done['id']}/rows", headers=owner), 404) == "not-found"
     response = client.post(f"{API}/export-jobs", headers=owner, json={"report_run_id": done["id"]})

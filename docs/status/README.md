@@ -1,7 +1,7 @@
 # Build status: modules 1 to 9 on `main`
 
-Date: 2026-11-10. This file is the current state after the three lanes (`space`, `people`, `money`) were merged
-into `main`. The other files in this directory are each lane's own report, kept as written: where they
+Date: 2026-11-10, with the Phase 8 rows (module 1 and Wave 7) added on 2026-11-11. This file is the current
+state after the three lanes (`space`, `people`, `money`) were merged into `main`. The other files in this directory are each lane's own report, kept as written: where they
 disagree with this file, this file is right, because it includes what changed at integration.
 
 **Done** means the feature is built as the parity matrix describes it, tested on real PostgreSQL with tenant
@@ -13,10 +13,11 @@ isolation and audit, and has a staff screen. **Partial** names what is missing. 
 |---|---|---|---|---|
 | P0 | 113 | 76 | 33 | 4 |
 | P1 | 72 | 31 | 19 | 22 |
-| P2 | 12 | 2 | 2 | 8 |
+| P2 | 12 | 2 | 3 | 7 |
 | v2-adapter | 7 | 0 | 1 | 6 |
-| **All** | 204 | 107 | 56 | 41 |
-Module 1 (platform core) is done apart from OIDC, MFA and step-up (`backend/app/modules/platform/README.md`).
+| **All** | 204 | 109 | 56 | 39 |
+Module 1 (platform core) is done, with OIDC, MFA and step-up since Phase 8; its Wave 7 rows and the Phase 8
+cross-cutting items are in "Module 1 and Wave 7" below (`backend/app/modules/platform/README.md`).
 Module 14 (engagement) is built to P0 (5 done, 9 partial: `14-engagement.md`). Modules 16 and 17 are partial (`16-integrations.md`, `17-mobile.md`).
 Modules 12 (staff time and pay), 13 (assessments) and 15 (reporting) are built to P0 (`12-staff.md`, `13-assessments.md`,
 `15-reporting.md`). Modules 10 and 11 (check-in,
@@ -147,10 +148,10 @@ Lane detail: `04-clients-households.md`.
 | CLI-06 Client categories | P0 | done |  |
 | CLI-07 Referral categories and source | P1 | done |  |
 | CLI-08 Tags (sports, seasons, custom) | P0 | done |  |
-| CLI-09 Activity log with attachments | P1 | done | Attachments (PDF, JPEG, PNG; up to 5 per note) on notes, with the note's reach; served by a checked route, not a signed URL. Bodies over 1 MiB get 413 until Phase 8 widens `BodyLimitMiddleware`; bytes of removed files wait for K1 `files.remove`. |
+| CLI-09 Activity log with attachments | P1 | done | Attachments (PDF, JPEG, PNG; up to 5 per note) on notes, with the note's reach; served by a checked route, not a signed URL. Phase 8 T2: the attachment route takes up to 20 MiB (`UPLOAD_PATHS`, proxy `@upload`) and removed files go through `files.remove`. |
 | CLI-10 Activity/task subject list | P1 | done |  |
 | CLI-11 Client tasks and task/activity report | P1 | partial | The hourly `send_client_task_reminders` job (scheduler `EVERY_HOUR`) emails each due task once, on the client's home-location day (phase 10 chip E). **Not built**: a dedicated task/activity report (the reporting module owns it). Own reach means the assignee. |
-| CLI-12 Client photo | P0 | partial | Staff upload, replace and remove (JPEG/PNG, re-encoded); shown on the profile, the client list and the check-in status card, never the kiosk. **Not built**: webcam capture and the portal photo edit (`is_portal_photo_edit_enabled`). Uploads over 1 MiB get 413 until Phase 8 widens `BodyLimitMiddleware`. |
+| CLI-12 Client photo | P0 | partial | Staff upload, replace and remove (JPEG/PNG, re-encoded); shown on the profile, the client list and the check-in status card, never the kiosk. **Not built**: webcam capture and the portal photo edit (`is_portal_photo_edit_enabled`). Phase 8 T2: the photo route takes up to 20 MiB; replaced or removed photos go through `files.remove` unless a merge tombstone shares them. |
 | CLI-13 Duplicate detection and merge | P1 | done |  |
 | CLI-14 Disable a client | P0 | done |  |
 | CLI-15 Self-service portal access provisioning | P0 | done |  |
@@ -175,7 +176,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 |---|---|---|---|---|
 | P0 | 15 | 11 | 4 | 0 |
 | P1 | 21 | 12 | 7 | 2 |
-| P2 | 3 | 1 | 0 | 2 |
+| P2 | 3 | 1 | 1 | 1 |
 
 | Feature | Priority | Status | What is missing, or where it changed at integration |
 |---|---|---|---|
@@ -201,7 +202,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | MEM-20 Visit limits and visit counting | P0 | done | An admitted check-in records one visit (idempotent on the check-in id); used-up memberships deny at the door with an override. Details dialog lists recent visits and adjusts the count with a reason. |
 | MEM-21 Revenue and lifecycle reports | P1 | not built |  |
 | MEM-22 Membership data in the public API | P1 | partial | No API keys or scopes. |
-| MEM-23 Onboarding checklist | P2 | not built |  |
+| MEM-23 Onboarding checklist | P2 | partial | Phase 8: the account setup checklist (ONB-01) has one membership step ("Create your first membership or program"); no membership-specific checklist. The Phase 8 plan filed MEM-23 under the CSV import (I1), which imports memberships; see "Module 1 and Wave 7". |
 | PKG-01 Package plan definition | P0 | done |  |
 | PKG-02 Free and complimentary plans | P1 | done |  |
 | PKG-03 Recurring package plans | P1 | done |  |
@@ -370,6 +371,49 @@ the request and the screen offers one weekly window; LGE-09 has two of four bye 
 elimination only). Courts are booked only through `scheduling.service`; team fees bill through
 `billing.service`; the public schedule and standings have their own schemas.
 
+## Module 1 and Wave 7: platform, security and operations
+
+Phase 8 (`docs/planning/phase-8.md`); each row points at its chip note in this directory (`phase8-<chip>.md`).
+These rows had no status table before (marked † in `docs/planning/remaining-work.md`). PLT-11 and PLT-12 are
+Wave 6, IMP-03 is Wave 4: not covered here.
+
+| Feature | Priority | Status | What is missing, or where it changed | Note |
+|---|---|---|---|---|
+| PLT-06 Email-campaign permission levels | P1 | done | New key `engagement.campaign.send_all` for any all-clients audience, checked when scheduled and again at send time; the other levels are the existing campaign keys. | t2-privacy |
+| PLT-07 IP restriction for staff access | P1 | done | Tenant-wide CIDR allow-list at staff sign-in and every staff request, `403 ip-not-allowed`; no role bypasses it (S4); break-glass `app.cli clear-ip-allowlist`. Not per user or per location; API keys ignore it. | s1-signin, s4-followups |
+| PLT-08 Location branding assets (logos) | P1 | partial | Account and per-location logos (public prefix, anonymous `GET /public/branding`), staff sidebar and portal header. Not built: logos in emails, invoices and receipts; resized renditions. | t2-privacy |
+| PLT-09 Feature-flag mechanism | P2 | done | `tenant_entitlement` rows with `source = flag`; a flag that is off wins over the plan. | t1-plans |
+| PLT-10 Per-user UI preferences | P2 | parked | Moved to Phase 11 with the portal theming (owner decision 7). | plan |
+| PLT-13 Branded-app portal users | P1 | partial | `branded_app` add-on gates member sign-in on the mobile client and counts app users (`app_users` limit). Not built: a staff-side app permission (manage or notify-only). | t1-plans |
+| PLT-14 Plans, metered limits, add-ons | P1 | partial | Plans, limits (locations, clients, app users), add-ons `api_access` and `branded_app`, `Me.entitlements`, Plan and usage screen, operator routes. Plan names and numbers are placeholders; staff seats not metered (S4); no tenant subscription billing, operator screen or resources limit. | t1-plans |
+| PLT-15 Cloud delivery and availability | P0 | partial | Container images, Caddy proxy with the security headers, whole-stack Compose and smoke test, backup and restore drill, monitoring and 99.9% SLO doc, deploy workflow skeleton. Nothing deployed: the host is not chosen. | o1-ops |
+| PLT-16 GDPR mode | P1 | done | Tenant switch (not per location): express consent for marketing opt-ins, shorter session and token retention, 30-day DSR deadline. No required consent document template. | t2-privacy |
+| IMP-01 Onboarding import templates | P1 | done | Our CSV templates for clients and households, memberships, opening balances, POS products; dry run, row report, chunked idempotent commit. The security review's fix round is merged (opt-outs kept, balances post once, all-location access required, system tender). | i1-import |
+| IMP-02 Assisted import | P1 | partial | The same pipeline, self-serve only. Not built: an operator running a file for a tenant. | i1-import |
+| IMP-04 Personal-data export and deletion | P1 | partial | Whole-account export (zip of CSV, Owner with step-up, 7-day expiry) built. The per-person export is still JSON in the request response, with no PDF or stored file. | t2-privacy |
+| ONB-01 Setup checklist | P1 | done | Computed from real rows; contexts register steps; dismissible per user. | t2-privacy |
+| ONB-02 Training library | P2 | parked | Not software (owner decision 7). | plan |
+| ONB-03 In-app support requests | P1 | done | Emailed to `support.operator_email`; own requests; rate limited. Not built: screenshot attached to the email, operator replies. | t2-privacy |
+| ONB-04 What's new | P2 | done | Page from `CHANGELOG.md`, linked from the account menu. | o1-ops |
+| ONB-05 Customer-success services | P2 | parked | Not software (owner decision 7). | plan |
+| REL-01 Published release notes | P1 | done | `CHANGELOG.md`. | o1-ops |
+| REL-02 Performance and resilience | P1 | done | Load test, budget gate (`make perf-check`), profiler; four findings left open; figures are upper bounds from a shared machine. | o2-perf |
+| REL-04 Locale and time-zone corrections | P1 | parked | Handed to Phase 9 chip B, which owns billing (statements and the AR cut still use UTC days). | plan |
+
+Cross-cutting items:
+
+| Item | Status | Note |
+|---|---|---|
+| Object storage: S3 adapter, delete, signed URLs, public prefix, orphan report | done; presigned direct upload deferred | k1-storage |
+| Malware scanning (clamd; no-op refused outside dev and test) | done | k1-storage |
+| Scheduled jobs, retention purges, `failed_job` dead letters, `chunked_actor`, dead-letter hooks | done | k2-jobs, t2-privacy |
+| Schemathesis, API breaking-change diff, mypy, import-linter | done; 8 boundary exceptions | k3-checks |
+| Sign-in hardening: one session cookie, CSRF, per-identity rate limits, lockout, password list | done | s1-signin |
+| MFA (TOTP, recovery codes), step-up, staff 30-minute idle | done; no member-portal or mobile MFA screen | s2-mfa |
+| Owner or Admin reset of a lost authenticator | done | s4-followups |
+| OIDC staff sign-in (generic, Google, Microsoft) | done; no require-SSO, mobile or member OIDC | s3-oidc |
+| Manual keyboard accessibility pass | done on the covered routes; no screen reader listened | o2-accessibility |
+
 ## Known defects and gaps
 
 Cross-cutting:
@@ -377,8 +421,10 @@ Cross-cutting:
 1. **No worker or relay in CI or in the browser tests.** Event-driven steps (a membership activating when its
    waiver is signed, bundled packages granted on activation, rentals confirmed by a paid invoice) are tested
    through the in-memory broker only. Production needs `make worker`, `make relay` and `make scheduler` running.
-2. **The scheduler is a single loop** with no leader election: run exactly one. `send_task_reminders` (clients)
-   and `abandon_stale_drafts` (POS) are not actors yet, so nothing runs them.
+2. **The scheduler is a single loop** with no leader election: run exactly one. Since Phase 8 it also runs
+   `abandon_stale_drafts` (POS), `sweep_webhook_deliveries`, `purge_expired` (retention), `purge_files`,
+   `purge_expired_results` (reporting) and `purge_expired_exports` (tenant export); client task reminders run
+   hourly since Phase 10.
 3. **Non-payment suspension is not built.** Billing emits `billing.invoice.past_due`; memberships does not
    subscribe.
 4. **A merged client's ledger lines stay under the merged record.** The ledger is immutable; invoices, items
@@ -406,8 +452,8 @@ By module (the tables above carry the per-feature gaps; these are the ones that 
   1,500-occurrence worker test is tight on a loaded machine.
 - **Rentals:** a rental cannot be moved (cancel and rebook); a refund to the card waits on billing's composite
   refund; rental lists show a booking number, not the client's name; the new-rental form books one resource.
-- **Clients:** no photo, attachments, CSV export or public preference centre; saved list filters live in the
-  browser.
+- **Clients:** no CSV export (IMP-03); saved list filters live in the browser. Photo and attachments exist since
+  Phase 10 (CLI-12, CLI-09 rows); the public preference centre is module 14's.
 - **Memberships and packages:** changing plan is two requests, not one transaction; a freeze does not move a
   later suspension; a recurring series whose plan needs a document per purchase cannot renew itself; threshold
   auto-renew bills inside the booking that triggered it; package sales show no tax in the quote.
@@ -421,6 +467,39 @@ By module (the tables above carry the per-feature gaps; these are the ones that 
   free and choose-your-quantity plans are sold from the client profile; memberships are not sold at the till
   (not in the parity matrix).
 - **Programs:** only single-session enrolment by staff; no fees, groups, forms or portal booking.
+
+Phase 8 (from the chip notes; owner in brackets):
+
+- Eight import-linter boundary breaches in `ignore_imports`, each needing a decision: change the "May call" column or the call (unassigned; k3).
+- mypy debt: 59 files on `ignore_errors`, 9 core files relaxed, listed in `backend/pyproject.toml` (unassigned; k3).
+- `make contract` at 25 examples per operation never run in full (unassigned; k3).
+- Axe colour-contrast flag on a hovered client-list row in `clients.spec.ts` not reproduced (unassigned; k3).
+- Load-sensitive web tests `mfa.test.tsx` and `auth.test.tsx` (flake-fix agent, in progress).
+- Strict CSP never loaded in a real browser (unassigned; o1).
+- Caddy HIGH CVE accepted in `.trivyignore` until 2026-12-11 (unassigned; o1).
+- Client IP behind a real Fly or AWS edge untested; tenant host routing (wildcard certificate or header) undecided (owner; o1).
+- Backups are scripts, not scheduled; archives encrypted, not signed (accepted); no `/metrics` or scheduler heartbeat (unassigned; o1).
+- `FH_DATA_KEY` rotation has no re-encryption path (unassigned; o1).
+- Presigned direct-to-bucket upload with quarantine not built; uploads stay in-request under 20 MiB (unassigned; k1).
+- Webhook delivery and inbound provider event purges (integrations and billing owners; k2).
+- `job_run` unused; `DomainError` not a no-retry error; no per-queue retry limits; no indexes for purge predicates (unassigned; k2).
+- `scheduling.generate_series` not converted to `chunked_actor` (scheduling owner; k2).
+- Fixed-window rate limits (shortcut); per-address buckets can be spent by a third party (accepted; s1).
+- API keys ignore the staff IP allow-list (integrations; s1).
+- New-device sign-in notification not built (unassigned; s1, s2).
+- A staff client that declares `client_kind: mobile` gets mobile lifetimes (documented limit; s2).
+- Member-portal MFA screen and mobile handling of the `202` challenge (Phase 11; s2).
+- The last Owner who loses factor and recovery codes has no in-app path (support process; s4).
+- Require SSO for staff, mobile OIDC, member OIDC, linking from one's own security page, shared JWKS cache, multi-tenant Microsoft issuers (unassigned; s3).
+- Google sends no `amr`, so Google users with our factor are still asked for it (accepted; s3).
+- `branded_app` gates member sign-in on every mobile build, shared app included (owner; t1).
+- Plan limits can overshoot by one under concurrent creates (accepted; t1).
+- Logos in emails, invoices and receipts; support screenshot on the operator email; multipart for large tenant exports; unused `location.is_gdpr_mode` (unassigned; t2).
+- Import: no cancel or restart, no warning count, no operator-run import, no cancelled contracts, custom fields, tags, notes or package balances; about 15 to 30 ms a row (unassigned; i1).
+- Load test: four findings in `docs/ops/performance-budget.md`; no quiet-machine, 20-user or soak run; job cost not counted (unassigned; o2-perf).
+- Accessibility pass: no screen reader listened to; check-in booking dialog, POS dialogs, mobile app and Settings import not walked (unassigned; o2-accessibility).
+- `platform/auth.py` `_FRESH_PROOF` is 15 minutes and its comment cites the old 15-minute step-up window (platform; found by the docs refresh).
+- `data-model-core.md` 2.1 and `openapi-core.yaml` (`entitlement-limit-reached`) describe a plan shape and code that T1 did not build (doc owner; t1).
 
 ## For the next wave
 

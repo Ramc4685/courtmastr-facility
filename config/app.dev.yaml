@@ -1,6 +1,10 @@
 # Overlay for FH_ENV=dev (the default). Only conveniences that must never reach another environment.
 integrations:
   webhook_allow_localhost: true       # http:// and loopback webhook targets for a local receiver; refused outside dev and test
+rate_limit:
+  buckets:                            # every e2e spec signs in as the same demo admin from localhost
+    sign-in:          {limit: 200, window_sec: 60,  closed: true}
+    sign-in-identity: {limit: 200, window_sec: 900, closed: true}
 payments:
   stripe:
     test_onboarding: api              # Stripe test accounts go active on Connect, no hosted form; refused outside dev and test

@@ -853,7 +853,7 @@ class ProviderAccountOut(Out):
     connected_at: datetime | None
     disabled_at: datetime | None
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def publishable_key(self) -> str | None:
         """For Stripe.js on staff screens; null for the fake."""

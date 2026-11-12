@@ -5,6 +5,7 @@ import { Button } from '../../components/Button'
 import { Input } from '../../components/Field'
 import { useAuth } from '../../lib/auth'
 import { AuthLayout, safeNext } from './AuthLayout'
+import { isChallenge, MfaStep, type Challenge } from './mfa'
 
 type Purpose = 'magic-link' | 'reset-password' | 'accept-invite'
 const copy: Record<Purpose, { title: string; action: string }> = {
@@ -27,6 +28,11 @@ export function TokenLinkPage({ purpose }: { purpose: Purpose }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<unknown>(null)
   const [busy, setBusy] = useState(false)
+  const [challenge, setChallenge] = useState<Challenge | null>(null)
+  const finish = async (csrf: string | null | undefined) => {
+    await sessionStarted(csrf)
+    navigate(safeNext(params.get('redirect')), { replace: true })
+  }
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -40,8 +46,8 @@ export function TokenLinkPage({ purpose }: { purpose: Purpose }) {
           : purpose === 'reset-password'
             ? await api.post('/api/v1/auth/password-resets/consume', { body })
             : await api.post('/api/v1/auth/invitations/accept', { body })
-      await sessionStarted(out.csrf_token)
-      navigate(safeNext(params.get('redirect')), { replace: true })
+      if (isChallenge(out)) setChallenge(out)
+      else await finish(out.csrf_token)
     } catch (err) {
       setError(err)
       setBusy(false)
@@ -53,7 +59,9 @@ export function TokenLinkPage({ purpose }: { purpose: Purpose }) {
     fieldErrors(error).new_password ?? (error instanceof ApiError && error.code === 'password-too-weak' ? error.message : undefined)
   return (
     <AuthLayout title={copy[purpose].title}>
-      {!token || expired ? (
+      {challenge ? (
+        <MfaStep challenge={challenge} onSignedIn={finish} />
+      ) : !token || expired ? (
         <div role="alert" className="space-y-3">
           <p>This link is not valid any more. Links work once and expire after a short time.</p>
           <Link to="/sign-in" className="font-medium text-primary underline-offset-2 hover:underline">

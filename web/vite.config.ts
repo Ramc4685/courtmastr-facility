@@ -1,5 +1,6 @@
 /// <reference types="vitest/config" />
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { API_PORT, WEB_PORT } from './lane'
@@ -14,7 +15,9 @@ const API = process.env.FH_API_URL ?? `http://127.0.0.1:${API_PORT}`
 export default defineConfig({
   plugins: [react()],
   define: { __APP_NAME__: JSON.stringify(displayName) },
-  server: { port: WEB_PORT, strictPort: true, proxy: { '/api': { target: API } } },
+  // CHANGELOG.md sits one level above the web root and is imported as raw text (the What's new page). Only the web root and
+  // that one file are served; the second entry matches the id Vite checks for the `?raw` import.
+  server: { fs: { allow: [fileURLToPath(new URL('.', import.meta.url)), fileURLToPath(new URL('../CHANGELOG.md', import.meta.url)), fileURLToPath(new URL('../CHANGELOG.md', import.meta.url)) + '?raw'] }, port: WEB_PORT, strictPort: true, proxy: { '/api': { target: API } } },
   preview: { port: WEB_PORT, strictPort: true, proxy: { '/api': { target: API } } },
   test: {
     environment: 'jsdom',
@@ -22,5 +25,8 @@ export default defineConfig({
     setupFiles: ['src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
     css: false,
+    // The default (one fewer than the cores) lets parallel checkouts' suites oversubscribe the machine until 1 s
+    // findBy waits and 5 s test limits lapse at random; half the cores kept four concurrent suites green.
+    maxWorkers: '50%',
   },
 })

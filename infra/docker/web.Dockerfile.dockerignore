@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+web/test-results
+web/playwright-report
+.git
+.env
+.env.*
+backend
+mobile
+docs
+graphify-out

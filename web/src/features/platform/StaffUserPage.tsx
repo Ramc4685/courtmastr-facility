@@ -41,7 +41,6 @@ function ProfileTab({ user }: { user: StaffUser }) {
     last_name: user.last_name,
     mobile_phone: user.mobile_phone ?? '',
     access_expires_on: user.access_expires_on ?? '',
-    ip_policy: user.ip_policy as 'any' | 'facility_networks',
   })
   const save = useStaffMutation(
     user,
@@ -53,7 +52,6 @@ function ProfileTab({ user }: { user: StaffUser }) {
           last_name: form.last_name,
           mobile_phone: form.mobile_phone || null,
           access_expires_on: form.access_expires_on || null,
-          ip_policy: form.ip_policy,
         },
       }),
     'Profile saved.',
@@ -77,16 +75,6 @@ function ProfileTab({ user }: { user: StaffUser }) {
         value={form.access_expires_on}
         error={errors.access_expires_on}
         onChange={(e) => setForm({ ...form, access_expires_on: e.target.value })}
-      />
-      <Select
-        label="Sign-in from"
-        disabled={!editable}
-        value={form.ip_policy}
-        options={[
-          { value: 'any', label: 'Anywhere' },
-          { value: 'facility_networks', label: 'Facility networks only' },
-        ]}
-        onChange={(e) => setForm({ ...form, ip_policy: e.target.value as 'any' | 'facility_networks' })}
       />
       {editable && (
         <div className="sm:col-span-2">
@@ -269,7 +257,7 @@ export function StaffUserPage() {
   const { id = '' } = useParams()
   const { can } = useAuth()
   const me = useMe()
-  const [confirm, setConfirm] = useState<'deactivate' | 'reset' | null>(null)
+  const [confirm, setConfirm] = useState<Confirm>(null)
   const query = useQuery({ queryKey: ['staff-user', id], queryFn: () => api.get('/api/v1/staff-users/{staff_user_id}', { path: { staff_user_id: id } }) })
   const user = query.data
   if (query.isPending) return <LoadingState />
@@ -302,15 +290,20 @@ export function StaffUserPage() {
   )
 }
 
-type ActionsProps = { user: StaffUser; isSelf: boolean; canDeactivate: boolean; confirm: 'deactivate' | 'reset' | null; setConfirm: (c: 'deactivate' | 'reset' | null) => void }
+type Confirm = 'deactivate' | 'reset' | 'mfa' | null
+type ActionsProps = { user: StaffUser; isSelf: boolean; canDeactivate: boolean; confirm: Confirm; setConfirm: (c: Confirm) => void }
 
 function StaffActions({ user, isSelf, canDeactivate, confirm, setConfirm }: ActionsProps) {
   const { can } = useAuth()
+  const me = useMe()
   const path = { staff_user_id: user.id }
   const deactivate = useStaffMutation(user, () => api.post('/api/v1/staff-users/{staff_user_id}/deactivate', { path }), `${fullName(user)} was deactivated and signed out.`)
   const reactivate = useStaffMutation(user, () => api.post('/api/v1/staff-users/{staff_user_id}/reactivate', { path }), `${fullName(user)} was reactivated.`)
   const resend = useStaffMutation(user, () => api.post('/api/v1/staff-users/{staff_user_id}/invitation/resend', { path }), 'Invitation sent again.')
   const reset = useStaffMutation(user, () => api.post('/api/v1/staff-users/{staff_user_id}/credential-reset', { path }), 'Reset link sent.')
+  const resetMfa = useStaffMutation(user, () => api.post('/api/v1/staff-users/{staff_user_id}/mfa-reset', { path }), 'Two-step verification reset. They were emailed.')
+  // Only an Owner resets an Owner; your own factor is changed on your security page (server enforces both).
+  const mayResetMfa = can('platform.staff_user.reset_mfa') && user.identity_status === 'active' && !isSelf && (user.role.system_key !== 'owner' || me.role?.system_key === 'owner')
   return (
     <>
       {can('platform.staff_user.invite') && user.identity_status === 'invited' && user.is_active && (
@@ -321,6 +314,11 @@ function StaffActions({ user, isSelf, canDeactivate, confirm, setConfirm }: Acti
       {can('platform.staff_user.reset_credentials') && user.identity_status === 'active' && !isSelf && (
         <Button variant="secondary" onClick={() => setConfirm('reset')}>
           Send reset link
+        </Button>
+      )}
+      {mayResetMfa && (
+        <Button variant="secondary" onClick={() => setConfirm('mfa')}>
+          Reset two-step verification
         </Button>
       )}
       {canDeactivate && !isSelf &&
@@ -353,6 +351,19 @@ function StaffActions({ user, isSelf, canDeactivate, confirm, setConfirm }: Acti
         onClose={() => setConfirm(null)}
       >
         {user.email} gets a single-use link to set a new password. Their current sessions are signed out.
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={confirm === 'mfa'}
+        title={`Reset two-step verification for ${fullName(user)}?`}
+        confirmLabel="Reset two-step verification"
+        danger
+        busy={resetMfa.isPending}
+        onConfirm={() => resetMfa.mutate(undefined, { onSettled: () => setConfirm(null) })}
+        onClose={() => setConfirm(null)}
+      >
+        Use this when they lost their authenticator app. Their authenticator and recovery codes are removed, they are signed out everywhere, and
+        {` ${user.email}`} is emailed. If their role requires two-step verification, they set up a new authenticator at their next sign-in through an
+        emailed link. This is recorded in the activity trail.
       </ConfirmDialog>
     </>
   )

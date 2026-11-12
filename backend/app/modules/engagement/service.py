@@ -7,7 +7,7 @@ verified (double opt-in, CLI-02). The send gate other contexts call is `is_subsc
 """
 
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.core import audit, clock, events
 from app.core.auth import Principal, authorize, authorize_tenant_wide, scope_query, system_principal, tokens
-from app.core.errors import Conflict, NotFound, ValidationFailed
+from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.pagination import ListQuery, paginate
 from app.core.settings import get_settings
 from app.modules import memberships, platform, scheduling
@@ -52,6 +52,8 @@ TOPICS = {
     "push": ("push_announcements", "session_reminders", "league_alerts"),
 }
 MARKETING = frozenset({"email_campaigns", "sms_marketing", "push_announcements"})
+# Not consent for marketing in GDPR mode (PLT-16). `import`: carried over outside GDPR mode without proof (I1).
+IMPLIED = frozenset({"implied_purchase", "implied_inquiry", "import"})
 
 
 def _addresses(session: Session, client) -> dict[str, list[str | None]]:
@@ -82,18 +84,26 @@ def preferences(session: Session, client) -> list[dict]:
     return out
 
 
-def _apply(session: Session, client, changes: list[dict], *, source: str, actor_type: str, actor_id, basis: str, note):
+def _apply(
+    session: Session, client, changes: list[dict], *, source: str, actor_type: str, actor_id, basis: str, note,
+    verified_only: bool = True, occurred_at=None,
+):  # fmt: skip
     current = _addresses(session, client)
+    gdpr = privacy.is_gdpr_mode(session)
     for index, change in enumerate(changes):
         channel, topic = change["channel"], change["topic"]
         address = change.get("address")
         address = address.lower() if address and channel == "email" else address
         if topic not in TOPICS[channel]:
             raise ValidationFailed("This topic is not sent on this channel.", pointer=f"/changes/{index}/topic")
+        if gdpr and change["is_subscribed"] and topic in MARKETING and basis in IMPLIED:
+            raise ValidationFailed("GDPR mode needs express consent for marketing.", pointer="/basis",
+                                   code="express-consent-required")  # fmt: skip
         if address not in [a.lower() if a and channel == "email" else a for a in current[channel]]:
             raise ValidationFailed("Not one of the client's addresses.", pointer=f"/changes/{index}/address")
         if (
-            change["is_subscribed"]
+            verified_only
+            and change["is_subscribed"]
             and channel == "email"
             and not clients.email_is_verified(session, client.id, address)
         ):
@@ -106,7 +116,7 @@ def _apply(session: Session, client, changes: list[dict], *, source: str, actor_
         event = ConsentEvent(
             client_id=client.id, channel=channel, address=address, topic=topic,
             kind="opt_in" if change["is_subscribed"] else "opt_out", basis=basis, source=source,
-            actor_type=actor_type, actor_id=actor_id, note=note, occurred_at=now,
+            actor_type=actor_type, actor_id=actor_id, note=note, occurred_at=occurred_at or now,
         )  # fmt: skip
         session.add(event)
         session.flush()
@@ -129,6 +139,55 @@ def _apply(session: Session, client, changes: list[dict], *, source: str, actor_
     audit.record(session, "clients.consent.update", client, location_id=client.home_location_id,
                  changes={"communication_preferences": True})  # fmt: skip
     session.flush()
+
+
+def import_consent(
+    session: Session, client_id: UUID, *, email_marketing: bool | None, sms_marketing: bool | None, note: str,
+    given_at: datetime | None = None, given_how: str | None = None,
+) -> list[tuple[str, str]]:  # fmt: skip
+    """Internal (imports): marketing consent carried over from a spreadsheet, source `import`, actor system. The
+    double opt-in rule for email is not applied: the tenant attests the consent was given before (owner decision
+    in the imports README). A choice for a channel the client has no address on is ignored.
+
+    An import never overrides a choice made here: an opt-in is withheld, reason `opted-out`, when the client has
+    opted out of that topic on the channel (any address, however old the opt-out or new the file's consent date),
+    and is a no-op when they are already subscribed (so no consent event is backdated over a newer one). GDPR mode (PLT-16): an opt-in is
+    express only with its evidence (`given_at` and `given_how`, recorded on the consent event); without both it is
+    withheld, reason `evidence`. Outside GDPR mode the basis is `import` (which GDPR mode later ignores).
+    Opt-outs are always recorded. Returns the withheld (channel, reason) pairs, so the importer warns."""
+    client = clients.get(session, client_id)
+    proven = given_at is not None and bool(given_how)
+    gdpr = privacy.is_gdpr_mode(session)
+    changes, withheld = [], []
+    wanted = (("email", client.primary_email, "email_campaigns", email_marketing),
+              ("sms", client.phone_mobile, "sms_marketing", sms_marketing))  # fmt: skip
+    for channel, address, topic, subscribed in wanted:
+        if subscribed is None or not address:
+            continue
+        stored = _stored_choices(session, client.id, channel, topic) if subscribed else {}
+        if False in stored.values():  # an opt-out made here always stands, whatever the file's consent date
+            withheld.append((channel, "opted-out"))
+            continue
+        if stored.get(address.lower()):  # already subscribed: an older spreadsheet consent adds nothing
+            continue
+        if subscribed and gdpr and not proven:
+            withheld.append((channel, "evidence"))
+            continue
+        changes.append({"channel": channel, "address": address, "topic": topic, "is_subscribed": subscribed})
+    if changes:
+        _apply(session, client, changes, source="import", actor_type="system", actor_id=None,
+               basis="express" if gdpr else "import", note=f"{note}: {given_how}" if given_how else note,
+               verified_only=False, occurred_at=given_at)  # fmt: skip
+    return withheld
+
+
+def _stored_choices(session: Session, client_id: UUID, channel: str, topic: str) -> dict[str, bool]:
+    """The client's stored choices for a topic on a channel: lowered address -> subscribed (absent: default)."""
+    rows = session.execute(select(CommunicationPreference.address, CommunicationPreference.is_subscribed).where(
+        CommunicationPreference.client_id == client_id, CommunicationPreference.channel == channel,
+        CommunicationPreference.topic == topic,
+    ))  # fmt: skip
+    return {(address or "").lower(): subscribed for address, subscribed in rows}
 
 
 def get_client_preferences(session: Session, principal: Principal, client_id: UUID) -> list[dict]:
@@ -183,9 +242,46 @@ def is_subscribed(session: Session, client_id: UUID, channel: str, topic: str, a
             else CommunicationPreference.address == address,
         )  # fmt: skip
     )
-    if row is not None:
-        return row.is_subscribed
-    return topic not in MARKETING
+    if row is None:
+        return topic not in MARKETING
+    if row.is_subscribed and topic in MARKETING and privacy.is_gdpr_mode(session):
+        # An implied opt-in recorded before GDPR mode was switched on does not count (PLT-16); nor does one whose
+        # consent proof is missing, since express consent must be shown.
+        basis = session.scalar(select(ConsentEvent.basis).where(ConsentEvent.id == row.consent_event_id))
+        return basis is not None and basis not in IMPLIED
+    return row.is_subscribed
+
+
+@privacy.on_gdpr_mode_off
+def _keep_implied_opt_ins_withdrawn(session: Session, principal: Principal) -> int:
+    """PLT-16: switching GDPR mode off does not quietly resume marketing to clients whose implied (or unproven)
+    opt-in it was ignoring. Each one gets an opt-out with its consent proof; the client or staff can opt in again."""
+    rows = session.scalars(
+        select(CommunicationPreference)
+        .outerjoin(ConsentEvent, ConsentEvent.id == CommunicationPreference.consent_event_id)
+        .where(CommunicationPreference.is_subscribed, CommunicationPreference.topic.in_(MARKETING),
+               or_(ConsentEvent.id.is_(None), ConsentEvent.basis.in_(IMPLIED)))
+        .with_for_update(of=CommunicationPreference)
+    ).all()  # fmt: skip
+    staff = principal.kind == "staff"
+    actor_type, actor_id = ("staff", principal.staff_user_id) if staff else ("system", None)
+    now = clock.now()
+    for row in rows:
+        event = ConsentEvent(
+            client_id=row.client_id, channel=row.channel, address=row.address, topic=row.topic, kind="opt_out",
+            basis="express", source="staff", actor_type=actor_type, actor_id=actor_id, occurred_at=now,
+            note="GDPR mode switched off: the implied consent it set aside is not restored.",
+        )  # fmt: skip
+        session.add(event)
+        session.flush()
+        row.is_subscribed, row.consent_event_id, row.changed_at = False, event.id, now
+        row.source, row.changed_by_actor_type, row.changed_by_actor_id = "staff", actor_type, actor_id
+    for client_id in {row.client_id for row in rows}:
+        client = clients.get(session, client_id)
+        audit.record(session, "clients.consent.update", client, location_id=client.home_location_id,
+                     changes={"communication_preferences": True})  # fmt: skip
+    session.flush()
+    return len(rows)
 
 
 # --- merge and erasure handlers ------------------------------------------------------------------------------
@@ -450,6 +546,7 @@ def update_template(session: Session, principal: Principal, template_id: UUID, d
     if row.origin == "system":
         data.pop("name", None)
         data.pop("channel", None)
+        data.pop("category", None)  # a system template's category is what lets an automation skip consent
     for field, value in data.items():
         setattr(row, field, value)
     _check_fields(row.subject, row.body_text)
@@ -592,6 +689,9 @@ def update_segment(session: Session, principal: Principal, segment_id: UUID, dat
         _check_definition(data["definition"])
     for field, value in data.items():
         setattr(row, field, value)
+    if "definition" in data:  # a send_all grant covered the audience as scheduled, not this new one (PLT-06)
+        session.execute(update(Campaign).where(Campaign.segment_id == row.id, Campaign.status == "scheduled")
+                        .values(is_send_all_granted=False))  # fmt: skip
     audit.record(session, "engagement.campaign.edit", row, changes=audit.diff(row))
     session.flush()
     return row
@@ -737,13 +837,35 @@ def _send_key(row: Campaign) -> str:
     return "engagement.push.send" if row.channel == "push" else "engagement.campaign.send"
 
 
+SEND_ALL = "engagement.campaign.send_all"
+
+
+def _needs_send_all(session: Session, row: Campaign) -> bool:
+    """PLT-06: any all-clients source. Filters never waive it: a negated or catch-all filter (every birth month,
+    members or not) can still match everyone, and no filter here provably narrows the audience."""
+    return any(s["kind"] == "all_clients" for s in _audience_of(session, row)["sources"])
+
+
+def _authorize_send(session: Session, principal: Principal, row: Campaign) -> None:
+    """After the channel's send key. The grant is recorded so the send job can refuse a scheduled campaign whose
+    segment was widened to everyone after a sender without send_all scheduled it."""
+    try:  # the grant is recorded by the same location-scoped gate: the key at another location does not count
+        authorize(principal, SEND_ALL, location_id=row.location_id)
+        granted = True
+    except (PermissionDenied, NotFound):
+        if _needs_send_all(session, row):
+            raise
+        granted = False
+    row.is_send_all_granted, row.hold_reason = granted, None
+
+
 def send_campaign(session: Session, principal: Principal, campaign_id: UUID) -> Campaign:
     """Send now. Consent, suppression and verification are applied per recipient by _deliver."""
     row = _campaign(session, principal, campaign_id, "engagement.campaign.read", lock=True)
     authorize(principal, _send_key(row), location_id=row.location_id)
     if row.status not in ("draft", "scheduled"):
         raise Conflict("This campaign has already gone out.", code="campaign-not-editable")
-    _audience_of(session, row)
+    _authorize_send(session, principal, row)
     _fan_out(session, row)
     audit.record(session, _send_key(row), row, location_id=row.location_id, changes=audit.diff(row))
     session.flush()
@@ -757,7 +879,7 @@ def schedule_campaign(session: Session, principal: Principal, campaign_id: UUID,
         raise Conflict("This campaign has already gone out.", code="campaign-not-editable")
     if data["scheduled_at"] <= _now():
         raise ValidationFailed("Pick a time in the future.", pointer="/scheduled_at")
-    _audience_of(session, row)
+    _authorize_send(session, principal, row)
     row.status, row.scheduled_at = "scheduled", data["scheduled_at"]
     audit.record(session, _send_key(row), row, location_id=row.location_id, changes=audit.diff(row))
     session.flush()
@@ -864,6 +986,11 @@ def send_due_campaigns(session: Session) -> int:
         .with_for_update(skip_locked=True)
     ))  # fmt: skip
     for row in due:
+        if _needs_send_all(session, row) and not row.is_send_all_granted:
+            row.status, row.scheduled_at, row.hold_reason = "draft", None, "send-all-required"
+            audit.record(session, _send_key(row), row, location_id=row.location_id,
+                         changes={"status": ["scheduled", "draft"], "hold_reason": row.hold_reason})  # fmt: skip
+            continue
         _fan_out(session, row)
         audit.record(session, _send_key(row), row, location_id=row.location_id, changes={"status": "sent"})
     return len(due)
@@ -1314,13 +1441,18 @@ def _send_one(session: Session, row: ScheduledNotification) -> None:
             row.status = "cancelled"
             return
         template, topic, channel = session.get(MessageTemplate, rule.message_template_id), rule.topic, rule.channel
-        # automations are marketing unless the template says otherwise, so consent and verification apply
-        category = template.category or "marketing"
+        # Automations send as marketing (consent, verification, unsubscribe footer). Any campaign editor can set
+        # a saved template's category, so only a system template (category locked) may send as transactional.
+        trusted = template.origin == "system" and template.category == "transactional"
+        category = "transactional" if trusted else "marketing"
         topic = topic or ("email_campaigns" if category == "marketing" else None)
     data = _merge_data(session, client, row.location_id, title=row.payload.get("title"),
                        starts_at=_local(session, row.location_id, row.subject_starts_at))  # fmt: skip
     subject, body = rules.render(template.subject, data), rules.render(template.body_text, data)
     if channel == "push":
+        if not is_subscribed(session, client.id, "push", topic or "push_announcements"):
+            row.status = "skipped"
+            return
         now = _now()
         session.add(InboxItem(location_id=row.location_id or client.home_location_id, client_id=client.id,
                               title=subject or template.name, body_text=body, published_at=now,

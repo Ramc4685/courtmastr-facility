@@ -37,18 +37,18 @@ sell(session, *, client_id, location_id, package_plan_id, ...)  # POS, portal, a
 **The daily job.** `run_daily(session)` / the actor `run_package_day`: renew packages whose `renew_on` has
 come, materialise the next period of each recurring series, expire packages past their window. Each item in
 its own savepoint; idempotent through `uq_client_package_previous` and the series sequence unique key.
-**Nothing schedules it yet**: enqueue it daily per tenant after each location's `package_renewal_run_time`.
+`app/scheduler.py` enqueues `run_package_day` hourly per tenant (`EVERY_HOUR`).
 
 ## Not built (by name)
 
 - **Post-billed packages and batch close (PKG-11, P2).** The data model reserves nothing for them;
   `packages.period.close` is registered and unused.
-- Autopay of renewals and series periods, and "account credit applied by default" at sale (the setting is
-  stored): both need billing (build module 8). A renewal is charged and invoiced; nothing collects it.
-- POS sale (PKG-08): `sell` is the function POS will call. Reports (PKG-15), API keys (PKG-16), the expiry
+- "Account credit applied by default" at sale (the setting is stored). Autopay of package invoices and the POS
+  sale (PKG-08) were wired at integration (`docs/status/README.md`). Reports (PKG-15), API keys (PKG-16), the expiry
   notice (`expiry_notice_days` is stored), ad-hoc packages built at sale without a plan, coupons.
 - `setClientPackageRenewal` as its own route: renewal settings are part of `updateClientPackage`.
-- Web screens.
+
+Web screens exist since the integration (staff and portal; `docs/status/README.md` module 5).
 
 ## Assumptions and deviations
 

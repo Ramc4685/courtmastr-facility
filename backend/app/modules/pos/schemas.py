@@ -13,6 +13,7 @@ Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max
 LongText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
 Code = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
 Minor = Annotated[int, Field(ge=0, le=10**12)]
+Order = Annotated[int, Field(ge=0, le=10_000)]  # sort_order: bounded so it never overflows the INTEGER column
 PositiveMinor = Annotated[int, Field(gt=0, le=10**12)]
 Count = Annotated[int, Field(ge=1, le=100000)]
 Pct = Annotated[Decimal, Field(gt=0, le=100, decimal_places=2)]
@@ -135,7 +136,7 @@ class ProductCategoryCreate(In):
     name: Text
     revenue_category_id: UUID | None = None
     tax_ids: Annotated[list[UUID], Field(max_length=20)] | None = None
-    sort_order: int = 0
+    sort_order: Order = 0
     is_active: bool = True
 
 
@@ -323,7 +324,7 @@ class DiscountPresetCreate(In):
     name: Text
     discount_pct: Pct | None = None
     discount_minor: PositiveMinor | None = None
-    sort_order: int = 0
+    sort_order: Order = 0
     is_active: bool = True
 
 
@@ -331,7 +332,7 @@ class DiscountPresetUpdate(In):
     name: Text | None = None
     discount_pct: Pct | None = None
     discount_minor: PositiveMinor | None = None
-    sort_order: int | None = None
+    sort_order: Order | None = None
     is_active: bool | None = None
 
 
@@ -347,14 +348,14 @@ class DiscountPresetOut(Out):
 class EquipmentCategoryCreate(In):
     name: Text
     revenue_category_id: UUID | None = None
-    sort_order: int = 0
+    sort_order: Order = 0
     is_active: bool = True
 
 
 class EquipmentCategoryUpdate(In):
     name: Text | None = None
     revenue_category_id: UUID | None = None
-    sort_order: int | None = None
+    sort_order: Order | None = None
     is_active: bool | None = None
 
 
@@ -379,7 +380,7 @@ class EquipmentItemCreate(In):
     replacement_fee_minor: Minor = 0
     revenue_category_id: UUID | None = None
     unit_count: Count = 1
-    sort_order: int = 0
+    sort_order: Order = 0
     is_active: bool = True
 
 
@@ -396,7 +397,7 @@ class EquipmentItemUpdate(In):
     replacement_fee_minor: Minor | None = None
     revenue_category_id: UUID | None = None
     unit_count: Count | None = None
-    sort_order: int | None = None
+    sort_order: Order | None = None
     is_active: bool | None = None
 
 

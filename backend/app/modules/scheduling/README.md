@@ -58,7 +58,7 @@ winner named. Moves delete and re-insert the booking's holds in one transaction 
 6. The deadlock retry (`40P01`, ADR section 1) is not implemented; holds are inserted in resource order.
 7. Checkout holds: the caller passes `hold_minutes`; the per-client limit of 3 tentative bookings and the
    automatic use of `scheduling_settings.checkout_hold_min` belong to the rentals portal flow (module 3).
-   The reaper actor exists but nothing schedules it yet (no periodic tick in the kernel).
+   The reaper actor `expire_checkout_holds` runs every minute from `app/scheduler.py`.
 8. Buffers are 0 to 240 in 5-minute steps (the data model's range; the ADR text says 120).
 9. Owner question 19: a staff booking outside the location's opening hours succeeds and carries
    `warnings: [{code: "outside-opening-hours", detail, count}]` (create, preview, reschedule, rule change).

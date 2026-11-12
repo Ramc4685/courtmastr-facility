@@ -2,7 +2,7 @@
 public pay link and the provider webhook. Handlers are named after the spec's operationIds."""
 
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
@@ -149,7 +149,9 @@ def list_ledger_entries(query: Lists, ctx: Ctx = Depends(require("billing.ledger
 # === build module 8 ========================================================================================
 
 Client = Annotated[Ctx, Depends(current_ctx)]  # any signed-in principal; portal services check ownership
-PDF = {200: {"content": {"application/pdf": {}}, "description": "The PDF, as an attachment."}}
+PDF: dict[int | str, dict[str, Any]] = {
+    200: {"content": {"application/pdf": {}}, "description": "The PDF, as an attachment."}
+}
 
 
 def _pdf(named: tuple[str, bytes]) -> Response:
@@ -940,7 +942,7 @@ def authenticate_fake_payment(body: s.FakeAuthentication) -> None:
     """Development and test only: the fake processor's stand-in for the bank's 3-D Secure challenge, which
     Stripe runs inside Stripe.js. 404 whenever the fake processor is not registered (it never is in
     production, where settings refuse it). Errors: not-found."""
-    if not payment_provider.registered("fake") or not payment_provider.get("fake").authenticate_secret(
+    if not payment_provider.registered("fake") or not payment_provider.get("fake").authenticate_secret(  # type: ignore[attr-defined]  # the fake adapter's own method
         body.client_secret, approve=body.approve
     ):
         raise NotFound()

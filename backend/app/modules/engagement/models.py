@@ -55,6 +55,7 @@ class Basis(StrEnum):
     EXPRESS_VERBAL = "express_verbal"
     IMPLIED_PURCHASE = "implied_purchase"
     IMPLIED_INQUIRY = "implied_inquiry"
+    IMPORT = "import"  # carried over by a CSV import outside GDPR mode, without proof of how it was given
 
 
 class ConsentEvent(TenantOwned, Base):
@@ -277,6 +278,9 @@ class Campaign(TenantOwned, Timestamps, Base):
     sender_staff_user_id: Mapped[UUID | None]  # None when an API key sends
     status: Mapped[str] = enum_column(server_default=text("'draft'"))
     scheduled_at: Mapped[datetime | None]
+    # PLT-06: did whoever scheduled it hold send_all? The send job refuses an all-clients audience without it.
+    is_send_all_granted: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
+    hold_reason: Mapped[str | None]  # why the send job returned a scheduled campaign to draft
     started_at: Mapped[datetime | None]
     sent_at: Mapped[datetime | None]
     recalled_at: Mapped[datetime | None]

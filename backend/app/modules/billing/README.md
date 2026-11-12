@@ -154,6 +154,20 @@ Assumptions:
   that is inactive or sold at another location is skipped (as at renewal). An add-on chosen for one sale must
   be active at the sale's location, or the sale is refused (422 `/addons`).
 
+Imports (Phase 8 I1): `post_opening_balance` posts an opening balance as ledger entries, never a balance write:
+owed is a charge (`source_context` imports, `source_type` opening_balance, default revenue category, no tax) on a
+system invoice; credit is an external payment that becomes account credit, on the billing-owned tender
+`system_key` = `opening_balance` (migration 1272; kind external, labelled "Opening balance", or "Opening balance
+(import)" when the tenant already has a tender of that name; created disabled on first use; reports show it apart
+from money taken that day). A tender with a `system_key` is never listed by `GET /tender-types`, never picked as a
+kind's default, refuses `PATCH` (409 `tender-system`; tenders have no delete), and takes a payment only when
+`take_payment(internal_tender=True)` is passed, which only `post_opening_balance` does and no router can. Its
+label carries no meaning: a tenant tender renamed "Opening balance" is an ordinary tender.
+with the import job as its `external_reference` and the importing staff user's id in its audit row. Both are
+idempotent on the key the importer passes (the resolved client, as-of date, direction and amount, never the job),
+and say whether they posted (`created`). `take_payment` gained `audit_changes` (merged into its one audit row).
+`tax_ids_by_code` resolves tax codes without case.
+
 ## Jobs
 
 `webhooks.process_provider_event` (enqueued by the webhook route), `statements.run_statement_batch` (a batch
@@ -224,7 +238,7 @@ handlers re-read the object from the provider.
   home location's zone, a receipt in the payment's location's zone; for a tenant whose locations span zones a
   payment near midnight shows on a different day on each. Revisit if an owner asks.
 - **Erasure purges the sent PDFs.** The client's invoice, receipt and statement PDFs are blanked and marked
-  purged (`platform.files.purge`, empty bytes until the storage port can delete); an emailed delivery's
+  purged (`platform.files.purge`: bytes deleted after commit, name and hash blanked); an emailed delivery's
   address becomes `erased@erased.invalid` because the row must keep one. Invoices and payments stay.
 - **A statement batch belongs to one location** (`location_id` NOT NULL, where the data model allows null), so
   the location gate applies; its requester is null when an API key asked. Recipients are the payers of non-void

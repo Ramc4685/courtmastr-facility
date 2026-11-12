@@ -3,7 +3,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
 import { api } from '../../api/client'
 import { Button } from '../../components/Button'
-import { BrandMark } from '../../components/Icon'
+import { TenantLogo } from '../platform/branding'
 import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { useAuth, useMe } from '../../lib/auth'
 import { APP_NAME } from '../../lib/format'
@@ -83,7 +83,7 @@ function Shell({ children }: { children: ReactNode }) {
       <header className="border-b border-border bg-surface">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-3">
-            <BrandMark className="h-8 w-8" />
+            <TenantLogo />
             <div>
               <p className="font-semibold">{me.tenant.name}</p>
               <p className="text-xs text-muted">Member portal · {APP_NAME}</p>
@@ -104,7 +104,7 @@ function Shell({ children }: { children: ReactNode }) {
                 <NavLink
                   to={n.to}
                   end={n.end}
-                  className={({ isActive }) => `-mb-px block whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium ${isActive ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-fg'}`}
+                  className={({ isActive }) => `relative -mb-px block whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium ${isActive ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-fg'}`}
                 >
                   {n.label}
                   {n.to === '/portal/inbox' && <InboxBadge />}
@@ -114,7 +114,7 @@ function Shell({ children }: { children: ReactNode }) {
           </ul>
         </nav>
       </header>
-      <main id="portal-main" className="mx-auto max-w-6xl px-4 py-8">
+      <main id="portal-main" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-8">
         {children}
       </main>
     </div>

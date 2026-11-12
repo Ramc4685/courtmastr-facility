@@ -15,3 +15,7 @@ from app.modules.billing import (
     catalog,  # noqa: E402, F401  (pre-defined items; registers its renewal actor)
     subject,  # noqa: E402, F401  (registers the merge and data-subject handlers)
 )
+from app.modules.platform import onboarding  # noqa: E402
+
+onboarding.register_step("payments", label="Connect a payment provider", path="/billing/setup", order=50,
+                         done=onboarding.has_rows(models.ProviderAccount, models.ProviderAccount.status == "active"))  # fmt: skip

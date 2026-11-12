@@ -240,6 +240,14 @@ Rules:
   without a confirmation from that identity.
 - Act-on-behalf by staff (impersonating a member) does not exist. Staff use staff screens.
 
+Status after Phase 8 (`backend/app/modules/platform/README.md`): the lifetimes in the table, session rotation on
+sign-in and step-up, POST-consumed emailed links, the lockout (10 in 15 minutes, 15 minutes doubling to 4
+hours, one email per lockout; wrong MFA codes lock the factor separately), the credential-change email and the
+staff IP allow-list (tenant-wide, no role bypass) are built. TOTP MFA with recovery codes and step-up (10
+minutes, `403 step-up-required`) are built. OIDC is built for staff on the web: linking needs the user's emailed
+confirmation in the same browser. Not built: the new-device sign-in notification, per-key CIDR lists for API
+keys (S1 left API keys outside the allow-list), and OIDC for members and mobile.
+
 ### 5.2 Cookie rules
 
 `Set-Cookie: __Host-fh_session=<token>; Path=/; Secure; HttpOnly; SameSite=Lax` and nothing else: no `Domain`,
@@ -322,6 +330,14 @@ Additional rules:
 - Capacity abuse: holds created at checkout expire (scheduling design); a principal may hold at most a
   configured number of unpaid seats at once.
 
+Status after Phase 8 (S1): the auth buckets (sign-in per IP and per identity, emailed links per IP and per
+address, token confirm) are built with the defaults above in `config/app.yaml` `rate_limit.buckets`, fail
+closed when Redis is down, and send `RateLimit-*` and `Retry-After`. The windows are **fixed**, not sliding (a
+`shortcut:` in `core/ratelimit.py`; a burst at a window edge can reach twice the limit once). Further buckets
+exist for MFA, step-up, OIDC and support requests (10 per hour per staff user). The app's body cap is 1 MiB,
+with 20 MiB on the upload routes, and the proxy (`infra/proxy/Caddyfile`) repeats both; uploads pass through
+the API (section 8.1 status).
+
 ---
 
 ## 7. Secrets handling
@@ -356,6 +372,13 @@ portal images (SSP-14, REG-19, MKT-06), league gallery (LGE-21), import spreadsh
    type, malware scan (ClamAV sidecar), then type-specific processing (8.2). Pass moves the object to
    `t/<tenant_id>/files/<file_id>` and sets `ready`; fail sets `rejected` with a reason and deletes the bytes.
 4. Only `ready` files can be referenced by another row. Quarantine objects older than 24 hours are purged.
+
+Status after Phase 8 (K1, deviation): steps 1 to 3 are not built. Uploads arrive in the request body on the
+routes in `BodyLimitMiddleware.UPLOAD_PATHS` (20 MiB), and `platform.files` sniffs, re-encodes images, scans
+(clamd; the no-op scanner is refused outside dev and test; a hit is `422 file-infected`) and stores in one
+transaction, so no `pending`, `rejected` or quarantine state is reached. Imports accept CSV only (UTF-8, 10 MB,
+20,000 rows), not XLSX. Image renditions are not resized. Upgrade path: the `shortcut:` note in
+`platform/files.py`.
 
 ### 8.2 Per-type policy
 

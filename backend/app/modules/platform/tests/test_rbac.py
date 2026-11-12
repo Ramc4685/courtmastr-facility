@@ -46,9 +46,9 @@ def _matrix_rows(context: str = "platform") -> dict[str, dict]:
 @pytest.mark.parametrize(
     ("context", "count"),
     [
-        ("platform", 28), ("clients", 16), ("billing", 39), ("pos", 15), ("documents", 6), ("memberships", 13),
+        ("platform", 31), ("clients", 16), ("billing", 39), ("pos", 15), ("documents", 6), ("memberships", 13),
         ("packages", 10), ("resources", 5), ("scheduling", 21), ("rentals", 11), ("programs", 12),
-        ("access", 14), ("integrations", 6), ("engagement", 13), ("leagues", 16), ("staff", 10), ("assessments", 5),
+        ("access", 14), ("integrations", 6), ("engagement", 14), ("leagues", 16), ("staff", 10), ("assessments", 5),
         ("reporting", 12),
     ],
 )  # fmt: skip
@@ -80,7 +80,7 @@ def test_system_role_grants_resolve_from_code():
     platform_grants = lambda role: {k for k in system_role_grants(role) if k.startswith("platform.")}  # noqa: E731
     assert platform_grants("manager") == {
         "platform.location.update", "platform.staff_user.read", "platform.role.read", "platform.audit.read",
-        "platform.import_job.read",
+        "platform.import_job.read", "platform.support_request.create",
     }  # fmt: skip
     for role in ("front_desk", "coach", "league_admin", "scorekeeper", "view_only"):
         assert platform_grants(role) == set()
@@ -210,7 +210,7 @@ def test_custom_role_lifecycle(client, tenant, people):
         "Site Lead",
     )
     manager_grants = client.get(f"{API}/roles/{manager_role}", headers=owner).json()["permissions"]
-    assert len([g for g in manager_grants if g["permission_key"].startswith("platform.")]) == 5
+    assert len([g for g in manager_grants if g["permission_key"].startswith("platform.")]) == 6
 
     # System roles are locked; a role in use cannot be deleted.
     for response in (
@@ -232,7 +232,7 @@ def test_custom_role_lifecycle(client, tenant, people):
     # The front-desk user now holds the cloned role's grants, resolved on the next request.
     assert client.get(f"{API}/staff-users", headers=people["front_desk"]).status_code == 200
     catalogue = client.get(f"{API}/permissions?context=platform", headers=owner).json()
-    assert catalogue["page"]["total"] == 28 and catalogue["data"][0]["scope"] in ("tenant", "location")
+    assert catalogue["page"]["total"] == 31 and catalogue["data"][0]["scope"] in ("tenant", "location")
 
 
 def test_overrides_are_sparse_deltas(client, tenant, people):
@@ -302,25 +302,18 @@ def test_staff_update_guards_security_fields(client, tenant, people):
         return response.status_code, response.json().get("code")
 
     # No self-service on security fields, even as owner; ordinary profile fields stay editable.
-    for body in ({"access_expires_on": "2099-12-31"}, {"ip_policy": "facility_networks"}):
-        assert patch(admin, ids["admin"], body) == (403, "self-escalation")
-    assert patch(owner, ids["owner"], {"ip_policy": "facility_networks"}) == (403, "self-escalation")
-    assert patch(admin, ids["admin"], {"first_name": "Ada", "ip_policy": "any"})[0] == 200  # unchanged value is fine
-
-    # ip_policy on someone else needs platform.security.manage.
-    deny = {"grants": [{"permission_key": "platform.security.manage", "is_allowed": False}]}
-    assert (
-        client.put(f"{API}/staff-users/{ids['admin']}/permission-overrides", headers=owner, json=deny).status_code
-        == 200
-    )
-    assert patch(admin, ids["manager"], {"ip_policy": "facility_networks"})[0] == 403
+    assert patch(admin, ids["admin"], {"access_expires_on": "2099-12-31"}) == (403, "self-escalation")
+    assert patch(owner, ids["owner"], {"access_expires_on": "2099-12-31"}) == (403, "self-escalation")
+    assert patch(admin, ids["admin"], {"first_name": "Ada", "access_expires_on": None})[0] == 200  # unchanged is fine
     assert patch(admin, ids["manager"], {"access_expires_on": "2099-12-31"})[0] == 200
-    allow = {"grants": []}
+    # ip_policy is not writable (phase 8 S5): nothing enforces it, so no request may set it.
+    assert patch(owner, ids["manager"], {"ip_policy": "facility_networks"})[0] == 422
     assert (
-        client.put(f"{API}/staff-users/{ids['admin']}/permission-overrides", headers=owner, json=allow).status_code
-        == 200
+        client.post(
+            f"{API}/roles", headers=owner, json={"name": "Coach", "default_ip_policy": "facility_networks"}
+        ).status_code
+        == 422
     )
-    assert patch(admin, ids["manager"], {"ip_policy": "facility_networks"})[0] == 200
 
     # Only listed fields: the API rejects extras, and so does the service if a caller passes them through.
     assert patch(admin, ids["manager"], {"is_active": False})[0] == 422
@@ -517,10 +510,8 @@ def test_staff_user_administration(client, tenant, people, mailbox):
         == manager_session - 1
     )
 
-    updated = client.patch(
-        f"{API}/staff-users/{kim['id']}", headers=owner, json={"last_name": "Abel", "ip_policy": "facility_networks"}
-    ).json()
-    assert updated["last_name"] == "Abel" and updated["ip_policy"] == "facility_networks"
+    updated = client.patch(f"{API}/staff-users/{kim['id']}", headers=owner, json={"last_name": "Abel"}).json()
+    assert updated["last_name"] == "Abel" and updated["ip_policy"] == "any"
     assert client.patch(f"{API}/staff-users/{kim['id']}", headers=owner, json={"first_name": None}).status_code == 422
     assert client.get(f"{API}/staff-users/{uuid4()}", headers=owner).status_code == 404
 

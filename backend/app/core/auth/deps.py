@@ -13,15 +13,36 @@ from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
 from app.core.auth import tokens
-from app.core.auth.permissions import STAFF_SURFACE
+from app.core.auth.permissions import CATALOGUE, STAFF_SURFACE, check_step_up
 from app.core.auth.principal import Principal
 from app.core.db.platform import TenantRef, resolve_tenant
 from app.core.db.session import open_tenant_session
 from app.core.errors import NotFound, PermissionDenied, Unauthenticated
+from app.core.settings import get_settings
 
-ACCESS_COOKIE = "fh_access"
-REFRESH_COOKIE = "fh_refresh"
 _SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+
+def _cookie_name(base: str) -> str:
+    # Browsers accept a __Host- cookie only with Secure, so local http development uses the bare name.
+    return f"__Host-{base}" if get_settings().auth.cookie_secure else base
+
+
+def session_cookie() -> str:
+    """The one web session cookie (security-baseline 5.2): `<session token>.<csrf token>`, HttpOnly."""
+    return _cookie_name("fh_session")
+
+
+def pre_session_cookie() -> str:
+    """The short-lived login-CSRF cookie for the anonymous auth POSTs (baseline 5.3 item 4)."""
+    return _cookie_name("fh_pre")
+
+
+def cookie_parts(request: Request) -> tuple[str | None, str | None]:
+    """(session token, csrf token) from the session cookie; the CSRF half is what GET /auth/session hands
+    the page, because the database keeps only its hash."""
+    token, _, csrf = request.cookies.get(session_cookie(), "").partition(".")
+    return token or None, csrf or None
 
 
 @dataclass
@@ -38,6 +59,15 @@ _API_KEY_PREFIX = "fhk"
 
 def set_authenticator(fn: Callable[[Session, str], Principal], prefix: str = "fhs") -> None:
     _authenticators[prefix] = fn
+
+
+# How a cookie session's X-CSRF-Token is checked against server state: fn(session, principal, header) -> ok.
+_csrf_verifier: Callable[[Session, Principal, str], bool] = lambda session, principal, header: False  # noqa: E731
+
+
+def set_csrf_verifier(fn: Callable[[Session, Principal, str], bool]) -> None:
+    global _csrf_verifier
+    _csrf_verifier = fn
 
 
 def _accepts_api_key(route) -> bool:
@@ -84,7 +114,7 @@ def current_ctx(request: Request) -> Ctx:
     header = request.headers.get("authorization", "")
     token = header[7:] if header.lower().startswith("bearer ") else None
     via_cookie = token is None
-    token = token or request.cookies.get(ACCESS_COOKIE)
+    token = token or cookie_parts(request)[0]
     prefix = "fhs"
     if not via_cookie and token.startswith(f"{_API_KEY_PREFIX}_") and _API_KEY_PREFIX in _authenticators:
         if not _accepts_api_key(request.scope.get("route")):
@@ -100,13 +130,26 @@ def current_ctx(request: Request) -> Ctx:
     assert prefix in _authenticators, "no authenticator registered"
     principal = _authenticators[prefix](session, token)
     if via_cookie and request.method not in _SAFE_METHODS:
-        # Cookies are attached by the browser on its own, so unsafe methods must also prove the page can read
-        # the session-bound token (security-baseline 5.3). Bearer callers are exempt.
-        if not hmac.compare_digest(request.headers.get("x-csrf-token", "").encode(), tokens.csrf_for(token).encode()):
+        # Cookies are attached by the browser on its own, so unsafe methods must also present the session's
+        # synchroniser token, checked against the hash on the session row (security-baseline 5.3). Bearer
+        # callers are exempt.
+        if not _csrf_verifier(session, principal, request.headers.get("x-csrf-token", "")):
             raise PermissionDenied("Missing or wrong X-CSRF-Token", code="csrf-failed")
     session.info["actor"] = principal
     request.state.principal = principal
     return Ctx(session, principal)
+
+
+def pre_session_csrf(request: Request) -> None:
+    """Login CSRF on the anonymous auth POSTs (baseline 5.3 item 4): a browser must echo the token that
+    GET /auth/pre-session put in the HttpOnly pre-session cookie. Browsers always send Origin or Sec-Fetch-Site
+    on a POST and a page cannot remove them; a request with neither is not a browser (the mobile app, a server),
+    has no ambient cookie to abuse, and passes."""
+    if "origin" not in request.headers and "sec-fetch-site" not in request.headers:
+        return
+    cookie = request.cookies.get(pre_session_cookie(), "")
+    if not cookie or not hmac.compare_digest(cookie.encode(), request.headers.get("x-csrf-token", "").encode()):
+        raise PermissionDenied("Missing or wrong X-CSRF-Token", code="csrf-failed")
 
 
 def require(*keys: str) -> Callable[..., Ctx]:
@@ -119,8 +162,11 @@ def require(*keys: str) -> Callable[..., Ctx]:
         principal = ctx.principal
         if principal.kind not in STAFF_SURFACE:
             raise PermissionDenied("Staff only")
-        if keys and not any(principal.has(key) for key in keys):
+        held = [key for key in keys if principal.has(key)]
+        if keys and not held:
             raise PermissionDenied(f"Requires {keys[0]}", required=keys[0])
+        if held and all(CATALOGUE[key].needs_step_up for key in held if key in CATALOGUE):
+            check_step_up(principal, held[0])  # every key that admits the caller carries `+`
         return ctx
 
     dependency.accepts_api_key = bool(keys)

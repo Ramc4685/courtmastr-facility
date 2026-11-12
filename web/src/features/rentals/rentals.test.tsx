@@ -32,7 +32,7 @@ describe('RentalsPage', SCREEN, () => {
       'GET /api/v1/rentals': page([rental('x1', 41, { booking_series_id: 's1' })]),
       'POST /api/v1/rentals/x1/cancel': { status: 200, body: { cancelled_count: 3, reversed_minor: 0, reposted_minor: 0, late_fee_minor: 0, plan_quantity_returned: null, rentals: [] } },
     })
-    const row = within(await screen.findByRole('table', { name: 'Upcoming rentals' })).getByRole('row', { name: /41/ })
+    const row = within(await screen.findByRole('table', { name: 'Upcoming rentals' }, { timeout: 5000 })).getByRole('row', { name: /41/ }) // first render pays the cold transform
     expect(row).toHaveTextContent('Court rental · Court 3')
     expect(row).toHaveTextContent('Billed')
     expect(row).toHaveTextContent('$50.00')

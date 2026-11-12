@@ -24,7 +24,7 @@ from tests.test_security import ROUTES
 # Path id name -> table, where the table is not simply named after the id.
 _TABLES = {
     "alert": "client_alert", "binding": "document_binding", "checkout": "registration_checkout", "contract": "membership_contract",
-    "document": "client_document", "freeze": "membership_freeze",
+    "document": "client_document", "freeze": "membership_freeze", "identity_provider": "identity_provider_config",
     "note": "client_note", "package": "client_package", "period": "billing_schedule_period",
     "purchase": "rental_plan_purchase", "relationship": "client_relationship", "rental": "rental_booking",
     "request": "data_subject_request", "schedule_session": "session", "session": "auth_session",
@@ -55,6 +55,7 @@ CLIENT_OR_TENANT_ROUTES = {
         getClientIdCard
     """.split()),
     "tenant": set("""
+        createImportJobCommit createImportJobDryRun getImportJob getImportJobErrorReport getImportTemplate uploadImportJobSource
         addTaxRate updateCatalogItem releaseSuppression approveClientRelationship archiveDocumentTemplate archiveLocation assignClientMemberNumber
         assignClientOwners assignStaffLocations assignStaffRole confirmDataSubjectRequest createClientAlert
         createClientNote createClientRelationship createOnboardingLink createRentalRate
@@ -67,7 +68,7 @@ CLIENT_OR_TENANT_ROUTES = {
         listCouponRedemptions listDocumentTemplateVersions mergeClients precheckClientMerge
         publishDocumentTemplate putClientCommunicationPreferences reactivateStaffUser
         replaceClientEmergencyContacts replaceMembershipPlanAddons replaceRolePermissions
-        replaceStaffPermissionOverrides resendStaffInvitation resetStaffCredentials resetStaffPermissions
+        replaceStaffPermissionOverrides resendStaffInvitation resetStaffCredentials resetStaffMfa resetStaffPermissions
         restoreDocumentTemplate revokeClientPortalAccess saveDocumentTemplateDraft sendClientEmailVerification
         updateClient updateClientAlert updateClientCategory updateClientLocationSettings updateClientNote
         updateClientTask updateCoupon updateCustomField updateDiscountPreset updateDocumentLocationSettings
@@ -77,6 +78,8 @@ CLIENT_OR_TENANT_ROUTES = {
         updateRentalPlan updateRentalRate updateRentalType updateReservationCategory updateReservationType
         updateRevenueCategory updateRole updateStaffUser updateTag updateTax updateTaxRate updateTenderType
         addStaffHourlyRate deleteStaffHourlyRate getCommissionRules listPayRates listStaffHourlyRates
+        getIdentityProvider updateIdentityProvider deleteIdentityProvider
+        closeSupportRequest getSupportRequest createTenantExportDownloadUrl getTenantExport
         putCommissionRules putDefaultPayRate putPayRateOverride putMembershipPayRate deletePayRateOverride
         deleteMembershipPayRate listBonusRules putBonusRules
         listReservationTypeGrants replaceReservationTypeGrants
