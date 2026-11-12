@@ -202,4 +202,5 @@ before a re-point is dropped and recreated with `make lane-db`.
 
 | Date | Chip | Event | Commit |
 |---|---|---|---|
-| 2026-11-12 | plan | written | |
+| 2026-11-12 | plan | written | d220fca |
+| 2026-11-12 | A, B1, C1 | proposed as session cards from the coordinator (worktrees fast-forward to the phase branch first); B2 waits for B1, C2 for a free slot | |
