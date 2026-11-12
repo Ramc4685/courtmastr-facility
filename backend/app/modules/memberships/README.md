@@ -37,7 +37,9 @@ tenant (`EVERY_HOUR`).
 plan's terms snapshotted as at a sale, an optional price per period, dues scheduled only from the next bill date
 (none: record-only), no enrolment fee, add-ons, shares or document gate, and an expired contract does not renew.
 The same owner, plan and start is returned as existing. A given status must match the dates (422
-`status-mismatch`). Activation converges with reason `import`, and so does the later start of an imported
+`status-mismatch`). Refused rather than adjusted: a start other than the plan's
+fixed start (`plan-fixed-start`) and a first bill (due date less the billing lead) before the next bill date
+(`bills-before-next-bill-date`). Activation converges with reason `import`, and so does the later start of an imported
 upcoming contract (`sales_channel` import), so engagement sends no "membership started" automation for either.
 
 ## Not built (by name)

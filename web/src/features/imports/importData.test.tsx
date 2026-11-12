@@ -31,7 +31,7 @@ const job = (over: Record<string, unknown> = {}) => ({
   id: 'j1', kind: 'clients', location_id: 'l1', status: 'needs_review', source_file_name: 'members.csv',
   source_headers: ['First', 'Last', 'E-mail'], column_mapping: { first_name: 'First', last_name: 'Last' }, date_format: 'iso',
   total_row_count: 5, processed_row_count: 5, valid_row_count: 4, created_count: 3, updated_count: 1, skipped_count: 0,
-  error_count: 1, has_error_report: true, submitted_by_staff_user_id: 's1', started_at: null, finished_at: null,
+  error_count: 1, has_error_report: true, stop_reason: null, submitted_by_staff_user_id: 's1', started_at: null, finished_at: null,
   expires_at: '2026-12-11T00:00:00Z', files_purged_at: null, created_at: '2026-11-11T15:00:00Z', updated_at: '2026-11-11T15:00:00Z', ...over,
 })
 

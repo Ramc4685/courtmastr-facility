@@ -140,12 +140,19 @@ class TenderType(TenantOwned, Timestamps, Base):
             "uq_tender_type_kind_single", "tenant_id", "kind", unique=True,
             postgresql_where=text("kind NOT IN ('external', 'other')"),
         ),
+        Index("uq_tender_type_system_key", "tenant_id", "system_key", unique=True,
+              postgresql_where=text("system_key IS NOT NULL")),  # fmt: skip
         enum_check("kind", TenderKind),
         CheckConstraint("is_processed = (kind IN ('card', 'bank_debit'))", name="processed"),
+        CheckConstraint("system_key IS NULL OR (system_key = 'opening_balance' AND kind = 'external')",
+                        name="system_key"),  # fmt: skip
     )  # fmt: skip
 
     kind: Mapped[str] = enum_column()
     label: Mapped[str]
+    # Set only by billing itself, never by a command: 'opening_balance' is the internal tender imports book opening
+    # credits on. Such a row is read-only, never listed as a choice, and takes payments only from imports.
+    system_key: Mapped[str | None]
     is_processed: Mapped[bool]
     is_optional: Mapped[bool] = mapped_column(server_default=text("true"))
     is_enabled: Mapped[bool] = mapped_column(server_default=text("true"))

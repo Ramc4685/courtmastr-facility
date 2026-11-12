@@ -56,6 +56,7 @@ class ImportJobOut(Out):
     skipped_count: int
     error_count: int
     has_error_report: bool
+    stop_reason: str | None  # plain words, for a failed (stopped) job
     submitted_by_staff_user_id: UUID
     started_at: datetime | None
     finished_at: datetime | None

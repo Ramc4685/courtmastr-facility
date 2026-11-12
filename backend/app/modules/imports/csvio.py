@@ -7,6 +7,7 @@ Writing always neutralises cells a spreadsheet would run as a formula, whatever 
 import csv
 import io
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -112,9 +113,16 @@ def check_mapping(mapping: dict[str, str], headers: list[str], fields: list[Fiel
 
 
 def values(record: list[str], headers: list[str], mapping: dict[str, str]) -> dict[str, str]:
-    """Our field key -> the stripped cell ('' when missing)."""
+    """Our field key -> the cleaned cell ('' when missing): see `cell`."""
     index = {h: i for i, h in enumerate(headers)}
-    return {key: (record[index[h]].strip() if index[h] < len(record) else "") for key, h in mapping.items()}
+    return {key: (cell(record[index[h]]) if index[h] < len(record) else "") for key, h in mapping.items()}
+
+
+def cell(raw: str) -> str:
+    """Stripped, in Unicode NFC (so a name typed with combining accents matches the composed one), and without
+    the apostrophe `safe` puts before a formula character, so our own template and reports read back as written."""
+    value = unicodedata.normalize("NFC", raw.strip())
+    return value[1:] if value.startswith("'") and value[1:].startswith(_FORMULA) else value
 
 
 # --- cells -------------------------------------------------------------------------------------------------------

@@ -144,14 +144,17 @@ def _apply(
 def import_consent(
     session: Session, client_id: UUID, *, email_marketing: bool | None, sms_marketing: bool | None, note: str,
     given_at: datetime | None = None, given_how: str | None = None,
-) -> list[str]:  # fmt: skip
+) -> list[tuple[str, str]]:  # fmt: skip
     """Internal (imports): marketing consent carried over from a spreadsheet, source `import`, actor system. The
     double opt-in rule for email is not applied: the tenant attests the consent was given before (owner decision
     in the imports README). A choice for a channel the client has no address on is ignored.
 
-    GDPR mode (PLT-16): an opt-in is express only with its evidence (`given_at` and `given_how`, recorded on the
-    consent event); without both it is not recorded and the channel is returned, so the importer warns. Outside
-    GDPR mode the basis is `import` (which GDPR mode later ignores). Opt-outs are always recorded."""
+    An import never overrides a choice made here: an opt-in is withheld, reason `opted-out`, when the client has
+    opted out of that topic on the channel (any address, however old the opt-out or new the file's consent date),
+    and is a no-op when they are already subscribed (so no consent event is backdated over a newer one). GDPR mode (PLT-16): an opt-in is
+    express only with its evidence (`given_at` and `given_how`, recorded on the consent event); without both it is
+    withheld, reason `evidence`. Outside GDPR mode the basis is `import` (which GDPR mode later ignores).
+    Opt-outs are always recorded. Returns the withheld (channel, reason) pairs, so the importer warns."""
     client = clients.get(session, client_id)
     proven = given_at is not None and bool(given_how)
     gdpr = privacy.is_gdpr_mode(session)
@@ -161,8 +164,14 @@ def import_consent(
     for channel, address, topic, subscribed in wanted:
         if subscribed is None or not address:
             continue
+        stored = _stored_choices(session, client.id, channel, topic) if subscribed else {}
+        if False in stored.values():  # an opt-out made here always stands, whatever the file's consent date
+            withheld.append((channel, "opted-out"))
+            continue
+        if stored.get(address.lower()):  # already subscribed: an older spreadsheet consent adds nothing
+            continue
         if subscribed and gdpr and not proven:
-            withheld.append(channel)
+            withheld.append((channel, "evidence"))
             continue
         changes.append({"channel": channel, "address": address, "topic": topic, "is_subscribed": subscribed})
     if changes:
@@ -170,6 +179,15 @@ def import_consent(
                basis="express" if gdpr else "import", note=f"{note}: {given_how}" if given_how else note,
                verified_only=False, occurred_at=given_at)  # fmt: skip
     return withheld
+
+
+def _stored_choices(session: Session, client_id: UUID, channel: str, topic: str) -> dict[str, bool]:
+    """The client's stored choices for a topic on a channel: lowered address -> subscribed (absent: default)."""
+    rows = session.execute(select(CommunicationPreference.address, CommunicationPreference.is_subscribed).where(
+        CommunicationPreference.client_id == client_id, CommunicationPreference.channel == channel,
+        CommunicationPreference.topic == topic,
+    ))  # fmt: skip
+    return {(address or "").lower(): subscribed for address, subscribed in rows}
 
 
 def get_client_preferences(session: Session, principal: Principal, client_id: UUID) -> list[dict]:

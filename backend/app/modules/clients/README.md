@@ -34,7 +34,8 @@ client_id, capability)`, `households.actable_client_ids`, `activity.active_alert
 
 Imports (Phase 8 I1): `service.import_client` refuses a new record that the duplicate rule pairs with an existing
 client (409 `possible-duplicate`; the importer reports the row as skipped, never merged), and matches by member
-number without case. `service.find_by_primary_email` and `households.import_link` (member linked to its head,
+number without case. An update never changes the primary email: a new address is
+added as a secondary one. `service.find_by_primary_email` and `households.import_link` (member linked to its head,
 `created_via` import, idempotent) are internal for the `imports` context, which carries the gate. An imported
 client's `clients.client.created` event carries `source: "import"` and `import_job_id`.
 

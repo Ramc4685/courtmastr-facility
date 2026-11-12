@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationFailed
+from app.core.settings import get_settings
 from app.modules import billing, clients, engagement, memberships, platform, pos
 from app.modules.imports import csvio
 from app.modules.imports.csvio import CellError, Field
@@ -24,6 +25,7 @@ Errors = list[tuple[str, str, str]]
 Applied = tuple[str, UUID, bool, Errors]
 _PHONE = re.compile(r"^\+[1-9][0-9]{6,14}$")
 _RELATIONS = ("child", "spouse", "parent", "guardian", "ward", "sibling", "other")
+BIG_CHUNK, SMALL_CHUNK = 200, 20  # rows per chunk transaction (ADR 0008 section 3); see Kind.chunk_rows
 
 
 @dataclass
@@ -32,6 +34,7 @@ class Context:
     date_format: str
     today: date  # at the job's location (overview 3.7)
     job_id: UUID
+    submitted_by: UUID | None = None  # the staff user who started the import (audit attribution)
 
 
 @dataclass
@@ -47,6 +50,9 @@ class Kind:
     pointers: dict[str, str] = field(default_factory=dict)  # service error pointer -> our field
     limit_key: str | None = None  # plan limit a created row counts against
     once: bool = False  # True: a row already created by an earlier job is skipped (no updates for this type)
+    # Rows per chunk transaction. Small where a row takes a per-tenant counter (invoice, receipt, member number):
+    # platform.next_number holds that row lock to the end of the chunk, and front-desk payments wait on it.
+    chunk_rows: int = BIG_CHUNK
 
 
 def _cells(cells: dict[str, str], errors: Errors, parsers: dict[str, Callable[[str], object]]) -> dict:
@@ -198,20 +204,30 @@ def _apply_client(session: Session, data: dict, ctx: Context) -> Applied:
         session, {k: v for k, v in row.items() if v is not None}, import_job_id=ctx.job_id
     )
     warnings: Errors = []
-    if data["email_marketing"] is not None or data["sms_marketing"] is not None:
+    email_marketing = data["email_marketing"]
+    if email_marketing and data["email"] and data["email"] != (client.primary_email or "").lower():
+        # The file's address was added as a secondary one; its consent does not carry to the kept primary.
+        email_marketing = None
+        warnings.append(("email_marketing", "consent-withheld", "Imported without email marketing: this email is "
+                         "new for an existing client, so it was added as a second address, not subscribed."))  # fmt: skip
+    if email_marketing is not None or data["sms_marketing"] is not None:
         given_at = None
         if data["consent_date"]:
             zone = ZoneInfo(platform.service.location_time_zone(session, ctx.location_id))
             given_at = datetime.combine(data["consent_date"], time(0), tzinfo=zone)
         withheld = engagement.service.import_consent(
-            session, client.id, email_marketing=data["email_marketing"], sms_marketing=data["sms_marketing"],
+            session, client.id, email_marketing=email_marketing, sms_marketing=data["sms_marketing"],
             note=f"Import job {ctx.job_id}", given_at=given_at, given_how=data["consent_source"],
         )  # fmt: skip
-        for channel in withheld:
+        for channel, reason in withheld:
             column = "email_marketing" if channel == "email" else "sms_marketing"
             words = "email" if channel == "email" else "text"
-            warnings.append((column, "consent-evidence-missing", f"Imported without {words} marketing: GDPR mode "
-                             "needs the consent date and how consent was given."))  # fmt: skip
+            if reason == "opted-out":
+                warnings.append((column, "consent-withheld", f"Consent withheld: the client opted out of {words} "
+                                 "marketing here, and an import never overrides that."))  # fmt: skip
+            else:
+                warnings.append((column, "consent-evidence-missing", f"Imported without {words} marketing: GDPR "
+                                 "mode needs the consent date and how consent was given."))  # fmt: skip
     if data.get("head_client_id"):  # set by the engine from the head's row
         code = "other" if data["relationship_to_head"] == "other" else f"{data['relationship_to_head']}_of"
         clients.households.import_link(session, client.id, data["head_client_id"], code)
@@ -294,12 +310,21 @@ def _balance_key(data: dict) -> str:
 
 
 def _apply_balance(session: Session, data: dict, ctx: Context) -> Applied:
-    entity, entity_id = billing.service.post_opening_balance(
-        session, client_id=_client_ref(session, data), location_id=ctx.location_id, amount_minor=data["amount"],
+    client_id = _client_ref(session, data)
+    if data["amount"] > (cap := get_settings().imports.max_opening_balance_minor):
+        raise ValidationFailed(f"An opening balance may be at most {cap // 100:,}. Check the amount.",
+                               pointer="/amount", code="amount-too-large")  # fmt: skip
+    # The key is the resolved client and the balance itself, never the job or how the file names the client, so
+    # the same opening balance posts once per tenant however and however often it arrives.
+    entity, entity_id, created = billing.service.post_opening_balance(
+        session, client_id=client_id, location_id=ctx.location_id, amount_minor=data["amount"],
         kind="credit" if data["direction"] == "credit" else "owed", as_of=data["as_of_date"],
         description=data["description"] or f"Opening balance as of {data['as_of_date'].isoformat()}",
-        key=f"{ctx.job_id}:{data['_row_key']}",
+        key=f"{client_id}:{data['as_of_date'].isoformat()}:{data['direction']}:{data['amount']}",
+        reference=f"import-job:{ctx.job_id}", submitted_by=ctx.submitted_by,
     )  # fmt: skip
+    if not created:
+        return entity, entity_id, False, [("", "already-posted", "Skipped: this opening balance was already posted.")]
     return entity, entity_id, True, []
 
 
@@ -382,6 +407,7 @@ KINDS: dict[str, Kind] = {
             "/client_email": "client_email",
         },
         once=True,
+        chunk_rows=SMALL_CHUNK,
     ),  # fmt: skip
     ImportKind.BALANCES: Kind(
         ImportKind.BALANCES,
@@ -395,8 +421,9 @@ KINDS: dict[str, Kind] = {
         _parse_balance,
         _balance_key,
         _apply_balance,
-        {"/client_member_number": "client_member_number", "/client_email": "client_email"},
+        {"/client_member_number": "client_member_number", "/client_email": "client_email", "/amount": "amount"},
         once=True,
+        chunk_rows=SMALL_CHUNK,
     ),  # fmt: skip
     ImportKind.PRODUCTS: Kind(
         ImportKind.PRODUCTS,

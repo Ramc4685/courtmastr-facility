@@ -21,6 +21,15 @@ Read = Annotated[Ctx, Depends(require(service.READ))]
 Run = Annotated[Ctx, Depends(require(service.RUN))]
 
 
+def _every_location(ctx: Run) -> Ctx:
+    """Running a check or an import also needs every location (rows match clients anywhere)."""
+    service.require_all_locations(ctx.principal)
+    return ctx
+
+
+RunEverywhere = Annotated[Ctx, Depends(_every_location)]
+
+
 def _csv(data: bytes, name: str) -> Response:
     return Response(
         data, media_type="text/csv; charset=utf-8",
@@ -67,14 +76,17 @@ async def upload_import_job_source(import_job_id: UUID, request: Request, ctx: R
 
 
 @router.post("/import-jobs/{import_job_id}/dry-runs", response_model=s.ImportJobOut, status_code=202)
-def create_import_job_dry_run(import_job_id: UUID, body: s.ImportDryRunCreate, ctx: Run):
-    """Check every row without importing anything; the job moves to validated or needs_review."""
+def create_import_job_dry_run(import_job_id: UUID, body: s.ImportDryRunCreate, ctx: RunEverywhere):
+    """Check every row without importing anything; the job moves to validated or needs_review. Needs every
+    location (403 all-locations-required)."""
     return service.start_dry_run(ctx.session, ctx.principal, import_job_id, body.model_dump())
 
 
 @router.post("/import-jobs/{import_job_id}/commits", response_model=s.ImportJobOut, status_code=202)
-def create_import_job_commit(import_job_id: UUID, ctx: Run):
-    """Import the checked rows; the job moves to completed with a report of rows that failed."""
+def create_import_job_commit(import_job_id: UUID, ctx: RunEverywhere):
+    """Import the checked rows; the job moves to completed with a report of rows that failed. Needs every
+    location (403 all-locations-required) and the keys of the staff commands the type's writes stand for;
+    409 check-stale when the file changed after the check."""
     return service.start_commit(ctx.session, ctx.principal, import_job_id)
 
 

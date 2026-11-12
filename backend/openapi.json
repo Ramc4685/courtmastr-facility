@@ -23411,6 +23411,17 @@
             "title": "Status",
             "type": "string"
           },
+          "stop_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Reason"
+          },
           "submitted_by_staff_user_id": {
             "format": "uuid",
             "title": "Submitted By Staff User Id",
@@ -23451,6 +23462,7 @@
           "skipped_count",
           "error_count",
           "has_error_report",
+          "stop_reason",
           "submitted_by_staff_user_id",
           "started_at",
           "finished_at",
@@ -90650,7 +90662,7 @@
     },
     "/api/v1/import-jobs/{import_job_id}/commits": {
       "post": {
-        "description": "Import the checked rows; the job moves to completed with a report of rows that failed.",
+        "description": "Import the checked rows; the job moves to completed with a report of rows that failed. Needs every\nlocation (403 all-locations-required) and the keys of the staff commands the type's writes stand for;\n409 check-stale when the file changed after the check.",
         "operationId": "createImportJobCommit",
         "parameters": [
           {
@@ -90713,7 +90725,7 @@
     },
     "/api/v1/import-jobs/{import_job_id}/dry-runs": {
       "post": {
-        "description": "Check every row without importing anything; the job moves to validated or needs_review.",
+        "description": "Check every row without importing anything; the job moves to validated or needs_review. Needs every\nlocation (403 all-locations-required).",
         "operationId": "createImportJobDryRun",
         "parameters": [
           {

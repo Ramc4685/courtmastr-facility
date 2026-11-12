@@ -260,7 +260,7 @@ def test_possible_duplicate_is_skipped_and_rerun_updates_instead_of_duplicating(
 
 
 def test_chunk_retry_never_duplicates(client, tenant, owner, location_id, monkeypatch):
-    monkeypatch.setattr(imports.service, "CHUNK_ROWS", 2)
+    monkeypatch.setattr(imports.kinds.KINDS["clients"], "chunk_rows", 2)
     rows = [["first_name", "last_name", "member_number"]] + [[f"P{i}", "Chunk", f"C-{i}"] for i in range(5)]
     job = check(client, owner, start(client, owner, location_id, "clients", to_csv(rows)))
     assert job["valid_row_count"] == 5 and job["processed_row_count"] == 5
@@ -430,7 +430,8 @@ def test_run_needs_the_key_and_step_up_and_jobs_follow_the_location_set(client, 
     outsider = login(client, tenant, email)
     assert client.get(f"{API}/import-jobs/{job['id']}", headers=outsider).status_code == 404
     assert client.get(f"{API}/import-jobs/{job['id']}/error-report", headers=outsider).status_code == 404
-    assert client.post(f"{API}/import-jobs/{job['id']}/dry-runs", headers=outsider, json={}).status_code == 404
+    refused = client.post(f"{API}/import-jobs/{job['id']}/dry-runs", headers=outsider, json={})
+    assert refused.json()["code"] == "all-locations-required"  # before any lookup, so it reveals nothing
     assert ok(client.get(f"{API}/import-jobs", headers=outsider))["data"] == []
     elsewhere = client.post(
         f"{API}/import-jobs", headers=outsider, json={"kind": "clients", "location_id": location_id}
@@ -603,3 +604,251 @@ def test_five_thousand_clients_complete_through_the_worker(client, tenant, owner
     # FH_PERF=1 make test, on an otherwise idle machine; under load it measures the machine, not the code.
     if os.environ.get("FH_PERF") == "1":
         assert elapsed < 180, f"5,000 clients took {elapsed:.0f}s"
+
+
+# --- review round 2 (findings 1 to 11) ------------------------------------------------------------------------------
+
+
+def _subscribed(session, client_id, channel, topic, address) -> bool:
+    from app.modules import engagement
+
+    return engagement.service.is_subscribed(session, client_id, channel, topic, address)
+
+
+def test_an_import_never_resubscribes_an_opt_out_or_changes_a_primary_email(client, tenant, owner, location_id):
+    out = new_client(client, owner, location_id, first_name="Opal", last_name="Out", member_number="R-1",
+                     primary_email="opal@example.com", phone_mobile="+13095550188")  # fmt: skip
+    ok(client.put(f"{API}/clients/{out['id']}/communication-preferences", headers=owner, json={
+        "note": "Asked at the desk", "changes": [
+            {"channel": "email", "address": "opal@example.com", "topic": "email_campaigns", "is_subscribed": False},
+            {"channel": "sms", "address": "+13095550188", "topic": "sms_marketing", "is_subscribed": False}]}))  # fmt: skip
+    moved = new_client(client, owner, location_id, first_name="Mo", last_name="Ved", member_number="R-2",
+                       primary_email="mo@example.com")  # fmt: skip
+    header = ["member_number", "first_name", "last_name", "email", "mobile_phone", "email_marketing", "sms_marketing",
+              "consent_date", "consent_source"]  # fmt: skip
+    today = (clock.now().date() - timedelta(days=1)).isoformat()  # recent, yet the opt-out stands
+    job = check(client, owner, start(client, owner, location_id, "clients", to_csv([header,
+                ["R-1", "Opal", "Out", "opal@example.com", "+13095550188", "yes", "yes", today, "Paper form"],
+                ["R-2", "Mo", "Ved", "mo.new@example.com", "", "yes", "", today, "Paper form"]])))  # fmt: skip
+    assert outcomes(tenant, job)[2] == ("valid", ["consent-withheld", "consent-withheld"]), outcomes(tenant, job)
+    done = commit(client, owner, job)
+    found = outcomes(tenant, done)
+    assert found[2] == ("updated", ["consent-withheld", "consent-withheld"])
+    assert found[3] == ("updated", ["consent-withheld"])
+    assert "opted out" in report(client, owner, done)[1][3]
+    with tenant_session(tenant.id) as session:
+        assert not _subscribed(session, UUID(out["id"]), "email", "email_campaigns", "opal@example.com")
+        assert not _subscribed(session, UUID(out["id"]), "sms", "sms_marketing", "+13095550188")
+        emails = dict(session.execute(text("SELECT email, is_primary FROM client_email WHERE client_id = :c"),
+                                      {"c": moved["id"]}).all())  # fmt: skip
+        assert emails == {"mo@example.com": True, "mo.new@example.com": False}  # kept primary, new one secondary
+        primary = session.execute(text("SELECT primary_email FROM client WHERE id = :c"), {"c": moved["id"]}).scalar()
+        assert primary == "mo@example.com"
+        assert not session.execute(text("SELECT count(*) FROM consent_event WHERE client_id = :c AND kind = 'opt_in'"),
+                                   {"c": moved["id"]}).scalar()  # fmt: skip
+
+
+def test_an_opening_balance_posts_once_however_it_arrives_and_reads_as_an_opening_balance(
+    client, tenant, owner, location_id
+):
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        billing.service.create_revenue_category(session, code="GEN", label="General", tax_ids=[])
+    new_client(client, owner, location_id, primary_email="ob@example.com", member_number="OB-1")
+    yesterday = (clock.now().date() - timedelta(days=1)).isoformat()
+    header = ["client_member_number", "client_email", "amount", "as_of_date", "direction"]
+    first = run(client, owner, location_id, "balances", [header, ["OB-1", "", "40", yesterday, "owed"],
+                                                          ["OB-1", "", "25", yesterday, "credit"],
+                                                          ["OB-1", "", "100001", yesterday, "owed"]])  # fmt: skip
+    assert (first["created_count"], first["error_count"]) == (2, 1)
+    assert outcomes(tenant, first)[4] == ("failed", ["amount-too-large"])
+    before = counts(tenant)
+    # The same balances again, naming the client by email: a new row key, but the same balances.
+    again = check(client, owner, start(client, owner, location_id, "balances", to_csv(
+        [header, ["", "ob@example.com", "40.00", yesterday, "owed"], ["", "ob@example.com", "25", yesterday, "credit"]])))  # fmt: skip
+    assert (again["valid_row_count"], again["skipped_count"]) == (0, 2)
+    assert outcomes(tenant, again)[2] == ("skipped", ["already-posted"])
+    assert "already posted" in report(client, owner, again)[1][3]
+    assert (counts(tenant)["charge"], counts(tenant)["payment"]) == (before["charge"], before["payment"])
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        payment = session.execute(text(
+            "SELECT p.id, p.external_reference, p.tender_kind, tt.label, tt.is_enabled FROM payment p "
+            "JOIN tender_type tt ON tt.id = p.tender_type_id WHERE p.client_id = (SELECT id FROM client "
+            "WHERE member_number = 'OB-1')")).one()  # fmt: skip
+        assert payment.external_reference == f"import-job:{first['id']}" and payment.tender_kind == "external"
+        assert (payment.label, payment.is_enabled) == ("Opening balance", False)  # never offered at the desk
+        label = session.execute(text("SELECT tender_label FROM rpt_payment WHERE payment_id = :p"),
+                                {"p": payment.id}).scalar()  # fmt: skip
+        assert label == "Opening balance"  # the deposits report groups by it, apart from cash taken that day
+        changes = session.execute(text("SELECT changes FROM audit_event WHERE action = 'billing.payment.take' "
+                                       "AND entity_id = :p"), {"p": payment.id}).scalar()  # fmt: skip
+        assert changes["submitted_by_staff_user_id"][1] == str(first["submitted_by_staff_user_id"])
+        back = billing.service.refund(session, payment.id, amount_minor=2500, reason="Hand back")
+        assert back.status == "succeeded" and back.provider_refund_ref is None  # external hand-back, never a card
+        desk = billing.service.take_payment(  # the plain external tender is still the kind's default
+            session, client_id=None, location_id=UUID(location_id), amount_minor=100, tender_kind="external",
+            origin="pos")  # fmt: skip
+        assert session.execute(text("SELECT label FROM tender_type WHERE id = :t"),
+                               {"t": desk.tender_type_id}).scalar() != "Opening balance"  # fmt: skip
+
+
+def _staff_principal(tenant, permissions, location_ids=None):
+    from app.core.auth import Principal
+
+    return Principal(kind="staff", tenant_id=tenant.id, elevated=True, permissions={k: "all" for k in permissions},
+                     location_ids=location_ids)  # fmt: skip
+
+
+def test_running_an_import_needs_every_location_and_the_keys_of_its_writes(client, tenant, owner, location_id):
+    from app.core.errors import PermissionDenied
+
+    job = check(client, owner, start(client, owner, location_id, "clients", b"first_name,last_name\r\nA,B\r\n"))
+    email, _ = add_staff(tenant, "admin", location_ids=[location_id])
+    local = login(client, tenant, email)
+    assert client.get(f"{API}/import-jobs/{job['id']}", headers=local).status_code == 200  # reading is fine
+    for step in ("dry-runs", "commits"):
+        refused = client.post(f"{API}/import-jobs/{job['id']}/{step}", headers=local, json={})
+        assert (refused.status_code, refused.json()["code"]) == (403, "all-locations-required")
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        keys = (*imports.service.KIND_KEYS["clients"], imports.service.RUN)
+        here = _staff_principal(tenant, keys, frozenset({UUID(location_id)}))
+        with pytest.raises(PermissionDenied) as caught:
+            imports.service.start_dry_run(session, here, UUID(job["id"]), {})
+        assert caught.value.code == "all-locations-required"
+        run_only = _staff_principal(tenant, (imports.service.RUN,))
+        with pytest.raises(PermissionDenied) as caught:
+            imports.service.start_commit(session, run_only, UUID(job["id"]))
+        assert "clients.client.create" in caught.value.detail
+
+
+def test_a_queued_job_stops_when_its_submitter_loses_the_right(client, tenant, owner, location_id):
+    email, staff_id = add_staff(tenant, "admin", all_locations=True)
+    admin = login(client, tenant, email)
+    job = start(client, admin, location_id, "clients", b"first_name,last_name\r\nA,B\r\n")
+    ok(client.post(f"{API}/import-jobs/{job['id']}/dry-runs", headers=admin, json={}), 202)
+    ok(client.post(f"{API}/staff-users/{staff_id}/deactivate", headers=owner))
+    drain()
+    stopped = ok(client.get(f"{API}/import-jobs/{job['id']}", headers=owner))
+    assert stopped["status"] == "failed" and "can no longer sign in" in stopped["stop_reason"]
+    assert outcomes(tenant, stopped) == {}  # not a row was processed
+
+
+def test_chunk_size_per_kind_keeps_counter_locks_short(tenant):
+    from app.modules import clients
+
+    kinds = imports.kinds.KINDS
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        sizes = {key: imports.service.chunk_rows(session, kind) for key, kind in kinds.items()}
+        assert sizes == {"clients": 200, "memberships": 20, "balances": 20, "products": 200}
+        settings = clients.service.settings_row(session)
+        settings.is_member_number_auto_generated, settings.member_number_trigger = True, "client_created"
+        session.flush()
+        assert imports.service.chunk_rows(session, kinds["clients"]) == 20  # each row takes the member counter
+
+
+def test_one_poison_row_fails_alone_and_the_job_carries_on(client, tenant, owner, location_id, monkeypatch):
+    kind = imports.kinds.KINDS["products"]
+    real = kind.apply
+
+    def flaky(session, data, ctx):
+        if data["sku"] == "BAD-1":
+            raise KeyError("a bug, not a refusal")
+        return real(session, data, ctx)
+
+    monkeypatch.setattr(kind, "apply", flaky)
+    header = ["sku", "name", "category", "price"]
+    done = run(client, owner, location_id, "products", [header, ["OK-1", "Fine", "Gear", "1"],
+                                                         ["BAD-1", "Poison", "Gear", "1"], ["OK-2", "Fine", "Gear", "1"]])  # fmt: skip
+    assert (done["status"], done["created_count"], done["error_count"]) == ("completed", 2, 1)
+    assert outcomes(tenant, done)[3] == ("failed", ["unexpected"])
+
+
+def test_a_commit_needs_a_check_of_the_current_file(client, tenant, owner, location_id):
+    checked = check(client, owner, start(client, owner, location_id, "clients", b"first_name,last_name\r\nA,B\r\n"))
+    other = start(client, owner, location_id, "clients", b"first_name,last_name\r\nC,D\r\n")
+    with tenant_session(tenant.id) as session:  # the state a racing upload would leave without the row lock
+        session.execute(text("UPDATE import_job SET source_file_id = (SELECT source_file_id FROM import_job "
+                             "WHERE id = :o) WHERE id = :j"), {"o": other["id"], "j": checked["id"]})  # fmt: skip
+    refused = client.post(f"{API}/import-jobs/{checked['id']}/commits", headers=owner)
+    assert (refused.status_code, refused.json()["code"]) == (409, "check-stale")
+
+
+def test_row_keys_are_keyed_and_rows_are_erased_and_expire(client, tenant, owner, location_id):
+    import hashlib
+
+    from app.core import crypto
+    from app.modules.platform import privacy, retention
+
+    done = run(client, owner, location_id, "clients", [["member_number", "first_name", "last_name", "email"],
+                                                        ["K-1", "Kay", "Keyed", "kay@example.com"]])  # fmt: skip
+    with tenant_session(tenant.id) as session:
+        key, kay = session.execute(text("SELECT row_key, entity_id FROM import_job_row WHERE import_job_id = :j"),
+                                   {"j": done["id"]}).one()  # fmt: skip
+    assert key == crypto.mac("import-row\x1fclients\x1fm:K-1")
+    assert key != hashlib.sha256(b"clients\x1fm:K-1").hexdigest()
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:  # the erasure handler
+        assert privacy.HANDLERS["imports"].erase(session, kay) == {
+            "deleted_import_job_rows": 1,
+            "purged_import_jobs": 1,
+        }
+    erased = ok(client.get(f"{API}/import-jobs/{done['id']}", headers=owner))
+    assert erased["files_purged_at"] and erased["source_file_name"] is None and outcomes(tenant, done) == {}
+
+    kept = check(client, owner, start(client, owner, location_id, "clients", b"first_name,last_name\r\nA,B\r\n"))
+    stuck = start(client, owner, location_id, "clients", b"first_name,last_name\r\nE,F\r\n")
+    with tenant_session(tenant.id) as session:
+        session.execute(text("UPDATE import_job SET files_purged_at = now() - interval '31 days' WHERE id = :j"),
+                        {"j": kept["id"]})  # fmt: skip
+        session.execute(text("UPDATE import_job SET status = 'validating', updated_at = now() - interval '2 hours' "
+                             "WHERE id = :j"), {"j": stuck["id"]})  # fmt: skip
+    with tenant_session(tenant.id, actor=system_principal("purge_expired")) as session:
+        purged = retention.purge(session)
+    assert purged["import_job_rows"] == 1 and outcomes(tenant, kept) == {}
+    abandoned = ok(client.get(f"{API}/import-jobs/{stuck['id']}", headers=owner))
+    assert abandoned["status"] == "failed" and "progress" in abandoned["stop_reason"]
+
+
+def test_memberships_refuse_billing_before_the_next_bill_date_and_a_moved_start(
+    client, tenant, owner, location_id, plan
+):
+    from app.core.dates import add_interval
+    from app.modules import memberships
+
+    new_client(client, owner, location_id, member_number="NB-1")
+    start_on = clock.now().date() - timedelta(days=60)
+    next_bill = add_interval(start_on, "month", 3).isoformat()  # a period start, ahead of today
+    rows = [["client_member_number", "membership", "start_date", "next_bill_date"],
+            ["NB-1", "Adult Monthly", start_on.isoformat(), next_bill]]  # fmt: skip
+    with tenant_session(tenant.id) as session:
+        memberships.service.settings_row(session).billing_lead_days = 7  # bills a week before each due date
+    job = check(client, owner, start(client, owner, location_id, "memberships", to_csv(rows)))
+    assert outcomes(tenant, job)[2] == ("invalid", ["bills-before-next-bill-date"])
+    with tenant_session(tenant.id) as session:
+        memberships.service.settings_row(session).billing_lead_days = 0
+        session.execute(text("UPDATE membership_plan SET fixed_start_on = :d WHERE id = :p"),
+                        {"d": start_on + timedelta(days=1), "p": plan["id"]})  # fmt: skip
+    job = check(client, owner, start(client, owner, location_id, "memberships", to_csv(rows)))
+    assert outcomes(tenant, job)[2] == ("invalid", ["plan-fixed-start"])
+
+
+def test_every_template_example_row_passes_its_own_check_and_names_match_in_nfc(client, tenant, owner, location_id):
+    from datetime import UTC, datetime
+
+    with clock.freeze(datetime(2026, 11, 11, 18, tzinfo=UTC)):  # the examples carry 2026 dates
+        with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+            category = billing.service.create_revenue_category(session, code="MEM", label="Memberships", tax_ids=[])
+            category_id = str(category.id)
+        kind = ok(client.post(f"{API}/membership-types", headers=owner,
+                              json={"name": "Adult", "revenue_category_id": category_id}), 201)  # fmt: skip
+        ok(client.post(f"{API}/membership-plans", headers=owner, json={
+            "membership_type_id": kind["id"], "name": "Adult monthly", "billing_occurrences_count": 12,
+            "term_fee_minor": 4500}), 201)  # fmt: skip
+        for key in ("clients", "products", "memberships", "balances"):  # clients first: the others name Sam
+            template = client.get(f"{API}/import-templates/{key}", headers=owner).content
+            job = check(client, owner, start(client, owner, location_id, key, template))
+            assert (job["status"], job["error_count"]) == ("validated", 0), (key, outcomes(tenant, job))
+            if key == "clients":
+                commit(client, owner, job)
+    new_client(client, owner, location_id, first_name="José", last_name="Nfc", primary_email="jose@example.com")
+    again = run(client, owner, location_id, "clients", [["first_name", "last_name", "email", "city"],
+                                                         ["José", "Nfc", "jose@example.com", "Peoria"]])  # fmt: skip
+    assert (again["created_count"], again["updated_count"], again["skipped_count"]) == (0, 1, 0)
