@@ -143,6 +143,7 @@ class Retention(BaseModel):
     gdpr_auth_session_days: int = 30  # a tenant in GDPR mode (PLT-16) keeps ended sessions and links shorter
     gdpr_auth_token_days: int = 7
     tenant_export_days: int = 7  # a tenant export bundle stays downloadable this long (IMP-04)
+    support_screenshot_days: int = 1  # a screenshot never attached to a support request (ONB-03)
 
 
 class S3(BaseModel):

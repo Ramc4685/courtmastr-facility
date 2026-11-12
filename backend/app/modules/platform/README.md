@@ -53,7 +53,9 @@ Later modules must not assume these exist.
 - **Dead letters** (`failed_job`, ADR 0008 section 7): `core.jobs.FailedJobRecorder` writes one row per message
   that is finally rejected (retries exhausted, or none allowed), in the message's tenant: actor, queue, message
   id, args (ids and dates only, by the actor rule), error class and first line (later lines of a database error
-  can quote row values), attempts. Operators, not staff, act on them; there is no route:
+  can quote row values), attempts. An actor that drives a job row registers `core.jobs.on_dead_letter` to
+  mark that row failed in the same transaction (the tenant export does). Operators, not staff, act on them; there
+  is no route:
 
   ```
   uv run python -m app.cli failed-jobs --tenant <tenant-id>                       # open dead letters
@@ -262,9 +264,13 @@ for its subscription is later work.
   and readable by `fh_app`; split every 5,000 rows) plus `manifest.json` into a zip, stored through `files`
   (purpose `tenant_export`), downloadable by a 5-minute signed URL (`/download-url`, audited) for
   `retention.tenant_export_days` (7). The hourly `purge_expired_exports` removes the file and marks the row
-  `expired`. Left out: sign-in secrets and sessions, job plumbing, columns named like hashes, tokens, secrets or
-  credentials, binary columns, and file bytes (their `stored_file` rows are in). Cells that a spreadsheet would
-  run as formulas get a leading `'`. Shortcut: offset paging and the zip held on the row (`shortcut:` comment).
+  `expired`. Left out: sign-in secrets and sessions, job plumbing, columns named like hashes, tokens, secrets,
+  credentials or key prefixes, any column marked `info={"audit": "never"}`, `credential.value` (badge and card
+  numbers), binary columns, and file bytes (their `stored_file` rows are in). Cells that a spreadsheet would run
+  as formulas get a leading `'`. Tables page by primary key (keyset), so writes between chunks neither skip nor
+  repeat rows. A dead-lettered chunk marks the row `failed` with an `error` and drops the partial zip (the
+  `core.jobs.on_dead_letter` hook); a queued or running export untouched for 30 minutes counts as failed on the
+  next request or hourly purge, so a new export can start. Shortcut: the zip is held on the row (`shortcut:`).
 - **Setup checklist (ONB-01, `onboarding.py`).** `GET /onboarding/checklist` (`tenant.update`) computes each step
   from real rows on every read: location address, opening hours edited, resources, a second staff member, an
   active payment provider account, a membership plan or program, a logo. Other contexts register their steps
@@ -274,8 +280,9 @@ for its subscription is later work.
   message, optional screenshot uploaded first to `PUT /support-requests/screenshot`) is stored, emailed through
   the notification port to `support.operator_email`, and listed only to its sender, who may close it. The
   screenshot is not attached to the email (the port sends text); the operator sees "Screenshot stored: yes".
-  Not built: operator replies or status changes in the app, attachment of the screenshot, purge of screenshots
-  never attached to a request.
+  Requests and screenshot uploads share the `support-request` rate-limit bucket (10 an hour per staff user); a
+  screenshot never attached to a request is purged by `retention.purge` after `support_screenshot_days` (1).
+  Not built: operator replies or status changes in the app, attachment of the screenshot.
 
 ## Security hardening (wave 1, S-07)
 

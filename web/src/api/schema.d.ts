@@ -15069,6 +15069,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Hold Reason */
+            hold_reason?: string | null;
             /**
              * Id
              * Format: uuid

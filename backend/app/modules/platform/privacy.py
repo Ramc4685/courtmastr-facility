@@ -52,8 +52,21 @@ def put_privacy_settings(session: Session, principal: Principal, data: dict) -> 
     before = tenant.is_gdpr_mode
     tenant.is_gdpr_mode = data["is_gdpr_mode"]
     session.flush()
-    audit.record(session, "platform.security.manage", tenant, changes={"is_gdpr_mode": [before, tenant.is_gdpr_mode]})
+    changes = {"is_gdpr_mode": [before, tenant.is_gdpr_mode]}
+    if before and not tenant.is_gdpr_mode:
+        changes["implied_consents_withdrawn"] = sum(handler(session, principal) for handler in GDPR_OFF_HANDLERS)
+    audit.record(session, "platform.security.manage", tenant, changes=changes)
     return {"is_gdpr_mode": tenant.is_gdpr_mode}
+
+
+# fn(session, principal) -> rows changed, run in the same transaction when GDPR mode is switched off. Engagement
+# registers one so implied marketing opt-ins ignored under GDPR mode stay withdrawn instead of silently resuming.
+GDPR_OFF_HANDLERS: list[Callable[[Session, Principal], int]] = []
+
+
+def on_gdpr_mode_off(fn: Callable[[Session, Principal], int]) -> Callable[[Session, Principal], int]:
+    GDPR_OFF_HANDLERS.append(fn)
+    return fn
 
 
 @dataclass(frozen=True)

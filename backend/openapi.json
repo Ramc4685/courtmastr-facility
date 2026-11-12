@@ -6859,6 +6859,17 @@
             "title": "Created At",
             "type": "string"
           },
+          "hold_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hold Reason"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",

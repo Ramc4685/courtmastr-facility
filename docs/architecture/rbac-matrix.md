@@ -522,7 +522,7 @@ allow-list (STF-06, PLT-07).
 | `engagement.campaign.edit` | L | | | Y | Y | - | - | - | - | - | PLT-06 Editor, MKT-04, MKT-05, MKT-06, MKT-11 |
 | `engagement.campaign.create` | L | | | Y | Y | - | - | - | - | - | PLT-06 Publisher, MKT-03 |
 | `engagement.campaign.send` | L | B | | Y | Y | - | - | - | - | - | PLT-06 Publisher, MKT-09, MKT-12 |
-| `engagement.campaign.send_all` | L | B | | Y | Y | - | - | - | - | - | PLT-06 (Phase 8 T2: an unfiltered all-clients audience) |
+| `engagement.campaign.send_all` | L | B | | Y | Y | - | - | - | - | - | PLT-06 (Phase 8 T2: an all-clients audience, filtered or not) |
 | `engagement.sms_campaign.send` | L | B | | Y | Y | - | - | - | - | - | MKT-15, MKT-23 |
 | `engagement.push.send` | L | B | | Y | Y | - | - | - | - | - | MKT-16, MKT-17, PLT-13 ("send notifications for this location") |
 | `engagement.message.send_direct` | C | | own | Y | Y | Y | own | Y | - | - | MKT-10 |
@@ -535,7 +535,7 @@ allow-list (STF-06, PLT-07).
 
 PLT-06 levels map to key sets: Viewer = `read`; Editor = `read` + `edit`; Publisher = all four. The role editor
 presents them as one four-way control. `send_all` (Phase 8 T2) is separate from the levels: a sender also needs it
-when the audience is every client of the location with no filter, so a role can send to segments only. Divergence from MKT-10: a single direct email needs only
+when the audience has an all-clients source (filters do not waive it), so a role can send to segments only. Divergence from MKT-10: a single direct email needs only
 `send_direct`, not a campaign level.
 
 ### 6.16 assessments

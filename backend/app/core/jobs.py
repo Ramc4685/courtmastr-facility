@@ -44,7 +44,7 @@ class FailedJobRecorder(Middleware):
             log.error("dead letter outside a tenant", extra={"actor": message.actor_name})
             return
         error = message._exception  # set by the worker for the failed attempt; no public accessor in Dramatiq 2
-        with tenant_session(tenant_id) as session:
+        with tenant_session(tenant_id, actor=system_principal(message.actor_name)) as session:
             session.execute(
                 text(
                     "INSERT INTO failed_job (tenant_id, actor_name, queue, message_id, args, error_class, "
@@ -58,6 +58,21 @@ class FailedJobRecorder(Middleware):
                     "attempts": max(message.options.get("retries", 0), 1),
                 },
             )  # fmt: skip
+            if hook := DEAD_LETTER_HOOKS.get(message.actor_name):
+                hook(session, *args[1:])
+
+
+# actor name -> fn(session, *message args after the tenant id), run in the tenant when that actor dead-letters, so a
+# job row it drove can record the failure (register with `on_dead_letter`).
+DEAD_LETTER_HOOKS: dict[str, Callable] = {}
+
+
+def on_dead_letter(actor_name: str):
+    def decorate(fn: Callable) -> Callable:
+        DEAD_LETTER_HOOKS[actor_name] = fn
+        return fn
+
+    return decorate
 
 
 _settings = get_settings()
