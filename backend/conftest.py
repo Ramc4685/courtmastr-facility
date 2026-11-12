@@ -6,7 +6,7 @@ import os
 os.environ["FH_ENV"] = "test"  # must precede every app import: selects config/app.test.yaml
 
 from types import SimpleNamespace  # noqa: E402
-from uuid import uuid4  # noqa: E402
+from uuid import UUID, uuid4  # noqa: E402
 
 import pytest  # noqa: E402
 from alembic import command  # noqa: E402
@@ -261,6 +261,7 @@ def populate(client, tenant) -> SimpleNamespace:
     leagues = _populate_leagues(client, headers, post, location["id"], person["id"], space["resource_id"], category_id)
     integration = _populate_integrations(client, headers, tenant, post, location, person)
     reporting = _populate_reporting(post, location["id"])
+    reporting |= _populate_imports(client, headers, tenant, location["id"])
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
         session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
@@ -304,6 +305,21 @@ def _populate_files(tenant) -> dict:
         row = files.store(session, b"%PDF-1.4 populate", purpose="tests.populate", content_type=files.PDF,
                           uploaded_by=("system", None))  # fmt: skip
     return {"tenant_id": tenant.id, "file_id": row.id}
+
+
+def _populate_imports(client, headers, tenant, location_id) -> dict:
+    """Phase 8 I1: a clients import job with its uploaded file, checked once (rows and an error report)."""
+    from app.modules import imports
+
+    job = client.post("/api/v1/import-jobs", headers=headers, json={"kind": "clients", "location_id": location_id})
+    job_id = job.json()["id"]
+    csv = b"first_name,last_name,email\r\nImport,Person,imported@example.com\r\nNo,Email,not-an-email\r\n"
+    url = f"/api/v1/import-jobs/{job_id}/source"
+    assert client.put(url, headers=headers | {"Content-Type": "text/csv"}, content=csv).status_code == 200
+    assert client.post(f"/api/v1/import-jobs/{job_id}/dry-runs", headers=headers, json={}).status_code == 202
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        assert imports.service.run_chunk(session, UUID(job_id)) is False
+    return {"import_job_id": job_id}
 
 
 def _populate_reporting(post, location_id) -> dict:

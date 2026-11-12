@@ -51,6 +51,7 @@ CLIENT_OR_TENANT_ROUTES = {
         assignCredential revokeClientAppCards revokeCredential
     """.split()),
     "tenant": set("""
+        createImportJobCommit createImportJobDryRun getImportJob getImportJobErrorReport getImportTemplate uploadImportJobSource
         addTaxRate releaseSuppression approveClientRelationship archiveDocumentTemplate archiveLocation assignClientMemberNumber
         assignClientOwners assignStaffLocations assignStaffRole confirmDataSubjectRequest createClientAlert
         createClientNote createClientRelationship createOnboardingLink createRentalRate
