@@ -250,3 +250,6 @@ at hand-back (Phase 14's `14xx` or Phase 12's `16xx` may land first).
 |---|---|---|---|
 | 2026-11-12 | plan | written | aa41743 |
 | 2026-11-12 | A, B, C1 | started (A local_a1caa3ba, B local_918e482f, C1 local_3c9b20c3), each fast-forwards onto e974f35; C2 waits for C1 | |
+| 2026-11-12 | main | main 0a47a0d (chip D fixes, drift gate) merged into the phase branch so chips fast-forward | a1bc32c |
+| 2026-11-12 | core | approved: A's slug-mismatch 404 in `core/auth/deps.py` `current_ctx`; C1's read-only `search_app_directory` in `core/db/platform.py` (column grants to fh_platform, limit 20, 2-char prefix); brand colours live on the tenant (A), C1 reads them | |
+| 2026-11-12 | all | desktop app restart stopped A, B, C1 mid-build (no commits yet); resumed by message | |
