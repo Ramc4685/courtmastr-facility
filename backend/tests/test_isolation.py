@@ -116,6 +116,7 @@ _BODIES = {
     "applyAccountCredit": {},
     "refundAccountCredit": {"amount_minor": 1, "reason": "Mistake"},
     "sendClientStatement": {"from_on": "2026-01-01", "to_on": "2026-02-01"},
+    "resendStatementBatch": {},
     "attachPaymentMethod": {"method_token": "tok_card_ok"},
     "createSetupIntent": {},
     "updatePaymentMethod": {"is_autopay": True},

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api, fieldErrors, type Schemas } from '../../api/client'
+import { api, downloadFile, fieldErrors, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { ConfirmDialog } from '../../components/Dialog'
@@ -17,7 +17,7 @@ import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { AddChargeDialog, EditChargeDialog, ReverseChargeDialog, VoidChargeDialog } from './ChargeDialogs'
 import { CHARGE_STATUS, INVOICE_STATUS, PAYMENT_STATUS, TENDER_LABEL, formatMoney, parseMoney, today } from './money'
 import { PaymentMethodField } from './PaymentMethodField'
-import { ClientName, Facts, FormDialog, ListTable, Money, MoneyInput, StatusBadge, TextArea, useClient, useCurrency } from './shared'
+import { ClientName, Facts, FormDialog, ListTable, Money, MoneyInput, PdfButton, StatusBadge, TextArea, useClient, useCurrency } from './shared'
 import { TakePaymentDialog } from './TakePaymentDialog'
 
 type Charge = Schemas['ChargeOut']
@@ -404,6 +404,7 @@ function StatementTab({ clientId }: { clientId: string }) {
         <Input label="From" type="date" value={range.from_on} onChange={(e) => setRange({ ...range, from_on: e.target.value })} />
         <Input label="To" type="date" value={range.to_on} onChange={(e) => setRange({ ...range, to_on: e.target.value })} />
         <Select label="Dates by" value={range.date_basis} onChange={(e) => setRange({ ...range, date_basis: e.target.value as 'invoice_date' })} options={[{ value: 'invoice_date', label: 'Invoice date' }, { value: 'due_date', label: 'Due date' }]} />
+        <PdfButton download={() => downloadFile('/api/v1/clients/{client_id}/statement/pdf', { path: { client_id: clientId }, query: range }, 'statement.pdf')} />
         {can('billing.statement.send') && (
           <Button variant="secondary" loading={send.isPending} onClick={() => send.mutate()}>
             Email statement

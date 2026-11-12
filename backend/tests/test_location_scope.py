@@ -39,9 +39,10 @@ CLIENT_OR_TENANT_ROUTES = {
     "client": set("""
         applyAccountCredit attachPaymentMethod clearClientDocumentPaperSigned clearWaiverOverride
         createSetupIntent getAccountCredit getAutopayRun getCharge getClientBillingSummary
-        getClientDocument getClientDocumentFile getClientPackage getClientStatement
-        getDocumentLocationSettings getDocumentTemplate getInvoice getInvoiceDocument getMembershipContract
-        getMembershipPlan getPackagePlan getPackageSeries getPayment getPaymentSchedule getReceipt
+        getClientDocument getClientDocumentFile getClientPackage getClientStatement getClientStatementPdf
+        getDocumentLocationSettings getDocumentTemplate getInvoice getInvoiceDocument getInvoicePdf
+        getMembershipContract
+        getMembershipPlan getPackagePlan getPackageSeries getPayment getPaymentSchedule getReceipt getReceiptPdf
         listClientDocumentDeliveries listClientPackageLedger listClientPaymentMethods listInvoiceDeliveries
         listMembershipBillingSchedule listMembershipContractHistory listMembershipFreezes listMembershipShares
         listMembershipSuspensions listMembershipVisits listPackageShares removePaymentMethod

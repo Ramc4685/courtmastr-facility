@@ -8,7 +8,7 @@ strips its free text and stored payment methods, and is blocked while money is s
 
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.core import clock
@@ -23,6 +23,7 @@ from app.modules.billing.models import (
     PaymentMethod,
     ProviderCustomer,
     Refund,
+    StatementRecipient,
 )
 
 _OPEN_INVOICE = ("open", "payment_pending", "partially_paid")
@@ -56,6 +57,11 @@ def _repoint(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
         (BillingDocumentDelivery, BillingDocumentDelivery.client_id),
     ):
         session.execute(update(model).where(column == loser_id).values({column.key: survivor_id}))
+    # One row per client per batch: where both were in a batch the survivor's row stands for the merged client.
+    sr = StatementRecipient
+    both = select(sr.statement_batch_id).where(sr.client_id == survivor_id)
+    session.execute(delete(sr).where(sr.client_id == loser_id, sr.statement_batch_id.in_(both)))
+    session.execute(update(sr).where(sr.client_id == loser_id).values(client_id=survivor_id))
     # A stored method belongs to the processor's customer. Where the survivor already has one at that
     # processor the merged record's methods cannot follow: they are detached. Otherwise customer and methods move.
     m, customer = PaymentMethod, ProviderCustomer
@@ -122,12 +128,14 @@ def _erase(session: Session, client_id: UUID) -> dict:
     session.execute(update(Refund).where(Refund.client_id == client_id).values(comments=None))
     d = BillingDocumentDelivery
     session.execute(update(d).where(d.client_id == client_id).values(to_email=None))
+    sr = StatementRecipient
+    session.execute(update(sr).where(sr.client_id == client_id).values(to_email=None, failure_message=None))
     return {"retained_invoices": kept, "removed_payment_methods": removed, "erased_at": clock.now().isoformat()}
 
 
 _TABLES = (
     "invoice", "charge", "payment", "refund", "ledger_entry", "coupon_redemption", "provider_customer",
-    "payment_method", "billing_notice", "billing_document_delivery",
+    "payment_method", "billing_notice", "billing_document_delivery", "statement_recipient",
 )  # fmt: skip
 clients.merge.register_merge_handler("billing", tables=_TABLES, repoint=_repoint)
 platform.privacy.register_subject_handler(

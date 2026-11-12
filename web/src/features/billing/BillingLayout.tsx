@@ -6,6 +6,7 @@ const LINKS = [
   { to: '/billing/clients', label: 'Client billing', permission: 'billing.charge.read' },
   { to: '/billing/autopay', label: 'Autopay', permission: 'billing.payment.read' },
   { to: '/billing/receivables', label: 'Receivables', permission: 'billing.invoice.read' },
+  { to: '/billing/statements', label: 'Statements', permission: 'billing.statement.send' },
   { to: '/billing/coupons', label: 'Coupons', permission: 'billing.charge.read' },
   { to: '/billing/setup', label: 'Set-up', permission: 'billing.charge.read' },
   { to: '/billing/settings', label: 'Preferences', permission: 'billing.settings.manage' },

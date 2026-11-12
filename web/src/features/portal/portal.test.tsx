@@ -134,3 +134,28 @@ describe('PortalApp', { timeout: 20_000 }, () => {
     expect(buys[0]?.headers['idempotency-key']).not.toBe(buys[1]?.headers['idempotency-key'])
   })
 })
+
+describe('Portal statement', { timeout: 20_000 }, () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('reads the period from the emailed link and asks for the acting member only', async () => {
+    const calls = open('/portal/statement?from_on=2026-10-01&to_on=2026-10-31', {
+      'GET /api/v1/portal/statement': {
+        status: 200,
+        body: {
+          client_id: 'c1', currency: 'USD', date_basis: 'invoice_date', from_on: '2026-10-01', to_on: '2026-10-31', time_zone: 'America/Chicago',
+          invoiced_minor: 2500, paid_minor: 1000, refunded_minor: 0, credit_minor: 0, balance_due_minor: 1500,
+          invoices: [{ id: 'i1', number: 7, invoice_on: '2026-10-02', due_on: '2026-10-16', status: 'partially_paid', total_minor: 2500, balance_minor: 1500 }],
+          payments: [{ id: 'p1', receipt_number: 3, received_at: '2026-10-05T15:00:00Z', tender_kind: 'card', amount_minor: 1000 }],
+          refunds: [],
+        },
+      },
+    })
+    expect(await screen.findByRole('table', { name: 'Invoices in the period' })).toHaveTextContent('#7')
+    expect(screen.getByText('Balance due').nextSibling).toHaveTextContent('$15.00')
+    const url = calls.find((c) => c.url.includes('/portal/statement'))?.url ?? ''
+    expect(url).toContain('client_id=c1')
+    expect(url).toContain('from_on=2026-10-01')
+    expect(screen.getByRole('button', { name: 'Download PDF' })).toBeInTheDocument()
+  })
+})

@@ -847,6 +847,7 @@ class BillingDocumentDelivery(TenantOwned, Timestamps, Base):
         *tfk("payment_id", "payment"),
         *tfk("client_id", "client"),
         *tfk("requested_by_staff_user_id", "staff_user"),
+        *tfk("stored_file_id", "stored_file"),
         enum_check("document_kind", DocumentKind),
         enum_check("channel", DeliveryChannel),
         enum_check("status", DeliveryStatus),
@@ -868,6 +869,7 @@ class BillingDocumentDelivery(TenantOwned, Timestamps, Base):
     status: Mapped[str] = enum_column(server_default=text("'queued'"))
     failure_message: Mapped[str | None]
     requested_by_staff_user_id: Mapped[UUID | None]
+    stored_file_id: Mapped[UUID | None]  # the PDF as sent (BIL-10, PAY-03)
 
 
 class InvoicePayLink(TenantOwned, Timestamps, Base):
@@ -886,3 +888,51 @@ class InvoicePayLink(TenantOwned, Timestamps, Base):
     expires_at: Mapped[datetime]
     used_at: Mapped[datetime | None]
     payment_id: Mapped[UUID | None]
+
+
+StatementBatchStatus = _values("queued", "running", "completed", "failed")
+StatementRecipientStatus = _values("queued", "sent", "failed", "skipped_no_email")
+DateBasis = _values("invoice_date", "due_date")
+
+
+class StatementBatch(TenantOwned, Timestamps, Base):
+    """Statements sent to many payers at once, each recipient with its own status (BIL-11)."""
+
+    __tablename__ = "statement_batch"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location"),
+        *tfk("requested_by_staff_user_id", "staff_user"),
+        enum_check("date_basis", DateBasis),
+        enum_check("status", StatementBatchStatus),
+        CheckConstraint("period_to_on >= period_from_on", name="period"),
+    )
+
+    location_id: Mapped[UUID]
+    period_from_on: Mapped[date | None]
+    period_to_on: Mapped[date | None]
+    date_basis: Mapped[str] = enum_column()
+    is_open_only: Mapped[bool] = mapped_column(server_default=text("false"))
+    client_filter: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'"))
+    status: Mapped[str] = enum_column(server_default=text("'queued'"))
+    requested_by_staff_user_id: Mapped[UUID | None]  # null when an API key asked
+    finished_at: Mapped[datetime | None]
+
+
+class StatementRecipient(TenantOwned, Timestamps, Base):
+    __tablename__ = "statement_recipient"
+    __table_args__ = tenant_args(
+        *tfk("statement_batch_id", "statement_batch", ondelete="CASCADE", index=False),
+        *tfk("client_id", "client"),
+        *tfk("stored_file_id", "stored_file"),
+        UniqueConstraint("tenant_id", "statement_batch_id", "client_id", name="uq_statement_recipient"),
+        enum_check("status", StatementRecipientStatus),
+    )
+
+    statement_batch_id: Mapped[UUID]
+    client_id: Mapped[UUID]
+    to_email: Mapped[str | None] = mapped_column(CITEXT)
+    status: Mapped[str] = enum_column(server_default=text("'queued'"))
+    stored_file_id: Mapped[UUID | None]
+    message_id: Mapped[UUID | None]
+    failure_message: Mapped[str | None]
+    sent_at: Mapped[datetime | None]

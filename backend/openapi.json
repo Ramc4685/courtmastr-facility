@@ -32897,6 +32897,26 @@
         "title": "Page[StaffUserOut]",
         "type": "object"
       },
+      "Page_StatementBatchOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/StatementBatchOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[StatementBatchOut]",
+        "type": "object"
+      },
       "Page_StockMovementOut_": {
         "properties": {
           "data": {
@@ -39317,6 +39337,223 @@
           "method"
         ],
         "title": "PortalSigner",
+        "type": "object"
+      },
+      "PortalStatementInvoice": {
+        "properties": {
+          "balance_minor": {
+            "title": "Balance Minor",
+            "type": "integer"
+          },
+          "due_on": {
+            "format": "date",
+            "title": "Due On",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invoice_on": {
+            "format": "date",
+            "title": "Invoice On",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "payment_pending",
+              "partially_paid",
+              "paid",
+              "voided"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "total_minor": {
+            "title": "Total Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "invoice_on",
+          "due_on",
+          "status",
+          "total_minor",
+          "balance_minor"
+        ],
+        "title": "PortalStatementInvoice",
+        "type": "object"
+      },
+      "PortalStatementOut": {
+        "properties": {
+          "balance_due_minor": {
+            "title": "Balance Due Minor",
+            "type": "integer"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "credit_minor": {
+            "title": "Credit Minor",
+            "type": "integer"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "date_basis": {
+            "enum": [
+              "invoice_date",
+              "due_date"
+            ],
+            "title": "Date Basis",
+            "type": "string"
+          },
+          "from_on": {
+            "format": "date",
+            "title": "From On",
+            "type": "string"
+          },
+          "invoiced_minor": {
+            "title": "Invoiced Minor",
+            "type": "integer"
+          },
+          "invoices": {
+            "items": {
+              "$ref": "#/components/schemas/PortalStatementInvoice"
+            },
+            "title": "Invoices",
+            "type": "array"
+          },
+          "paid_minor": {
+            "title": "Paid Minor",
+            "type": "integer"
+          },
+          "payments": {
+            "items": {
+              "$ref": "#/components/schemas/PortalStatementPayment"
+            },
+            "title": "Payments",
+            "type": "array"
+          },
+          "refunded_minor": {
+            "title": "Refunded Minor",
+            "type": "integer"
+          },
+          "refunds": {
+            "items": {
+              "$ref": "#/components/schemas/PortalStatementRefund"
+            },
+            "title": "Refunds",
+            "type": "array"
+          },
+          "time_zone": {
+            "title": "Time Zone",
+            "type": "string"
+          },
+          "to_on": {
+            "format": "date",
+            "title": "To On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "from_on",
+          "to_on",
+          "date_basis",
+          "time_zone",
+          "currency",
+          "invoices",
+          "payments",
+          "refunds",
+          "invoiced_minor",
+          "paid_minor",
+          "refunded_minor",
+          "balance_due_minor",
+          "credit_minor"
+        ],
+        "title": "PortalStatementOut",
+        "type": "object"
+      },
+      "PortalStatementPayment": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "receipt_number": {
+            "title": "Receipt Number",
+            "type": "integer"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "tender_kind": {
+            "enum": [
+              "card",
+              "bank_debit",
+              "cash",
+              "cheque",
+              "bank_transfer",
+              "gift_card",
+              "external",
+              "other"
+            ],
+            "title": "Tender Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "receipt_number",
+          "tender_kind",
+          "amount_minor",
+          "received_at"
+        ],
+        "title": "PortalStatementPayment",
+        "type": "object"
+      },
+      "PortalStatementRefund": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "refund_on": {
+            "format": "date",
+            "title": "Refund On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "amount_minor",
+          "refund_on"
+        ],
+        "title": "PortalStatementRefund",
         "type": "object"
       },
       "PortalTermsOut": {
@@ -56339,6 +56576,195 @@
         "title": "StandingsSort",
         "type": "object"
       },
+      "StatementBatchCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "title": "Client Ids",
+            "type": "array"
+          },
+          "date_basis": {
+            "default": "invoice_date",
+            "enum": [
+              "invoice_date",
+              "due_date"
+            ],
+            "title": "Date Basis",
+            "type": "string"
+          },
+          "is_open_only": {
+            "default": false,
+            "title": "Is Open Only",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "period_from_on": {
+            "format": "date",
+            "title": "Period From On",
+            "type": "string"
+          },
+          "period_to_on": {
+            "format": "date",
+            "title": "Period To On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location_id",
+          "period_from_on",
+          "period_to_on"
+        ],
+        "title": "StatementBatchCreate",
+        "type": "object"
+      },
+      "StatementBatchOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "date_basis": {
+            "enum": [
+              "invoice_date",
+              "due_date"
+            ],
+            "title": "Date Basis",
+            "type": "string"
+          },
+          "failed_count": {
+            "title": "Failed Count",
+            "type": "integer"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_open_only": {
+            "title": "Is Open Only",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "period_from_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period From On"
+          },
+          "period_to_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period To On"
+          },
+          "queued_count": {
+            "title": "Queued Count",
+            "type": "integer"
+          },
+          "recipient_count": {
+            "title": "Recipient Count",
+            "type": "integer"
+          },
+          "recipients": {
+            "items": {
+              "$ref": "#/components/schemas/StatementRecipientOut"
+            },
+            "title": "Recipients",
+            "type": "array"
+          },
+          "sent_count": {
+            "title": "Sent Count",
+            "type": "integer"
+          },
+          "skipped_count": {
+            "title": "Skipped Count",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "period_from_on",
+          "period_to_on",
+          "date_basis",
+          "is_open_only",
+          "status",
+          "created_at",
+          "finished_at",
+          "recipient_count",
+          "queued_count",
+          "sent_count",
+          "failed_count",
+          "skipped_count",
+          "recipients"
+        ],
+        "title": "StatementBatchOut",
+        "type": "object"
+      },
+      "StatementBatchResend": {
+        "additionalProperties": false,
+        "properties": {
+          "statement_recipient_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "title": "Statement Recipient Ids",
+            "type": "array"
+          }
+        },
+        "title": "StatementBatchResend",
+        "type": "object"
+      },
       "StatementOut": {
         "properties": {
           "balance_due_minor": {
@@ -56404,6 +56830,10 @@
             "title": "Refunds",
             "type": "array"
           },
+          "time_zone": {
+            "title": "Time Zone",
+            "type": "string"
+          },
           "to_on": {
             "format": "date",
             "title": "To On",
@@ -56415,6 +56845,7 @@
           "from_on",
           "to_on",
           "date_basis",
+          "time_zone",
           "currency",
           "invoices",
           "payments",
@@ -56426,6 +56857,79 @@
           "credit_minor"
         ],
         "title": "StatementOut",
+        "type": "object"
+      },
+      "StatementRecipientOut": {
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_name": {
+            "title": "Client Name",
+            "type": "string"
+          },
+          "failure_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Message"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "sent",
+              "failed",
+              "skipped_no_email"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "to_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Email"
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "client_name",
+          "to_email",
+          "status",
+          "failure_message",
+          "sent_at"
+        ],
+        "title": "StatementRecipientOut",
         "type": "object"
       },
       "StatementSend": {
@@ -74974,7 +75478,7 @@
     },
     "/api/v1/clients/{client_id}/statement": {
       "get": {
-        "description": "Default period: the 30 days up to today.",
+        "description": "Default period: the 30 days up to today. Days are the client's home location's days.",
         "operationId": "getClientStatement",
         "parameters": [
           {
@@ -75147,6 +75651,109 @@
           }
         },
         "summary": "Send Client Statement",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/clients/{client_id}/statement/pdf": {
+      "get": {
+        "operationId": "getClientStatementPdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Client Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from_on",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From On"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to_on",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To On"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_basis",
+            "required": false,
+            "schema": {
+              "default": "invoice_date",
+              "pattern": "^(invoice_date|due_date)$",
+              "title": "Date Basis",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The PDF, as an attachment."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Client Statement Pdf",
         "tags": [
           "billing"
         ]
@@ -83887,7 +84494,7 @@
     },
     "/api/v1/invoices/{invoice_id}/document": {
       "get": {
-        "description": "The printable content of the invoice as data (PDF rendering is not built).",
+        "description": "The printable content of the invoice as data; `/pdf` renders the same content.",
         "operationId": "getInvoiceDocument",
         "parameters": [
           {
@@ -84216,6 +84823,64 @@
           }
         },
         "summary": "Generate Payment Schedule",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/invoices/{invoice_id}/pdf": {
+      "get": {
+        "operationId": "getInvoicePdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The PDF, as an attachment."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Invoice Pdf",
         "tags": [
           "billing"
         ]
@@ -93075,6 +93740,64 @@
         ]
       }
     },
+    "/api/v1/payments/{payment_id}/receipt/pdf": {
+      "get": {
+        "operationId": "getReceiptPdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "payment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Payment Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The PDF, as an attachment."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Receipt Pdf",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/api/v1/payments/{payment_id}/refunds": {
       "post": {
         "description": "Refund a payment's unapplied remainder. Errors: refund-exceeds-unapplied, payment-not-refundable.",
@@ -96780,6 +97503,64 @@
         ]
       }
     },
+    "/api/v1/portal/invoices/{invoice_id}/pdf": {
+      "get": {
+        "operationId": "getPortalInvoicePdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The PDF, as an attachment."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portal Invoice Pdf",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/api/v1/portal/membership-contracts": {
       "get": {
         "description": "Memberships the signed-in client (or the client they act for) owns or is covered by.",
@@ -98989,6 +99770,209 @@
         "summary": "List Portal Session Listings",
         "tags": [
           "programs"
+        ]
+      }
+    },
+    "/api/v1/portal/statement": {
+      "get": {
+        "description": "The caller's own statement; default period the 30 days up to today at their home location.",
+        "operationId": "getPortalStatement",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from_on",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From On"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to_on",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To On"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalStatementOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portal Statement",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/portal/statement/pdf": {
+      "get": {
+        "operationId": "getPortalStatementPdf",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from_on",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From On"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to_on",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To On"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The PDF, as an attachment."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portal Statement Pdf",
+        "tags": [
+          "billing"
         ]
       }
     },
@@ -118393,6 +119377,408 @@
         "summary": "Adjust Standing",
         "tags": [
           "leagues"
+        ]
+      }
+    },
+    "/api/v1/statement-batches": {
+      "get": {
+        "description": "Newest first, recipients left out (read one batch for them). Filters: location_id, status.",
+        "operationId": "listStatementBatches",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_StatementBatchOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Statement Batches",
+        "tags": [
+          "billing"
+        ]
+      },
+      "post": {
+        "description": "Statements for every payer with an invoice at the location in the period (`is_open_only`: still owing;\n`client_ids` narrows). Up to 25 recipients run in the request, more as a job: follow `status`.",
+        "operationId": "createStatementBatch",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatementBatchCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementBatchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Statement Batch",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/statement-batches/{statement_batch_id}": {
+      "get": {
+        "operationId": "getStatementBatch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "statement_batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Statement Batch Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementBatchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Statement Batch",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/statement-batches/{statement_batch_id}/recipients": {
+      "get": {
+        "description": "Per-recipient outcome: sent, skipped_no_email, failed (with the reason) or still queued.",
+        "operationId": "listStatementRecipients",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "statement_batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Statement Batch Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StatementRecipientOut"
+                  },
+                  "title": "Response Liststatementrecipients",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Statement Recipients",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/statement-batches/{statement_batch_id}/resend": {
+      "post": {
+        "description": "Send again to the listed recipients, or to every failed and skipped one when none are listed.",
+        "operationId": "resendStatementBatch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "statement_batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Statement Batch Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatementBatchResend"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementBatchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resend Statement Batch",
+        "tags": [
+          "billing"
         ]
       }
     },

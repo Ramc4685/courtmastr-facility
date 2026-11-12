@@ -16,6 +16,7 @@ import { PackagesPage } from './PackagesPage'
 import { PortalPrograms } from './PortalPrograms'
 import { PortalSessions } from './PortalSessions'
 import { ProfilePage } from './ProfilePage'
+import { StatementPage } from './StatementPage'
 import { displayName, makePortalValue, PortalProvider, usePortal } from './shared'
 
 const NAV = [
@@ -26,6 +27,7 @@ const NAV = [
   { to: '/portal/memberships', label: 'Memberships' },
   { to: '/portal/packages', label: 'Packages' },
   { to: '/portal/invoices', label: 'Invoices' },
+  { to: '/portal/statement', label: 'Statement' },
   { to: '/portal/inbox', label: 'Inbox' },
   { to: '/portal/profile', label: 'Profile' },
 ]
@@ -150,6 +152,7 @@ export function PortalApp() {
           <Route path="memberships" element={<MembershipsPage />} />
           <Route path="packages" element={<PackagesPage />} />
           <Route path="invoices" element={<InvoicesPage />} />
+          <Route path="statement" element={<StatementPage />} />
           <Route path="inbox" element={<InboxPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="*" element={<Navigate to="/portal" replace />} />

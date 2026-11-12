@@ -102,3 +102,15 @@ class PaymentMethodExpiring(Event):
     type: Literal["billing.payment_method.expiring"] = "billing.payment_method.expiring"
     payment_method_id: UUID
     client_id: UUID
+
+
+class StatementBatchCompleted(Event):
+    """Every recipient of a statement batch has an outcome (BIL-11). Counts only, no addresses."""
+
+    aggregate_type: ClassVar[str] = "statement_batch"
+    type: Literal["billing.statement_batch.completed"] = "billing.statement_batch.completed"
+    statement_batch_id: UUID
+    location_id: UUID
+    sent_count: int
+    failed_count: int
+    skipped_count: int
