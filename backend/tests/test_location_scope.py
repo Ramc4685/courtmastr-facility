@@ -51,7 +51,7 @@ CLIENT_OR_TENANT_ROUTES = {
         assignCredential revokeClientAppCards revokeCredential
     """.split()),
     "tenant": set("""
-        addTaxRate releaseSuppression approveClientRelationship archiveDocumentTemplate archiveLocation assignClientMemberNumber
+        addTaxRate updateCatalogItem releaseSuppression approveClientRelationship archiveDocumentTemplate archiveLocation assignClientMemberNumber
         assignClientOwners assignStaffLocations assignStaffRole confirmDataSubjectRequest createClientAlert
         createClientNote createClientRelationship createOnboardingLink createRentalRate
         deactivateDocumentBinding deactivateStaffUser deleteClientCategory deleteClientNote deleteCoupon

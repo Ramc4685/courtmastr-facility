@@ -11,8 +11,8 @@ isolation and audit, and has a staff screen. **Partial** names what is missing. 
 
 | Priority | Total | Done | Partial | Not built |
 |---|---|---|---|---|
-| P0 | 113 | 75 | 33 | 5 |
-| P1 | 72 | 30 | 20 | 22 |
+| P0 | 113 | 76 | 33 | 4 |
+| P1 | 72 | 31 | 19 | 22 |
 | P2 | 12 | 2 | 2 | 8 |
 | v2-adapter | 7 | 0 | 1 | 6 |
 | **All** | 204 | 107 | 56 | 41 |
@@ -20,8 +20,8 @@ Module 1 (platform core) is done apart from OIDC, MFA and step-up (`backend/app/
 Module 14 (engagement) is built to P0 (5 done, 9 partial: `14-engagement.md`). Modules 16 and 17 are partial (`16-integrations.md`, `17-mobile.md`).
 Modules 12 (staff time and pay), 13 (assessments) and 15 (reporting) are built to P0 (`12-staff.md`, `13-assessments.md`,
 `15-reporting.md`). Modules 10 and 11 (check-in,
-leagues) and the rest of module 6 are reported by their own lanes or not started. The five P0 features not built are CLS-02, CLS-09, CLS-10
-(module 6 and the portal), CLI-12 (client photo) and BIL-14 (pre-defined items).
+leagues) and the rest of module 6 are reported by their own lanes or not started. The four P0 features not built are CLS-02, CLS-09, CLS-10
+(module 6 and the portal) and CLI-12 (client photo).
 
 ## Checks on `main`
 
@@ -174,7 +174,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | Priority | Total | Done | Partial | Not built |
 |---|---|---|---|---|
 | P0 | 15 | 10 | 5 | 0 |
-| P1 | 21 | 11 | 8 | 2 |
+| P1 | 21 | 12 | 7 | 2 |
 | P2 | 3 | 1 | 0 | 2 |
 
 | Feature | Priority | Status | What is missing, or where it changed at integration |
@@ -182,7 +182,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | MEM-01 Membership type catalogue | P0 | done |  |
 | MEM-02 Membership plan templates | P0 | done |  |
 | MEM-03 Plan proration rules | P1 | done |  |
-| MEM-04 Plan add-ons | P1 | partial | Billing items as add-ons and per-sale add-on changes are not built (backend gap). |
+| MEM-04 Plan add-ons | P1 | done | Pre-defined items as billed add-ons; per-sale add-on changes are API only. |
 | MEM-05 Membership preferences | P0 | partial | Autopay invoices are now collected (integration). `payment_method_capture`, `online_card_save_mode` and `freeze_resume_invoice_mode` are stored but have no effect. |
 | MEM-06 Simple (record-only) membership | P2 | done |  |
 | MEM-07 Staff sale of a membership contract | P0 | done |  |
@@ -277,7 +277,7 @@ Lane detail: `08-billing-payments.md`, `08-billing-payments-web.md`.
 
 | Priority | Total | Done | Partial | Not built |
 |---|---|---|---|---|
-| P0 | 27 | 13 | 13 | 1 |
+| P0 | 27 | 14 | 13 | 0 |
 | P1 | 12 | 2 | 4 | 6 |
 | P2 | 2 | 0 | 0 | 2 |
 | v2-adapter | 2 | 0 | 0 | 2 |
@@ -297,7 +297,7 @@ Lane detail: `08-billing-payments.md`, `08-billing-payments-web.md`.
 | BIL-11 Billing statements | P1 | partial | No statement batches or PDF (backend gap). |
 | BIL-12 Taxes | P0 | done |  |
 | BIL-13 Revenue categories | P0 | done |  |
-| BIL-14 Pre-defined items | P0 | not built | No backend. The largest P0 gap. |
+| BIL-14 Pre-defined items | P0 | done | Catalogue, sell and cancel from client billing; hourly renewal job. No portal purchase. |
 | BIL-15 Coupons | P0 | done |  |
 | BIL-16 Billing preferences | P0 | done |  |
 | BIL-17 Autopay defaults and per-invoice flag | P0 | partial | Integration: memberships and packages pass their autopay flag to the invoice at sale. Not built: the tenant-setting and channel defaults. |

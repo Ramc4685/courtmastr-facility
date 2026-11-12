@@ -82,6 +82,9 @@ def test_tenant_row_is_private(two_tenants):
 
 _BODIES = {
     "updateLocation": {"name": "Renamed"},
+    "updateCatalogItem": {"description": "Renamed"},
+    "sellCatalogItem": lambda ids: {"client_id": ids.client_id},
+    "cancelCatalogItemSale": {"reason": "Mistake"},
     "updateSavedReport": {"name": "Renamed"},
     "replaceFacilityHours": {"days": WEEK},
     "updateStaffUser": {"first_name": "Renamed"},

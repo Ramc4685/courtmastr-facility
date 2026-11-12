@@ -16,6 +16,7 @@ from app.modules import clients, platform
 from app.modules.billing import methods, service
 from app.modules.billing.models import (
     BillingDocumentDelivery,
+    CatalogItemSale,
     Charge,
     CouponRedemption,
     Invoice,
@@ -54,6 +55,7 @@ def _repoint(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
         (Refund, Refund.client_id),
         (CouponRedemption, CouponRedemption.redeemer_client_id),
         (BillingDocumentDelivery, BillingDocumentDelivery.client_id),
+        (CatalogItemSale, CatalogItemSale.client_id),
     ):
         session.execute(update(model).where(column == loser_id).values({column.key: survivor_id}))
     # A stored method belongs to the processor's customer. Where the survivor already has one at that
@@ -122,12 +124,15 @@ def _erase(session: Session, client_id: UUID) -> dict:
     session.execute(update(Refund).where(Refund.client_id == client_id).values(comments=None))
     d = BillingDocumentDelivery
     session.execute(update(d).where(d.client_id == client_id).values(to_email=None))
+    # A sold item has no free text; it stops renewing so nothing new is billed to the erased client.
+    sale = CatalogItemSale
+    session.execute(update(sale).where(sale.client_id == client_id).values(is_auto_renew=False))
     return {"retained_invoices": kept, "removed_payment_methods": removed, "erased_at": clock.now().isoformat()}
 
 
 _TABLES = (
     "invoice", "charge", "payment", "refund", "ledger_entry", "coupon_redemption", "provider_customer",
-    "payment_method", "billing_notice", "billing_document_delivery",
+    "payment_method", "billing_notice", "billing_document_delivery", "catalog_item_sale",
 )  # fmt: skip
 clients.merge.register_merge_handler("billing", tables=_TABLES, repoint=_repoint)
 platform.privacy.register_subject_handler(

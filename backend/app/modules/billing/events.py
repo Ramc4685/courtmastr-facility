@@ -102,3 +102,26 @@ class PaymentMethodExpiring(Event):
     type: Literal["billing.payment_method.expiring"] = "billing.payment_method.expiring"
     payment_method_id: UUID
     client_id: UUID
+
+
+class _CatalogItemSaleEvent(Event):
+    aggregate_type: ClassVar[str] = "catalog_item_sale"
+    catalog_item_sale_id: UUID
+    catalog_item_id: UUID
+    client_id: UUID
+
+
+class CatalogItemSold(_CatalogItemSaleEvent):
+    type: Literal["billing.catalog_item_sale.sold"] = "billing.catalog_item_sale.sold"
+
+
+class CatalogItemSaleRenewed(_CatalogItemSaleEvent):
+    type: Literal["billing.catalog_item_sale.renewed"] = "billing.catalog_item_sale.renewed"
+    successor_sale_id: UUID
+
+
+class CatalogItemSaleEnded(_CatalogItemSaleEvent):
+    """The term is over (no renewal) or staff cancelled it; `status` says which."""
+
+    type: Literal["billing.catalog_item_sale.ended"] = "billing.catalog_item_sale.ended"
+    status: Literal["ended", "cancelled"]
