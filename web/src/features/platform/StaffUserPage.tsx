@@ -41,7 +41,6 @@ function ProfileTab({ user }: { user: StaffUser }) {
     last_name: user.last_name,
     mobile_phone: user.mobile_phone ?? '',
     access_expires_on: user.access_expires_on ?? '',
-    ip_policy: user.ip_policy as 'any' | 'facility_networks',
   })
   const save = useStaffMutation(
     user,
@@ -53,7 +52,6 @@ function ProfileTab({ user }: { user: StaffUser }) {
           last_name: form.last_name,
           mobile_phone: form.mobile_phone || null,
           access_expires_on: form.access_expires_on || null,
-          ip_policy: form.ip_policy,
         },
       }),
     'Profile saved.',
@@ -77,16 +75,6 @@ function ProfileTab({ user }: { user: StaffUser }) {
         value={form.access_expires_on}
         error={errors.access_expires_on}
         onChange={(e) => setForm({ ...form, access_expires_on: e.target.value })}
-      />
-      <Select
-        label="Sign-in from"
-        disabled={!editable}
-        value={form.ip_policy}
-        options={[
-          { value: 'any', label: 'Anywhere' },
-          { value: 'facility_networks', label: 'Facility networks only' },
-        ]}
-        onChange={(e) => setForm({ ...form, ip_policy: e.target.value as 'any' | 'facility_networks' })}
       />
       {editable && (
         <div className="sm:col-span-2">

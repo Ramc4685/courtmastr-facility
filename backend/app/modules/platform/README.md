@@ -166,7 +166,11 @@ bytes of purged rows and logs objects that have no row.
   what it removed and records a `platform.security.manage` audit row by `operator-cli`. CIDR parsing and
   matching live in `core/networks.py`, shared with POS registers and the time clock. Assumption: the brief's
   tenant-wide list replaces, for now, the data model's per-location networks plus `staff_user.ip_policy`
-  (`unknowns` "IP restriction scope" says tenant-wide); `ip_policy` is stored but not yet consulted.
+  (`unknowns` "IP restriction scope" says tenant-wide); `ip_policy` is stored but not consulted, and since
+  phase 8 S5 it is read-only (the staff screen's "Sign-in from" control and the writable `ip_policy` /
+  `default_ip_policy` fields are gone). Deferred: with a tenant-wide list there is no meaning for a per-user
+  "facility networks only" (a non-empty list already binds everyone, an empty one lists no networks); it
+  returns with per-location networks.
 
 ## MFA, step-up and session lifetimes (Phase 8 chip S2)
 
