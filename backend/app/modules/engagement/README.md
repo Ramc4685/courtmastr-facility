@@ -33,6 +33,13 @@ routes, the portal inbox and push devices, portal settings and videos. Feature s
   tenant-wide: reads need `campaign.read`, writes `authorize_tenant_wide`. Sending needs `campaign.send` (email)
   or `push.send` (announcements) on top of the router gate. Suppressions are `T`, admin only.
 - **Audiences** are always narrowed to clients whose home location is the campaign's location.
+- **Send to everyone (PLT-06, Phase 8 T2).** Sending or scheduling a campaign whose audience includes an
+  `all_clients` source with no filters also needs `campaign.send_all` (Admin and Manager by default, so a
+  custom role or a deny override can restrict senders to segments and chosen clients).
+- **GDPR mode (PLT-16, Phase 8 T2).** When the tenant's `is_gdpr_mode` is on, an opt-in to a marketing topic
+  needs an express basis (`express_written` or `express_verbal`; `implied_*` is 422 `express-consent-required`),
+  and `is_subscribed` ignores marketing opt-ins whose recorded basis is implied, so earlier implied consent stops
+  marketing without rewriting the append-only consent log. Service topics (reminders, receipts) are unaffected.
 - **Delivery events** (`record_delivery_event`) only move a message forward, count each step once, suppress on
   bounce or complaint (permanently after a release), and opt out on unsubscribe.
 - **Reminders** are materialised as `scheduled_notification` rows (two offsets at most, unique per subject,

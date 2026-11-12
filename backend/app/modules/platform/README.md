@@ -101,8 +101,7 @@ bytes of purged rows and logs objects that have no row.
   `--profile scan` starts `clamav`. The adapter tests skip when they are not running.
 - **Deferred (assumptions written down):** the presigned direct-to-bucket upload, quarantine prefix and scan
   job of 8.1 (bytes still arrive in the request, under the 20 MiB body cap; `shortcut:` in `files.py`), the
-  `rejected` status, the 24-hour quarantine purge, fixed image renditions, a public URL for `public` files
-  (PLT-08 adds it with a bucket policy on `t/*/public/*`), and `nosniff` on the bucket origin (S3 cannot set it
+  `rejected` status, the 24-hour quarantine purge, fixed image renditions, and `nosniff` on the bucket origin (S3 cannot set it
   per object; the CDN or proxy in front of the bucket must add it). The orphan report only logs; nothing deletes
   an orphan, since it may be a store whose transaction has not committed yet.
 
@@ -205,6 +204,42 @@ Evidence and open questions: `docs/status/phase8-s2-mfa.md`. Migrations `1230`, 
   mobile app is the only intended caller; binding it to an attested client is future work.
 - **IP allow-list**: unchanged from S1, including the Owner and Admin bypass (the owner has been asked
   whether to remove it).
+
+## Privacy, branding and onboarding (Phase 8 chip T2)
+
+- **Logos (PLT-08, `branding.py`).** One logo for the account and one per location (`logo` table), JPEG or PNG up
+  to 512 KiB, re-encoded by `files.clean` and stored `public=True` under `t/<tenant>/public/<file>`. `files.store`
+  refuses `public` for any purpose but `tenant_logo` and `location_logo`, so nothing else can land under that
+  prefix. The URL is `storage.public_base_url` + object key when a bucket or CDN serves the prefix, else
+  `GET /api/v1/public/objects/{key}` (anonymous; serves a ready logo whose key matches exactly, else 404).
+  **Bucket policy:** allow anonymous `GetObject` on `t/*/public/*` only; never list. `GET /public/branding`
+  (tenant from host or `X-Tenant-Slug`) feeds the staff sidebar and portal header. A replaced or removed logo's
+  file is purged. Gates: `tenant.update` for the account logo, `location.update` at that location for a
+  location's. Not built: logos inside emails (templates are plain text) and on invoice and receipt pages.
+- **GDPR mode (PLT-16, `privacy.py`).** `tenant.is_gdpr_mode`, read and set at `/privacy-settings`
+  (`security.manage`, audited). On: marketing consent must be express (engagement README), retention uses
+  `retention.gdpr_auth_session_days` / `gdpr_auth_token_days` (30 / 7), and every data-subject request shows
+  `due_at` (30 days after the request; computed in every mode) and `is_overdue`. The older, unused
+  `location.is_gdpr_mode` column is left in place (owner to confirm dropping it).
+- **Tenant export (IMP-04, `tenant_export.py`).** `POST /tenant-exports` (`tenant.export`, `OO X +`: Owner,
+  fresh step-up), one at a time. The chunked `run_tenant_export` job writes one CSV per tenant table (forced RLS
+  and readable by `fh_app`; split every 5,000 rows) plus `manifest.json` into a zip, stored through `files`
+  (purpose `tenant_export`), downloadable by a 5-minute signed URL (`/download-url`, audited) for
+  `retention.tenant_export_days` (7). The hourly `purge_expired_exports` removes the file and marks the row
+  `expired`. Left out: sign-in secrets and sessions, job plumbing, columns named like hashes, tokens, secrets or
+  credentials, binary columns, and file bytes (their `stored_file` rows are in). Cells that a spreadsheet would
+  run as formulas get a leading `'`. Shortcut: offset paging and the zip held on the row (`shortcut:` comment).
+- **Setup checklist (ONB-01, `onboarding.py`).** `GET /onboarding/checklist` (`tenant.update`) computes each step
+  from real rows on every read: location address, opening hours edited, resources, a second staff member, an
+  active payment provider account, a membership plan or program, a logo. Other contexts register their steps
+  from their `__init__` (`onboarding.register_step`; platform may not import them). Dismissal is per staff user
+  (`staff_user.preferences.onboarding_dismissed`, audited).
+- **Support requests (ONB-03).** `support_request.create` (Owner, Admin, Manager). A request (category,
+  message, optional screenshot uploaded first to `PUT /support-requests/screenshot`) is stored, emailed through
+  the notification port to `support.operator_email`, and listed only to its sender, who may close it. The
+  screenshot is not attached to the email (the port sends text); the operator sees "Screenshot stored: yes".
+  Not built: operator replies or status changes in the app, attachment of the screenshot, purge of screenshots
+  never attached to a request.
 
 ## Security hardening (wave 1, S-07)
 
