@@ -101,4 +101,6 @@ BIL-23 public API (wave 8). The XLSX engine is Phase 12's; B builds PDF only.
 
 Follow-ups noted: a test asserting `catalog.list_sales` is client-following (no location scope, like `list_charges`);
 the clients privacy sentinel test is order-dependent (an email-verification message without client_id keeps the
-address after erasure), owner clients or engagement.
+address after erasure), owner clients or engagement; chip C left a 3-D Secure payment abandoned by the browser and
+settled by webhook as unapplied credit with the invoice still open (documented in the billing README; fix by
+recording the intended invoices on the payment and allocating in `apply_event`), a candidate for chip E.
