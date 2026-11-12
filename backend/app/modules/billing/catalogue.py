@@ -217,7 +217,8 @@ def delete_tax_rate(session: Session, principal: Principal, tax_id: UUID, rate_i
 
 def list_tender_types(session: Session, principal: Principal) -> list[TenderType]:
     service.ensure_defaults(session)
-    return list(session.scalars(select(TenderType).order_by(TenderType.sort_order, TenderType.label)))
+    stmt = select(TenderType).where(TenderType.system_key.is_(None))  # billing-owned tenders are never a choice
+    return list(session.scalars(stmt.order_by(TenderType.sort_order, TenderType.label)))
 
 
 def create_tender_type(session: Session, principal: Principal, data: dict) -> TenderType:
@@ -236,6 +237,8 @@ def create_tender_type(session: Session, principal: Principal, data: dict) -> Te
 def update_tender_type(session: Session, principal: Principal, tender_id: UUID, data: dict) -> TenderType:
     authorize(principal, "billing.settings.manage")
     tender = service._lock(session, TenderType, tender_id)
+    if tender.system_key is not None:
+        raise Conflict("This payment method is managed by the system and cannot be changed.", code="tender-system")
     if data.get("is_enabled") is False and not tender.is_optional:
         raise Conflict("Card, bank debit and cash cannot be hidden.", code="tender-required")
     for key, value in data.items():

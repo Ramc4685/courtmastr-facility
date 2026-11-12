@@ -154,8 +154,8 @@ returns nothing: a row holds no personal data.
   adjusted, when its first bill (due date less the tenant's billing lead) would fall before the next bill date
   (`bills-before-next-bill-date`) or when the plan has a fixed start date other than the file's
   (`plan-fixed-start`).
-- An opening credit is an external payment received now, on the tender "Opening balance" (created disabled, so
-  the desk never offers it; the deposits report lists it under that label, apart from money taken on the import
+- An opening credit is an external payment received now, on billing's own opening-balance tender (marked by
+  `system_key`, never its label; disabled, unlisted and read-only, so the desk never offers it; the deposits report lists it under that label, apart from money taken on the import
   day); the as-of date goes into its memo, the import job into its external reference, and the submitting staff
   user's id into its audit row. Refunding it is an external hand-back, never to a card. One opening balance, owed
   or credit, is at most `imports.max_opening_balance_minor` (config, default 10,000,000 minor units, 100,000.00

@@ -7,8 +7,9 @@ description: `backend/app/modules/imports/README.md`.
 
 ## Review round 2 (findings 1 to 11, branch `claude/p8-i1-fixes`)
 
-No migration: the row key stays a 64-character hex string, the checked file and stop reason live in the job's
-`progress` cursor, and the opening-balance tender is a row, not a new enum value.
+One migration, `1272` (down from `1271`): `tender_type.system_key` (null, or `opening_balance` on kind external;
+unique per tenant). Up, down, up clean on the lane databases; one head. The row key stays a 64-character hex string,
+and the checked file and stop reason live in the job's `progress` cursor.
 
 | # | Finding | What changed | Regression test |
 |---|---|---|---|
@@ -22,6 +23,7 @@ No migration: the row key stays a 64-character hex string, the checked file and 
 | 8 | LOW: upload racing commit | `_load` takes the row lock for run-key calls; the finished check records `checked_file_id`, and a commit of another file is 409 `check-stale`. | `test_a_commit_needs_a_check_of_the_current_file` |
 | 9 | LOW: privacy retention | `row_key` = `crypto.mac` of the natural key. Retention purges `import_job_row` 30 days after the job's files (`import_job_rows`). Data subject handler `imports`: erasure deletes the client's rows (client, contracts, charges, payments) and removes those jobs' files at once; failed or skipped rows carry no entity, so those files expire in the 30-day window (justified in the README). Jobs stalled `imports.stalled_minutes` (60) are failed by the hourly purge. | `test_row_keys_are_keyed_and_rows_are_erased_and_expire` |
 | 10 | LOW: memberships could bill before the file's next bill date; fixed plan start silently replaced the file's | `memberships.import_contract` refuses `bills-before-next-bill-date` (due date less the billing lead before the next bill date) and `plan-fixed-start`. | `test_memberships_refuse_billing_before_the_next_bill_date_and_a_moved_start` |
+| 6b | Coordinator: the opening-balance tender was exempted from the enabled check by its editable label | The tender is marked by `system_key` = `opening_balance` (migration 1272), set only by billing; found by key, labelled "Opening balance (import)" if the tenant already uses that name. `take_payment` lets a system tender through only with keyword-only `internal_tender=True`, passed solely by `post_opening_balance` (not on any schema); otherwise a system tender is refused like a disabled one. Hidden from `GET /tender-types` and from the by-kind default; `PATCH` refused 409 `tender-system`; no delete route (405). | `test_the_opening_balance_tender_is_billing_owned_and_never_a_desk_choice` |
 | 11 | LOW: template example phone failed; no NFC | `csvio.cell` strips our own neutralising apostrophe and normalises to NFC before matching. | `test_every_template_example_row_passes_its_own_check_and_names_match_in_nfc`, `test_read_cells_undo_our_neutralising_apostrophe_and_compose_accents` |
 
 Not changed, by decision: row keys written before this round are plain SHA-256 and no longer match new MAC keys, so
