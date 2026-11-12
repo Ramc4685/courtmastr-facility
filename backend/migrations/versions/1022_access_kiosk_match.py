@@ -45,8 +45,8 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_kiosk_match")),
         sa.UniqueConstraint("tenant_id", "id", name=op.f("uq_kiosk_match_tenant_id_id")),
     )
-    op.create_index(op.f("ix_kiosk_match_client_id"), "kiosk_match", ["client_id"], unique=False)
-    op.create_index(op.f("ix_kiosk_match_kiosk_device_id"), "kiosk_match", ["kiosk_device_id"], unique=False)
+    op.create_index(op.f("ix_kiosk_match_client_id"), "kiosk_match", ["tenant_id", "client_id"], unique=False)
+    op.create_index(op.f("ix_kiosk_match_kiosk_device_id"), "kiosk_match", ["tenant_id", "kiosk_device_id"], unique=False)
     op.create_index("uq_kiosk_match_token", "kiosk_match", ["tenant_id", "token_hash"], unique=True)
     op.add_column(
         "kiosk_device",
