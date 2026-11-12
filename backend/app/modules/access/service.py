@@ -149,6 +149,7 @@ def _is_repeat(session: Session, client_id: UUID, location_id: UUID) -> bool:
         select(CheckIn.is_visit_consumed).where(
             CheckIn.client_id == client_id, CheckIn.location_id == location_id, CheckIn.result != "denied",
             CheckIn.checked_in_at >= clock.now() - REPEAT_WINDOW,
+            CheckIn.checked_out_at.is_(None),  # a checked-out visit is over: coming back is a new entry
         ).order_by(CheckIn.checked_in_at.desc(), CheckIn.id.desc()).limit(1)
     )  # fmt: skip
     return bool(last)

@@ -365,6 +365,7 @@ register_merge_handler(
         "client_alert",
         "client_merge",
         "client_recent_view",
+        "client_note_attachment",
     ),  # fmt: skip
     repoint=_repoint_clients,
 )
@@ -458,6 +459,7 @@ privacy.register_subject_handler(
         "client_alert",
         "client_merge",
         "client_recent_view",
+        "client_note_attachment",
     ),  # fmt: skip
     export=_export_clients,
     erase=_erase_clients,

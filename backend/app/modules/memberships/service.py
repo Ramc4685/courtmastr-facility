@@ -1703,7 +1703,7 @@ def client_alerts(session: Session, principal: Principal, client_id: UUID) -> li
         return True
 
     out = []
-    if principal.has("billing.invoice.read"):
+    if reaches("billing.invoice.read"):
         money = billing.documents.billing_summary(session, client.id)
         due = money["open_balance_minor"] + money["uninvoiced_minor"]
         if due > 0:

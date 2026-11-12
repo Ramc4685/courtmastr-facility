@@ -168,6 +168,14 @@ def test_a_repeat_entry_within_ten_minutes_counts_once(client, tenant, owner, m,
     assert third.status_code == 201 and third.json()["check_in"]["result"] == "denied"
 
 
+def test_coming_back_after_a_check_out_is_a_new_counted_entry(client, tenant, owner, m):
+    first = granted(client, m.desk, m.body)
+    assert first["is_visit_consumed"]
+    ok(client.post(f"{API}/check-ins/{first['id']}/check-out", headers=owner, json={}))
+    back = granted(client, m.desk, m.body)  # inside the repeat window, but the visit was closed
+    assert back["is_visit_consumed"] and contract(tenant, m.contract_id).visits_used_count == 2
+
+
 def test_a_kiosk_match_token_works_once_and_names_no_client(client, tenant, owner, m):
     pair_kiosk(client, tenant, owner, m.loc)
     token = match_token(client, m)

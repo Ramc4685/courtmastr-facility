@@ -438,6 +438,14 @@ def enable_client_identity(session: Session, identity_id: UUID) -> None:
         identity.status = "active" if identity.email_verified_at else "invited"
 
 
+def is_staff_address(session: Session, email: str) -> bool:
+    """Whether a staff login uses this address (internal: engagement keeps staff mail off client records)."""
+    return (
+        session.scalar(select(Identity.id).where(Identity.kind == "staff", Identity.email == email).limit(1))
+        is not None
+    )
+
+
 def find_client_identity(session: Session, email: str) -> Identity | None:
     return session.scalar(select(Identity).where(Identity.kind == "client", Identity.email == email))
 

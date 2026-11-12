@@ -2,7 +2,7 @@
 
 Date: 2026-11-11. Phase branch: `claude/phase10-wave2-b907a2`, cut from `main` at `6d8ca6c`.
 Source: `docs/planning/remaining-work.md` section 4 "Wave 2" (33 features: 15 P0, 17 P1, 1 P2).
-Status: **approved by the owner on 2026-11-11**, with all six recommendations below and CHK-17 parked. Batch 1 (A, B, D) started.
+Status: **built.** Approved by the owner on 2026-11-11 with all six recommendations below and CHK-17 parked; all six chips are merged on the phase branch, each after an independent review and a cross-chip security review. See "Done, for the phase" for the record and the gate.
 
 ## How the phase runs
 
@@ -127,11 +127,36 @@ re-points it at merge. Phase 10 uses `1001` to `1099` only (Phase 8 has `1201` t
 Every Wave 2 row is built and verified on the phase branch, or parked here with the owner's agreement. The
 table below is the record.
 
-| Feature set | State |
-|---|---|
-| Chips A, B, D | running |
-| Chips E, C, F | not started |
-| CHK-17 | parked (owner agreed 2026-11-11) |
+| Chip | Features | State |
+|---|---|---|
+| A. Scheduling edges | RES-01, SCH-03, SCH-05, SCH-07, SCH-09, SCH-10, SCH-11, SCH-18, question 19 | built; migration 1001 |
+| B. Access rules and visits | MEM-20, CHK-02, CHK-08, CHK-09, CHK-10, questions 12, 20, 21, 22 | built; migrations 1021, 1022 |
+| D. Staff pay and shifts | STF-02, STF-03, STF-04, STF-10, STF-15 | built; migration 1061 |
+| F. Client files | CLI-09 built; CLI-12 partial (no webcam capture, no portal photo edit; uploads capped at 1 MiB until Phase 8 widens the body limit) | migration 1091 |
+| C. Check-in desk | CHK-21, CHK-04, CHK-07, CHK-12 built; MEM-19 partial (Code 128 card with photo; no QR) | migration 1041 |
+| E. Clients, memberships, POS desk | CLI-20, POS-08, POS-14, MEM-13, MEM-20 screens, PKG-12, question 16 built; CLI-11 partial (the task report is reporting's), POS-22 partial (the `rpt_*` read models are reporting's), MEM-14 partial (automatic suspension is Phase 9's) | migration 1081 |
+| CHK-17 | vaccine flag | parked (owner agreed 2026-11-11) |
+
+Migration chain: `0953 → 0310 → 1001 → 1061 → 1021 → 1022 → 1091 → 1041 → 1081`.
+
+Coordinator decisions made during the build:
+
+- CHK-10: a membership type with no location rows admits everywhere, as before; rows restrict.
+- A repeat entry within 10 minutes of a counted one admits without a second visit (one per counted visit); a
+  checked-out visit ends that window.
+- An unchecked-out visit ends at local midnight (derived on read, no job).
+- Overlapping payroll runs are refused when both pay sessions; commissions-only re-runs are flagged instead.
+- Logged transactional notices are linked to their client when the address belongs to exactly one client and
+  to no staff login, so erasure and export find them.
+
+Known gaps left on purpose:
+
+- The session panel and the check-in window still offer Register, Speed register and Sell a package on a
+  reservation type the user is not granted; the server refuses the booking. Needs a `can_enroll` flag on the
+  session response.
+- A notice sent to an address shared by several clients stays unlinked, so erasure does not clear it.
+- "Renew membership" and "update payment method" have no button at the check-in window.
+- Households (`age_of_majority`) and check-in (`minor_age`) still use two settings for a minor's age.
 
 ## Open questions for the owner (from the report, section 5)
 
@@ -156,5 +181,13 @@ table below is the record.
   cut after the two phase branches meet, or build on `clean`/`store`/`read` and be swapped later. Its sign-in
   chip changed `pos/service.py` and `staff/service.py` to use `app.core.networks`; when the phases meet, keep
   that version in `check_network` and `_network_allowed`.
-- To Phase 9: none yet. Chips record here any billing change they need (likely candidates: CHK-21 card entry
-  at the window, the question 16 reversal).
+- To Phase 8, from the build: add `^/api/v1/clients/[^/]+/photo$` and `^/api/v1/client-notes/[^/]+/attachments$`
+  to `BodyLimitMiddleware.UPLOAD_PATHS` (uploads are capped at 1 MiB until then); swap `clients/files.py` to
+  `files.load` / `files.download_url` and call `files.remove` at its TODO markers, checking for other references
+  first. Phase 10 added two small read-only functions to `platform/service.py`: `minor_age` and
+  `is_staff_address`; and none to `core/*`.
+- To Phase 9, from the build: `web/src/features/billing/TakePaymentDialog.tsx` gained an optional `onPaid` prop
+  (called only when every tender succeeds); automatic suspension for non-payment (MEM-14) is still open. No
+  billing service change was needed for remediation at the window or for the package removal override.
+- To the reporting phase: the client task/activity report (CLI-11) and the POS `rpt_*` read models (POS-22).
+- To the member communication phase: erasure of notices sent to an address shared by several clients.
