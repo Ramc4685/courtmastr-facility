@@ -29,6 +29,7 @@ class PaymentState:
     card_last4: str | None = None
     card_funding: str | None = None
     client_secret: str | None = None  # for the payer to authenticate a `requires_action` payment; never stored
+    provider_method_ref: str | None = None  # the method the charge used; kept on the customer when saved
 
 
 @dataclass(frozen=True)
@@ -125,11 +126,15 @@ class PaymentProvider(Protocol):
 
     def create_payment(
         self, *, account_ref: str, amount_minor: int, currency: str, method_token: str, idempotency_key: str,
-        customer_ref: str | None = None, off_session: bool = False,
+        customer_ref: str | None = None, off_session: bool = False, save_method: bool = False,
     ) -> PaymentState:  # fmt: skip
         """Charge. The same idempotency_key always returns the same provider payment, never a second charge.
         A timeout is `unknown`, never `declined`. Off-session, a payment that would need the payer present is
-        `declined` with `authentication_required`."""
+        `declined` with `authentication_required`.
+
+        `save_method` (with `customer_ref`) keeps the one-time token's method on the customer for later
+        off-session charges as part of this charge (Stripe `setup_future_usage=off_session`): the industry
+        pattern for "save my card" at checkout, instead of attaching first and charging the stored method."""
 
     def get_payment(self, *, account_ref: str, provider_payment_ref: str) -> PaymentState:
         """Current state, for settling `processing` and recovering `unknown`."""

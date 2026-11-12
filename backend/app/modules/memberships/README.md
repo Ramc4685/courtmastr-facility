@@ -66,7 +66,9 @@ upcoming contract (`sales_channel` import), so engagement sends no "membership s
   stored method (`payment-method-required`); `hidden` and `optional` change only the screen.
 - **Online card save (MEM-05).** `online_card_save_mode`: `always` keeps the card that pays now, `ask` keeps
   it only when the member ticks "Save this card", `when_nothing_due` keeps it only when nothing is due now.
-  The quote returns `card_save_mode` so the portal knows whether to ask.
+  An autopay contract always keeps it (its later dues need a method). The processor saves it with the charge
+  (billing's "save during payment"), so a timeout stays recoverable. The quote returns `card_save_mode` and
+  `is_autopay` so the portal knows whether to ask.
 - **Freeze resume (MEM-05).** `freeze_resume_invoice_mode`: `per_period` (default) bills each period as
   before; `single` bills every period left on the resume day as one invoice; `deferred` holds those periods
   until billing's `invoice_deferred` releases them.

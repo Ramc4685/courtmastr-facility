@@ -2015,24 +2015,24 @@ def portal_buy(session: Session, principal: Principal, data: dict, idempotency_k
     account is stored as the owner's autopay method for what falls due later. A plan whose document is
     enforced online leaves the contract `upcoming` until that document is accepted in the portal (MEM-08)."""
     contract, invoice = _sell(session, principal, _portal_sale(session, principal, data), "portal")
-    token, method_id, tender = data.get("method_token"), None, data.get("tender_kind") or "card"
+    token, tender = data.get("method_token"), data.get("tender_kind") or "card"
     mode = settings_row(session).online_card_save_mode
     paying_now = invoice is not None and invoice.balance_minor > 0
-    keep = mode == "always" or (mode == "ask" and data.get("save_method"))
-    if token and tender == "card" and paying_now and keep:
-        # MEM-05: keep the card that pays now (with nothing due now checkout always stores it). Attached first, so
-        # the processor charges a saved card rather than a one-time token that cannot be saved afterwards.
-        # Not forced for autopay: an attached card cannot get billing's pre-provider row committed, so a
-        # processor timeout would not be recoverable on retry (README, MEM-05 limits).
-        method = billing.methods.attach_method(
-            session, contract.owner_client_id, token, is_autopay=True if contract.is_autopay else None
-        )
-        token, method_id = None, method.id
+    # MEM-05: keep the card that pays now (with nothing due now checkout always stores it). An autopay contract
+    # always keeps it, or its later dues would have no method to collect from. The processor saves it with the
+    # charge (save during payment), so a timeout stays recoverable on retry.
+    save = (
+        token is not None
+        and tender == "card"
+        and paying_now
+        and (mode == "always" or contract.is_autopay or (mode == "ask" and bool(data.get("save_method"))))
+    )
     payment = billing.checkout.secure_online_checkout(
         session, client_id=contract.owner_client_id, location_id=contract.location_id,
         total_minor=sum(row.amount_minor for row in _rows(session, contract.id)), invoice=invoice,
-        idempotency_key=idempotency_key, method_token=token, payment_method_id=method_id, tender_kind=tender,
+        idempotency_key=idempotency_key, method_token=token, tender_kind=tender,
         must_pay_now=False, coupon_code=data.get("coupon_code"),
+        save_method=save, save_as_autopay=True if contract.is_autopay else None,
     )  # fmt: skip
     return _sale_view(session, contract, invoice, payment)
 
