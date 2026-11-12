@@ -144,9 +144,12 @@ bytes of purged rows and logs objects that have no row.
   once); per-IP keys are not tenant-namespaced (an attacking IP is limited across tenants). Bucket names not
   in the table (kiosk pairing and lookup) fall back to `default` (20/min, open), unchanged behaviour.
 - **Client IP** (5.1): `X-Forwarded-For` is believed only when the socket peer is in `api.trusted_proxies`,
-  and then only its right-most hop that is not itself a trusted proxy. Default: no trusted proxies.
+  and then only its right-most hop that is not itself a trusted proxy. Default: no trusted proxies. Outside dev
+  and test, startup refuses an empty list unless `api.exposed_directly: true` (phase 8 S5): behind an unlisted
+  proxy every client would be the proxy (one global sign-in bucket).
 - **Lockout** (5.1): 10 wrong passwords inside a 15-minute window lock password sign-in (and time-clock
-  re-authentication) for 15 minutes, doubling with each further lockout to a 4-hour cap; a successful
+  re-authentication and the current-password check of `POST /auth/password`, which since phase 8 S5 also
+  lock the row, refuse while locked and take the `step-up` / `step-up-identity` buckets) for 15 minutes, doubling with each further lockout to a 4-hour cap; a successful
   password sign-in, a redeemed magic link or a password reset ends the doubling. Magic links keep working.
   One `platform.identity_locked` notification per lockout (attempts while locked are refused before they
   count). Persisted errors now run their after-commit hooks (`core/api.py` `_finish`), which this email needed.
@@ -157,13 +160,22 @@ bytes of purged rows and logs objects that have no row.
   screen (`/settings/security`). Evaluated at every staff sign-in and on every staff request (web and mobile
   sessions); outside the list is `403 ip-not-allowed` (at sign-in decided before the password is checked, the same for unknown emails, so it is no credential oracle); empty means no restriction; no role is exempt,
   Owners included (phase 8 S4 removed the old Owner and Admin bypass key). A list that leaves out the caller's
-  own address is refused (`422 ip-allowlist-excludes-you`), whoever the caller is. **Break-glass:** a tenant
+  own address is refused (`422 ip-allowlist-excludes-you`), whoever the caller is. Emailed-link consumers (reset,
+  invitation, magic link) and the OIDC link confirmation check the list for staff straight after the token,
+  before anything changes, so an MFA challenge cannot let a reset or activation commit from outside (phase 8 S5). Entries covering a private,
+  shared, loopback or link-local range (`core/networks.py` `NOT_A_CLIENT`) or a trusted proxy are refused
+  (`422 ip-allowlist-not-public`): they could only match a proxy and would admit everyone behind it. When the
+  caller is itself seen as such an address the answer is `422 ip-allowlist-proxy-misconfigured` (phase 8 S5). **Break-glass:** a tenant
   that still locks itself out (its address changed) is let back in by the operator from outside the app:
   `cd backend && uv run python -m app.cli clear-ip-allowlist --tenant <tenant id>` empties the list, prints
   what it removed and records a `platform.security.manage` audit row by `operator-cli`. CIDR parsing and
   matching live in `core/networks.py`, shared with POS registers and the time clock. Assumption: the brief's
   tenant-wide list replaces, for now, the data model's per-location networks plus `staff_user.ip_policy`
-  (`unknowns` "IP restriction scope" says tenant-wide); `ip_policy` is stored but not yet consulted.
+  (`unknowns` "IP restriction scope" says tenant-wide); `ip_policy` is stored but not consulted, and since
+  phase 8 S5 it is read-only (the staff screen's "Sign-in from" control and the writable `ip_policy` /
+  `default_ip_policy` fields are gone). Deferred: with a tenant-wide list there is no meaning for a per-user
+  "facility networks only" (a non-empty list already binds everyone, an empty one lists no networks); it
+  returns with per-location networks.
 
 ## MFA, step-up and session lifetimes (Phase 8 chip S2)
 

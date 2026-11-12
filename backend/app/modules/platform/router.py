@@ -292,10 +292,12 @@ def revoke_own_session(session_id: UUID, ctx: Ctx = Depends(current_ctx)) -> Non
     auth.revoke_session(ctx.session, ctx.principal, session_id)
 
 
-@me.post("/auth/password", status_code=204)
+@me.post("/auth/password", status_code=204, dependencies=[Depends(rate_limit("step-up"))])
 def change_own_password(body: s.PasswordChange, ctx: Ctx = Depends(current_ctx)) -> None:
-    """Change the caller's password; other sessions are revoked. A first password needs a magic-link session
-    from the last 15 minutes. Errors: invalid-credentials, password-too-weak, password-reset-required."""
+    """Change the caller's password; other sessions are revoked. The current password is checked like a step-up
+    (rate-limited per IP and identity, counted toward lockout). A first password needs a magic-link session from
+    the step-up window (10 minutes). Errors: invalid-credentials, identity-locked, password-too-weak,
+    password-reset-required, rate-limited."""
     auth.change_password(ctx.session, ctx.principal, **body.model_dump())
 
 

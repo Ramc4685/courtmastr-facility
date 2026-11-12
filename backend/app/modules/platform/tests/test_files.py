@@ -87,6 +87,30 @@ def test_eicar_is_refused_when_the_scanner_is_on(tenant, eicar_scanner):
     assert storage.keys(tenant.id) == []  # nothing written
 
 
+class _DownScanner:
+    def scan(self, data: bytes) -> str | None:
+        raise RuntimeError("clamd scan failed: INSTREAM size limit exceeded")  # an outage or StreamMaxLength
+
+
+def test_system_generated_files_store_with_the_scanner_down_and_user_uploads_do_not(tenant):
+    """An export zip above clamd's stream limit, or a clamd outage, must not dead-letter exports and reports:
+    bytes the system made from its own data skip the scan. A person's upload is still refused (fail-closed)."""
+    from app.core.db.session import tenant_session
+
+    scanner.configure(_DownScanner())
+    try:
+        with tenant_session(tenant.id) as session:
+            row = files.store(
+                session, b"PK\x05\x06" + b"\0" * 18, purpose="tenant_export", content_type="application/zip",
+                uploaded_by=("system", None), generated=True,
+            )  # fmt: skip
+            assert row.status == "ready"
+        with pytest.raises(RuntimeError, match="clamd"):
+            stored(tenant, b"%PDF-1.4 a person's scan")
+    finally:
+        scanner.configure(NoopScanner())
+
+
 def test_traversal_filename_is_metadata_only(tenant):
     row = stored(tenant, original_name='../../etc/pass"wd')
     assert row.original_name == "pass_wd"
@@ -213,10 +237,10 @@ def test_purge_is_on_the_hourly_clock():
 # --- configuration ----------------------------------------------------------------------------------------------
 
 
-def test_production_refuses_the_noop_scanner(tmp_path, monkeypatch):
+def test_production_refuses_the_noop_scanner(tmp_path, monkeypatch, deploy_secrets):
     shutil.copy(REPO_ROOT / "config" / "app.yaml", tmp_path / "app.yaml")
     overlay = tmp_path / "app.production.yaml"
-    base = "auth: {cookie_secure: true}\nemail: {log_links: false}\npayments: {provider: none}\n"
+    base = "auth: {cookie_secure: true}\nemail: {log_links: false}\npayments: {provider: none}\napi: {exposed_directly: true}\n"
     monkeypatch.setenv("FH_CONFIG_DIR", str(tmp_path))
     monkeypatch.setenv("FH_ENV", "production")
     overlay.write_text(base)

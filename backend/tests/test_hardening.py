@@ -132,19 +132,66 @@ def test_lane_overrides(monkeypatch):
     assert load().db.name == "facilityhub_space"
 
 
-def test_fake_payments_are_refused_outside_dev_and_test(monkeypatch, tmp_path):
+def test_fake_payments_are_refused_outside_dev_and_test(monkeypatch, tmp_path, deploy_secrets):
     config = (REPO_ROOT / "config" / "app.yaml").read_text()
     (tmp_path / "app.yaml").write_text(config.replace("cookie_secure: false", "cookie_secure: true"))
-    (tmp_path / "app.prod.yaml").write_text("email:\n  log_links: false\n")
+    (tmp_path / "app.prod.yaml").write_text("email:\n  log_links: false\napi:\n  exposed_directly: true\n")
     monkeypatch.setenv("FH_CONFIG_DIR", str(tmp_path))
     monkeypatch.setenv("FH_ENV", "prod")
     monkeypatch.setenv("FH_PAYMENTS_PROVIDER", "")  # a local .env trying Stripe must not mask the config under test
     with pytest.raises(RuntimeError, match="payments.provider"):
         get_settings.__wrapped__()
     (tmp_path / "app.prod.yaml").write_text(
-        "email:\n  log_links: false\npayments:\n  provider: none\nstorage:\n  scanner: clamd\n"
+        "email:\n  log_links: false\npayments:\n  provider: none\nstorage:\n  scanner: clamd\napi:\n  exposed_directly: true\n"
     )
     assert get_settings.__wrapped__().payments.provider == "none"
+
+
+def test_production_refuses_to_guess_whether_a_proxy_stands_in_front(monkeypatch, tmp_path, deploy_secrets):
+    """Behind an unlisted proxy every client is the proxy (one sign-in bucket, a useless allow-list): outside dev
+    and test, an empty api.trusted_proxies needs api.exposed_directly said out loud."""
+    config = (REPO_ROOT / "config" / "app.yaml").read_text().replace("cookie_secure: false", "cookie_secure: true")
+    (tmp_path / "app.yaml").write_text(config)
+    base = "email: {log_links: false}\npayments: {provider: none}\nstorage: {scanner: clamd}\n"
+    (tmp_path / "app.prod.yaml").write_text(base)
+    monkeypatch.setenv("FH_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("FH_ENV", "prod")
+    monkeypatch.setenv("FH_PAYMENTS_PROVIDER", "")
+    with pytest.raises(RuntimeError, match="api.trusted_proxies"):
+        get_settings.__wrapped__()
+    (tmp_path / "app.prod.yaml").write_text(base + "api: {trusted_proxies: [fdaa::/16]}\n")
+    assert get_settings.__wrapped__().api.trusted_proxies == ["fdaa::/16"]
+    (tmp_path / "app.prod.yaml").write_text(base + "api: {exposed_directly: true}\n")
+    assert get_settings.__wrapped__().api.exposed_directly
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "message"),
+    [
+        ("FH_DATA_KEY", "", "FH_DATA_KEY"),
+        ("FH_DATA_KEY", "ZmFjaWxpdHlodWItZGV2LW9ubHktZGF0YS1rZXktMzI=", "FH_DATA_KEY"),  # the dev key
+        ("FH_DATA_KEY", "VwpXfRnSkcoF5/q6HdE+0q6UoYCTPLxCXfp2XaacPsw=", "FH_DATA_KEY"),  # the old stack example
+        ("FH_OPERATOR_TOKEN", "dev-operator-token", "FH_OPERATOR_TOKEN"),
+        ("FH_OPERATOR_TOKEN", "stack-operator-token", "FH_OPERATOR_TOKEN"),
+        ("FH_OPERATOR_TOKEN", "short-but-random-31-characters!", "FH_OPERATOR_TOKEN"),
+    ],
+)
+def test_production_refuses_dev_and_example_secrets(monkeypatch, tmp_path, deploy_secrets, name, value, message):
+    """The data key seals TOTP and OIDC secrets and keys file-URL and recovery-code MACs; a committed value is public."""
+    config = (REPO_ROOT / "config" / "app.yaml").read_text().replace("cookie_secure: false", "cookie_secure: true")
+    (tmp_path / "app.yaml").write_text(config)
+    overlay = "email: {log_links: false}\npayments: {provider: none}\nstorage: {scanner: clamd}\napi: {exposed_directly: true}\n"
+    (tmp_path / "app.prod.yaml").write_text(overlay)
+    monkeypatch.setenv("FH_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("FH_ENV", "prod")
+    monkeypatch.setenv("FH_PAYMENTS_PROVIDER", "")
+    assert get_settings.__wrapped__().env == "prod"  # the generated values start
+    monkeypatch.setenv(name, value)
+    with pytest.raises(RuntimeError, match=message):
+        get_settings.__wrapped__()
+    if name == "FH_OPERATOR_TOKEN":
+        monkeypatch.setenv(name, "")  # empty turns the operator endpoints off, which is allowed
+        assert get_settings.__wrapped__().env == "prod"
 
 
 # --- notification port ---------------------------------------------------------------------------------------

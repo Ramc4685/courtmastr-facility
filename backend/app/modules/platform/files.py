@@ -86,13 +86,17 @@ def store(
     uploaded_by: tuple[str, UUID | None],
     original_name: str | None = None,
     public: bool = False,
+    generated: bool = False,
 ) -> StoredFile:
     """Scan and write already-checked bytes and their row; a malware hit is a 422. `public` puts a processed
     image rendition (a logo) under the public prefix; nothing else is ever public (8.3). Bytes written for a
-    transaction that later rolls back are orphans with no row: unreachable, and reported by `purge_files`."""
+    transaction that later rolls back are orphans with no row: unreachable, and reported by `purge_files`.
+    `generated`: bytes this system produced from its own data (an export zip, a report, a rendered PDF). They are
+    not scanned, so a large export or a clamd outage cannot dead-letter them; any bytes that came from a person
+    are always scanned, fail-closed. Internal only: no router passes it, and no request field maps to it."""
     if public and (purpose not in PUBLIC_PURPOSES or content_type not in (JPEG, PNG)):
         raise ValueError("only logo image renditions may be stored public")  # a programming error, not user input
-    if signature := scanner.scan(data):
+    if not generated and (signature := scanner.scan(data)):
         log.warning("upload refused by the malware scanner", extra={"signature": signature, "purpose": purpose})
         raise ValidationFailed("The file failed the malware scan.", code="file-infected")
     tenant_id = session.info["tenant_id"]

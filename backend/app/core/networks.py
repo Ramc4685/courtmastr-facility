@@ -27,6 +27,23 @@ def contains(networks: Iterable, raw_ip: str | None) -> bool:
     return any(address in ipaddress.ip_network(str(net), strict=False) for net in networks)
 
 
+# Ranges a client on the internet never arrives from: a staff allow-list entry here can only match a proxy or
+# a neighbour on the API's own network (unspecified, private, shared/CGNAT, loopback, link-local, ULA).
+NOT_A_CLIENT = [
+    "0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16", "172.16.0.0/12", "192.168.0.0/16",
+    "::/128", "::1/128", "fc00::/7", "fe80::/10",
+]  # fmt: skip
+
+
+def overlaps(network: str, others: Iterable) -> bool:
+    """True when the CIDR shares any address with a listed network (same IP version only)."""
+    net = ipaddress.ip_network(str(network), strict=False)
+    return any(
+        net.version == other.version and net.overlaps(other)
+        for other in (ipaddress.ip_network(str(o), strict=False) for o in others)
+    )
+
+
 # IPv6 forms that carry an IPv4 address a gateway may translate to (W2-04). Python 3.12 calls NAT64 and
 # IPv4-compatible addresses global, so 64:ff9b::a00:1 would otherwise reach 10.0.0.1.
 _NAT64 = ipaddress.ip_network("64:ff9b::/96")

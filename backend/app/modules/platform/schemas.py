@@ -367,13 +367,11 @@ class RoleCreate(In):
     name: Name
     description: str | None = None
     clone_from_role_id: UUID | None = None
-    default_ip_policy: IpPolicy = "any"
 
 
 class RoleUpdate(In):
     name: Name | None = None
     description: str | None = None
-    default_ip_policy: IpPolicy | None = None
 
 
 # --- staff users -------------------------------------------------------------------------------------------
@@ -394,7 +392,7 @@ class StaffUserOut(Out):
     primary_location_id: UUID | None
     linked_resource_id: UUID | None
     is_attendance_notified: bool
-    ip_policy: IpPolicy
+    ip_policy: IpPolicy  # stored, read-only, not consulted (deferred: platform README, staff IP allow-list)
     access_expires_on: date | None
     has_permission_overrides: bool
     last_sign_in_at: datetime | None
@@ -420,7 +418,6 @@ class StaffUserUpdate(In):
     mobile_phone: str | None = None
     linked_resource_id: UUID | None = None
     is_attendance_notified: bool | None = None
-    ip_policy: IpPolicy | None = None
     access_expires_on: date | None = None
 
 

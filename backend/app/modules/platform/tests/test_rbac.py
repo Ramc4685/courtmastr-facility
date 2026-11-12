@@ -302,25 +302,18 @@ def test_staff_update_guards_security_fields(client, tenant, people):
         return response.status_code, response.json().get("code")
 
     # No self-service on security fields, even as owner; ordinary profile fields stay editable.
-    for body in ({"access_expires_on": "2099-12-31"}, {"ip_policy": "facility_networks"}):
-        assert patch(admin, ids["admin"], body) == (403, "self-escalation")
-    assert patch(owner, ids["owner"], {"ip_policy": "facility_networks"}) == (403, "self-escalation")
-    assert patch(admin, ids["admin"], {"first_name": "Ada", "ip_policy": "any"})[0] == 200  # unchanged value is fine
-
-    # ip_policy on someone else needs platform.security.manage.
-    deny = {"grants": [{"permission_key": "platform.security.manage", "is_allowed": False}]}
-    assert (
-        client.put(f"{API}/staff-users/{ids['admin']}/permission-overrides", headers=owner, json=deny).status_code
-        == 200
-    )
-    assert patch(admin, ids["manager"], {"ip_policy": "facility_networks"})[0] == 403
+    assert patch(admin, ids["admin"], {"access_expires_on": "2099-12-31"}) == (403, "self-escalation")
+    assert patch(owner, ids["owner"], {"access_expires_on": "2099-12-31"}) == (403, "self-escalation")
+    assert patch(admin, ids["admin"], {"first_name": "Ada", "access_expires_on": None})[0] == 200  # unchanged is fine
     assert patch(admin, ids["manager"], {"access_expires_on": "2099-12-31"})[0] == 200
-    allow = {"grants": []}
+    # ip_policy is not writable (phase 8 S5): nothing enforces it, so no request may set it.
+    assert patch(owner, ids["manager"], {"ip_policy": "facility_networks"})[0] == 422
     assert (
-        client.put(f"{API}/staff-users/{ids['admin']}/permission-overrides", headers=owner, json=allow).status_code
-        == 200
+        client.post(
+            f"{API}/roles", headers=owner, json={"name": "Coach", "default_ip_policy": "facility_networks"}
+        ).status_code
+        == 422
     )
-    assert patch(admin, ids["manager"], {"ip_policy": "facility_networks"})[0] == 200
 
     # Only listed fields: the API rejects extras, and so does the service if a caller passes them through.
     assert patch(admin, ids["manager"], {"is_active": False})[0] == 422
@@ -517,10 +510,8 @@ def test_staff_user_administration(client, tenant, people, mailbox):
         == manager_session - 1
     )
 
-    updated = client.patch(
-        f"{API}/staff-users/{kim['id']}", headers=owner, json={"last_name": "Abel", "ip_policy": "facility_networks"}
-    ).json()
-    assert updated["last_name"] == "Abel" and updated["ip_policy"] == "facility_networks"
+    updated = client.patch(f"{API}/staff-users/{kim['id']}", headers=owner, json={"last_name": "Abel"}).json()
+    assert updated["last_name"] == "Abel" and updated["ip_policy"] == "any"
     assert client.patch(f"{API}/staff-users/{kim['id']}", headers=owner, json={"first_name": None}).status_code == 422
     assert client.get(f"{API}/staff-users/{uuid4()}", headers=owner).status_code == 404
 

@@ -246,6 +246,30 @@ def test_change_own_password(client, tenant):
     assert _sign_in(client, tenant, password="another-long-passphrase").status_code == 200
 
 
+def test_password_change_guesses_count_toward_lockout_and_are_rate_limited(client, tenant, monkeypatch):
+    """A stolen non-elevated session cannot guess the current password indefinitely: each wrong guess counts
+    toward the sign-in lockout (persisted past the rollback), a locked identity is refused even with the right
+    password, and the step-up buckets limit the attempts."""
+    from app.core.settings import get_settings
+
+    here = login(client, tenant, elevated=False)
+    guess = {"current_password": "nope", "new_password": "another-long-passphrase"}
+    for _ in range(get_settings().auth.lockout_threshold):
+        assert client.post(f"{API}/auth/password", headers=here, json=guess).json()["code"] == "invalid-credentials"
+    right = guess | {"current_password": PASSWORD}
+    locked = client.post(f"{API}/auth/password", headers=here, json=right)
+    assert locked.status_code == 403 and locked.json()["code"] == "identity-locked"
+    assert _sign_in(client, tenant).json()["code"] == "identity-locked"  # the same lock as sign-in
+
+    cfg = get_settings().rate_limit
+    monkeypatch.setattr(cfg, "enabled", True)
+    monkeypatch.setitem(
+        cfg.buckets, "step-up-identity", cfg.buckets["step-up-identity"].model_copy(update={"limit": 1})
+    )
+    client.post(f"{API}/auth/password", headers=here, json=guess)
+    assert client.post(f"{API}/auth/password", headers=here, json=guess).json()["code"] == "rate-limited"
+
+
 def test_password_change_sends_a_notification(client, tenant, mailbox):
     here = login(client, tenant)
     body = {"current_password": PASSWORD, "new_password": "another-long-passphrase"}
@@ -269,7 +293,7 @@ def test_first_password_needs_a_fresh_magic_link_session(client, tenant, owner, 
 
     # A magic-link session older than the proof window cannot set a first password (stolen-session case).
     stale = magic_link_session()
-    with clock.freeze(clock.now() + timedelta(minutes=16)):
+    with clock.freeze(clock.now() + timedelta(minutes=11)):  # the step-up window (auth.step_up_min), not 15
         assert refused(client.post(f"{API}/auth/password", headers=stale, json=body))
     # Nor can a session established some other way, however fresh: here an invite accepted without a password.
     invite = {"email": f"new@{tenant.slug}.example.com", "first_name": "N", "last_name": "U"}

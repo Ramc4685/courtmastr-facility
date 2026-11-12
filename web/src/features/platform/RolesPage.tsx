@@ -23,7 +23,7 @@ function CreateRoleDialog({ onClose }: { onClose: () => void }) {
   const [form, setForm] = useState({ name: '', description: '', clone_from_role_id: '' })
   const create = useMutation({
     mutationFn: () =>
-      api.post('/api/v1/roles', { body: { name: form.name, description: form.description || null, clone_from_role_id: form.clone_from_role_id || null, default_ip_policy: 'any' } }),
+      api.post('/api/v1/roles', { body: { name: form.name, description: form.description || null, clone_from_role_id: form.clone_from_role_id || null } }),
     onSuccess: (role) => {
       void qc.invalidateQueries({ queryKey: ['roles'] })
       toast('success', `Role ${role.name} created.`)

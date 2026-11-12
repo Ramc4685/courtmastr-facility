@@ -617,8 +617,10 @@ export interface paths {
         put?: never;
         /**
          * Change Own Password
-         * @description Change the caller's password; other sessions are revoked. A first password needs a magic-link session
-         *     from the last 15 minutes. Errors: invalid-credentials, password-too-weak, password-reset-required.
+         * @description Change the caller's password; other sessions are revoked. The current password is checked like a step-up
+         *     (rate-limited per IP and identity, counted toward lockout). A first password needs a magic-link session from
+         *     the step-up window (10 minutes). Errors: invalid-credentials, identity-locked, password-too-weak,
+         *     password-reset-required, rate-limited.
          */
         post: operations["changeOwnPassword"];
         delete?: never;
@@ -30108,12 +30110,6 @@ export interface components {
         RoleCreate: {
             /** Clone From Role Id */
             clone_from_role_id?: string | null;
-            /**
-             * Default Ip Policy
-             * @default any
-             * @enum {string}
-             */
-            default_ip_policy: "any" | "facility_networks";
             /** Description */
             description?: string | null;
             /** Name */
@@ -30160,8 +30156,6 @@ export interface components {
         };
         /** RoleUpdate */
         RoleUpdate: {
-            /** Default Ip Policy */
-            default_ip_policy?: ("any" | "facility_networks") | null;
             /** Description */
             description?: string | null;
             /** Name */
@@ -31977,8 +31971,6 @@ export interface components {
             access_expires_on?: string | null;
             /** First Name */
             first_name?: string | null;
-            /** Ip Policy */
-            ip_policy?: ("any" | "facility_networks") | null;
             /** Is Attendance Notified */
             is_attendance_notified?: boolean | null;
             /** Last Name */

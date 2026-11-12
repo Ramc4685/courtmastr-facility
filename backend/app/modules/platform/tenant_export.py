@@ -189,7 +189,7 @@ def export_chunk(session: Session, export_id: UUID) -> bool:
     now = clock.now()
     stored = files.store(
         session, row.partial, purpose="tenant_export", content_type="application/zip", uploaded_by=("system", None),
-        original_name=f"account-export-{now.date().isoformat()}.zip",
+        original_name=f"account-export-{now.date().isoformat()}.zip", generated=True,
     )  # fmt: skip
     row.file_id, row.status, row.partial = stored.id, TenantExportStatus.SUCCEEDED, None
     row.row_count, row.finished_at = sum(counts.values()), now

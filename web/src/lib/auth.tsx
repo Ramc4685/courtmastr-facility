@@ -32,27 +32,34 @@ type AuthValue = {
 }
 
 const AuthContext = createContext<AuthValue | null>(null)
+const SESSION_COMMIT_TIMEOUT_MS = 2000
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient()
   const session = useQuery({ queryKey: SESSION_KEY, queryFn: restore, staleTime: Infinity, retry: false })
-
-  useEffect(() => {
-    setUnauthenticatedHandler(() => {
-      setCsrfToken(null)
-      qc.setQueryData(SESSION_KEY, null)
-    })
-  }, [qc])
 
   // React Query tells observers about setQueryData on a later tick. Callers navigate as soon as sessionStarted
   // resolves, so it waits for this provider to commit the new session; otherwise the route guard still sees no
   // session and bounces the user through /sign-in.
   const rendered = useRef<Me | null | undefined>(undefined)
   const waiters = useRef<(() => void)[]>([])
+  const release = useCallback(() => {
+    for (const resolve of waiters.current.splice(0)) resolve()
+  }, [])
   useEffect(() => {
     rendered.current = session.data
-    for (const resolve of waiters.current.splice(0)) resolve()
-  }, [session.data])
+    release()
+  }, [session.data, release])
+  useEffect(() => release, [release]) // unmount: nothing will render again
+
+  useEffect(() => {
+    setUnauthenticatedHandler(() => {
+      setCsrfToken(null)
+      qc.setQueryData(SESSION_KEY, null)
+      // Back to the value already rendered (null) in the same tick: no re-render comes, so release by hand.
+      release()
+    })
+  }, [qc, release])
 
   const sessionStarted = useCallback(
     async (csrf: string | null | undefined) => {
@@ -62,8 +69,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await new Promise<void>((resolve) => {
         qc.setQueryData(SESSION_KEY, next)
         // Structural sharing keeps the old object when nothing changed, and then no re-render is coming.
-        if (qc.getQueryData(SESSION_KEY) === rendered.current) resolve()
-        else waiters.current.push(resolve)
+        if (qc.getQueryData(SESSION_KEY) === rendered.current) return resolve()
+        waiters.current.push(resolve)
+        // Safety net: never leave the caller (a disabled sign-in button) waiting on a render that is not coming.
+        setTimeout(resolve, SESSION_COMMIT_TIMEOUT_MS)
       })
     },
     [qc],
@@ -86,8 +95,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCsrfToken(null)
       qc.setQueryData(SESSION_KEY, null)
       qc.removeQueries(notSession)
+      release()
     }
-  }, [qc])
+  }, [qc, release])
 
   const me = session.data
   const keys = useMemo(() => new Set((me?.permissions ?? []).map((p) => p.key)), [me])

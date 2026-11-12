@@ -222,7 +222,9 @@ def invite_staff_user(session: Session, principal: Principal, data: dict) -> Sta
     return _refresh(session, staff_user)
 
 
-_SECURITY_FIELDS = frozenset({"ip_policy", "access_expires_on"})  # extending access or lifting an IP restriction
+# ip_policy is not writable: nothing enforces it yet (deferred, platform README), and a control that does nothing
+# would promise a restriction that is not there.
+_SECURITY_FIELDS = frozenset({"access_expires_on"})  # extending access
 _UPDATABLE_FIELDS = _SECURITY_FIELDS | {
     "first_name", "last_name", "mobile_phone", "linked_resource_id", "is_attendance_notified"
 }  # fmt: skip
@@ -235,9 +237,7 @@ def update_staff_user(session: Session, principal: Principal, staff_user_id: UUI
         raise ValidationFailed(f"{unknown[0]} cannot be changed here.", code="unknown-field", pointer=f"/{unknown[0]}")
     changed = {field for field, value in data.items() if getattr(staff_user, field) != value}
     if changed & _SECURITY_FIELDS:
-        _check_not_self(principal, staff_user, "You cannot change your own access expiry or IP policy.")
-    if "ip_policy" in changed:
-        authorize(principal, "platform.security.manage")
+        _check_not_self(principal, staff_user, "You cannot change your own access expiry.")
     for field in changed:
         setattr(staff_user, field, data[field])
     audit.record(session, "platform.staff_user.update", staff_user, changes=audit.diff(staff_user))
@@ -474,9 +474,7 @@ def _set_role_permissions(session: Session, role: Role, keys: Iterable[str]) -> 
 def create_role(session: Session, principal: Principal, data: dict) -> dict:
     """Create a custom role, blank or cloned. A clone copies the source's resolved grants once; no link is kept."""
     authorize(principal, "platform.role.manage")
-    role = Role(
-        name=data["name"], description=data.get("description"), default_ip_policy=data.get("default_ip_policy", "any")
-    )
+    role = Role(name=data["name"], description=data.get("description"), default_ip_policy="any")
     keys: list[str] = []
     if source_id := data.get("clone_from_role_id"):
         source = _load_role(session, source_id, pointer="/clone_from_role_id")

@@ -17,13 +17,16 @@ Hosting is the owner's call (Fly.io or AWS, chosen on cost, possibly switched la
   reverse proxy). Pinned base images by digest, non-root user, no secrets baked in, healthchecks.
 - **Stack.** `infra/docker/compose.stack.yml` runs everything on one machine under its own project name (`fhstack`),
   network, volumes and ports, so it cannot collide with the dev Compose. `make stack-up`, `make stack-smoke`,
-  `make stack-down`.
+  `make stack-down`. The first `make stack-up` writes `infra/docker/.env.stack` from `stack.env.example`, generating
+  `FH_DATA_KEY` and `FH_OPERATOR_TOKEN` (the stack runs as `FH_ENV=production`, which refuses dev or example values);
+  delete an older `.env.stack` that still holds the committed example key.
 - **Proxy.** `infra/proxy/Caddyfile`. Caddy rather than nginx: automatic TLS with renewal and one small file.
   Sets HSTS, a strict CSP for the SPA (the API sends its own deny-all CSP), `nosniff`, referrer, frame and
   permissions headers; caps API bodies at 1 MiB with the one upload route allowed 21 MiB (mirrors
   `core/api.py` `BodyLimitMiddleware.UPLOAD_PATHS`); slow-client timeouts; compression; SPA fallback; `/api` to the
   API. It sets `X-Forwarded-For` to the socket peer, and the app trusts only the proxy's address
-  (`api.trusted_proxies`, see `core/api.py::_ip`). In a cloud deployment put the proxy's network CIDR there.
+  (`api.trusted_proxies`, see `core/api.py::_ip`). In a cloud deployment put the proxy's network CIDR there; outside dev and test the API refuses to start with the list
+  empty unless `api.exposed_directly: true` (no proxy at all in front).
 - **Backups.** `infra/backup/` (see [runbook.md](runbook.md#restore-from-backup)).
 - **Release notes.** `CHANGELOG.md`; the staff app's account menu links to "What's new", built from the same file.
 

@@ -101,6 +101,28 @@ def test_a_merge_carries_every_contexts_rows_and_an_erasure_is_blocked_by_what_i
     }
 
 
+def test_a_suspended_tenant_keeps_its_retention_jobs_and_nothing_else(tenant, monkeypatch):
+    """Suspension must not stop purges, export expiry or file byte deletion; it does stop billing and messaging."""
+    from app import scheduler
+    from app.core.db.session import tenant_session
+    from app.modules.platform.models import Tenant
+
+    with tenant_session(tenant.id) as session:
+        session.get(Tenant, tenant.id).status = "suspended"
+    sent: dict[str, set[str]] = {}
+
+    def record(names, tenant_ids):
+        tenant_ids = list(tenant_ids)
+        for tenant_id in tenant_ids:
+            sent.setdefault(tenant_id, set()).update(names)
+        return len(tenant_ids) * len(tuple(names))
+
+    monkeypatch.setattr(scheduler, "enqueue", record)
+    scheduler.tick_hour()
+    assert sent[str(tenant.id)] == set(scheduler.RETENTION)
+    assert set(scheduler.RETENTION) <= set(scheduler.EVERY_HOUR)  # every retention job is a real hourly actor
+
+
 def test_the_scheduler_starts_every_periodic_job_for_a_tenant_and_they_all_run(client, tenant, owner):
     """kernel x every context with a dated job: the clock's names resolve to real actors, and one tick for a
     tenant with an unpaid autopay membership runs them all without error (twice: they are idempotent)."""

@@ -200,7 +200,7 @@ def create_run(session: Session, principal: Principal, data: dict) -> dict:
     frozen["scope"] = {"own_only": scope.own_only, "own_resource_id": own}  # re-checked on every read
     stored = platform.files.store(
         session, _snapshot(spec, result), purpose="report_result", content_type="application/json",
-        uploaded_by=("staff", staff_user_id), original_name=f"{spec.key}.json",
+        uploaded_by=("staff", staff_user_id), original_name=f"{spec.key}.json", generated=True,
     )  # fmt: skip
     run = ReportRun(
         report_key=spec.key, saved_report_id=saved.id if saved else None, requested_by_staff_user_id=staff_user_id,
@@ -490,6 +490,7 @@ def render_export_chunk(session: Session, job_id: UUID) -> bool:
     stored = platform.files.store(
         session, job.partial, purpose="report_export", content_type="text/csv; charset=utf-8",
         uploaded_by=("system", None), original_name=f"{run.report_key}-{run.finished_at.date().isoformat()}.csv",
+        generated=True,
     )  # fmt: skip
     job.file_id, job.row_count, job.status = stored.id, len(snapshot["rows"]), RunStatus.SUCCEEDED
     job.finished_at, job.partial = clock.now(), None

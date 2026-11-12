@@ -54295,15 +54295,6 @@
             ],
             "title": "Clone From Role Id"
           },
-          "default_ip_policy": {
-            "default": "any",
-            "enum": [
-              "any",
-              "facility_networks"
-            ],
-            "title": "Default Ip Policy",
-            "type": "string"
-          },
           "description": {
             "anyOf": [
               {
@@ -54455,21 +54446,6 @@
       "RoleUpdate": {
         "additionalProperties": false,
         "properties": {
-          "default_ip_policy": {
-            "anyOf": [
-              {
-                "enum": [
-                  "any",
-                  "facility_networks"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Default Ip Policy"
-          },
           "description": {
             "anyOf": [
               {
@@ -59920,21 +59896,6 @@
               }
             ],
             "title": "First Name"
-          },
-          "ip_policy": {
-            "anyOf": [
-              {
-                "enum": [
-                  "any",
-                  "facility_networks"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ip Policy"
           },
           "is_attendance_notified": {
             "anyOf": [
@@ -68818,7 +68779,7 @@
     },
     "/api/v1/auth/password": {
       "post": {
-        "description": "Change the caller's password; other sessions are revoked. A first password needs a magic-link session\nfrom the last 15 minutes. Errors: invalid-credentials, password-too-weak, password-reset-required.",
+        "description": "Change the caller's password; other sessions are revoked. The current password is checked like a step-up\n(rate-limited per IP and identity, counted toward lockout). A first password needs a magic-link session from\nthe step-up window (10 minutes). Errors: invalid-credentials, identity-locked, password-too-weak,\npassword-reset-required, rate-limited.",
         "operationId": "changeOwnPassword",
         "requestBody": {
           "content": {
