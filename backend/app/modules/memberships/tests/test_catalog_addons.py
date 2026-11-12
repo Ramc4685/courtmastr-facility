@@ -87,3 +87,29 @@ def test_a_renewal_carries_recurring_item_add_ons_only(client, owner, tenant):
     assert [str(item_id) for item_id in kept] == [towel["id"]]
     got = sorted((p.kind, p.amount_minor) for p in periods(tenant, successor_id))
     assert got == [("addon_item", 500), ("dues", 3100)]
+
+
+def test_a_plan_add_on_must_be_active_and_unavailable_items_are_skipped_at_sale(client, owner, tenant):
+    w = world(client, owner, tenant, billing_occurrences_count=2)
+    url = f"{API}/membership-plans/{w.plan['id']}/addons"
+    retired = _item(client, w, description="Retired", is_active=False)
+    refused = client.put(url, headers=owner, json={"addons": [_addon(retired)]})
+    assert (refused.status_code, refused.json()["errors"][0]["pointer"]) == (422, "/addons/0/catalog_item_id")
+
+    here, elsewhere = _item(client, w), _item(client, world(client, owner, tenant), description="Elsewhere")
+    ok(client.put(url, headers=owner, json={"addons": [_addon(here), _addon(elsewhere)]}))
+    contract = ok(client.post(f"{API}/membership-contracts", headers=owner, json=sale(w)), 201)
+    rows = [p for p in periods(tenant, contract["id"]) if p.kind == "addon_item"]
+    assert {str(p.catalog_item_id) for p in rows} == {here["id"]}  # the other location's item is skipped
+    with tx(tenant) as session:
+        kept = session.scalars(
+            select(MembershipContractAddon.catalog_item_id).where(MembershipContractAddon.membership_contract_id == contract["id"])
+        ).all()  # fmt: skip
+    assert [str(i) for i in kept] == [here["id"]]
+
+    ok(client.patch(f"{API}/catalog-items/{here['id']}", headers=owner, json={"is_active": False}))
+    w2 = world(client, owner, tenant)
+    later = client.post(
+        f"{API}/membership-contracts", headers=owner, json=sale(w2) | {"membership_plan_id": w.plan["id"]}
+    )
+    assert later.status_code == 201, later.text  # a deactivated item never makes the plan unsellable

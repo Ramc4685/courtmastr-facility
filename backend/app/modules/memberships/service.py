@@ -290,8 +290,8 @@ def replace_plan_addons(session: Session, principal: Principal, plan_id: UUID, a
     session.flush()
     for order, addon in enumerate(addons):
         item_id = addon.get("catalog_item_id")
-        if item_id is not None and not billing.catalog.item_exists(session, item_id):
-            raise ValidationFailed("Unknown catalogue item.", pointer=f"/addons/{order}/catalog_item_id")
+        if item_id is not None and not billing.catalog.item_is_active(session, item_id):
+            raise ValidationFailed("Choose an active pre-defined item.", pointer=f"/addons/{order}/catalog_item_id")
         session.add(MembershipPlanAddon(
             membership_plan_id=plan.id, addon_kind=addon.get("addon_kind", "package_plan"),
             package_plan_id=addon.get("package_plan_id"), catalog_item_id=item_id, quantity=addon.get("quantity", 1),
@@ -320,10 +320,13 @@ def _addon_periods(
     start: date,
     *,
     renewal: bool = False,
+    lenient: bool = False,
 ) -> tuple[list[domain.Period], list[dict]]:
     """Item add-ons (MEM-04) as `addon_item` rows priced from the catalogue now: a recurring item is billed with
     every dues period, a one-off once with the first (or at the start when there are no dues). A renewal
-    carries only recurring items still sold at the location. Returns the rows and the add-ons they came from."""
+    carries only recurring items still sold at the location. The plan's own add-ons (`lenient`) skip an item that
+    is inactive or sold at another location, so one item never makes a tenant-wide plan unsellable; add-ons
+    chosen for this sale are refused instead. Returns the rows and the add-ons they came from."""
     dues = [p for p in periods if p.kind == "dues"]
     rows, kept = [], []
     for addon in addons:
@@ -332,7 +335,7 @@ def _addon_periods(
         try:
             item = billing.catalog.addon_terms(session, addon["catalog_item_id"], location_id=location_id)
         except ValidationFailed:
-            if renewal:
+            if renewal or lenient:
                 continue
             raise
         if renewal and not item["is_recurring"]:
@@ -402,12 +405,15 @@ def _draft(session: Session, principal: Principal, data: dict, channel: str) -> 
     # the enrolment fee is due at the sale, also when the membership starts later
     periods = [replace(p, due_on=min(p.due_on, today)) if p.kind == "initiation" else p for p in periods]
     addons = [_addon_dict(a) for a in _addons(session, plan.id)]
+    lenient = True
     if data.get("addons") is not None:  # this sale's own add-ons (MEM-04)
         chosen = [_addon_dict(a) for a in data["addons"]]
         if chosen != addons:
             authorize(principal, _CUSTOMIZE, location_id=location_id)
+            lenient = False
         addons = chosen
-    extra, _ = _addon_periods(session, addons, periods, location_id, plan.name, start)
+    extra, kept = _addon_periods(session, addons, periods, location_id, plan.name, start, lenient=lenient)
+    addons = [a for a in addons if a["addon_kind"] != "catalog_item" or a in kept]
     periods = periods + extra
     invoice_mode = data.get("invoice_mode") or plan.default_invoice_mode
     if sum(p.amount_minor for p in periods) == 0:
