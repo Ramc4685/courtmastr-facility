@@ -170,8 +170,8 @@ export const api = {
     request<Ok<Op<P, 'delete'>>>('delete', path as string, opts as Options),
 }
 
-/** PUT raw file bytes (the one upload route, /client-documents/{id}/paper-scan). Same CSRF, idempotency and
- * problem handling as `request`. */
+/** PUT raw file bytes (the paper-scan and import-source routes). Same CSRF, idempotency, step-up and problem
+ * handling as `request`. */
 export async function uploadFile<T>(template: keyof paths, path: Record<string, string>, file: File): Promise<T> {
   const headers: Record<string, string> = {
     accept: 'application/json',
@@ -181,7 +181,9 @@ export async function uploadFile<T>(template: keyof paths, path: Record<string, 
   }
   if (TENANT_SLUG) headers['x-tenant-slug'] = TENANT_SLUG
   if (csrfToken) headers['x-csrf-token'] = csrfToken
-  const res = await fetch(buildUrl(template as string, { path }), { method: 'PUT', headers, credentials: 'same-origin', body: file })
+  const send = () => fetch(buildUrl(template as string, { path }), { method: 'PUT', headers, credentials: 'same-origin', body: file })
+  let res = await send()
+  if ((await refusedWith(res, 'step-up-required')) && (await confirmIdentity())) res = await send()
   const data: unknown = await res.json().catch(() => undefined)
   if (!res.ok) throw new ApiError({ ...((data ?? {}) as Problem), status: res.status })
   return data as T
