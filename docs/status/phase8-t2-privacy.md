@@ -40,7 +40,8 @@ Branch `claude/p8-t2-privacy` (from `claude/phase8-wave7-5be825`). Migrations 12
 
 ## Known failure outside this chip
 
-`clients/tests/test_privacy_consent.py::test_export_bundle_and_erasure_with_sentinel_scan` fails on this branch:
+`clients/tests/test_privacy_consent.py::test_export_bundle_and_erasure_with_sentinel_scan` passes in the full
+`make test` run but fails when run alone or with a few platform files (order-dependent):
 the erased client's address remains in `message.to_address` on the transactional "confirm your email address"
 row, which the notification port logs with no `client_id`, so engagement's erasure handler (by `client_id`) does
 not clear it. T2 does not touch that path; not verified against the base branch.
