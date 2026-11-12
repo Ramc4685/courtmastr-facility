@@ -193,13 +193,16 @@ Written here so chips do not guess; each chip copies its own into the module REA
 
 ## Lanes: setup for every chip
 
-From the chip's worktree root, with `X` its lane (`a`, `b`, `c1`, `c2`) and `N` its port digit (1 to 4):
+From the chip's worktree root, with `X` its lane (`a`, `b`, `c1`, `c2`) and `N` its port digit (1 to 4), once
+the worktree has `main` 3353e92 or later (the phase branch has it since 995e47d):
 
 ```bash
-cp "/Users/ramc/Documents/Creative Projects/Facility Software/.env" .env
-sed -i '' -e '/^FH_PAYMENTS_PROVIDER/d' -e '/^FH_STRIPE_/d' -e '/^FH_DB_NAME=/d' -e '/^FH_TEST_DB_NAME=/d' -e '/^FH_API_PORT=/d' -e '/^FH_WEB_PORT=/d' .env
-printf 'FH_DB_NAME=facilityhub_p11X\nFH_TEST_DB_NAME=facilityhub_p11X_test\nFH_API_PORT=850N\nFH_WEB_PORT=550N\n' >> .env
+make lane-env LANE=p11X API_PORT=850N WEB_PORT=550N
 ```
+
+It writes `.env` from the main checkout's with the lane's databases and no payment or Stripe lines, and refuses the
+main databases or an existing `.env`. After a lane is merged, `make lane-drop LANE=p11X` deletes its databases.
+Lanes set up by hand before 995e47d (B, C1) need no change.
 
 Then this guard, before `make lane-db` and before every `make test`, `make seed` or Playwright run. It refuses
 when either database still names the main databases or is missing, or when a payment-provider line survived:
@@ -253,3 +256,4 @@ at hand-back (Phase 14's `14xx` or Phase 12's `16xx` may land first).
 | 2026-11-12 | main | main 0a47a0d (chip D fixes, drift gate) merged into the phase branch so chips fast-forward | a1bc32c |
 | 2026-11-12 | core | approved: A's slug-mismatch 404 in `core/auth/deps.py` `current_ctx`; C1's read-only `search_app_directory` in `core/db/platform.py` (column grants to fh_platform, limit 20, 2-char prefix); brand colours live on the tenant (A), C1 reads them | |
 | 2026-11-12 | all | desktop app restart stopped A, B, C1 mid-build (no commits yet); resumed by message | |
+| 2026-11-12 | main | main 3353e92 merged in (`make lane-env`, `lane-drop`); lane setup switched to `lane-env` for A and C2 | 995e47d |
