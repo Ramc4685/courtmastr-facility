@@ -21,9 +21,9 @@ and extend each check: `docs/dev/checks.md`.
 | Where | Evidence | Disposition |
 |---|---|---|
 | `platform/files.py:178` `check_signature`: a non-ASCII `sig` raises `TypeError` in `hmac.compare_digest` (`GET /files/{tenant_id}/{file_id}`) | `TypeError: comparing strings with non-ASCII characters` | fixed (compare bytes) |
-| `clients/schemas.py:179,220` `sort_order: int` unbounded: `POST /client-categories`, `/referral-categories`, `/custom-fields` | `NumericValueOutOfRange` with `sort_order = 9223372036854775808` | xfail in `KNOWN_FAILURES`; bound the field |
-| `pos`: `POST /product-categories`, `/equipment-categories` | same error | xfail; bound the field (schema not inspected) |
-| `memberships`: `POST /membership-types` | `NumericValueOutOfRange` | xfail; bound the field (schema not inspected) |
+| `clients/schemas.py:179,220` `sort_order: int` unbounded: `POST /client-categories`, `/referral-categories`, `/custom-fields` | `NumericValueOutOfRange` with `sort_order = 9223372036854775808` | fixed in S4: bounded (`Order`, 0 to 10,000), entry removed |
+| `pos`: `POST /product-categories`, `/equipment-categories` | same error | fixed in S4 (also `DiscountPreset`, `EquipmentItem` create and update) |
+| `memberships`: `POST /membership-types` | `NumericValueOutOfRange` | fixed in S4 (`sort_order` on type and plan create and update) |
 
 With random path ids almost every call is a 404, so the sweep finds malformed-input crashes, not workflow bugs.
 
@@ -66,7 +66,7 @@ unconditionally; the 120 s wall-clock budget runs only with `FH_PERF=1`.
 
 ## Exceptions granted
 
-`KNOWN_FAILURES` (6 operations, above); 8 `ignore_imports` lines; the mypy override lists; no allow-file lines.
+`KNOWN_FAILURES` (empty since S4; was 6 operations, above); 8 `ignore_imports` lines; the mypy override lists; no allow-file lines.
 
 ## Skipped or unverified
 

@@ -30,7 +30,6 @@ from app.modules.platform.models import (
     AuthSession,
     Identity,
     Location,
-    StaffUser,
     SubscriptionPlan,
     Tenant,
     TenantEntitlement,
@@ -43,7 +42,6 @@ FEATURES = {
 }
 LIMITS = {
     "locations": "Active locations",
-    "staff_users": "Active staff users",
     "clients": "Active clients",
     "app_users": "Members signed in to the mobile app",
 }
@@ -76,9 +74,6 @@ def live_app_session(now=None):
 
 _counters |= {
     "locations": lambda s: s.execute(select(func.count()).where(Location.status == "active")).scalar_one(),
-    "staff_users": lambda s: s.execute(
-        select(func.count()).where(StaffUser.is_active, StaffUser.is_system_support.is_(False))
-    ).scalar_one(),
     "app_users": lambda s: s.execute(
         select(func.count(AuthSession.identity_id.distinct())).where(live_app_session())
     ).scalar_one(),

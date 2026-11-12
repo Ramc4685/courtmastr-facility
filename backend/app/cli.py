@@ -21,6 +21,8 @@ def main() -> None:
     action = failed.add_mutually_exclusive_group()
     action.add_argument("--requeue", metavar="FAILED_JOB_ID")
     action.add_argument("--discard", metavar="FAILED_JOB_ID")
+    clear = commands.add_parser("clear-ip-allowlist", help="break-glass: empty a tenant's staff IP allow-list")
+    clear.add_argument("--tenant", required=True, help="tenant id")
     args = parser.parse_args()
 
     if args.command == "serve":
@@ -37,6 +39,8 @@ def main() -> None:
         _create_lane_databases()
     elif args.command == "failed-jobs":
         _failed_jobs(args)
+    elif args.command == "clear-ip-allowlist":
+        _clear_ip_allowlist(args.tenant)
     else:
         from app.bootstrap import bootstrap
         from app.modules.platform import service
@@ -69,6 +73,23 @@ def _failed_jobs(args) -> None:
         for row in rows:
             print(json.dumps({k: getattr(row, k) for k in ("id", "actor_name", "queue", "args", "error_class",
                               "error_detail", "attempts", "failed_at", "resolution")}, default=str))  # fmt: skip
+
+
+def _clear_ip_allowlist(tenant_id: str) -> None:
+    """Operator break-glass (PLT-07): no role bypasses the allow-list, so a tenant that locks itself out is
+    let back in from here. Audited as the system principal `operator-cli`."""
+    from uuid import UUID
+
+    from app.bootstrap import bootstrap
+    from app.core.auth import system_principal
+    from app.core.db.session import tenant_session
+    from app.modules.platform import service
+
+    bootstrap()
+    operator = system_principal("operator-cli")
+    with tenant_session(UUID(tenant_id), actor=operator) as session:
+        removed = service.clear_staff_ip_allowlist(session, operator)
+    print(json.dumps({"tenant_id": tenant_id, "removed": removed}))
 
 
 def _create_lane_databases() -> None:

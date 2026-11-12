@@ -53,9 +53,9 @@ Tables (elaborating the `platform` rows in overview section 2; DDL belongs to `d
 
 `authorize(principal, perm, location_id=None, subject_id=None, record=None)` for a staff principal:
 
-1. Principal active, session valid, IP allow-list satisfied unless the principal holds
-   `platform.security.bypass_ip_allowlist` (PLT-07; unknowns "IP restriction scope": tenant-wide, checked at
-   sign-in and on every request).
+1. Principal active, session valid, IP allow-list satisfied (PLT-07; unknowns "IP restriction scope":
+   tenant-wide, checked at sign-in and on every request; no role bypasses it, Owners included; break-glass is
+   the operator CLI `clear-ip-allowlist`).
 2. Entitlement gate for the permission's module.
 3. Owner role: allow (all keys, all locations, all subjects, reach `all`). Stop.
 4. Grant = `user_permission_override` row if present, else `role_permission` row. No row or `deny`: `403`.
@@ -197,13 +197,13 @@ Cells: `Y` granted (reach all), `own` granted with reach own, `-` not granted. O
 | `platform.staff_user.update` | T | A | | Y | - | - | - | - | - | - | PLT-02 |
 | `platform.staff_user.deactivate` | T | A | | Y | - | - | - | - | - | - | PLT-02 |
 | `platform.staff_user.reset_credentials` | T | A | | Y | - | - | - | - | - | - | PLT-03 |
+| `platform.staff_user.reset_mfa` | T | A + | | Y | - | - | - | - | - | - | PLT-03, ADR 0002 s6 |
 | `platform.staff_user.assign_role` | T | A + | | Y | - | - | - | - | - | - | PLT-05 |
 | `platform.staff_user.assign_locations` | T | A | | Y | - | - | - | - | - | - | PLT-13 |
 | `platform.staff_user.override_permissions` | T | A + | | Y | - | - | - | - | - | - | PLT-05, SCH-05 |
 | `platform.role.read` | T | | | Y | Y | - | - | - | - | - | PLT-04 |
 | `platform.role.manage` | T | A + | | Y | - | - | - | - | - | - | PLT-04, PLT-06 |
 | `platform.security.manage` | T | A + | | Y | - | - | - | - | - | - | PLT-07 (IP allow-list, password and session policy, OIDC) |
-| `platform.security.bypass_ip_allowlist` | T | A | | Y | - | - | - | - | - | - | PLT-07, POS-01 |
 | `platform.audit.read` | L | | | Y | Y | - | - | - | - | - | PLT-17, BIL-09 |
 | `platform.audit.export` | T | X | | Y | - | - | - | - | - | - | PLT-17 |
 | `platform.client_session.impersonate` | T | I + | | Y | - | - | - | - | - | - | our design (support view of the portal) |
