@@ -728,6 +728,7 @@ def _populate_memberships(
     period = next(p for p in call("GET", f"{url}/billing-schedule") if p["status"] == "scheduled")
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
         memberships.service.record_visit(session, client_id=person_id, check_in_id=uuid4(), location_id=location_id)
+    call("POST", "/client-packages/complimentary", sale | {"package_plan_id": package_plan["id"]})  # a trial (RPT-24)
     package = call("POST", "/client-packages", sale | {"package_plan_id": package_plan["id"]})
     package_share = call("POST", f"/client-packages/{package['id']}/shares", {"client_id": kid_id})
     recurring = call("POST", "/client-packages", sale | {"package_plan_id": monthly["id"]})

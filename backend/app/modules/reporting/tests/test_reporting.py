@@ -16,7 +16,7 @@ from app.core.db.session import tenant_session
 from app.core.jobs import broker
 from app.modules import billing
 from app.modules.platform.models import StoredFile
-from app.modules.reporting import jobs, views
+from app.modules.reporting import catalogue, jobs, views
 from app.modules.reporting.domain import csv_file, periods
 from app.modules.reporting.models import ExportJob, ReportRun
 from conftest import add_staff, login, new_client
@@ -125,13 +125,14 @@ def test_views_match_their_column_contract_and_run_as_the_invoker(tenant):
 
 def test_catalogue_lists_only_what_the_caller_may_run(client, tenant, owner):
     everything = ok(client.get(f"{API}/report-definitions", headers=owner))["data"]
-    assert len(everything) == 10 and all(d["params_schema"]["properties"] for d in everything)
+    assert len(everything) == len(catalogue.REGISTRY) and all(d["params_schema"]["properties"] for d in everything)
     financial = ok(client.get(f"{API}/report-definitions?category=financial", headers=owner))["data"]
-    assert {d["key"] for d in financial} == {"revenue_summary", "deposits", "invoices", "open_invoices"}
+    assert {d["key"] for d in financial} == {"revenue_summary", "deposits", "invoices", "open_invoices", "rental_plan_sales"}
     desk = login(client, tenant, add_staff(tenant, "front_desk", all_locations=True)[0])
     assert {d["key"] for d in ok(client.get(f"{API}/report-definitions", headers=desk))["data"]} == {
         "attendance",
         "attendance_overview",
+        "check_in_summary",
     }
     assert code(client.get(f"{API}/report-definitions/revenue_summary", headers=desk), 403) == "permission-denied"
     assert code(client.get(f"{API}/report-definitions/nope", headers=owner), 404) == "not-found"
@@ -382,6 +383,9 @@ def test_every_report_has_rows_against_a_fully_populated_tenant(client, tenant):
     for definition in ok(client.get(f"{API}/report-definitions", headers=world.headers))["data"]:
         if definition["key"].startswith("attendance"):
             params = {"from_on": "2030-01-01", "to_on": "2030-12-31"}
+        elif definition["key"] == "client_retention":
+            params = {"first_from_on": "2030-01-01", "first_to_on": "2030-12-31", "second_from_on": "2030-01-01",
+                      "second_to_on": "2030-12-31"}  # fmt: skip
         else:
             params = around_today if "period" in definition["params_schema"]["properties"] else {}
         done = ran(client, world.headers, definition["key"], **params)
@@ -389,4 +393,4 @@ def test_every_report_has_rows_against_a_fully_populated_tenant(client, tenant):
         if definition["supports_detail"] and done["row_count"]:
             group = rows(client, world.headers, done["id"])["data"][0]["group_key"]
             assert rows(client, world.headers, done["id"], group_key=group)["data"], definition["key"]
-    assert all(found.values()), found
+    assert all(found.values()), {k: n for k, n in found.items() if not n}

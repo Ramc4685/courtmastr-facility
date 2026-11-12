@@ -51,7 +51,7 @@ sale_line = _view(
     """pos_sale_line_id pos_sale_id location_id register_id register_name
     cashier_staff_user_id cashier_name sold_on line_kind product_id description product_category_id category_name
     product_brand_id brand_name product_supplier_id supplier_name quantity gross_minor discount_minor net_minor
-    tax_minor total_minor returned_quantity""",
+    tax_minor total_minor returned_quantity coupon_id coupon_name unit_cost_minor""",
 )
 sale = _view(
     "rpt_pos_sale",
@@ -79,5 +79,74 @@ time_entry = _view(
     job_name clock_in_at clock_out_at work_on clock_in_time clock_out_time source is_edited minutes""",
 )
 
+# phase 12 chip C (migration 1641)
+client = _view(
+    "rpt_client",
+    """client_id location_id client_name first_name last_name member_number status email phone gender birth_on
+    client_category_id client_category_name referral_category_id referral_category_name referral_source
+    default_trainer_staff_user_id default_trainer_name created_on created_via""",
+)
+client_task = _view(
+    "rpt_client_task",
+    """client_task_id location_id client_id client_name note_subject_id subject status due_on
+    assignee_staff_user_id assignee_name created_on completed_on""",
+)
+check_in = _view(
+    "rpt_check_in",
+    """check_in_id location_id client_id check_in_on weekday check_in_hour result channel check_in_station_id
+    station_name membership_type_id membership_type_name""",
+)
+client_package = _view(
+    "rpt_client_package",
+    """client_package_id location_id client_id package_name reservation_type_id reservation_type_name
+    is_complimentary is_unlimited sessions_remaining status sold_on price_minor""",
+)
+group_roster = _view(
+    "rpt_group_roster",
+    """enrollment_id location_id program_group_id group_name parent_group_id parent_group_name group_status
+    client_id client_name first_name last_name email phone enrolled_on channel fee_minor paid_minor""",
+)
+group_waitlist = _view(
+    "rpt_group_waitlist",
+    """waitlist_entry_id location_id program_group_id group_name parent_group_name client_id client_name status mode
+    queued_on position""",
+)
+campaign = _view(
+    "rpt_campaign",
+    """campaign_id location_id channel name subject sender_name status sent_on attempted_count duplicate_count
+    invalid_count unverified_count unsubscribed_skip_count suppressed_count sent_count delivered_count opened_count
+    clicked_count bounced_count complaint_count unsubscribed_count""",
+)
+campaign_message = _view(
+    "rpt_campaign_message", "message_id location_id campaign_id client_id client_name to_address status skip_reason"
+)
+return_line = _view(
+    "rpt_pos_return_line",
+    """pos_return_line_id pos_return_id location_id register_id register_name processed_on processed_by_name
+    refund_mode reason pos_sale_id sold_on description quantity amount_minor is_restocked""",
+)
+product_stock = _view(
+    "rpt_product_stock",
+    """product_stock_id location_id location_name product_id product_name product_code sku category_name brand_name supplier_name
+    on_hand_count reorder_level unit_price_minor cost_minor is_active""",
+)
+equipment_item = _view(
+    "rpt_equipment_item",
+    """equipment_item_id location_id location_name item_name asset_code category_name unit_count on_loan_count rental_fee_minor
+    rental_days late_fee_minor replacement_fee_minor is_active""",
+)
+equipment_loan = _view(
+    "rpt_equipment_loan",
+    """equipment_loan_id location_id location_name equipment_item_id item_name asset_code client_id client_name phone quantity
+    checked_out_on due_on due_at status""",
+)
+rental_plan_sale = _view(
+    "rpt_rental_plan_sale",
+    """rental_plan_purchase_id location_id client_id rental_plan_id rental_plan_name price_minor sold_via sold_on
+    status quantity_total balance charge_id""",
+)
+
 ALL = (charge, payment, refund, invoice, allocation, contract, attendance, sale_line, sale, tender, pos_return, drawer,
        time_entry)  # fmt: skip
+ALL += (client, client_task, check_in, client_package, group_roster, group_waitlist, campaign,  # chip C
+        campaign_message, return_line, product_stock, equipment_item, equipment_loan, rental_plan_sale)  # fmt: skip
