@@ -63,8 +63,8 @@ so an `every_purchase` binding asks again next time. `scope_id` is opaque here: 
 ## Known gaps
 
 - Bulk send and the missing-document audit (DOC-07, P1) are not built; `document_bulk_send` does not exist.
-- Nothing schedules `sweep_documents` (no scheduler in the kernel yet). Indicator reads stay correct; stored
-  statuses and stale links lag until it runs.
+- `app/scheduler.py` enqueues `sweep_documents` hourly per tenant; between runs indicator reads stay correct,
+  while stored statuses and stale links lag.
 - `is_staff_notified_on_decision` is stored but no staff notification is sent yet (engagement owns that channel).
 - Signed documents of an erased client are retained (legal hold, security-baseline 4.3) without a restricted view.
 - The PDF uses built-in Latin-1 fonts: other scripts print as "?" (see the shortcut note in `domain/pdf.py`).

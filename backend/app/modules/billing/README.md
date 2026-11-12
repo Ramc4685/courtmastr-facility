@@ -101,8 +101,8 @@ importer passes (job id plus the row's natural key). `tax_ids_by_code` resolves 
 ## Jobs
 
 `webhooks.process_provider_event` (enqueued by the webhook route), `webhooks.billing_daily` (per tenant:
-`autopay.daily` then `webhooks.reconcile`). **Nothing schedules `billing_daily` yet**: the kernel has no
-scheduler or per-tenant fan-out. Until it does, autopay runs when staff start a run (`POST /autopay-runs`).
+`autopay.daily` then `webhooks.reconcile`). `app/scheduler.py` enqueues `billing_daily` hourly per tenant
+(`EVERY_HOUR`); staff can still start a run by hand (`POST /autopay-runs`).
 
 ## Assumptions and deviations (the specs win where they are silent; these are the places we chose)
 

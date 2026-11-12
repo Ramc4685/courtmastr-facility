@@ -2,6 +2,8 @@
 
 Date: 2026-11-10. Branch `claude/integrations-77771e`. Code: `backend/app/modules/integrations/` (its
 README lists files, rules and shortcuts), `web/src/features/integrations/`, `docs/api/public-api-guide.md`.
+Refreshed 2026-11-11 (Phase 8 docs refresh): rows that waited on modules now merged say so; since Phase 8 T1 every
+API-key request also needs the tenant's `api_access` plan feature (`403 feature-not-in-plan`).
 
 ## Parity matrix rows (every INT- feature in `docs/discovery/parity-matrix.md`)
 
@@ -12,11 +14,11 @@ Tests: `IT` = `backend/app/modules/integrations/tests/test_integrations.py`, `IS
 | ID | Feature | Priority | Status | Where | Tests | Notes |
 |---|---|---|---|---|---|---|
 | INT-01 | Public REST API platform | P0 | partial | `integrations/auth.py`, `service.py`, `router.py`; `app/main.py` (bearer scheme in OpenAPI); public API guide | IT (keys, scopes, rotation, expiry), ISO, SEC, E2E | Done: hashed per-tenant API keys with scopes bounded by the creator, RLS-bound tenant context, a per-key rate limit, generated OpenAPI with the auth scheme, and outbound webhooks. Not built: OAuth 2.0 client-credentials. The rate limit has no dedicated test. |
-| INT-02 | Client and membership API resources | P0 | partial | `clients/router.py` (existing), reachable with a key | IT (`/clients` with a key), E2E | Client list, get and create accept keys. There is no client update route yet, and membership standing waits for module 5. |
+| INT-02 | Client and membership API resources | P0 | partial | `clients/router.py` (existing), reachable with a key | IT (`/clients` with a key), E2E | Client list, get and create accept keys. Refreshed: `PATCH /clients/{id}` exists now and module 5 is merged; whether they accept a key was not tested in the refresh (quick check scheduled in `remaining-work.md`). |
 | INT-03 | Invoice and payment API resources | P1 | partial | `billing/router.py` (existing kernel), reachable with a key | IT (scope refusal on `/charges`) | Invoice and payment list/get and the payment, allocation and refund commands accept keys with the right scopes. Not built: an invoice read that embeds payments and allocations, and a dedicated external-payment endpoint. |
-| INT-04 | Schedule, reservation and package API resources | P0 | not built | — | — | Needs module 2 (scheduling). Its routes will be key-reachable as soon as they use `require()`. |
+| INT-04 | Schedule, reservation and package API resources | P0 | not built | — | — | Refreshed: modules 2 and 5 are merged and their routes use `require()`, which accepts a key holding the scope (`core/auth/deps.py`); no integrations test proves it, so the status stays until the quick check. |
 | INT-05 | Self-service (member context) API | P1 | not built | — | — | No member-realm tokens on the API. Keys are staff-delegated only. |
-| INT-06 | POS and league API surfaces | P1 | not built | — | — | Needs modules 9 and 11. |
+| INT-06 | POS and league API surfaces | P1 | not built | — | — | Refreshed: modules 9 and 11 are merged and their routes use `require()`; key reach not tested, status unchanged until the quick check. |
 | INT-07 | QuickBooks Online sync | P0 | partial | `ports/accounting.py`, `adapters/accounting.py`, `integrations/domain/journal.py`, `service.export_accounting_day` | IT (journal build, unbalanced refusal, idempotent day export, file output, QuickBooks adapter with mocked HTTP) | Done: daily journal-entry export per location and day (idempotent; doc number and request id), a file/JSON adapter, and a real QuickBooks adapter tested against mocked HTTP only and off by default (`quickbooks_enabled`). Not built: OAuth per location, the class/account mapping table and screen, outbox-driven automatic push, and per-object sync records. The export is run on demand (`POST /accounting-exports`). |
 | INT-08 | Calendar subscription feed | P1 | not built | — | — | Only the `integrations.calendar_feed.revoke_any` permission is registered. |
 | INT-09 | Zoom integration for virtual sessions | P1 | partial | `ports/video_meeting.py`, `adapters/video.py`, `service.video_meetings` | IT (simulated adapter command log) | A simulated Zoom adapter (`FakeVideo`) creates and deletes meetings and logs each call. Not built: Zoom OAuth, the reservation-event wiring, the entitlement-checked join redirect, and attendance. |
@@ -24,8 +26,8 @@ Tests: `IT` = `backend/app/modules/integrations/tests/test_integrations.py`, `IS
 | INT-11 | Perkville loyalty integration | v2-adapter | not built | — | — | No loyalty port. The outbound webhooks already give a partner the domain-event feed. |
 | INT-12 | CoachMePlus integration | v2-adapter | done (as scoped) | public API + webhooks | IT, E2E | The matrix leaves this to partners through the API and webhooks, and both are now available. |
 | INT-13 | Google Analytics cross-domain tracking | P2 | not built | — | — | Needs the public portal pages. |
-| INT-14 | Partner and hardware network | v2-adapter | partial | `adapter_command_log`, `service.adapter_for`, directory (`list_adapters`) | IT (command log, directory statuses) | Done: a generic command log for simulated adapters and a directory that lists door, reader and terminal ports as not configured. The port interfaces belong to their owning modules (10 and 9), which are not built. |
-| INT-15 | Trainingym integration | v2-adapter | partial | public API + webhooks | IT, E2E | The API and the `clients.client.created` webhook exist. The contract-signed event waits for module 5. |
+| INT-14 | Partner and hardware network | v2-adapter | partial | `adapter_command_log`, `service.adapter_for`, directory (`list_adapters`) | IT (command log, directory statuses) | Done: a generic command log for simulated adapters and a directory that lists door, reader and terminal ports as not configured. The port interfaces belong to their owning modules (10 and 9), now merged; whether they use this log was not checked in the refresh. |
+| INT-15 | Trainingym integration | v2-adapter | partial | public API + webhooks | IT, E2E | The API and the `clients.client.created` webhook exist. Module 5 is merged, but the webhook catalogue (`integrations/catalogue.py`) still has no membership event (checked in the refresh). |
 
 ## Brief items beyond the matrix
 
