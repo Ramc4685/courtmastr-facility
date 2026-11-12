@@ -79,9 +79,9 @@ A sale already on a finalized run is flagged `was_paid_before` but still counted
 - Export is CSV only (statement totals per payee), built synchronously and returned as JSON
   (`filename`, `content_type`, `content`) so the idempotency layer can replay it; the spec's 202 job and
   XLSX/PDF are not built. Cells that start with `= + - @` are prefixed with `'`.
-- The rbac matrix marks finalize and void with `+` (step-up). Step-up is deferred project-wide (module 1),
-  so both need only the key today. Clock in and out do re-check the password (`reauthenticate`), and a
-  wrong password leaves an audit row.
+- The rbac matrix marks finalize and void with `+` (step-up). Since Phase 8 S2 both need a re-authentication
+  in the last 10 minutes, else `403 step-up-required` (`core/auth/permissions.py::check_step_up`). Clock in and
+  out do re-check the password (`reauthenticate`), and a wrong password leaves an audit row.
 - Payroll runs are calculated in the request, not in a worker: a location's two-week run is small.
 
 ## Phase 10 assumptions (chip D)

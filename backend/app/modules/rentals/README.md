@@ -53,7 +53,7 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
 
 ## Assumptions and limits
 
-- **No memberships yet** (module 5): every payer is a non-member, member prices and membership rules never
+- **Memberships not wired** (module 5 is merged, but rentals does not call it yet; checked 2026-11-11): every payer is a non-member, member prices and membership rules never
   apply, `eligibility` other than `everyone` refuses online booking (`membership-required`), members-only
   plans cannot be sold.
 - "Capacity" for rentals is resource availability enforced by the hold exclusion constraint; rentals have no

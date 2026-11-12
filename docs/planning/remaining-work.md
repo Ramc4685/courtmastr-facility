@@ -79,6 +79,10 @@ missing" quotes the status note; a **Stale** note marks text that later merges h
 
 31 features: 8 done, 6 partial, 17 not built.
 
+**Phase 8 update (2026-11-11):** the † rows of Wave 7 below now have status rows in `docs/status/README.md`
+("Module 1 and Wave 7"), checked against the code; this table stays as the snapshot it was. PLT-11, PLT-12 and
+IMP-03 were outside Phase 8 and keep their †.
+
 | Feature | Priority | Status | What is missing | Size |
 |---|---|---|---|---|
 | PLT-15 Cloud delivery and availability commitments | P0 | not built | no cloud deployment, reverse proxy, SLOs or backups yet † | M |

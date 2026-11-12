@@ -49,6 +49,31 @@ new module must know. The rules that integration added:
 - **"Today"** is `platform.service.location_today`; a tenant-wide rule uses `earliest_today`. Never
   `clock.now().date()`, in code or in tests.
 
+## After Phase 8 (Wave 7: platform, security, operations)
+
+- **Migration blocks used so far:** `01xx`, `02xx`, `03xx` (first lanes), `0401`, `05xx` to `09xx` (later
+  modules), `1001` to `1099` (Phase 10; head `1081`, plus `1091`), `1101` (leagues), `12xx` (Phase 8: 1210, 1211,
+  1220, 1230, 1231, 1240, 1241, 1250, 1260 to 1264, 1270, 1271, 1280), `13xx` reserved for Phase 9. Numbers are
+  block labels, not order: read the chain with `uv run alembic heads` and `history`.
+- **Lane databases:** Phase 8's first revision (1210) was re-chained onto Phase 10's head (1081). A lane database
+  that applied Phase 8 migrations before Phase 10's cannot be upgraded: drop it and recreate it with `make lane-db`.
+- **Step-up in tests:** `login(...)` in `backend/conftest.py` signs in with a password, which counts as a fresh
+  re-authentication, so the session satisfies `+` keys for 10 minutes. Use `login(..., elevated=False)` to test
+  a `+` route's `403 step-up-required`. Test and demo tenants use the MFA policy `optional`.
+- **Rate limits in tests:** each test run gets its own Redis key prefix (`ratelimit.PREFIX`, set by the
+  session fixture `_own_rate_limit_keys`), so parallel lanes do not share buckets. Playwright specs sign in
+  through the shared helper, never by reading cookies by name (one `__Host-fh_session` cookie plus a CSRF token).
+- **Uploads** go through `platform.files` (`clean`, `store`, `load`, `remove`, `download_url`); add a route that
+  takes file bytes to `BodyLimitMiddleware.UPLOAD_PATHS` and the Caddy `@upload` matcher together.
+- **Plan features and limits** go through `platform.entitlements` (`require_feature`, `enforce_limit`); a counted
+  table registers its counter from its own package (`entitlements.register_usage_counter`).
+- **Long work** is `@chunked_actor` (platform README "Chunked jobs"); a job whose row must not stay `running`
+  after its retries registers `core.jobs.on_dead_letter`. Purges register with `retention.register_purge`.
+- **Checks before a merge** (besides `make lint test web-check web-test`): `make typecheck`, `make boundaries`
+  (never grow `ignore_imports`), `make api-diff` (breaking changes need a reasoned line in
+  `docs/api/breaking-allow.txt`), and `make openapi web-api` with no drift. `make contract` and `make perf-check`
+  are opt-in. How each works: `docs/dev/checks.md`.
+
 ## Security rules for new modules (wave 1 hardening)
 
 Full findings and tests: `docs/security/wave1-hardening-spec.md`, `docs/status/security-wave1.md`; wave 2: `docs/status/security-wave2.md`.
@@ -107,7 +132,8 @@ Shipped ahead of their modules; details in each module `README.md` and `docs/sta
 - **Emailed links** carry their token in the URL fragment (`https://app/path#token=...`), never the query
   string; the landing page reads `window.location.hash` and posts the token (security-baseline 17.2).
 - Every response gets the standard security headers and request bodies are capped at `api.max_body_bytes`
-  (1 MiB): a route that needs more is a design question, not a config change.
+  (1 MiB): a route that needs more is a design question, not a config change. File uploads are the one
+  exception (20 MiB, the `UPLOAD_PATHS` rule above).
 
 ## 0. Before writing code
 
