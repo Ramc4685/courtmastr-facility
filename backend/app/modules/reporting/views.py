@@ -79,5 +79,36 @@ time_entry = _view(
     job_name clock_in_at clock_out_at work_on clock_in_time clock_out_time source is_edited minutes""",
 )
 
+# Phase 12 chip B (migration 1621)
+receivable = _view("rpt_receivable_invoice", """invoice_id number location_id client_id client_name client_phone
+    is_client_deleted invoice_on due_on status total_minor is_autopay in_collections collections_tag
+    last_decline_reason last_declined_on""")  # fmt: skip
+instalment = _view("rpt_invoice_instalment", "invoice_id location_id seq due_on amount_minor")
+client_account = _view("rpt_client_account", "location_id client_id client_name unapplied_minor unpaid_minor")
+charge_item = _view("rpt_charge_item", """charge_id location_id client_id client_name invoice_id invoice_number
+    invoice_on revenue_on description revenue_category_label total_minor""")  # fmt: skip
+client_package = _view("rpt_client_package", """client_package_id location_id client_id client_name
+    client_category_id client_category_name default_trainer_staff_user_id default_trainer_name
+    default_trainer_resource_id package_plan_id package_name reservation_type_id reservation_type_name status
+    is_unlimited sessions_granted_count sessions_reserved_count sessions_consumed_count sessions_forfeited_count
+    sessions_remaining valid_from_on valid_to_on allows_booking_after_expiry sold_on sold_by_staff_user_id
+    sold_by_name price_minor unit_value_minor cost_minor paid_minor is_complimentary""")  # fmt: skip
+package_credit = _view("rpt_package_credit", """credit_ledger_entry_id location_id client_package_id client_id
+    client_name package_name reservation_type_id entry_type reason granted_delta reserved_delta consumed_delta
+    forfeited_delta occurred_on session_on trainer_resource_id trainer_name unit_value_minor""")  # fmt: skip
+membership_term = _view("rpt_membership_term", """membership_contract_id location_id client_id client_name
+    client_email client_phone is_client_deleted membership_type_id membership_type_name contract_name status
+    start_on end_on cancelled_on cancel_reason is_auto_renew is_renewed sold_on sold_by_name referred_by_client_id
+    referrer_name contract_value_minor""")  # fmt: skip
+membership_action = _view("rpt_membership_action", """action_id location_id membership_contract_id client_id
+    client_name membership_type_id membership_type_name contract_name action action_on starts_on ends_on
+    cancel_reason""")  # fmt: skip
+membership_billing = _view("rpt_membership_billing", """billing_schedule_period_id location_id
+    membership_contract_id client_id client_name is_client_deleted membership_type_id membership_type_name
+    contract_name contract_start_on contract_end_on kind status description revenue_on due_on charge_id is_posted
+    amount_minor billed_minor""")  # fmt: skip
+
 ALL = (charge, payment, refund, invoice, allocation, contract, attendance, sale_line, sale, tender, pos_return, drawer,
-       time_entry)  # fmt: skip
+       time_entry,
+       receivable, instalment, client_account, charge_item, client_package, package_credit,  # chip B
+       membership_term, membership_action, membership_billing)  # fmt: skip
