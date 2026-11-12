@@ -1833,7 +1833,7 @@ def get_portal_video(session: Session, principal: Principal, video_id: UUID) -> 
 
 _APP_DEFAULTS = {
     "mode": "shared", "is_enabled": False, "app_name": None, "is_listed_in_directory": False, "directory_name": None,
-    "card_number_mode": "auto_generate", "theme": {}, "features": app_rules.clean_features({}), "home_screen": None,
+    "card_number_mode": "auto_generate", "features": app_rules.clean_features({}), "home_screen": None,
     "schedule": dict(app_rules.DEFAULT_SCHEDULE),
 }  # fmt: skip
 
@@ -1862,7 +1862,6 @@ def put_app_config(session: Session, principal: Principal, data: dict) -> dict:
     authorize_tenant_wide(principal, _CONTENT)
     try:
         cleaned = {
-            "theme": app_rules.clean_theme(data.get("theme") or {}),
             "home_screen": app_rules.clean_home_screen(data.get("home_screen")),
             "schedule": app_rules.clean_schedule(data.get("schedule") or {}),
             "features": app_rules.clean_features(data.get("features") or {}),
@@ -1885,16 +1884,18 @@ def put_app_config(session: Session, principal: Principal, data: dict) -> dict:
 
 def public_app_config(session: Session) -> dict:
     """Bootstrap payload for the app after it picks a facility: theme, features, home layout, portal config.
-    Anonymous (tenant from the host or X-Tenant-Slug). Before the config is switched on, theme and layout stay
-    empty so the app keeps its bundled ones."""
+    Anonymous (tenant from the host or X-Tenant-Slug). Colours are the tenant brand colours (one source for the
+    portal and the app); before the config is switched on, theme and layout stay empty so the app keeps its
+    bundled ones."""
     row = _app_config(session)
     tenant = platform.service.get_tenant(session)
     enabled = row.is_enabled
+    brand = platform.branding.branding(session)
     return {
         "tenant_id": tenant.id,
         "app_name": (enabled and row.app_name) or tenant.name,
-        "theme": row.theme if enabled else {},
-        "icon_url": platform.branding.branding(session)["tenant_logo_url"],
+        "theme": {"primary": brand.get("primary_color"), "accent": brand.get("accent_color")} if enabled else {},
+        "icon_url": brand["tenant_logo_url"],
         "features": {**_APP_DEFAULTS["features"], **(row.features or {})},
         "home_screen": row.home_screen if enabled else None,
         "schedule": {**app_rules.DEFAULT_SCHEDULE, **(row.schedule or {})},

@@ -574,7 +574,7 @@ class CardNumberMode(StrEnum):
 
 class AppConfig(TenantOwned, Timestamps, Base):
     """The tenant's member-app configuration (APP-01, APP-02, APP-04, APP-05, APP-18): one row per tenant.
-    `theme`, `home_screen` and `schedule` are validated by `domain.app_config` before they are stored."""
+    `home_screen` and `schedule` are validated by `domain.app_config` before they are stored."""
 
     __tablename__ = "app_config"
     __table_args__ = tenant_args(
@@ -589,7 +589,6 @@ class AppConfig(TenantOwned, Timestamps, Base):
     is_listed_in_directory: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
     directory_name: Mapped[str | None] = mapped_column(info={"audit": "value"})
     card_number_mode: Mapped[str] = enum_column(server_default=text("'auto_generate'"))
-    theme: Mapped[dict] = mapped_column(server_default=text("'{}'"))
     features: Mapped[dict] = mapped_column(server_default=text("'{}'"))
     home_screen: Mapped[dict | None]
     schedule: Mapped[dict] = mapped_column(server_default=text("'{}'"))

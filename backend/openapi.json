@@ -1858,9 +1858,6 @@
           "schedule": {
             "$ref": "#/components/schemas/AppSchedule"
           },
-          "theme": {
-            "$ref": "#/components/schemas/AppTheme"
-          },
           "tile_types": {
             "items": {
               "type": "string"
@@ -1888,7 +1885,6 @@
           "is_listed_in_directory",
           "directory_name",
           "card_number_mode",
-          "theme",
           "features",
           "home_screen",
           "schedule",
@@ -1979,10 +1975,6 @@
               "shows_full_sessions": true,
               "shows_spots_left": true
             }
-          },
-          "theme": {
-            "$ref": "#/components/schemas/AppTheme",
-            "default": {}
           }
         },
         "title": "AppConfigReplace",
@@ -2165,12 +2157,11 @@
         "type": "object"
       },
       "AppTheme": {
-        "additionalProperties": false,
+        "description": "The tenant brand colours (platform branding), as the app reads them.",
         "properties": {
           "accent": {
             "anyOf": [
               {
-                "pattern": "^#[0-9A-Fa-f]{6}$",
                 "type": "string"
               },
               {
@@ -2182,7 +2173,6 @@
           "primary": {
             "anyOf": [
               {
-                "pattern": "^#[0-9A-Fa-f]{6}$",
                 "type": "string"
               },
               {

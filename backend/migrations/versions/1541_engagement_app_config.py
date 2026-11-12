@@ -28,7 +28,6 @@ def upgrade() -> None:
         sa.Column("is_listed_in_directory", sa.Boolean(), server_default=sa.text("false"), nullable=False),
         sa.Column("directory_name", sa.Text(), nullable=True),
         sa.Column("card_number_mode", sa.Text(), server_default=sa.text("'auto_generate'"), nullable=False),
-        sa.Column("theme", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'"), nullable=False),
         sa.Column("features", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'"), nullable=False),
         sa.Column("home_screen", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("schedule", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'"), nullable=False),

@@ -489,9 +489,11 @@ class PublicPreferencesReplace(In):
 # --- member app configuration (APP-01, APP-02, APP-04, APP-05, APP-18) ----------------------------------------
 
 
-class AppTheme(In):
-    primary: Annotated[str, StringConstraints(pattern=r"^#[0-9A-Fa-f]{6}$")] | None = None
-    accent: Annotated[str, StringConstraints(pattern=r"^#[0-9A-Fa-f]{6}$")] | None = None
+class AppTheme(Out):
+    """The tenant brand colours (platform branding), as the app reads them."""
+
+    primary: str | None = None
+    accent: str | None = None
 
 
 class AppTile(In):
@@ -536,7 +538,6 @@ class AppConfigReplace(In):
     is_listed_in_directory: bool = False
     directory_name: Annotated[str, StringConstraints(max_length=80)] | None = None
     card_number_mode: Literal["auto_generate", "manual_entry"] = "auto_generate"
-    theme: AppTheme = AppTheme()
     features: AppFeatures = AppFeatures()
     home_screen: AppHomeScreen | None = None
     schedule: AppSchedule = AppSchedule()
@@ -549,7 +550,6 @@ class AppConfigOut(Out):
     is_listed_in_directory: bool
     directory_name: str | None
     card_number_mode: str
-    theme: AppTheme
     features: AppFeatures
     home_screen: AppHomeScreen | None
     schedule: AppSchedule

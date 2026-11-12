@@ -14272,7 +14272,6 @@ export interface components {
             /** Mode */
             mode: string;
             schedule: components["schemas"]["AppSchedule"];
-            theme: components["schemas"]["AppTheme"];
             /** Tile Types */
             tile_types: string[];
             /** Updated At */
@@ -14326,8 +14325,6 @@ export interface components {
              *     }
              */
             schedule: components["schemas"]["AppSchedule"];
-            /** @default {} */
-            theme: components["schemas"]["AppTheme"];
         };
         /** AppDesign */
         AppDesign: {
@@ -14426,7 +14423,10 @@ export interface components {
              */
             shows_spots_left: boolean;
         };
-        /** AppTheme */
+        /**
+         * AppTheme
+         * @description The tenant brand colours (platform branding), as the app reads them.
+         */
         AppTheme: {
             /** Accent */
             accent?: string | null;

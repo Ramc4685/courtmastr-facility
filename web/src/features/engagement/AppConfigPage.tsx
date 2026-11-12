@@ -8,6 +8,7 @@ import { ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useMe } from '../../lib/auth'
 import { FormError } from '../billing/shared'
+import { useBranding } from '../platform/branding'
 
 type Config = Schemas['AppConfigOut']
 type Tile = Schemas['AppTile']
@@ -47,9 +48,12 @@ export function readable(color: string): string {
 }
 const onColor = (bg: string) => (contrast(bg, '#FFFFFF') >= contrast(bg, '#111827') ? '#FFFFFF' : '#111827')
 
-export function AppPreview({ form, facility }: { form: Form; facility: string }) {
-  const primary = readable(isHex(form.theme?.primary) ? form.theme.primary : BUNDLED.primary)
-  const accent = readable(isHex(form.theme?.accent) ? form.theme.accent : BUNDLED.accent)
+type Brand = { primary_color?: string | null; accent_color?: string | null }
+
+export function AppPreview({ form, facility, brand }: { form: Form; facility: string; brand?: Brand }) {
+  const on = form.is_enabled ?? false
+  const primary = readable(on && isHex(brand?.primary_color) ? brand.primary_color : BUNDLED.primary)
+  const accent = readable(on && isHex(brand?.accent_color) ? brand.accent_color : BUNDLED.accent)
   const layout = form.home_screen
   const tiles = layout ? (layout.tiles ?? []) : BUILT_IN
   const columns = layout?.design?.columns ?? 2
@@ -85,7 +89,7 @@ function toForm(c: Config): Form {
   return {
     mode: c.mode as Form['mode'], is_enabled: c.is_enabled, app_name: c.app_name ?? '', is_listed_in_directory: c.is_listed_in_directory,
     directory_name: c.directory_name ?? '', card_number_mode: c.card_number_mode as Form['card_number_mode'],
-    theme: { primary: c.theme.primary ?? null, accent: c.theme.accent ?? null }, features: c.features,
+    features: c.features,
     home_screen: c.home_screen ?? null, schedule: c.schedule,
   }
 }
@@ -93,8 +97,7 @@ function toForm(c: Config): Form {
 function TileEditor({ tiles, types, onChange }: { tiles: Tile[]; types: string[]; onChange: (t: Tile[]) => void }) {
   const move = (i: number, by: number) => {
     const next = [...tiles]
-    const [t] = next.splice(i, 1)
-    next.splice(i + by, 0, t!)
+    next.splice(i + by, 0, ...next.splice(i, 1))
     onChange(next)
   }
   const patch = (i: number, p: Partial<Tile>) => onChange(tiles.map((t, j) => (j === i ? { ...t, ...p } : t)))
@@ -121,6 +124,8 @@ function TileEditor({ tiles, types, onChange }: { tiles: Tile[]; types: string[]
 }
 
 function ConfigForm({ config, facility }: { config: Config; facility: string }) {
+  // shortcut: brand colours arrive with phase 11 chip A's /public/branding fields; untyped until that schema lands.
+  const brand = useBranding().data as Brand | undefined
   const qc = useQueryClient()
   const toast = useToast()
   const [form, setForm] = useState<Form>(() => toForm(config))
@@ -149,10 +154,7 @@ function ConfigForm({ config, facility }: { config: Config; facility: string }) 
           <div className="space-y-4">
             <Checkbox label="Use these settings in the member app" checked={form.is_enabled ?? false} onChange={(e) => set({ is_enabled: e.target.checked })} />
             <Input label="App name" hint={`Shown at the top of the app. Empty uses ${facility}.`} maxLength={60} value={form.app_name ?? ''} error={errors.app_name} onChange={(e) => set({ app_name: e.target.value })} />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Input label="Brand colour" hint="Like #1F6FEB. The app keeps text readable." value={form.theme?.primary ?? ''} error={errors['theme/primary'] ?? errors.primary} onChange={(e) => set({ theme: { ...form.theme, primary: e.target.value || null } })} />
-              <Input label="Accent colour" hint="Like #0E9384." value={form.theme?.accent ?? ''} error={errors['theme/accent'] ?? errors.accent} onChange={(e) => set({ theme: { ...form.theme, accent: e.target.value || null } })} />
-            </div>
+            <p className="text-sm text-muted">Colours and logo come from your account branding, the same as the online portal.</p>
           </div>
         </Card>
         <Card title="Facility search">
@@ -193,7 +195,7 @@ function ConfigForm({ config, facility }: { config: Config; facility: string }) 
         <Button type="submit" loading={save.isPending}>Save app settings</Button>
       </div>
       <div className="lg:sticky lg:top-4 lg:self-start">
-        <AppPreview form={form} facility={facility} />
+        <AppPreview form={form} facility={facility} brand={brand} />
       </div>
     </form>
   )
@@ -204,7 +206,7 @@ export function AppConfigPage() {
   const config = useQuery({ queryKey: ['engagement', 'app-config'], queryFn: () => api.get('/api/v1/app-config') })
   return (
     <>
-      <PageHeader title="Member app" description="Theme, home screen, schedule display and facility search for the member app, for every location." />
+      <PageHeader title="Member app" description="Home screen, schedule display and facility search for the member app, for every location." />
       {config.isPending ? <LoadingState /> : config.isError ? <ErrorState error={config.error} onRetry={() => config.refetch()} /> : (
         <ConfigForm config={config.data} facility={me.tenant.name} />
       )}

@@ -30,10 +30,10 @@ def test_defaults_until_saved_then_put_replaces_and_is_audited(client, tenant, o
     first = ok(client.get(f"{API}/app-config", headers=owner))
     assert (first["is_enabled"], first["home_screen"]) == (False, None)
     assert first["tile_types"] == list(rules.TILE_TYPES) and first["features"]["booking"] is True
-    body = {"is_enabled": True, "app_name": " Courtside ", "theme": {"primary": "#c2410c"}, "home_screen": LAYOUT,
+    body = {"is_enabled": True, "app_name": " Courtside ", "home_screen": LAYOUT,
             "schedule": {"shows_spots_left": False, "days_ahead": 14}}  # fmt: skip
     saved = ok(client.put(f"{API}/app-config", headers=owner, json=body))
-    assert (saved["app_name"], saved["theme"]["primary"]) == ("Courtside", "#C2410C")
+    assert saved["app_name"] == "Courtside" and "theme" not in saved
     assert saved["home_screen"]["tiles"][1] == {"type": "card", "caption": None, "style": "small"}
     assert saved["schedule"] == {"shows_spots_left": False, "shows_full_sessions": True, "days_ahead": 14}
     # PUT replaces: what is left out returns to its default.
@@ -50,7 +50,7 @@ def test_defaults_until_saved_then_put_replaces_and_is_audited(client, tenant, o
     [
         ({"home_screen": {"tiles": [{"type": "weather"}]}}, "/home_screen/tiles/0/type"),
         ({"home_screen": {"tiles": [{"type": "book", "caption": "<b>Hi</b>"}]}}, "/home_screen/tiles/0/caption"),
-        ({"theme": {"primary": "red"}}, "primary"),
+        ({"home_screen": {"tiles": [], "design": {"columns": 3}}}, "columns"),
     ],
 )
 def test_invalid_config_is_refused_with_a_pointer(client, owner, body, pointer):
@@ -70,14 +70,16 @@ def test_writes_need_the_key_at_every_location(client, tenant, owner):
 
 def test_public_bootstrap_keeps_bundled_theme_until_switched_on(client, tenant, owner):
     public = {"X-Tenant-Slug": tenant.slug}
-    ok(client.put(f"{API}/app-config", headers=owner, json={"theme": {"accent": "#0F766E"}, "home_screen": LAYOUT}))
+    ok(client.put(f"{API}/app-config", headers=owner, json={"home_screen": LAYOUT}))
     off = ok(client.get(f"{API}/public/app-config", headers=public))
     assert (off["home_screen"], off["app_name"]) == (None, off["portal"]["facility_name"])
     assert not any(off["theme"].values())
-    body = {"is_enabled": True, "app_name": "Club App", "theme": {"accent": "#0F766E"}, "home_screen": LAYOUT}
+    body = {"is_enabled": True, "app_name": "Club App", "home_screen": LAYOUT}
     ok(client.put(f"{API}/app-config", headers=owner, json=body))
     on = ok(client.get(f"{API}/public/app-config", headers=public))
-    assert (on["theme"]["accent"], on["app_name"], on["home_screen"]["design"]["columns"]) == ("#0F766E", "Club App", 1)
+    # Colours come from the tenant branding (one source with the portal), not from the app config.
+    assert set(on["theme"]) == {"primary", "accent"}
+    assert (on["app_name"], on["home_screen"]["design"]["columns"]) == ("Club App", 1)
     assert on["tenant_id"] == str(tenant.id) and "locations" in on["portal"]
     assert client.get(f"{API}/public/app-config", headers={"X-Tenant-Slug": "no-such-club"}).status_code == 404
 
@@ -105,6 +107,11 @@ def test_directory_lists_only_listed_tenants_with_a_public_portal(client, tenant
     # LIKE metacharacters are literal; one-letter queries are refused.
     assert ok(client.get(f"{API}/public/app-directory", params={"q": "%%"}))["data"] == []
     assert client.get(f"{API}/public/app-directory", params={"q": "z"}).status_code == 422
+    # The cross-tenant read enforces its own bounds too, whoever calls it.
+    from app.core.db import platform as platform_db
+
+    assert platform_db.search_app_directory(" z ", 5) == []
+    assert len(platform_db.search_app_directory("racquet", 500)) <= 20
 
 
 def test_schedule_flags_narrow_the_portal_listing(client, tenant, owner, mailbox):

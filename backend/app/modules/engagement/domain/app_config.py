@@ -1,8 +1,6 @@
-"""Pure rules for the member-app configuration (APP-01, APP-04, APP-05, APP-18): what a theme, a home layout,
-schedule flags and feature switches may hold. Each returns the cleaned value or raises Invalid(pointer, message).
+"""Pure rules for the member-app configuration (APP-01, APP-04, APP-05, APP-18): what a home layout, schedule
+flags and feature switches may hold. Each returns the cleaned value or raises Invalid(pointer, message).
 """
-
-import re
 
 # APP-05 tile catalogue. The app keeps the same list in mobile/src/lib/tiles.tsx; add a type in both (one line each).
 TILE_TYPES = (
@@ -18,7 +16,6 @@ MAX_TILES = 12
 MAX_CAPTION = 40
 FEATURES = ("booking", "purchases", "membership_card", "wallet_pass")
 DEFAULT_SCHEDULE = {"shows_spots_left": True, "shows_full_sessions": True, "days_ahead": None}
-_HEX = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
 class Invalid(ValueError):
@@ -34,15 +31,6 @@ def _only(value: object, keys: tuple[str, ...], pointer: str) -> dict:
     if extra:
         raise Invalid(f"{pointer}/{extra[0]}", "Unknown field.")
     return value
-
-
-def clean_theme(theme: dict) -> dict:
-    """Brand colours only; the app derives readable on-colours itself (mobile/src/lib/theme.ts)."""
-    theme = _only(theme, ("primary", "accent"), "/theme")
-    for key, value in theme.items():
-        if value is not None and (not isinstance(value, str) or not _HEX.match(value)):
-            raise Invalid(f"/theme/{key}", "Use a colour like #1F6FEB.")
-    return {k: v.upper() for k, v in theme.items() if v is not None}
 
 
 def clean_home_screen(layout: dict | None) -> dict | None:

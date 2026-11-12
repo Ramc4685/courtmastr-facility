@@ -90,6 +90,9 @@ def search_app_directory(prefix: str, limit: int) -> list[DirectoryRow]:
     """The shared app's facility search (APP-01): the one cross-tenant read. Only tenants that are active, whose
     app config is on and listed, and that have an enabled public portal location; the name or one of its words
     starts with `prefix`. Listing fields only. shortcut: first page only (limit <= 20), no cursor."""
+    prefix, limit = prefix.strip(), max(1, min(limit, 20))
+    if len(prefix) < 2:  # no listing of every facility through a one-letter query
+        return []
     escaped = prefix.lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     sql = """
         SELECT t.id, t.slug, coalesce(c.directory_name, t.name) AS name,
