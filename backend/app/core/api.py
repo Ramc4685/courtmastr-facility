@@ -234,7 +234,7 @@ class BodyLimitMiddleware:
     body. One small cap fits everything except the routes in UPLOAD_PATHS, which take file bytes up to
     storage.max_upload_bytes (security-baseline 8)."""
 
-    UPLOAD_PATHS = re.compile(r"^/api/v1/client-documents/[^/]+/paper-scan$")
+    UPLOAD_PATHS = re.compile(r"^/api/v1/(client-documents/[^/]+/paper-scan|import-jobs/[^/]+/source)$")
 
     def __init__(self, app) -> None:
         self.app = app

@@ -56,6 +56,7 @@ def bootstrap() -> None:
     from app.modules import (  # noqa: F401  (build modules 2, 3, 10, 11: same registration)
         access,
         assessments,
+        imports,  # noqa: F401  (phase 8 I1)
         leagues,
         programs,
         rentals,
