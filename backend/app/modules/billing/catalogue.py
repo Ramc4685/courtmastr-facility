@@ -273,6 +273,16 @@ def settings_for(session: Session, location_id: UUID | None = None) -> BillingSe
     return override or _settings_row(session, None, create=True)
 
 
+def membership_autopay_default(session: Session, location_id: UUID, *, channel: str, plan_default: bool | None) -> bool:
+    """BIL-17: whether a new membership is autopay when the sale does not say. The plan's own default wins;
+    a plan that leaves it open (null) follows the billing setting in force at the location for the sales
+    channel (`is_membership_autopay_default_portal` online, `..._staff` at the desk and anywhere else)."""
+    if plan_default is not None:
+        return plan_default
+    cfg = settings_for(session, location_id)
+    return cfg.is_membership_autopay_default_portal if channel == "portal" else cfg.is_membership_autopay_default_staff
+
+
 def get_settings(session: Session, principal: Principal, location_id: UUID | None) -> BillingSettings:
     if location_id is not None:
         platform.service.get_location(session, principal, location_id)

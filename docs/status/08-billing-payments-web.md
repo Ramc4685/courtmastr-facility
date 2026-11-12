@@ -17,8 +17,8 @@ invoicing, `axe` the WCAG sweep (all in `web/e2e/billing.spec.ts`). `TPD` is
 
 | Priority | Total | Done | Partial | Not built |
 |---|---|---|---|---|
-| P0 | 27 | 13 | 14 | 0 |
-| P1 | 12 | 1 | 5 | 6 |
+| P0 | 27 | 17 | 10 | 0 |
+| P1 | 12 | 4 | 4 | 4 |
 | P2 | 2 | 0 | 0 | 2 |
 | v2-adapter | 2 | 0 | 0 | 2 |
 
@@ -42,12 +42,12 @@ invoicing, `axe` the WCAG sweep (all in `web/e2e/billing.spec.ts`). `TPD` is
 | BIL-14 Pre-defined items | P0 | done | Billing > Pre-defined items (list, new, edit); Client billing > Items: Sell pre-defined item (price override behind its key), Pre-defined items sold with Cancel | `CatalogPage.test` (3), e2e `catalog.spec` (create, sell, cancel, axe) | Fixed-date start is not offered on the sell dialog (it starts on the chosen date). |
 | BIL-15 Coupons | P0 | done | Coupons page: create and edit (amount or percent, window in the browser's zone, caps), redemptions, delete with confirm; coupon code on Add item | axe | |
 | BIL-16 Billing preferences | P0 | done | Preferences page: every setting, tenant row or a location override (reset to tenant), period lock | axe; backend `test_closing_the_books...` (now with GET) | Added `GET /billing-settings/period-lock` so the screen can show the current lock. |
-| BIL-17 Autopay defaults and per-invoice flag | P0 | partial | Autopay checkbox on Edit invoice and bulk invoicing; autopay method toggle on Payment methods & autopay | backend only | Default resolution at sale is not built (backend gap). |
+| BIL-17 Autopay defaults and per-invoice flag | P0 | done | Autopay checkbox on Edit invoice and bulk invoicing; autopay method toggle on Payment methods & autopay; the membership sale dialog follows the resolved default | backend; e2e memberships | |
 | BIL-18 Post-billed package period close | P1 | not built | none | none | Belongs to `packages`. |
 | BIL-19 Accounts receivable report | P1 | partial | Receivables page (as-of date, location, totals, per-client buckets) | axe | No export. Ageing is by invoice due date (backend gap). |
-| BIL-20 Collections tagging and reports | P1 | not built | none | none | |
+| BIL-20 Collections tagging and reports | P1 | done | Billing > Collections (report, tags); Collections tab on the client's billing page | CollectionsPage.test, e2e collections | |
 | BIL-21 Client account credit | P0 | partial | Client billing > Account credit (apply to invoices, refund); overpayment note in Take payment | e2e1 (2.00 over goes to credit, then refunded) | Backend gaps carry over. |
-| BIL-22 Billing reminders and past-due enforcement | P0 | partial | No screen. The Autopay page says the daily job is not scheduled | backend only | `GET /billing-notices` has no screen yet. |
+| BIL-22 Billing reminders and past-due enforcement | P0 | done | Billing > Notices; Settings > portal-block hint | NoticesPage.test, e2e collections | The lockout is server-side; the portal shows the refusal message. |
 | BIL-23 Invoice API endpoints | P1 | partial | Invoice page > Mark paid | backend only | The public API v1 belongs to `integrations`. |
 | BIL-24 Outsourced billing and collections | P2 | not built | none | none | Not planned. |
 | PAY-01 Take payment and allocate | P0 | done | Take payment dialog (split tender, stored or new method, confirm authentication); Allocate dialog and release allocation on the payment page | TPD (6), e2e1, e2e2, axe | Payments post in order and stop at the first failure. Each row keeps its idempotency key through a lost answer or 5xx, and gets a new key after a decline or 4xx. |
@@ -56,8 +56,8 @@ invoicing, `axe` the WCAG sweep (all in `web/e2e/billing.spec.ts`). `TPD` is
 | PAY-04 Void payment | P0 | done | Payment page > Void (record-only tenders, reason) | backend only | |
 | PAY-05 Refunds | P0 | partial | Payment page > Refund (to the original method or as an external refund, reason); refund from account credit | e2e1 | Only unapplied money can be refunded; the dialog defaults to that amount. Backend gaps carry over. |
 | PAY-06 Stored payment methods | P0 | partial | Client billing > Payment methods & autopay (add a method, autopay toggle, remove, verify a bank account) | TPD (stored method use), axe | Methods are added through the provider-agnostic `PaymentMethodField`: scripted test methods for the fake processor. With Stripe, the Payment Element (`StripeCardField`) on a setup intent takes a card or a US bank account through Financial Connections. |
-| PAY-07 Card expiry notifications and report | P1 | partial | No expiring-cards screen | backend only | |
-| PAY-08 Decline notifications | P0 | partial | The decline message shows in Take payment and on the pay page; no notices screen | TPD, PLP, e2e2 | |
+| PAY-07 Card expiry notifications and report | P1 | done | Billing > Expiring cards | NoticesPage.test, e2e collections | |
+| PAY-08 Decline notifications | P0 | done | The decline message shows in Take payment and on the pay page; Billing > Notices lists every notice sent | TPD, PLP, e2e2, e2e collections | |
 | PAY-09 Autopay collection run | P0 | partial | Autopay page: runs, run now (dry-run preview, then run), attempts per run, error queue with retry and clear | axe (preview and error queue) | The daily job is not scheduled (backend gap). |
 | PAY-10 ACH / direct debit | P0 | partial | Bank debit tender in Take payment; micro-deposit verification on the methods tab | TPD (Stripe bank via setup intent) | Fake processor, or Stripe Financial Connections in Take payment and on the methods tab. |
 | PAY-11 Merchant processor integration | P0 | partial | Set-up > Processor (connect Stripe or, in development, the fake processor; onboarding link; disconnect) | axe | Stripe test mode works end to end with Elements card entry and signed webhooks (`docs/dev/stripe-test-mode.md`); never run against Stripe live. 3-D Secure: `PaymentAuthentication` runs Stripe's `handleNextAction` (or the fake processor's Approve or Fail) and then the screen's confirm route, in Take payment, the pay link and portal invoice pay (`e2e/card-entry.spec.ts`). Not built: platform application fee. |

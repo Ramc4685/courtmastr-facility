@@ -341,6 +341,7 @@ class BillingSettingsIn(In):
     program_description_source: Literal["group", "subgroup"] = "group"
     bill_to_fields: list[Literal["name", "organization", "address", "email", "phone"]] = ["name", "address"]
     package_invoice_sessions: Literal["all", "attended", "none"] = "all"
+    membership_suspend_after_days: Annotated[int, Field(ge=1, le=365)] | None = None
 
 
 class BillingSettingsOut(BillingSettingsIn, Out):
@@ -1246,3 +1247,63 @@ class CatalogItemSaleOut(Out):
     terms: dict
     charge_ids: list[UUID]
     invoice_ids: list[UUID]
+
+
+# --- collections (BIL-20), expiring cards (PAY-07); Phase 9 chip D ---------------------------------------
+
+
+class CollectionsTagCreate(In):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+    description: Text | None = None
+    is_active: bool = True
+
+
+class CollectionsTagUpdate(In):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)] | None = None
+    description: Text | None = None
+    is_active: bool | None = None
+
+
+class CollectionsTagOut(Out):
+    id: UUID
+    name: str
+    description: str | None
+    is_active: bool
+
+
+class CollectionsProfileIn(In):
+    collections_tag_id: UUID
+    placed_on: date | None = None
+    notes: Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)] | None = None
+
+
+class CollectionsProfileOut(Out):
+    client_id: UUID
+    collections_tag_id: UUID
+    placed_on: date
+    notes: str | None
+    updated_at: datetime
+
+
+class CollectionsReportRow(Out):
+    client_id: UUID
+    client_name: str
+    collections_tag_id: UUID
+    collections_tag_name: str
+    placed_on: date
+    notes: str | None
+    balance_minor: int
+    past_due_minor: int
+    oldest_past_due_on: date | None
+
+
+class ExpiringCardOut(Out):
+    id: UUID
+    client_id: UUID
+    client_name: str
+    brand: str | None
+    last4: str
+    exp_month: int
+    exp_year: int
+    is_autopay: bool
+    is_expired: bool

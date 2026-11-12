@@ -50,7 +50,7 @@ export function SellMembershipDialog({ client, replacing, onClose }: { client: C
     start_on: today,
     proration_tail: '',
     invoice_mode: '',
-    is_autopay: false,
+    is_autopay: null as boolean | null, // null: the plan's default, else the billing setting (BIL-17)
     is_auto_renew: true,
     internal_notes: '',
   })
@@ -80,6 +80,7 @@ export function SellMembershipDialog({ client, replacing, onClose }: { client: C
     enabled: Boolean(replacing),
     retry: false,
   })
+  const settings = useQuery({ queryKey: ['membership-settings'], queryFn: () => api.get('/api/v1/membership-settings'), retry: false })
   const sell = useMutation({
     mutationFn: async () => {
       if (replacing) {
@@ -107,6 +108,8 @@ export function SellMembershipDialog({ client, replacing, onClose }: { client: C
   })
   const errors = fieldErrors(sell.error)
   const q = quote.data
+  const autopay = form.is_autopay ?? q?.is_autopay ?? false
+  const capture = settings.data?.payment_method_capture
   return (
     <Dialog
       open
@@ -175,8 +178,18 @@ export function SellMembershipDialog({ client, replacing, onClose }: { client: C
         </div>
         <div className="flex flex-wrap gap-6">
           <Checkbox label="Renew automatically" checked={form.is_auto_renew} onChange={(e) => setForm({ ...form, is_auto_renew: e.target.checked })} />
-          <Checkbox label="Autopay" hint="Collected by the autopay run from the client's autopay method or account credit." checked={form.is_autopay} onChange={(e) => setForm({ ...form, is_autopay: e.target.checked })} />
+          <Checkbox
+            label="Autopay"
+            hint={capture === 'required' ? 'Needs a stored payment method: add one on the billing page first.' : "Collected by the autopay run from the client's autopay method or account credit."}
+            checked={autopay}
+            onChange={(e) => setForm({ ...form, is_autopay: e.target.checked })}
+          />
         </div>
+        {errors.is_autopay && (
+          <p role="alert" className="text-sm text-danger">
+            {errors.is_autopay}
+          </p>
+        )}
         {quote.error && <p className="text-sm text-danger">{quote.error.message}</p>}
         {q && (
           <section aria-label="Quote" className="space-y-3">

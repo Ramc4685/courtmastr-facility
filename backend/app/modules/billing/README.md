@@ -168,12 +168,42 @@ idempotent on the key the importer passes (the resolved client, as-of date, dire
 and say whether they posted (`created`). `take_payment` gained `audit_changes` (merged into its one audit row).
 `tax_ids_by_code` resolves tax codes without case.
 
+## Collections and dunning (Phase 9 chip D, `collections.py`)
+
+- **Collections (BIL-20).** Tenant-wide `collections_tag` (`/collections-tags`, `billing.collections_tag.manage`)
+  and one `client_collections_profile` per client (`/clients/{id}/collections-profile`: GET, PUT, DELETE;
+  `billing.collections.read` / `billing.collections.manage` at the client's home location). A tag that is
+  no longer in use cannot be given to a client (422), but a profile that already carries it keeps it.
+  `/collections-report` lists every client in collections with the tag, balance, past-due amount and oldest
+  past-due date, location-scoped through the client's home location.
+- **Portal lockout (BIL-22).** `core.auth.deps.add_client_guard` runs `_portal_guard` on every portal request.
+  A POST to one of `PORTAL_PURCHASE_ROUTES` (buying or booking) is refused with 403 `portal-past-due` when the
+  signed-in identity, or any client it acts for, is the payer of a past-due invoice at a location whose
+  setting `is_portal_blocked_when_past_due` is on. Paying, profile edits and documents stay open
+  (`test_portal_post_routes_are_each_locked_or_deliberately_open` classifies every portal POST).
+  Staff read every notice sent on `/billing-notices` (the Notices screen).
+- **Expiring cards (PAY-07).** `/expiring-cards?through=YYYY-MM` (default: next month), with an optional
+  `is_autopay` filter, lists stored cards that expire by then, expired ones included.
+- **Daily digest (PAY-08).** `send_billing_digest` emails staff, once per local day per location, the
+  autopay attempts that failed the previous local day and the autopay due today, when the location's
+  `decline_alert_mode` is `daily_digest`. It is deduped through `billing_notice` (`staff_decline_digest`).
+- **Autopay default (BIL-17).** A sale that does not say resolves autopay as: the plan's
+  `is_autopay_default` when set, else the billing setting for the sales channel (staff or portal).
+- **Non-payment suspension (MEM-14, owner decision Q13).** The billing setting
+  `membership_suspend_after_days` is off (null) by default. When set, memberships' daily job suspends a
+  contract whose invoice has been past due for that many days and lifts the suspension when the invoice is
+  paid or voided. Memberships reads billing through `collections.unpaid_past_due` and `still_owing`, and
+  reacts to `billing.invoice.paid` / `billing.invoice.voided`; billing never calls memberships.
+
 ## Jobs
 
 `webhooks.process_provider_event` (enqueued by the webhook route), `statements.run_statement_batch` (a batch
 of more than 25 recipients), `webhooks.billing_daily` (per tenant:
 `autopay.daily` then `webhooks.reconcile`). `app/scheduler.py` runs `billing_daily` hourly for every tenant;
 staff can also start an autopay run (`POST /autopay-runs`).
+
+`send_billing_digest` (hourly; sends once a local day, PAY-08) and memberships' `suspend_past_due_memberships`
+(hourly; MEM-14) are `@tenant_actor` lines in `app/scheduler.py`, both idempotent.
 
 `webhooks.retry_provider_events` (hourly through `app/scheduler.py`, Phase 9 chip C): per tenant, provider
 events stored but never processed (or failed fewer than `RETRY_ATTEMPTS` = 5 times) and older than a few
@@ -290,3 +320,23 @@ handlers re-read the object from the provider.
 - **Stripe bank accounts** are linked through Financial Connections on a setup intent; the browser never
   handles micro-deposit verification for a Stripe account that falls back to it (the fake's micro-deposit
   check still works). `attach_method` skips the attach call when the method is already on the customer.
+- **"N days past due" counts from detection (MEM-14).** `invoice.past_due_since_on` is stamped the day
+  billing's daily pass first sees the invoice overdue, so suspension comes N days after that, not N days
+  after the due date. One automatic suspension per contract and invoice, ever: once staff remove it, the
+  same invoice never suspends that contract again. Staff can still suspend by hand at any time.
+- **The portal lockout covers buying and booking only (BIL-22).** A locked client can still sign in, see
+  and pay invoices, edit their profile and sign documents; paying the past-due invoice unlocks at once.
+- **The digest's "previous day" is the location's local day,** and payments count by `received_at`.
+  The expiring-cards month is compared in UTC (cards carry a month, not a zone).
+- **Known limits of the non-payment rule and lockout (MEM-14, BIL-22).** A pending bank debit clears
+  `past_due_since_on` (in `service.py`, outside this chip), so a debit that keeps failing restarts
+  the N-day clock each time and unlocks the portal while it is pending. An invoice that reopens after an
+  automatic lift never suspends that contract again (one automatic suspension per contract and invoice).
+- **Online card save is not forced for autopay (MEM-05).** In `ask` and `when_nothing_due` an autopay
+  membership bought online with money due now keeps the card only when the member asks; otherwise its later
+  dues wait for a stored method and go through the decline notices. Saving means attaching the card before
+  the charge, and a charge on a card attached in the same transaction cannot get billing's pre-provider row
+  committed, so a processor timeout would not be recoverable on retry. The `always` mode accepts that limit.
+  The fix is saving after the charge in `checkout.py` (outside this chip).
+- **BIL-17 order replaces "portal always autopay".** Plans whose default was `false` became null in 1331,
+  so they follow the channel setting; a plan set to `false` explicitly still wins.
