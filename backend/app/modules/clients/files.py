@@ -101,7 +101,7 @@ def get_photo(session: Session, principal: Principal, client_id: UUID) -> tuple[
 
 
 def attachment_view(session: Session, row: ClientNoteAttachment) -> dict:
-    stored = session.get(StoredFile, row.stored_file_id)
+    stored = session.scalars(select(StoredFile).where(StoredFile.id == row.stored_file_id)).one()
     return {
         "id": row.id, "client_note_id": row.client_note_id, "file_name": stored.original_name,
         "content_type": stored.content_type, "size_bytes": stored.size_bytes, "created_at": row.created_at,
@@ -153,7 +153,7 @@ def add_attachment(
     note = activity._note(session, principal, note_id, "clients.activity.write")
     # lock the note so two concurrent uploads cannot both pass the count below
     session.execute(select(ClientNote.id).where(ClientNote.id == note.id).with_for_update())
-    count = session.scalar(select(func.count()).where(ClientNoteAttachment.client_note_id == note.id))
+    count = session.scalar(select(func.count()).where(ClientNoteAttachment.client_note_id == note.id)) or 0
     if count >= MAX_ATTACHMENTS_PER_NOTE:
         raise Conflict(f"A note takes at most {MAX_ATTACHMENTS_PER_NOTE} attachments.", code="too-many-attachments")
     cleaned, kind = files.clean(
