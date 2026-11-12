@@ -253,6 +253,7 @@ function SettingsTab() {
           is_drawer_session_required: f?.is_drawer_session_required,
           is_negative_stock_allowed: f?.is_negative_stock_allowed,
           low_stock_alert_email: f?.low_stock_alert_email || null,
+          receipt_footer: f?.receipt_footer?.trim() || null,
           allowed_networks: networks.split(/\s+/).filter(Boolean),
         },
       }),
@@ -281,7 +282,14 @@ function SettingsTab() {
         <Checkbox label="Allow stock to go below zero" checked={f.is_negative_stock_allowed} onChange={(ev) => setF({ ...f, is_negative_stock_allowed: ev.target.checked })} />
         <Input label="Low stock alert email" type="email" value={f.low_stock_alert_email ?? ''} error={e.low_stock_alert_email} onChange={(ev) => setF({ ...f, low_stock_alert_email: ev.target.value })} />
         <TextArea label="Allowed networks" value={networks} onChange={setNetworks} error={e.allowed_networks ?? Object.entries(e).find(([k]) => k.startsWith('allowed_networks'))?.[1]} hint="One address or range per line (for example 203.0.113.0/24). Empty: the register works from anywhere." />
-        <p className="text-sm text-muted">The receipt footer is shared with billing receipts and lives in billing preferences.</p>
+        <TextArea
+          label="Receipt footer"
+          value={f.receipt_footer ?? ''}
+          onChange={(v) => setF({ ...f, receipt_footer: v })}
+          error={e.receipt_footer}
+          hint={f.receipt_footer ? undefined : f.effective_receipt_footer ? `Empty: receipts print the billing footer ("${f.effective_receipt_footer}").` : 'Empty: receipts print the billing footer, if one is set.'}
+        />
+        <p className="text-sm text-muted">The low-stock digest goes once a day to the alert email, listing products at or below their reorder level.</p>
         <Button type="submit" loading={save.isPending}>
           Save settings
         </Button>

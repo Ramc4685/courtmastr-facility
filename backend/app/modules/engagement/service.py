@@ -52,6 +52,7 @@ TOPICS = {
     "push": ("push_announcements", "session_reminders", "league_alerts"),
 }
 MARKETING = frozenset({"email_campaigns", "sms_marketing", "push_announcements"})
+IMPLIED = frozenset({"implied_purchase", "implied_inquiry"})  # not consent for marketing in GDPR mode (PLT-16)
 
 
 def _addresses(session: Session, client) -> dict[str, list[str | None]]:
@@ -84,12 +85,16 @@ def preferences(session: Session, client) -> list[dict]:
 
 def _apply(session: Session, client, changes: list[dict], *, source: str, actor_type: str, actor_id, basis: str, note):
     current = _addresses(session, client)
+    gdpr = privacy.is_gdpr_mode(session)
     for index, change in enumerate(changes):
         channel, topic = change["channel"], change["topic"]
         address = change.get("address")
         address = address.lower() if address and channel == "email" else address
         if topic not in TOPICS[channel]:
             raise ValidationFailed("This topic is not sent on this channel.", pointer=f"/changes/{index}/topic")
+        if gdpr and change["is_subscribed"] and topic in MARKETING and basis in IMPLIED:
+            raise ValidationFailed("GDPR mode needs express consent for marketing.", pointer="/basis",
+                                   code="express-consent-required")  # fmt: skip
         if address not in [a.lower() if a and channel == "email" else a for a in current[channel]]:
             raise ValidationFailed("Not one of the client's addresses.", pointer=f"/changes/{index}/address")
         if (
@@ -152,8 +157,6 @@ def _portal_client(session: Session, principal: Principal, client_id: UUID):
         principal.kind != "client"
         or households.can_act_for(session, principal.identity_id, client_id, "consent") is None
     ):
-        from app.core.errors import NotFound  # noqa: PLC0415
-
         raise NotFound()
     return clients.get(session, client_id)
 
@@ -185,9 +188,12 @@ def is_subscribed(session: Session, client_id: UUID, channel: str, topic: str, a
             else CommunicationPreference.address == address,
         )  # fmt: skip
     )
-    if row is not None:
-        return row.is_subscribed
-    return topic not in MARKETING
+    if row is None:
+        return topic not in MARKETING
+    if row.is_subscribed and topic in MARKETING and privacy.is_gdpr_mode(session):
+        # An implied opt-in recorded before GDPR mode was switched on does not count (PLT-16).
+        return session.scalar(select(ConsentEvent.basis).where(ConsentEvent.id == row.consent_event_id)) not in IMPLIED
+    return row.is_subscribed
 
 
 # --- merge and erasure handlers ------------------------------------------------------------------------------
@@ -378,7 +384,12 @@ class _Notifier:
         if session.info.get("tenant_id") is None or session.info.get("actor") is None:
             send_after_commit(session, EmailMessage(to, subject, body))
             return
-        _deliver(session, category="transactional", topic=None, subject=subject, body=body, to_address=to)
+        row = _deliver(session, category="transactional", topic=None, subject=subject, body=body, to_address=to)
+        # Link the notice to its subject so erasure and export find it; a shared address stays unlinked.
+        # A staff address is operational mail (shifts, reminders, digests), never a client's record.
+        owners = [] if platform.service.is_staff_address(session, to) else clients.client_ids_for_address(session, to)
+        if row.client_id is None and len(owners) == 1:
+            row.client_id = owners[0]
 
 
 def install_notifier() -> None:
@@ -734,13 +745,20 @@ def _send_key(row: Campaign) -> str:
     return "engagement.push.send" if row.channel == "push" else "engagement.campaign.send"
 
 
+def _authorize_send(session: Session, principal: Principal, row: Campaign) -> None:
+    """PLT-06, after the channel's send key: an audience of every client (no filter) also needs send_all."""
+    audience = _audience_of(session, row)
+    if any(s["kind"] == "all_clients" for s in audience["sources"]) and not audience.get("filters"):
+        authorize(principal, "engagement.campaign.send_all", location_id=row.location_id)
+
+
 def send_campaign(session: Session, principal: Principal, campaign_id: UUID) -> Campaign:
     """Send now. Consent, suppression and verification are applied per recipient by _deliver."""
     row = _campaign(session, principal, campaign_id, "engagement.campaign.read", lock=True)
     authorize(principal, _send_key(row), location_id=row.location_id)
     if row.status not in ("draft", "scheduled"):
         raise Conflict("This campaign has already gone out.", code="campaign-not-editable")
-    _audience_of(session, row)
+    _authorize_send(session, principal, row)
     _fan_out(session, row)
     audit.record(session, _send_key(row), row, location_id=row.location_id, changes=audit.diff(row))
     session.flush()
@@ -754,7 +772,7 @@ def schedule_campaign(session: Session, principal: Principal, campaign_id: UUID,
         raise Conflict("This campaign has already gone out.", code="campaign-not-editable")
     if data["scheduled_at"] <= _now():
         raise ValidationFailed("Pick a time in the future.", pointer="/scheduled_at")
-    _audience_of(session, row)
+    _authorize_send(session, principal, row)
     row.status, row.scheduled_at = "scheduled", data["scheduled_at"]
     audit.record(session, _send_key(row), row, location_id=row.location_id, changes=audit.diff(row))
     session.flush()
@@ -1104,22 +1122,36 @@ def _identity_clients(session: Session, principal: Principal) -> list[UUID]:
     return clients.client_ids_for_identity(session, principal.identity_id)
 
 
-def list_portal_inbox(session: Session, principal: Principal, query: ListQuery) -> dict:
-    """Announcements and notices for the clients this login holds directly, newest first."""
+def _inbox_owner(session: Session, principal: Principal, client_id: UUID | None) -> UUID:
+    """Whose inbox to show: each item belongs to one recipient, so a login sees the acting-for client's items
+    only (default: its own record), never a merge of the household's."""
+    if client_id is not None:
+        return _portal_client(session, principal, client_id).id
     ids = _identity_clients(session, principal)
-    stmt = select(InboxItem).where(
-        InboxItem.client_id.in_(ids), InboxItem.recalled_at.is_(None), InboxItem.expires_at > _now()
-    )
+    if not ids:
+        raise NotFound()
+    return ids[0]
+
+
+def _live_items(owner: UUID):
+    return (InboxItem.client_id == owner, InboxItem.recalled_at.is_(None), InboxItem.expires_at > _now())
+
+
+def list_portal_inbox(session: Session, principal: Principal, query: ListQuery, client_id: UUID | None = None) -> dict:
+    """Announcements and notices for one client this login acts for, newest first."""
+    stmt = select(InboxItem).where(*_live_items(_inbox_owner(session, principal, client_id)))
     query.filters.pop("client_id", None)
     return paginate(session, stmt, query, id_column=InboxItem.id,
                     sort_fields={"published_at": InboxItem.published_at}, default_sort="-published_at")  # fmt: skip
 
 
 def mark_portal_inbox_read(session: Session, principal: Principal, item_id: UUID) -> InboxItem:
-    ids = _identity_clients(session, principal)
-    row = session.scalar(select(InboxItem).where(InboxItem.id == item_id, InboxItem.client_id.in_(ids)))
+    if principal.kind != "client":
+        raise NotFound()
+    row = session.scalar(select(InboxItem).where(InboxItem.id == item_id))
     if row is None or row.recalled_at is not None:
         raise NotFound()
+    _portal_client(session, principal, row.client_id)  # 404 unless the login may act for the recipient
     if row.read_at is None:
         row.read_at = _now()
         audit.record(session, "engagement.inbox.read", row, location_id=row.location_id, changes={"read": True})
@@ -1127,12 +1159,11 @@ def mark_portal_inbox_read(session: Session, principal: Principal, item_id: UUID
     return row
 
 
-def unread_count(session: Session, principal: Principal) -> int:
-    ids = _identity_clients(session, principal)
-    return int(session.scalar(select(func.count()).select_from(InboxItem).where(
-        InboxItem.client_id.in_(ids), InboxItem.read_at.is_(None), InboxItem.recalled_at.is_(None),
-        InboxItem.expires_at > _now(),
-    )) or 0)  # fmt: skip
+def unread_count(session: Session, principal: Principal, client_id: UUID | None = None) -> int:
+    owner = _inbox_owner(session, principal, client_id)
+    return int(session.scalar(
+        select(func.count()).select_from(InboxItem).where(*_live_items(owner), InboxItem.read_at.is_(None))
+    ) or 0)  # fmt: skip
 
 
 def register_portal_device(session: Session, principal: Principal, data: dict) -> DeviceRegistration:

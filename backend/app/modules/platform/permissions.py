@@ -19,6 +19,7 @@ register(
     _p("tenant.manage_subscription", T, "Manage the subscription", "OO"),
     _p("tenant.transfer_ownership", T, "Transfer ownership", "OO +"),
     _p("tenant.close", T, "Close the account", "OO D +"),
+    _p("tenant.export", T, "Export all of the account's data", "OO X +"),
     _p("location.create", T, "Add locations", "A", _AD),
     _p("location.update", L, "Edit location details and hours", "", _AD_MG),
     _p("location.archive", T, "Archive locations", "A D", _AD),
@@ -44,4 +45,5 @@ register(
     _p("data_subject_request.erase", T, "Erase a person's data", "G D OD +"),
     _p("import_job.read", T, "View imports", "", _AD_MG),
     _p("import_job.run", T, "Run imports", "D", _AD),
-)
+    _p("support_request.create", T, "Contact support", "", _AD_MG),
+)  # fmt: skip

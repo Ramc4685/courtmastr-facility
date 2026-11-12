@@ -188,6 +188,7 @@ Cells: `Y` granted (reach all), `own` granted with reach own, `-` not granted. O
 | `platform.tenant.manage_subscription` | T | OO | | - | - | - | - | - | - | - | PLT-14 |
 | `platform.tenant.transfer_ownership` | T | OO + | | - | - | - | - | - | - | - | PLT-11 |
 | `platform.tenant.close` | T | OO D + | | - | - | - | - | - | - | - | our design |
+| `platform.tenant.export` | T | OO X + | | - | - | - | - | - | - | - | IMP-04 (Phase 8 T2: the whole account as a zip) |
 | `platform.location.create` | T | A | | Y | - | - | - | - | - | - | PLT-01 |
 | `platform.location.update` | L | | | Y | Y | - | - | - | - | - | RES-01, RES-02, PLT-08 |
 | `platform.location.archive` | T | A D | | Y | - | - | - | - | - | - | PLT-01 |
@@ -213,6 +214,7 @@ Cells: `Y` granted (reach all), `own` granted with reach own, `-` not granted. O
 | `platform.data_subject_request.erase` | T | G D OD + | | - | - | - | - | - | - | - | IMP-04 (dedicated permission) |
 | `platform.import_job.read` | T | | | Y | Y | - | - | - | - | - | IMP-01 |
 | `platform.import_job.run` | T | D | | Y | - | - | - | - | - | - | IMP-01, IMP-02 |
+| `platform.support_request.create` | T | | | Y | Y | - | - | - | - | - | ONB-03 (Phase 8 T2: contact support, see one's own requests) |
 
 Impersonation is client-only and read-only: staff may open the portal as a client to see what the client
 sees; purchases, payment-method changes and document signing are blocked in that session. Rejected:
@@ -251,6 +253,7 @@ staff-as-staff impersonation (destroys attribution, which is the whole point of 
 | `scheduling.waitlist.manage` | L | | own | Y | Y | Y | own | - | - | - | CLS-06 |
 | `scheduling.registration_link.create` | L | | | Y | Y | Y | - | - | - | - | SCH-16 |
 | `scheduling.reservation_type.manage` | T | | | Y | Y | - | - | - | - | - | SCH-02, SCH-03, SCH-04, SCH-14, SSP-03 |
+| `scheduling.reservation_type.grant` | T | | | Y | Y | - | - | - | - | - | SCH-05 (staff allowed to book a type; empty = everyone) |
 | `scheduling.public_schedule.manage` | L | | | Y | Y | - | - | - | - | - | SCH-20 |
 
 - Double booking is not overridable by anyone: the hold exclusion constraint is the rule. `override_policy`
@@ -346,6 +349,7 @@ combined key. The reference sets "customize contract" per user only and Billing 
 | `packages.package.update` | L | P | | Y | Y | - | - | - | - | - | PKG-04, PKG-05 (extend expiry, renewal flag) |
 | `packages.package.share` | L | | | Y | Y | - | - | - | - | - | PKG-06, FAM-05 |
 | `packages.package.remove` | L | D | | Y | Y | - | - | - | - | - | PKG-13 |
+| `packages.package.remove_override` | L | D P | | Y | Y | - | - | - | - | - | PKG-13, question 16 (reverse the billing after sessions were used; reason required, audited) |
 | `packages.credit.adjust` | L | $ | | Y | Y | - | - | - | - | - | PKG-14 (manual ledger adjustment) |
 | `packages.period.close` | L | | | Y | Y | - | - | - | - | - | PKG-11, BIL-18 |
 | `packages.plan.manage` | T | | | Y | Y | - | - | - | - | - | PKG-01, PKG-03, PKG-10 |
@@ -451,11 +455,13 @@ gating of cart price/quantity edits": permission wins over the Classic preferenc
 | `access.checkin.read_full_details` | L | H | | Y | Y | - | - | - | - | - | CHK-02 ("Full Details on Check-in") |
 | `access.checkin.override_denial` | L | P | | Y | Y | - | - | - | - | - | CHK-08, CHK-21 |
 | `access.checkin.delete` | L | | | Y | Y | - | - | - | - | - | MEM-20 (restores a visit) |
+| `access.checkin.check_out` | L | | | Y | Y | Y | - | - | - | - | CHK-07 (check a client out) |
 | `access.credential.assign` | C | | | Y | Y | Y | - | - | - | - | CHK-11, CHK-12, MEM-19 |
 | `access.kiosk.launch` | L | | | Y | Y | Y | - | - | - | - | CHK-05 |
 | `access.kiosk.manage` | L | K | | Y | Y | - | - | - | - | - | CHK-05 (register and revoke devices) |
 | `access.rule.manage` | L | | | Y | Y | - | - | - | - | - | CHK-08, CHK-09, CHK-10, CHK-17 |
 | `access.settings.manage` | L | | | Y | Y | - | - | - | - | - | CHK-02, CHK-06, CHK-07, CHK-12 |
+| `access.client.set_access_mode` | C | P | | Y | Y | - | - | - | - | - | CHK-08 (always admit, always deny one client) |
 | `access.door.unlock` | L | P | | Y | Y | - | - | - | - | - | CHK-16 (simulated adapter in v1) |
 | `access.device.manage` | L | K | | Y | - | - | - | - | - | - | CHK-15, CHK-16 |
 
@@ -498,8 +504,8 @@ Without `read_full_details` the check-in window shows only the fields the locati
 | `staff.time_entry.read` | L | W | own | Y | Y | own | own | own | - | - | STF-07, REL-05 |
 | `staff.time_entry.manage` | L | W | | Y | Y | - | - | - | - | - | STF-08 |
 | `staff.shift.manage` | L | | | Y | Y | - | - | - | - | - | STF-15 |
-| `staff.pay_rate.read` | T | W | | Y | - | - | - | - | - | - | STF-02..STF-06 |
-| `staff.pay_rate.manage` | T | W | | Y | - | - | - | - | - | - | STF-02..STF-06 |
+| `staff.pay_rate.read` | T | W | | Y | - | - | - | - | - | - | STF-02..STF-06 (type pay rates, bonus rules) |
+| `staff.pay_rate.manage` | T | W | | Y | - | - | - | - | - | - | STF-02..STF-06 (type pay rates, bonus rules) |
 | `staff.pay_statement.read` | L | W | own | Y | - | own | own | - | - | - | STF-09, STF-10, STF-11 |
 | `staff.payroll_run.create` | L | W | | Y | - | - | - | - | - | - | STF-09 |
 | `staff.payroll_run.approve` | L | W + | | Y | - | - | - | - | - | - | STF-09 |
@@ -517,6 +523,7 @@ allow-list (STF-06, PLT-07).
 | `engagement.campaign.edit` | L | | | Y | Y | - | - | - | - | - | PLT-06 Editor, MKT-04, MKT-05, MKT-06, MKT-11 |
 | `engagement.campaign.create` | L | | | Y | Y | - | - | - | - | - | PLT-06 Publisher, MKT-03 |
 | `engagement.campaign.send` | L | B | | Y | Y | - | - | - | - | - | PLT-06 Publisher, MKT-09, MKT-12 |
+| `engagement.campaign.send_all` | L | B | | Y | Y | - | - | - | - | - | PLT-06 (Phase 8 T2: an unfiltered all-clients audience) |
 | `engagement.sms_campaign.send` | L | B | | Y | Y | - | - | - | - | - | MKT-15, MKT-23 |
 | `engagement.push.send` | L | B | | Y | Y | - | - | - | - | - | MKT-16, MKT-17, PLT-13 ("send notifications for this location") |
 | `engagement.message.send_direct` | C | | own | Y | Y | Y | own | Y | - | - | MKT-10 |
@@ -528,7 +535,8 @@ allow-list (STF-06, PLT-07).
 | `engagement.suppression.manage` | T | | | Y | - | - | - | - | - | - | MKT-08 (un-suppress is a compliance act) |
 
 PLT-06 levels map to key sets: Viewer = `read`; Editor = `read` + `edit`; Publisher = all four. The role editor
-presents them as one four-way control. Divergence from MKT-10: a single direct email needs only
+presents them as one four-way control. `send_all` (Phase 8 T2) is separate from the levels: a sender also needs it
+when the audience is every client of the location with no filter, so a role can send to segments only. Divergence from MKT-10: a single direct email needs only
 `send_direct`, not a campaign level.
 
 ### 6.16 assessments

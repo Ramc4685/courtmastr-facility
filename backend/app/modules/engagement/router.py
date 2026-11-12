@@ -401,16 +401,16 @@ def _inbox_item(row) -> dict:
 
 
 @router.get("/portal/inbox", response_model=s.Page[s.PortalInboxItem])
-def list_portal_inbox(query: Lists, ctx: Portal):
-    """Announcements and notices for the clients this login holds, newest first; recalled and expired items
-    are hidden."""
-    page = service.list_portal_inbox(ctx.session, ctx.principal, query)
+def list_portal_inbox(query: Lists, ctx: Portal, client_id: UUID | None = None):
+    """Announcements and notices for one client the login acts for (default: its own record), newest first;
+    recalled and expired items are hidden. Errors: 404 when the login may not act for client_id."""
+    page = service.list_portal_inbox(ctx.session, ctx.principal, query, client_id)
     return {"data": [_inbox_item(r) for r in page["data"]], "page": page["page"]}
 
 
 @router.get("/portal/inbox/unread-count", response_model=s.PortalUnreadCount)
-def get_portal_inbox_unread_count(ctx: Portal):
-    return {"unread": service.unread_count(ctx.session, ctx.principal)}
+def get_portal_inbox_unread_count(ctx: Portal, client_id: UUID | None = None):
+    return {"unread": service.unread_count(ctx.session, ctx.principal, client_id)}
 
 
 @router.post("/portal/inbox/{inbox_item_id}/read", response_model=s.PortalInboxItem)

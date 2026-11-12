@@ -12,12 +12,13 @@ scope, the audit trail read API and tenant onboarding. Calls no other context.
 | `rbac.py` | effective-permission resolution (system roles from code, custom roles from rows, overrides win) |
 | `permissions.py` | the 28 `platform.*` catalogue entries; a test diffs them against `rbac-matrix.md` 6.1 |
 | `retention.py` | hourly retention purges (`purge_expired`) and the dead-letter commands (`resolve_failed_job`) |
+| `entitlements.py`, `entitlements_router.py` | plans, feature and limit checks, `Me.entitlements`, the plan screen and operator plan routes (Phase 8 T1) |
 | `files.py`, `files_router.py` | stored files (security-baseline 8): checks, scan, store, read, load, remove, signed downloads, `purge_files` |
 
 Other contexts use `service`, `auth` and `staff` only, never the models.
 
 Not built yet (stubs in `docs/api/openapi-core.yaml`): OIDC, per-location networks
-(`/locations/{id}/networks`), entitlements and subscription, brand assets, imports, support access, audit
+(`/locations/{id}/networks`), subscription billing (`/tenant/subscription`), brand assets, imports, support access, audit
 export. API keys live in `integrations`, kiosk devices in `access`.
 
 ## Known gaps against the specs (acceptance pass, 2026-11-10)
@@ -28,7 +29,7 @@ Later modules must not assume these exist.
   5.1; deferred, see `docs/status/phase8-s1-signin.md`). No staff reset of another user's lost factor. Closed by
   S1: cookies and CSRF, per-identity and per-address rate limits, lockout, the common-password list and the staff
   IP allow-list. Closed by S2: TOTP MFA, step-up and baseline session lifetimes (sections below).
-- **Permissions:** subject-scoped grants are stored but not applied; `Me.entitlements` is always empty.
+- **Permissions:** subject-scoped grants are stored but not applied. `Me.entitlements` is filled since T1.
 - **Kernel:** no `import-linter` boundary contracts, no mypy. Scheduler, purges and dead
   letters: see "Jobs and retention" below. No `job_run` table yet (the once-per-local-day guard has no caller).
 - **Contract tests:** the committed snapshot and the generated web types are checked; Schemathesis is not in
@@ -101,8 +102,7 @@ bytes of purged rows and logs objects that have no row.
   `--profile scan` starts `clamav`. The adapter tests skip when they are not running.
 - **Deferred (assumptions written down):** the presigned direct-to-bucket upload, quarantine prefix and scan
   job of 8.1 (bytes still arrive in the request, under the 20 MiB body cap; `shortcut:` in `files.py`), the
-  `rejected` status, the 24-hour quarantine purge, fixed image renditions, a public URL for `public` files
-  (PLT-08 adds it with a bucket policy on `t/*/public/*`), and `nosniff` on the bucket origin (S3 cannot set it
+  `rejected` status, the 24-hour quarantine purge, fixed image renditions, and `nosniff` on the bucket origin (S3 cannot set it
   per object; the CDN or proxy in front of the bucket must add it). The orphan report only logs; nothing deletes
   an orphan, since it may be a store whose transaction has not committed yet.
 
@@ -278,6 +278,77 @@ in-process fake provider).
   worthless without the PKCE verifier and the client secret.
 - **Break-glass.** Password and magic-link sign-in stay available to every staff user, so an Owner can always
   sign in when a provider is down or misconfigured. "Require SSO for staff" is not built.
+
+## Plans and entitlements (Phase 8 chip T1: PLT-14, PLT-09, PLT-13)
+
+Entitlements only: **no charge, invoice or Stripe call is made for a tenant's plan here**. Billing the tenant
+for its subscription is later work.
+
+- **Where the data lives.** The plan catalogue is the global `subscription_plan` table (no RLS; fh_app has
+  SELECT; rows come from migration 1250, which upserts `essentials`, `growth` and `complete`). Each plan has
+  `features` (feature keys) and `limits` (limit key to count; a missing key is unlimited). The tenant's plan is
+  `tenant.subscription_plan_id`; its overrides are `tenant_entitlement` rows (tenant data, forced RLS):
+  a feature on or off (`is_enabled`), or a limit replaced (`limit_value`, null = unlimited), with `source`
+  (`addon`, `promo`, `flag`, `manual`) and `starts_on`/`ends_on` (inclusive, against `earliest_today`).
+- **Resolution** (`entitlements.resolve`, cached on the session): features = plan + rows turning one on - rows
+  turning one off (off wins); a limit = the most generous in-force row, else the plan. A tenant with no plan
+  resolves to `entitlements.default_plan` (`config/app.yaml`, default `complete`: everything, unlimited), which
+  is also what onboarding stores. The demo seed always puts the demo tenant on `complete`.
+- **Catalogues are code** (`FEATURES`, `LIMITS`): only keys something actually checks. Features: `api_access`
+  (API key creation, rotation and every API-key request), `branded_app` (member sign-in and refresh on the
+  mobile client). Limits: `locations` (active), `staff_users` (active, support users excluded), `clients`
+  (active; counter registered by `clients`), `app_users` (members with a live mobile session).
+- **Calls for other contexts:** `has_feature`, `require_feature` (403 `feature-not-in-plan`), `limit`,
+  `check_limit(session, key, current)` (409 `plan-limit-reached`, with `limit_key` and `limit`) and
+  `enforce_limit(session, key)`, which counts only when the key is capped. Internal (no principal).
+- **Enforced at:** `create_location`; `invite_staff_user` and `reactivate_staff_user`; `clients._create` (staff,
+  portal dependant and import all meet there) and `enable_client`; mobile sign-in for members
+  (`auth._admit_app_user`: feature, then the `app_users` cap, a member already signed in on another device is
+  not counted twice). Known limit: concurrent creates can overshoot a cap by one each (no lock).
+- **Feature flags (PLT-09)** are the same rows with `source = flag`; there is no second mechanism.
+- **Operator routes** (`X-Operator-Token`, 404 when unset or wrong, like `POST /operator/tenants`):
+  `GET /operator/plans`, `GET /operator/tenants/{id}/entitlements`, `PUT .../plan`, `POST .../entitlements`,
+  `DELETE .../entitlements/{id}`. Each runs in that tenant's session as the system actor `platform.operator`
+  and records `platform.tenant.manage_subscription` in its audit trail.
+- **Tenant read:** `GET /tenant/entitlements` under `platform.tenant.update` (Owner and Admin), web
+  Settings > Plan and usage. `Me.entitlements` (plan, features, limits) lets the web hide what the plan lacks
+  (the API keys tab today); members and kiosks see the features only, never usage counts.
+
+## Privacy, branding and onboarding (Phase 8 chip T2)
+
+- **Logos (PLT-08, `branding.py`).** One logo for the account and one per location (`logo` table), JPEG or PNG up
+  to 512 KiB, re-encoded by `files.clean` and stored `public=True` under `t/<tenant>/public/<file>`. `files.store`
+  refuses `public` for any purpose but `tenant_logo` and `location_logo`, so nothing else can land under that
+  prefix. The URL is `storage.public_base_url` + object key when a bucket or CDN serves the prefix, else
+  `GET /api/v1/public/objects/{key}` (anonymous; serves a ready logo whose key matches exactly, else 404).
+  **Bucket policy:** allow anonymous `GetObject` on `t/*/public/*` only; never list. `GET /public/branding`
+  (tenant from host or `X-Tenant-Slug`) feeds the staff sidebar and portal header. A replaced or removed logo's
+  file is purged. Gates: `tenant.update` for the account logo, `location.update` at that location for a
+  location's. Not built: logos inside emails (templates are plain text) and on invoice and receipt pages.
+- **GDPR mode (PLT-16, `privacy.py`).** `tenant.is_gdpr_mode`, read and set at `/privacy-settings`
+  (`security.manage`, audited). On: marketing consent must be express (engagement README), retention uses
+  `retention.gdpr_auth_session_days` / `gdpr_auth_token_days` (30 / 7), and every data-subject request shows
+  `due_at` (30 days after the request; computed in every mode) and `is_overdue`. The older, unused
+  `location.is_gdpr_mode` column is left in place (owner to confirm dropping it).
+- **Tenant export (IMP-04, `tenant_export.py`).** `POST /tenant-exports` (`tenant.export`, `OO X +`: Owner,
+  fresh step-up), one at a time. The chunked `run_tenant_export` job writes one CSV per tenant table (forced RLS
+  and readable by `fh_app`; split every 5,000 rows) plus `manifest.json` into a zip, stored through `files`
+  (purpose `tenant_export`), downloadable by a 5-minute signed URL (`/download-url`, audited) for
+  `retention.tenant_export_days` (7). The hourly `purge_expired_exports` removes the file and marks the row
+  `expired`. Left out: sign-in secrets and sessions, job plumbing, columns named like hashes, tokens, secrets or
+  credentials, binary columns, and file bytes (their `stored_file` rows are in). Cells that a spreadsheet would
+  run as formulas get a leading `'`. Shortcut: offset paging and the zip held on the row (`shortcut:` comment).
+- **Setup checklist (ONB-01, `onboarding.py`).** `GET /onboarding/checklist` (`tenant.update`) computes each step
+  from real rows on every read: location address, opening hours edited, resources, a second staff member, an
+  active payment provider account, a membership plan or program, a logo. Other contexts register their steps
+  from their `__init__` (`onboarding.register_step`; platform may not import them). Dismissal is per staff user
+  (`staff_user.preferences.onboarding_dismissed`, audited).
+- **Support requests (ONB-03).** `support_request.create` (Owner, Admin, Manager). A request (category,
+  message, optional screenshot uploaded first to `PUT /support-requests/screenshot`) is stored, emailed through
+  the notification port to `support.operator_email`, and listed only to its sender, who may close it. The
+  screenshot is not attached to the email (the port sends text); the operator sees "Screenshot stored: yes".
+  Not built: operator replies or status changes in the app, attachment of the screenshot, purge of screenshots
+  never attached to a request.
 
 ## Security hardening (wave 1, S-07)
 

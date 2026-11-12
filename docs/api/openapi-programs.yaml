@@ -5579,6 +5579,7 @@ paths:
       x-features: [MKT-16]
       security: [{clientSession: []}]
       parameters:
+      - {name: client_id, in: query, schema: {type: string, format: uuid}, description: 'The household member the login acts for; default its own record. 404 when it may not act for them.'}
       - {name: is_unread, in: query, schema: {type: boolean}}
       - {$ref: '#/components/parameters/Limit'}
       - {$ref: '#/components/parameters/Cursor'}

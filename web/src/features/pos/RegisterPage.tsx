@@ -13,6 +13,7 @@ import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { formatMoney, parseMoney, toMoneyInput } from '../billing/money'
 import { PaymentMethodField } from '../billing/PaymentMethodField'
 import { Money, StatusBadge, useCurrency, useLocationRef } from '../billing/shared'
+import { QuickClientDialog } from './QuickClientDialog'
 import { TENDER_STATUS, useRegisters, type Sale } from './shared'
 
 type Session = Schemas['RegisterSession']
@@ -411,6 +412,7 @@ function Cart({ onAbandoned, ...props }: CartProps) {
   const qc = useQueryClient()
   const { can } = useAuth()
   const [client, setClient] = useState<ClientSummary | null>(null)
+  const [quick, setQuick] = useState(false)
   const setClientOnSale = useMutation({
     mutationFn: (c: ClientSummary | null) => api.patch('/api/v1/pos-sales/{pos_sale_id}', { path: { pos_sale_id: sale.id }, body: { version: sale.version, client_id: c?.id ?? null } }),
     onSuccess: onSale,
@@ -450,7 +452,13 @@ function Cart({ onAbandoned, ...props }: CartProps) {
         ) : (
           <p className="text-sm text-muted">Walk-in sale</p>
         )}
+        {!sale.client_id && can('clients.client.create') && (
+          <Button variant="secondary" disabled={sale.tendered_minor > 0} onClick={() => setQuick(true)}>
+            New client
+          </Button>
+        )}
       </div>
+      {quick && <QuickClientDialog sale={sale} onSale={onSale} onClose={() => setQuick(false)} />}
       {sale.lines.length === 0 ? (
         <p className="text-sm text-muted">The cart is empty.</p>
       ) : (

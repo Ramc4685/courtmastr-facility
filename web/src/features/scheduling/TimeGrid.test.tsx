@@ -64,3 +64,25 @@ describe('TimeGrid', () => {
     expect(p.onMove).not.toHaveBeenCalled()
   })
 })
+
+describe('TimeGrid modes', () => {
+  it('without drag (move_enrollment) a press opens the booking and never moves it', () => {
+    const p = { onCreate: vi.fn(), onOpen: vi.fn(), onMove: vi.fn() }
+    render(<TimeGrid caption="Court schedule" columns={[column]} items={[item]} closed={[]} span={span} slot={15} canCreate={() => true} draggable={false} {...p} />)
+    const button = screen.getByRole('button', { name: /^Doubles/ })
+    expect(button).not.toHaveClass('cursor-grab')
+    fireEvent.pointerDown(button, { button: 0, pointerId: 4, clientX: 10, clientY: y(600) })
+    fireEvent.click(button)
+    expect(p.onOpen).toHaveBeenCalledTimes(1)
+    expect(p.onMove).not.toHaveBeenCalled()
+  })
+
+  it('select mode marks picked bookings as pressed, creates nothing and shades off-hours', () => {
+    const p = { onCreate: vi.fn(), onOpen: vi.fn(), onMove: vi.fn() }
+    const off = [{ columnKey: 'c1', start: 360, end: 540, label: 'Off hours', tone: 'off' as const }]
+    render(<TimeGrid caption="Court schedule" columns={[column]} items={[item]} closed={off} span={span} slot={15} canCreate={() => true} selected={new Set(['b1'])} {...p} />)
+    expect(screen.getByRole('button', { name: /^Doubles/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(document.querySelector('.cursor-crosshair')).toBeNull()
+    expect(screen.getByText('Off hours')).toHaveClass('text-muted')
+  })
+})

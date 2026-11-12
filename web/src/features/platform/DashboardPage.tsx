@@ -3,6 +3,7 @@ import { PLATFORM_NAV, UPCOMING_NAV } from '../../app/nav'
 import { Icon } from '../../components/Icon'
 import { Card, PageHeader } from '../../components/PageHeader'
 import { useAuth, useCurrentLocation, useMe } from '../../lib/auth'
+import { SetupChecklist } from './SetupChecklist'
 
 export function DashboardPage() {
   const me = useMe()
@@ -15,6 +16,7 @@ export function DashboardPage() {
   return (
     <>
       <PageHeader title={`Welcome, ${firstName}`} description={`${me.tenant.name} · ${location ? location.name : 'All locations'}`} />
+      <SetupChecklist />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {shortcuts.map((item) => (
           <Link

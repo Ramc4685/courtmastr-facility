@@ -23,6 +23,7 @@ from app.modules.billing.domain.money import net_amount, round_half_up, tax_amou
 from app.modules.billing.models import (
     Charge,
     ChargeTax,
+    Dispute,
     Invoice,
     LedgerEntry,
     LedgerTransaction,
@@ -135,8 +136,11 @@ def assert_books_agree(session) -> None:
     refunded = session.scalar(
         select(func.coalesce(func.sum(Refund.amount_minor), 0)).where(Refund.status == "succeeded")
     )
+    # An open dispute's money stays a liability (client_credit) parked in disputed_funds until it closes.
+    disputed = session.scalar(select(func.coalesce(func.sum(Dispute.amount_minor), 0)).where(Dispute.status == "open"))
     assert ledger.get("receivable", 0) == charged - applied_total
-    assert -ledger.get("client_credit", 0) == credit
+    assert -ledger.get("client_credit", 0) == credit + disputed
+    assert ledger.get("disputed_funds", 0) == disputed
     assert ledger.get("funds_received", 0) == settled - refunded
     assert -ledger.get("revenue", 0) == session.scalar(select(func.coalesce(func.sum(Charge.net_minor), 0)))
     assert -ledger.get("tax_payable", 0) == session.scalar(select(func.coalesce(func.sum(Charge.tax_minor), 0)))

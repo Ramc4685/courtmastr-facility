@@ -76,3 +76,12 @@ no scheduler): enqueue it daily per tenant after each location's `membership_ren
 - **API.** Path ids `membership_plan_id`, `membership_share_id`; GET operation ids start with get/list; small
   sub-resources return arrays; added `listUpcomingMembershipRenewals`, `repriceMembershipContract`.
 - A zero-priced sale has `invoice_mode = none` and no schedule rows (MEM-06 record-only membership).
+
+## Derived client alerts (CLI-20, phase 10 chip E)
+
+`GET /clients/{client_id}/system-alerts` (`client_alerts`) is staff only and gated on `clients.client.read`. Memberships is the lowest layer allowed to read billing and documents, so it owns these alerts. Each alert also needs its owner's read key:
+- `balance_due` (`billing.invoice.read`): the open balance plus uninvoiced charges; shown as danger when past due.
+- `membership_expiring` within 14 days, or `membership_expired` (`memberships.contract.read`).
+- `waiver_missing` (`documents.document.read`): only when the documents settings require a waiver for check-in or booking.
+
+"Today" is the client's home-location day. Assumption: 14 days counts as "expiring soon" (`EXPIRING_SOON_DAYS`).

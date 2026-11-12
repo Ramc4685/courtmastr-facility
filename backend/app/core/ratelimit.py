@@ -29,6 +29,9 @@ def _bucket(name: str) -> Bucket:
     return buckets.get(name) or buckets["default"]
 
 
+PREFIX = "rl"  # the test suite sets its own: lanes share one Redis and per-IP buckets are not tenant-scoped
+
+
 def hit(name: str, subject: str, response: Response | None = None, *, tenant: object = "-") -> None:
     """Count one request against `name` for `subject` (an IP, an email, an identity). Over the limit: 429 with
     Retry-After. Within it: RateLimit-* headers on `response`. Subjects are hashed: no addresses in Redis."""
@@ -38,7 +41,7 @@ def hit(name: str, subject: str, response: Response | None = None, *, tenant: ob
     now = clock.now().timestamp()
     window = int(now // bucket.window_sec)
     reset = max(int(bucket.window_sec - now % bucket.window_sec), 1)
-    key = f"rl:{tenant}:{name}:{digest(subject.lower())[:32]}:{window}"
+    key = f"{PREFIX}:{tenant}:{name}:{digest(subject.lower())[:32]}:{window}"
     try:
         pipe = _redis().pipeline()
         pipe.incr(key)

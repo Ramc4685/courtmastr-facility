@@ -7,14 +7,16 @@ import { Table, useKeysetQuery } from '../../components/Table'
 import { useToast } from '../../components/Toast'
 import { formatDateTime } from '../../lib/format'
 import { PortalPage } from './PortalApp'
+import { usePortal } from './shared'
 
 type Item = Schemas['PortalInboxItem']
 
-/** Unread count for the nav badge; the count covers every client this login holds. */
-export const useUnreadCount = () => useQuery({ queryKey: ['portal', 'inbox', 'unread'], queryFn: () => api.get('/api/v1/portal/inbox/unread-count'), staleTime: 30_000 })
+/** Unread count for the nav badge: the acting-for member's inbox only (each item belongs to one recipient). */
+export const useUnreadCount = (clientId: string) =>
+  useQuery({ queryKey: ['portal', 'inbox', 'unread', clientId], queryFn: () => api.get('/api/v1/portal/inbox/unread-count', { query: { client_id: clientId } }), staleTime: 30_000 })
 
 export function InboxBadge() {
-  const unread = useUnreadCount().data?.unread ?? 0
+  const unread = useUnreadCount(usePortal().actingFor.id).data?.unread ?? 0
   if (!unread) return null
   return (
     <span className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-on-primary">
@@ -30,7 +32,8 @@ const safeLink = (url: string | null | undefined) => (url && /^https?:\/\//i.tes
 export function InboxPage() {
   const qc = useQueryClient()
   const toast = useToast()
-  const paging = useKeysetQuery(['portal', 'inbox', 'list'], (cursor) => api.get('/api/v1/portal/inbox', { query: { cursor, limit: 25 } }))
+  const { actingFor } = usePortal()
+  const paging = useKeysetQuery(['portal', 'inbox', 'list', actingFor.id], (cursor) => api.get('/api/v1/portal/inbox', { query: { client_id: actingFor.id, cursor, limit: 25 } }))
   const read = useMutation({
     mutationFn: (i: Item) => api.post('/api/v1/portal/inbox/{inbox_item_id}/read', { path: { inbox_item_id: i.id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['portal', 'inbox'] }),

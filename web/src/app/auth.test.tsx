@@ -19,7 +19,7 @@ const me = (permissions: string[], kind = 'staff') => ({
   has_all_location_access: false,
   locations: [{ id: 'l1', name: 'Courtside Downtown', slug: 'downtown', time_zone: 'America/Chicago' }],
   primary_location_id: 'l1',
-  entitlements: [],
+  entitlements: { plan: { code: 'complete', name: 'Complete' }, features: ['api_access', 'branded_app'], limits: [] },
 })
 const staffPage = { data: [{ id: 's2', identity_id: 'i2', email: 'olivia@example.com', first_name: 'Olivia', last_name: 'Owner', mobile_phone: null, role: { id: 'r0', name: 'Owner' }, identity_status: 'active', is_active: true, has_all_location_access: true, location_ids: [], primary_location_id: null, linked_resource_id: null, is_attendance_notified: false, ip_policy: 'any', access_expires_on: null, has_permission_overrides: false, last_sign_in_at: null, created_at: '2026-11-10T00:00:00Z' }], page: { next_cursor: null, has_more: false } }
 const unauthenticated = { status: 401, body: { code: 'unauthenticated' } }

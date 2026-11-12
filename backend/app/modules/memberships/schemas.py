@@ -589,3 +589,11 @@ class ContractHistoryOut(Out):
     actor_label: str
     changes: dict[str, Any]
     reason: str | None
+
+
+class SystemAlertOut(Out):
+    code: Literal["balance_due", "membership_expiring", "membership_expired", "waiver_missing"]
+    severity: Literal["warning", "danger"]
+    message: str
+    on: date | None
+    amount_minor: int | None

@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { api, type Schemas } from '../../api/client'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
-import { SeriesScopeDialog, type ScopeMode } from './parts'
+import { SeriesScopeDialog, warningText, type ScopeMode } from './parts'
 import { conflictsOf } from './queries'
 import { hhmm, zoned } from './time'
 
@@ -32,8 +32,8 @@ export function useMove(timeZone: string, onDone?: () => void) {
   const move = useMutation({
     mutationFn: async ({ t, mode, skip }: { t: MoveTarget; mode: ScopeMode; skip: boolean }) => {
       if (mode === 'this') {
-        await api.post('/api/v1/bookings/{booking_id}/reschedule', { path: { booking_id: t.bookingId }, body: { starts_at: t.startsAt, ends_at: t.endsAt, resources: t.resources, version: t.version, override_policy: false } })
-        return null
+        const moved = await api.post('/api/v1/bookings/{booking_id}/reschedule', { path: { booking_id: t.bookingId }, body: { starts_at: t.startsAt, ends_at: t.endsAt, resources: t.resources, version: t.version, override_policy: false } })
+        return { warnings: moved.warnings }
       }
       const start = zoned(t.startsAt, timeZone)
       const r = await api.post('/api/v1/booking-series/{booking_series_id}/edits', {
@@ -50,12 +50,12 @@ export function useMove(timeZone: string, onDone?: () => void) {
           preview: false,
         },
       })
-      return r
+      return { ...r, warnings: [] }
     },
     onSuccess: (r, { t }) => {
       void qc.invalidateQueries({ queryKey: ['calendar'] })
       void qc.invalidateQueries({ queryKey: ['booking'] })
-      toast('success', r ? `${r.affected_count} occurrences moved${r.conflict_count ? `, ${r.conflict_count} skipped for conflicts` : ''}.` : `${t.title} moved.`)
+      toast('success', ('affected_count' in r ? `${r.affected_count} occurrences moved${r.conflict_count ? `, ${r.conflict_count} skipped for conflicts` : ''}.` : `${t.title} moved.`) + warningText(r.warnings))
       setPending(null)
       onDone?.()
     },
@@ -74,7 +74,7 @@ export function useMove(timeZone: string, onDone?: () => void) {
       allowSeries={can('scheduling.booking.update_series')}
       busy={move.isPending}
       onClose={() => setPending(null)}
-      onConfirm={(mode, skip) => move.mutate({ t: pending, mode, skip })}
+      onConfirm={(scope, skip) => move.mutate({ t: pending, mode: scope.mode, skip })}
     />
   )
   return { start, dialog, error: move.error, conflicts: conflictsOf(move.error), busy: move.isPending, reset: move.reset }

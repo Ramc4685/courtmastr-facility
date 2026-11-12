@@ -169,6 +169,7 @@ module = [
     "app.modules.reporting.service",
     "app.modules.resources.service",
     "app.modules.scheduling.domain.recurrence",
+    "app.modules.scheduling.offers",
     "app.modules.scheduling.service",
     "app.modules.scheduling.subject",
     "app.modules.staff.service",

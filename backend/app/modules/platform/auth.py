@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from urllib.parse import quote
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import exists, select, update
 from sqlalchemy.orm import Session
 
 from app.core import audit, clock, context, events, networks
@@ -14,7 +14,7 @@ from app.core.auth import Principal, passwords, tokens
 from app.core.auth.permissions import require_elevated
 from app.core.errors import NotFound, PermissionDenied, Unauthenticated, ValidationFailed
 from app.core.settings import get_settings
-from app.modules.platform import mfa, rbac
+from app.modules.platform import entitlements, mfa, rbac
 from app.modules.platform.events import IdentityLocked
 from app.modules.platform.models import (
     AuthSession,
@@ -138,6 +138,8 @@ def _start_session(
     and a rotating refresh token. `elevated`: the credential just checked satisfies step-up for 10 minutes.
     `absolute_expires_at`: a rotation (step-up) keeps the original absolute limit."""
     cfg = get_settings().auth
+    if client_kind == "mobile" and identity.kind == "client":
+        _admit_app_user(session, identity)
     idle_for, absolute_for = _lifetime(session, identity, client_kind)
     now = clock.now()
     absolute = absolute_expires_at or now + absolute_for
@@ -164,6 +166,18 @@ def _start_session(
     check_ip_allowlist(session, grant.principal)
     identity.last_sign_in_at = now
     return grant
+
+
+def _admit_app_user(session: Session, identity: Identity) -> None:
+    """PLT-13: members sign in to the mobile app only on a plan with the branded app, and a capped plan counts
+    members with a live app session; one already signed in on another device is not counted twice."""
+    entitlements.require_feature(session, "branded_app")
+    if entitlements.limit(session, "app_users") is None:
+        return
+    if not session.scalar(
+        select(exists().where(entitlements.live_app_session(), AuthSession.identity_id == identity.id))
+    ):
+        entitlements.enforce_limit(session, "app_users")
 
 
 def verify_csrf(session: Session, principal: Principal, header: str) -> bool:
@@ -524,6 +538,8 @@ def refresh(session: Session, *, refresh_token: str) -> Grant:
     principal = _principal_for(session, identity, row.id) if identity.status == "active" else None
     if principal is None:
         raise Unauthenticated("Your session has ended. Sign in again.", code="session-revoked")
+    if row.kind == "mobile" and identity.kind == "client":
+        entitlements.require_feature(session, "branded_app")  # removing the add-on ends app sessions here
     access, row.access_token_hash = tokens.mint("fhs", row.tenant_id)
     row.previous_refresh_token_hash, row.refresh_rotated_at = row.refresh_token_hash, now
     refresh_token, row.refresh_token_hash = tokens.mint("fhr", row.tenant_id)

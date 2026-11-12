@@ -20,7 +20,7 @@ const me = {
   has_all_location_access: true,
   locations: [{ id: 'l1', name: 'Courtside Downtown', slug: 'downtown', time_zone: 'America/Chicago' }],
   primary_location_id: 'l1',
-  entitlements: [],
+  entitlements: { plan: { code: 'complete', name: 'Complete' }, features: ['api_access', 'branded_app'], limits: [] },
 }
 const unauthenticated = { status: 401, body: { code: 'unauthenticated' } }
 const challenge = (enrolment_required: boolean) => ({ status: 202, body: { mfa_token: 'fhm_x', expires_at: '2026-11-11T12:05:00Z', enrolment_required } })

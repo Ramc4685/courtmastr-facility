@@ -125,6 +125,31 @@ Playwright helpers that read cookies by name must use the shared sign-in helper.
 | 2026-11-11 | gate after K1 + K2 | lint clean; 3,854 backend tests passed, coverage 93%; web-check clean; web-test 134 passed on rerun (first run: the known `auth.test.tsx` timing flake under load); no OpenAPI drift | `e020a85` |
 | 2026-11-11 | S1 | merged `b29db43` (chip `b97291f` to `7c17046`); migration 1220 re-pointed onto 1211, down and up clean | `7c17046` |
 | 2026-11-11 | gate after K1 + K2 + S1 | lint clean; 4,191 backend tests passed, coverage 93%; web-check clean; web-test 137 passed; no OpenAPI drift. `make web-e2e` not rerun after the merge (S1 alone: 29 of 32, three failures it attributes to causes outside S1) | `b29db43` |
+| 2026-11-11 | K3 | merged `2a475ce` and `b9f2d07` (chip `43958e4` to `23c826a`); no migration; mypy, import-linter, Schemathesis, oasdiff in `make` and CI | `23c826a` |
+| 2026-11-11 | S2 | merged `b5dd352`; security review (no bypass; 1 high, 3 medium, 3 low) fixed and merged `d4c1415` (chip `ad95da1` to `8e8f4b7`); migrations 1230, 1231 | `8e8f4b7` |
+| 2026-11-11 | O1 | merged `50aa1ed`; ops review (4 required, 3 smaller) fixed and merged `ac21204` (chip `76fbd5e` to `26ddafa`); no migration; nothing deployed | `26ddafa` |
+| 2026-11-11 | gate after batch 2 | lint, typecheck, boundaries clean; 1220 to 1231 down and up clean; 4,290 backend tests passed (796 skipped are the Schemathesis sample, 1 xfail), domain coverage 93%; web-check clean; web-test 147 passed; no OpenAPI drift. `make web-e2e` not rerun | `ac21204` |
+| 2026-11-11 | T1, T2, S3 | started as background agents on Opus (the app refused new sessions on a Remote Control turn), each in its own worktree cut from `ac21204` | |
+| 2026-11-11 | T1 | merged `872f558` (chip `b953226` to `4815b0b`); migration 1250; chip lane gate green, phase gate not rerun yet | `4815b0b` |
+| 2026-11-11 | S3 | built (`11cab48`), held out: two security reviews found an Admin-to-Owner takeover through a tenant-configured issuer; fixes with the builder; merge only after a re-review | |
+| 2026-11-11 | I1 | started (background agent, Opus) | |
+
+Decisions relayed by the top coordinator on 2026-11-11 under the owner's blanket approval (assumptions until the
+owner says otherwise): (1) remove the Owner and Admin bypass of the staff IP allow-list; (2) build "Owner or
+Admin resets another user's lost authenticator" in this phase, behind step-up, audited, with an email to the
+affected user; (3) T1's plan names and limits (Essentials, Growth, Complete) are placeholders, to be marked so
+in the platform README; (4) no staff-seat metering for now: keep the hook (`entitlements` limit key
+`staff_users`), do not enforce it; (5) if S3 is not closed and re-reviewed when everything else is ready, hand
+over without it and list it as pending. Items 1 to 4 are chip S4 (follow-ups), queued behind the three running
+builders.
+
+Open from batch 2: six unbounded `sort_order` fields return 500 (K3 `KNOWN_FAILURES`; fix in D1 or hand to the
+owning phases); eight boundary breaches listed in `ignore_imports` need an owner decision each (K3 note); mypy
+debt lists in `pyproject.toml`; rbac-matrix says 15 minutes and 401 for step-up, the code does 10 minutes and
+403 (D1 updates the matrix); Owner or Admin reset of another user's lost factor, member-portal MFA screen and
+mobile handling of the MFA challenge are deferred (S2 note); staff sign-in declaring `client_kind: mobile` gets
+mobile lifetimes (documented limit); O1's strict CSP not yet checked in a real browser; backup archives are
+encrypted but not signed (accepted, O1 note).
 
 Follow-ups from batch 1, each assigned: purge of expired report result bytes through `files.remove` (T2);
 flaky `auth.test.tsx` redirect test and the scheduling 1,500-occurrence timing test under load (K3);

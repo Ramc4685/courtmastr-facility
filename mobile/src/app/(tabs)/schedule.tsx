@@ -16,7 +16,7 @@ const DAY = 86_400_000;
 const ELIGIBILITY: Record<SessionListing['eligibility'], { label: string; tone: 'success' | 'warning' | 'danger' | 'neutral' | 'brand' }> = {
   bookable: { label: 'Open', tone: 'success' },
   already_booked: { label: 'Booked', tone: 'brand' },
-  needs_purchase: { label: 'Needs a package', tone: 'warning' },
+  needs_purchase: { label: 'Members only', tone: 'warning' },
   full_waitlist: { label: 'Waitlist', tone: 'warning' },
   full: { label: 'Full', tone: 'danger' },
   closed: { label: 'Closed', tone: 'neutral' },
@@ -97,7 +97,12 @@ export default function Schedule() {
                 {s.spots_left !== null ? ` · ${s.spots_left} spot${s.spots_left === 1 ? '' : 's'} left` : ''}
               </Small>
               {s.eligibility === 'bookable' && (
-                <Button compact label="Book" onPress={() => book.mutate(s.session_id)} loading={book.isPending && book.variables === s.session_id} />
+                <Button
+                  compact
+                  label={s.eligible_client_package_ids.length ? 'Book with package' : 'Book'}
+                  onPress={() => book.mutate({ sessionId: s.session_id, clientPackageId: s.eligible_client_package_ids[0] })}
+                  loading={book.isPending && book.variables?.sessionId === s.session_id}
+                />
               )}
               {s.my_enrollment_id && (
                 <Button compact variant="danger" label="Cancel booking" onPress={() => confirmCancel(s)} loading={cancel.isPending && cancel.variables === s.my_enrollment_id} />

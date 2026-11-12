@@ -20,7 +20,7 @@ const me = {
   has_all_location_access: true,
   locations: [{ id: 'l1', name: 'Courtside Downtown', slug: 'downtown', time_zone: 'America/Chicago' }],
   primary_location_id: 'l1',
-  entitlements: [],
+  entitlements: { plan: { code: 'complete', name: 'Complete' }, features: ['api_access', 'branded_app'], limits: [] },
 }
 
 function renderPage(patch: (body: { staff_ip_allowlist: string[] }) => { status: number; body?: unknown }) {

@@ -72,3 +72,12 @@ unconditionally; the 120 s wall-clock budget runs only with `FH_PERF=1`.
 
 The long `make contract` sweep at 25 examples was not run. `make web-e2e` was not run in full and the contrast flag is
 unresolved (above). The full `make test` and 80% coverage result is appended below when measured.
+
+## Gate (2026-11-11, lane `fh_k3`)
+
+`make lint`, `make typecheck`, `make boundaries`, `make api-diff`, `make web-check`: green. `make web-test`: 137 passed.
+`make test`: 4,206 passed, 788 skipped (the Schemathesis sample), 1 xfailed, in 40 minutes under machine load; 3
+failures and 13 errors came from two environment causes and pass on rerun: Postgres restarted mid-run ("database
+system is starting up", 13 errors and two failures), and the lane `.env` copied from the main checkout carried a
+Stripe key, which `test_stripe` forbids (removed from the lane copy). Total line coverage 94%. The separate 80%
+domain-coverage gate line was not read out of that run; not independently confirmed.

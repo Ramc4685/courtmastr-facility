@@ -14,6 +14,7 @@ export const RUN_STATUS: Record<string, [string, Tone]> = {
   draft: ['Draft', 'neutral'], calculating: ['Calculating', 'info'], calculated: ['Ready to review', 'warning'],
   finalized: ['Finalized', 'success'], voided: ['Voided', 'neutral'],
 }
+export const VARIANCE_STATE: Record<string, [string, Tone]> = { upcoming: ['Upcoming', 'neutral'], no_show: ['No show', 'danger'], short: ['Short', 'warning'], met: ['Covered', 'success'] }
 export const SHIFT_STATUS: Record<string, [string, Tone]> = { draft: ['Draft', 'neutral'], published: ['Published', 'success'], cancelled: ['Cancelled', 'neutral'] }
 
 // Reference lists: one page of 200 covers them. shortcut: no paging past 200, add it when a tenant gets close.

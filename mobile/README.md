@@ -7,17 +7,27 @@ runtime and themes itself per tenant (ADR 0006). Status per parity feature: `doc
 
 ```
 make mobile-install          # once; Node 22 + pnpm
-make up lane-db seed api     # backend on FH_API_PORT (this lane uses 8150)
-cp mobile/.env.example mobile/.env.local   # EXPO_PUBLIC_API_ORIGIN must match FH_API_PORT
+make up lane-db seed api     # backend on FH_API_PORT (repo .env; default 8100)
+cp mobile/.env.example mobile/.env.local   # set EXPO_PUBLIC_API_ORIGIN to http://localhost:<FH_API_PORT>
 make mobile                  # then press i (installs Expo Go in the booted simulator)
 ```
 
 If `i` times out opening the simulator: `xcrun simctl launch booted host.exp.Exponent`, then
-`xcrun simctl openurl booted exp://localhost:8081` (use the Metro port it prints). On a physical phone with
-Expo Go, scan the QR code and set `EXPO_PUBLIC_API_ORIGIN` to your machine's LAN address.
+`xcrun simctl openurl booted exp://localhost:8081` (use the Metro port it prints). The simulator reaches the
+host's `localhost` directly. On a physical phone with Expo Go, scan the QR code and set
+`EXPO_PUBLIC_API_ORIGIN` to your machine's LAN address.
 
-Sign in with a seeded member (`docs/dev/demo-accounts.md`), for example `member@courtside-demo.example.com`.
-Biometric unlock and push need a development build (`eas build --profile development`); Expo Go limits push.
+Enter the facility code `courtside-demo`, then sign in with a seeded member (`docs/dev/demo-accounts.md`),
+for example `member@courtside-demo.example.com`. Biometric unlock and push need a development build
+(`eas build --profile development`); Expo Go limits push.
+
+## How the app reaches a tenant
+
+The browser portal finds the tenant from the Host (`courtside-demo.localhost`). iOS does not resolve
+`*.localhost`, so in development the app calls `EXPO_PUBLIC_API_ORIGIN` and sends `X-Tenant-Slug: <slug>`,
+which `public_session` accepts for the public routes (facility lookup, sign-in, magic link). After sign-in the
+tenant comes from the access token. With `EXPO_PUBLIC_PLATFORM_DOMAIN` set, requests go to
+`https://<slug>.<domain>/api/v1` instead, the production shape (`src/lib/config.ts`, `tenantBase`).
 
 ## Configuration (`.env.local`, never secrets)
 
@@ -25,18 +35,23 @@ Biometric unlock and push need a development build (`eas build --profile develop
 |---|---|
 | `EXPO_PUBLIC_API_ORIGIN` | API origin in development; the tenant travels in `X-Tenant-Slug`. |
 | `EXPO_PUBLIC_PLATFORM_DOMAIN` | When set, requests go to `https://<slug>.<domain>` instead (production shape). |
-| `EXPO_PUBLIC_PORTAL_ADAPTER` | `demo` (default) or `api`. See below. |
+| `EXPO_PUBLIC_PORTAL_ADAPTER` | `api` (default) or `demo`. See below. |
 
 ## Real API vs demo adapter
 
-Facility lookup, sign-in (password and magic link), refresh, sign-out, `/me`, signed-in devices and facility
-hours call the real API on this branch. Household, card, schedule, booking, memberships, packages, invoices,
-payments, inbox and push registration go through `src/adapters/` because those endpoints are not merged yet.
-Of those, household (`/portal/clients`), memberships, packages, invoices, payment methods and paying are now
-on main; `api.ts` maps them from `backend/openapi.json` (unit-tested, not yet run against a live server). The
-rest targets the planned operations in `docs/api/openapi-*.yaml`; `demo.ts` is an in-memory stand-in.
-Every screen fed by the demo adapter shows a **DEMO DATA** banner naming the API it waits on, and demo card
-tokens end in `.DEMO`. Flip `EXPO_PUBLIC_PORTAL_ADAPTER=api` once those endpoints land.
+With the default `api` adapter every member screen calls the real member-portal API through
+`src/api/client.ts`: household (`/portal/clients`, server-checked acting-for ids), schedule and booking
+(session listings, enrollments, package-backed booking), my bookings, the check-in card (`fhq.` rolling QR
+derived on the device from the seed `/portal/app-cards` issues), memberships, packages, progress
+(`/portal/assessment-bests`), invoices, paying with a saved card, the inbox and push-device registration.
+
+Two things have no endpoint yet and show **not available yet** instead of guessing:
+
+- Facility search by name (`searchAppDirectory`): the facility screen asks for the code instead.
+- The live tenant theme (`getPublicAppConfig`): the app uses the bundled theme.
+
+`EXPO_PUBLIC_PORTAL_ADAPTER=demo` switches to `src/adapters/demo.ts`, an in-memory stand-in for UI work with
+no backend. Every screen it feeds shows a **DEMO DATA** banner, and demo card tokens end in `.DEMO`.
 
 ## Security notes
 

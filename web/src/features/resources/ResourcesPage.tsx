@@ -11,7 +11,8 @@ import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { todayIn } from '../../lib/format'
 import { LocationSelect, useWorkingLocation } from '../scheduling/location'
-import { formatDay, formatMinutes, parseHhmm, zoneLabel } from '../scheduling/time'
+import { useTypes } from '../scheduling/queries'
+import { formatDay, formatMinutes, formatRange, parseHhmm, zoneLabel } from '../scheduling/time'
 import { KIND_LABEL, resourceTree, useGroups, useResources, type Resource, type ResourceGroup, type TreeRow } from './queries'
 
 const MAX_DEPTH = 2 // depth 0..2: a tree of three levels (resources README)
@@ -252,6 +253,113 @@ function LinksDialog({ resource, rows, onClose }: { resource: Resource; rows: Tr
 }
 
 type Window = Schemas['WindowOut']
+type Offer = Schemas['SlotOfferOut']
+
+const SLOT_TEXT = { free: 'Free', booked: 'Booked, seats left', full: 'Full', unavailable: 'Unavailable' } as const
+
+/** SCH-07 and SCH-18: a window offered as fixed-length slots. Slots are derived, never stored; taking one
+ * creates its session. Lists the next seven days. */
+function SlotsDialog({ offer, timeZone, onClose }: { offer: Offer; timeZone: string; onClose: () => void }) {
+  const { can } = useAuth()
+  const qc = useQueryClient()
+  const toast = useToast()
+  const key = ['slot-offers', offer.id, 'slots']
+  const slots = useQuery({ queryKey: key, queryFn: () => api.get('/api/v1/slot-offers/{slot_offer_id}/slots', { path: { slot_offer_id: offer.id } }) })
+  const book = useMutation({
+    mutationFn: (startsAt: string) => api.post('/api/v1/slot-offers/{slot_offer_id}/slots', { path: { slot_offer_id: offer.id }, body: { starts_at: startsAt } }),
+    onSuccess: (b) => {
+      void qc.invalidateQueries({ queryKey: key })
+      void qc.invalidateQueries({ queryKey: ['calendar'] })
+      toast('success', `${b.title} booked for ${formatRange(b.starts_at, b.ends_at, timeZone)}. Add clients from the schedule.`)
+    },
+    onError: (e) => toast('error', e.message),
+  })
+  return (
+    <Dialog open size="lg" onClose={onClose} title={`${offer.title} slots`} description={`The next seven days, ${offer.slot_min} minutes each. Times are in ${zoneLabel(timeZone)}.`}>
+      {slots.isPending ? (
+        <LoadingState />
+      ) : slots.isError ? (
+        <ErrorState error={slots.error} onRetry={() => void slots.refetch()} />
+      ) : slots.data.slots.length === 0 ? (
+        <p className="text-muted">No slots in the next seven days.</p>
+      ) : (
+        <ul className="max-h-96 divide-y divide-border overflow-y-auto rounded border border-border" aria-label="Slots">
+          {slots.data.slots.map((sl) => (
+            <li key={sl.starts_at} className="flex items-center justify-between gap-2 px-3 py-2">
+              <span>
+                {formatRange(sl.starts_at, sl.ends_at, timeZone)}
+                <span className={`ml-2 text-xs ${sl.status === 'free' ? 'text-success' : 'text-muted'}`}>
+                  {SLOT_TEXT[sl.status]}
+                  {sl.session_id ? ` (${sl.booked_count}/${sl.capacity})` : ''}
+                </span>
+              </span>
+              {sl.status === 'free' && offer.is_active && can('scheduling.booking.create') && (
+                <Button size="sm" variant="secondary" loading={book.isPending && book.variables === sl.starts_at} onClick={() => book.mutate(sl.starts_at)} aria-label={`Book ${formatRange(sl.starts_at, sl.ends_at, timeZone)}`}>
+                  Book
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Dialog>
+  )
+}
+
+function SlotOfferForm({ window: w, locationId, onDone }: { window: Window; locationId: string; onDone: () => void }) {
+  const types = useTypes(locationId)
+  const resources = useResources(locationId)
+  const [f, setF] = useState({ typeId: '', slotMin: '30', capacity: '1', selfBookable: true, extra: '' })
+  const create = useMutation({
+    mutationFn: () =>
+      api.post('/api/v1/slot-offers', {
+        body: {
+          availability_window_id: w.id,
+          reservation_type_id: f.typeId,
+          slot_min: Number(f.slotMin),
+          capacity: Number(f.capacity),
+          is_self_bookable: f.selfBookable,
+          allows_free_booking: false,
+          is_active: true,
+          additional_resource_ids: f.extra ? [f.extra] : [],
+        },
+      }),
+    onSuccess: onDone,
+  })
+  const errors = fieldErrors(create.error)
+  return (
+    <form
+      className="mt-2 grid gap-3 rounded border border-border p-3 sm:grid-cols-4"
+      noValidate
+      aria-label="Offer as slots"
+      onSubmit={(e) => {
+        e.preventDefault()
+        create.mutate()
+      }}
+    >
+      <FormError error={create.error} fields={errors} />
+      <Select label="Type" value={f.typeId} placeholder="Choose" error={errors.reservation_type_id} onChange={(e) => setF({ ...f, typeId: e.target.value })} options={(types.data?.data ?? []).filter((t) => t.is_schedulable).map((t) => ({ value: t.id, label: t.name }))} />
+      <Input label="Slot minutes" type="number" min={5} max={480} step={5} value={f.slotMin} error={errors.slot_min} onChange={(e) => setF({ ...f, slotMin: e.target.value })} />
+      <Input label="Seats per slot" type="number" min={1} value={f.capacity} error={errors.capacity} onChange={(e) => setF({ ...f, capacity: e.target.value })} />
+      <Select
+        label="Also hold"
+        value={f.extra}
+        placeholder="Nothing else"
+        error={errors.additional_resource_ids}
+        onChange={(e) => setF({ ...f, extra: e.target.value })}
+        options={resourceTree(resources.data?.data ?? []).filter((r) => r.resource.id !== w.resource_id).map((r) => ({ value: r.resource.id, label: r.path }))}
+      />
+      <div className="sm:col-span-4">
+        <Checkbox label="Members can book online" checked={f.selfBookable} onChange={(e) => setF({ ...f, selfBookable: e.target.checked })} />
+      </div>
+      <div className="sm:col-span-4">
+        <Button type="submit" size="sm" loading={create.isPending} disabled={!f.typeId}>
+          Offer slots
+        </Button>
+      </div>
+    </form>
+  )
+}
 
 function AvailabilityDialog({ resource, timeZone, canManage, onClose }: { resource: Resource; timeZone: string; canManage: boolean; onClose: () => void }) {
   const qc = useQueryClient()
@@ -285,6 +393,17 @@ function AvailabilityDialog({ resource, timeZone, canManage, onClose }: { resour
     onError: (e) => toast('error', e.message),
   })
   const errors = fieldErrors(add.error)
+  const { can } = useAuth()
+  const canOffer = can('scheduling.session.manage')
+  const offersKey = ['slot-offers', 'resource', resource.id]
+  const offers = useQuery({ queryKey: offersKey, queryFn: () => api.get('/api/v1/slot-offers', { query: { resource_id: resource.id, limit: 200 } }) })
+  const [offering, setOffering] = useState<string | null>(null)
+  const [viewing, setViewing] = useState<Offer | null>(null)
+  const pauseOffer = useMutation({
+    mutationFn: (o: Offer) => api.patch('/api/v1/slot-offers/{slot_offer_id}', { path: { slot_offer_id: o.id }, body: { is_active: !o.is_active } }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: offersKey }),
+    onError: (e) => toast('error', e.message),
+  })
   const describe = (w: Window) =>
     `${w.weekdays.map((d) => WEEKDAYS[d - 1]).join(', ')} ${formatMinutes(parseHhmm(w.start_time))} – ${formatMinutes(parseHhmm(w.end_time))}${w.interval_weeks > 1 ? `, every ${w.interval_weeks} weeks` : ''}`
   return (
@@ -320,6 +439,45 @@ function AvailabilityDialog({ resource, timeZone, canManage, onClose }: { resour
                   </>
                 )}
               </div>
+              {(offers.data?.data ?? [])
+                .filter((o) => o.availability_window_id === w.id)
+                .map((o) => (
+                  <div key={o.id} className="flex w-full flex-wrap items-center justify-between gap-2 rounded bg-surface-2 px-2 py-1 text-sm">
+                    <span>
+                      Slots: {o.title}, {o.slot_min} min, {o.capacity} {o.capacity === 1 ? 'seat' : 'seats'}
+                      {!o.is_active && ' (paused)'}
+                    </span>
+                    <span className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => setViewing(o)} aria-label={`Show slots: ${o.title}, ${describe(w)}`}>
+                        Show slots
+                      </Button>
+                      {canOffer && (
+                        <Button size="sm" variant="ghost" onClick={() => pauseOffer.mutate(o)} aria-label={`${o.is_active ? 'Pause slots' : 'Resume slots'}: ${o.title}, ${describe(w)}`}>
+                          {o.is_active ? 'Pause slots' : 'Resume slots'}
+                        </Button>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              {canOffer && !(offers.data?.data ?? []).some((o) => o.availability_window_id === w.id) && (
+                <div className="w-full">
+                  {offering === w.id ? (
+                    <SlotOfferForm
+                      window={w}
+                      locationId={resource.location_id}
+                      onDone={() => {
+                        setOffering(null)
+                        void qc.invalidateQueries({ queryKey: offersKey })
+                        toast('success', 'Slots offered.')
+                      }}
+                    />
+                  ) : (
+                    <Button size="sm" variant="ghost" onClick={() => setOffering(w.id)} aria-label={`Offer as slots: ${describe(w)}`}>
+                      Offer as slots
+                    </Button>
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -362,6 +520,7 @@ function AvailabilityDialog({ resource, timeZone, canManage, onClose }: { resour
           </div>
         </form>
       )}
+      {viewing && <SlotsDialog offer={viewing} timeZone={timeZone} onClose={() => setViewing(null)} />}
     </Dialog>
   )
 }

@@ -3,7 +3,7 @@ payments in billing; pos keeps the cart, the tender legs, the discount breakdown
 side effects. Deviations from the data model are listed in README.md (stock transfers, the negative-stock and
 network settings, tender_kind and cash_refunded_minor snapshots, no package lines yet)."""
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
@@ -136,12 +136,28 @@ class PosSettings(TenantOwned, Timestamps, Base):
     is_auto_print_receipt: Mapped[bool] = _false()
     is_drawer_session_required: Mapped[bool] = _false()
     low_stock_alert_email: Mapped[str | None] = mapped_column(CITEXT)
+    receipt_footer: Mapped[str | None]  # POS-14: blank falls back to billing's receipt_footer
     # Ours (README): stock may only go below zero where this is on; the register is usable only from these
     # networks when the list is not empty.
     is_negative_stock_allowed: Mapped[bool] = _false()
     allowed_networks: Mapped[list[str]] = mapped_column(
         ARRAY(Text), server_default=text("'{}'"), info={"audit": "value"}
     )
+
+
+class PosLowStockDigest(TenantOwned, Timestamps, Base):
+    """One row per location per local day the low-stock digest was emailed (POS-22): the job's idempotency key."""
+
+    __tablename__ = "pos_low_stock_digest"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", index=False),
+        UniqueConstraint("tenant_id", "location_id", "local_on", name="uq_pos_low_stock_digest_day"),
+    )
+
+    location_id: Mapped[UUID]
+    local_on: Mapped[date]
+    sent_to: Mapped[str] = mapped_column(CITEXT)
+    item_count: Mapped[int]
 
 
 # --- 2.2 products and stock --------------------------------------------------------------------------------

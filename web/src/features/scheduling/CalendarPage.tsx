@@ -1,10 +1,12 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { api } from '../../api/client'
 import { Button } from '../../components/Button'
+import { ConfirmDialog } from '../../components/Dialog'
 import { Checkbox, Input, Select } from '../../components/Field'
 import { PageHeader } from '../../components/PageHeader'
 import { EmptyState, ErrorState, LoadingState } from '../../components/States'
+import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { resourceTree, useGroups, useResources, type TreeRow } from '../resources/queries'
 import { BookingDrawer, type DrawerTarget } from './BookingDrawer'
@@ -15,7 +17,7 @@ import { useTypes, type CalendarEntry, type CalendarView } from './queries'
 import { Swatch } from './SetupPage'
 import { addDays, addMonths, formatDay, formatMinutes, formatMonth, startOfMonth, startOfWeek, today, toInstant, weekday, zoned, zoneLabel } from './time'
 import { TimeGrid, type Change, type Closed, type GridColumn, type GridItem } from './TimeGrid'
-import { useMove } from './useMove'
+import { useMove, type MoveTarget } from './useMove'
 
 type View = 'day' | 'week' | 'month'
 const FILL_WORD = { empty: 'open', partial: 'filling', full: 'full' } as const
@@ -39,6 +41,24 @@ function entryLabel(e: CalendarEntry, tz: string, where: string) {
   const s = zoned(e.starts_at, tz)
   const t = zoned(e.ends_at, tz)
   return `${e.title}, ${formatDay(s.date, 'short')} ${formatMinutes(s.minutes)} to ${formatMinutes(t.minutes)}, ${where}${fill}${e.status === 'tentative' ? ', tentative' : ''}${e.booking_series_id ? ', repeating' : ''}`
+}
+
+/** A resource's off-hours on one local day: the gaps between its availability windows (SCH-18). */
+function offHours(c: CalendarView, resourceId: string, date: string, tz: string): { start: number; end: number }[] {
+  const hours = c.resource_hours.find((h) => h.resource_id === resourceId)
+  if (!hours) return []
+  const open = hours.open
+    .map((r) => onDay({ starts_at: r.starts_at, ends_at: r.ends_at } as CalendarEntry, date, tz))
+    .filter((r): r is { start: number; end: number } => r !== null)
+    .sort((a, b) => a.start - b.start)
+  const gaps: { start: number; end: number }[] = []
+  let at = 0
+  for (const r of open) {
+    if (r.start > at) gaps.push({ start: at, end: r.start })
+    at = Math.max(at, r.end)
+  }
+  if (at < 1440) gaps.push({ start: at, end: 1440 })
+  return gaps
 }
 
 function MultiPick({ label, options, chosen, onChange }: { label: string; options: { value: string; label: string }[]; chosen: string[]; onChange: (v: string[]) => void }) {
@@ -87,6 +107,10 @@ function Legend({ cal }: { cal: CalendarView }) {
         <li className="flex items-center gap-1.5">
           <span aria-hidden="true" className="inline-block h-3 w-5 bg-[repeating-linear-gradient(45deg,rgb(var(--danger)/0.25)_0_3px,transparent_3px_6px)]" />
           Closed
+        </li>
+        <li className="flex items-center gap-1.5">
+          <span aria-hidden="true" className="inline-block h-3 w-5 rounded-sm bg-surface-2" />
+          Off hours: outside a trainer's availability
         </li>
       </ul>
     </section>
@@ -172,6 +196,37 @@ export function CalendarPage() {
   const resources = useResources(location?.id)
   const types = useTypes(location?.id)
   const mover = useMove(tz)
+  const qc = useQueryClient()
+  const toast = useToast()
+  const [askMove, setAskMove] = useState<MoveTarget | null>(null)
+  const [selecting, setSelecting] = useState(false)
+  const [picked, setPicked] = useState(new Map<string, { version: number; title: string }>())
+  const [confirmBulk, setConfirmBulk] = useState(false)
+  const stopSelecting = () => {
+    setSelecting(false)
+    setPicked(new Map())
+  }
+  // SCH-11: one cancel per picked booking (a series occurrence alone); the server judges each one.
+  const bulkCancel = useMutation({
+    mutationFn: async () => {
+      const failed: string[] = []
+      for (const [id, b] of picked) {
+        try {
+          await api.post('/api/v1/bookings/{booking_id}/cancel', { path: { booking_id: id }, body: { version: b.version, reason: 'staff' } })
+        } catch {
+          failed.push(b.title)
+        }
+      }
+      return failed
+    },
+    onSuccess: (failed) => {
+      void qc.invalidateQueries({ queryKey: ['calendar'] })
+      const done = picked.size - failed.length
+      toast(failed.length ? 'error' : 'success', `${done} ${done === 1 ? 'booking' : 'bookings'} cancelled.${failed.length ? ` Not cancelled: ${failed.join(', ')}.` : ''}`)
+      setConfirmBulk(false)
+      stopSelecting()
+    },
+  })
   const { first, days } = rangeOf(view, date)
   const from = toInstant(first, 0, tz)
   const to = toInstant(addDays(first, days), 0, tz)
@@ -186,6 +241,7 @@ export function CalendarPage() {
   })
   const allRows = useMemo(() => resourceTree(resources.data?.data ?? []), [resources.data])
   const canCreate = can('scheduling.booking.create') || can('scheduling.block.manage')
+  const canBulk = can('scheduling.booking.delete')
 
   if (!location) return <EmptyState title="No location available" />
 
@@ -229,6 +285,10 @@ export function CalendarPage() {
       }
     }
     const closed: Closed[] = []
+    for (const col of columns) {
+      if (!col.resourceId) continue
+      for (const gap of offHours(c, col.resourceId, col.date, tz)) closed.push({ columnKey: col.key, ...gap, label: 'Off hours', tone: 'off' })
+    }
     for (const b of c.blackouts) {
       if (b.scope !== 'all') continue
       for (const col of columns) {
@@ -245,7 +305,7 @@ export function CalendarPage() {
       const resources = c.entries
         .filter((x) => x.booking_id === e.booking_id && x.resource_role !== 'descendant')
         .map((x) => ({ resource_id: column.resourceId && x.resource_id === e.resource_id ? column.resourceId : x.resource_id, role: x.resource_role as 'primary' | 'additional' }))
-      mover.start({
+      const target: MoveTarget = {
         bookingId: e.booking_id,
         version: e.version,
         seriesId: e.booking_series_id,
@@ -254,7 +314,16 @@ export function CalendarPage() {
         endsAt: toInstant(column.date, end, tz),
         resources,
         title: e.title,
-      })
+      }
+      // RES-01: the location's stored default. `ask` confirms a single booking first (a series always asks).
+      if (c.drag_drop_default === 'ask' && !target.seriesId) setAskMove(target)
+      else mover.start(target)
+    }
+    const toggle = (e: CalendarEntry) => {
+      const next = new Map(picked)
+      if (next.has(e.booking_id)) next.delete(e.booking_id)
+      else next.set(e.booking_id, { version: e.version, title: e.title })
+      setPicked(next)
     }
     grid =
       columns.length === 0 ? (
@@ -269,8 +338,10 @@ export function CalendarPage() {
           slot={c.calendar_slot_min}
           canCreate={() => canCreate}
           onCreate={onCreate}
-          onOpen={(e) => setDrawer({ kind: 'existing', bookingId: e.booking_id, canEdit: e.can_edit })}
+          onOpen={(e) => (selecting ? e.can_edit && toggle(e) : setDrawer({ kind: 'existing', bookingId: e.booking_id, canEdit: e.can_edit }))}
           onMove={onMove}
+          draggable={c.drag_drop_default !== 'move_enrollment'}
+          selected={selecting ? new Set(picked.keys()) : undefined}
         />
       )
   }
@@ -285,11 +356,18 @@ export function CalendarPage() {
           </>
         }
         actions={
-          canCreate && (
-            <Button onClick={() => setDrawer({ kind: 'new', date, start: 9 * 60, end: 10 * 60, resourceId: resourceIds[0] })}>
-              New booking
-            </Button>
-          )
+          <div className="flex flex-wrap gap-2">
+            {canBulk && view !== 'month' && !selecting && (
+              <Button variant="secondary" onClick={() => setSelecting(true)}>
+                Select to cancel
+              </Button>
+            )}
+            {canCreate && (
+              <Button onClick={() => setDrawer({ kind: 'new', date, start: 9 * 60, end: 10 * 60, resourceId: resourceIds[0] })}>
+                New booking
+              </Button>
+            )}
+          </div>
         }
       />
       <div className="mb-4 flex flex-wrap items-end gap-3">
@@ -358,6 +436,34 @@ export function CalendarPage() {
         )
       )}
       {mover.dialog}
+      {selecting && (
+        <div role="region" aria-label="Select bookings to cancel" className="mb-4 flex flex-wrap items-center gap-3 rounded border border-primary/40 bg-primary/5 p-3 text-sm">
+          <span aria-live="polite">
+            {picked.size ? `${picked.size} ${picked.size === 1 ? 'booking' : 'bookings'} selected.` : 'Choose the bookings to cancel.'}
+          </span>
+          <Button variant="danger" size="sm" disabled={!picked.size} onClick={() => setConfirmBulk(true)}>
+            Cancel selected
+          </Button>
+          <Button variant="secondary" size="sm" onClick={stopSelecting}>
+            Done
+          </Button>
+        </div>
+      )}
+      <ConfirmDialog open={confirmBulk} title={`Cancel ${picked.size} ${picked.size === 1 ? 'booking' : 'bookings'}?`} confirmLabel="Cancel bookings" danger busy={bulkCancel.isPending} onConfirm={() => bulkCancel.mutate()} onClose={() => setConfirmBulk(false)}>
+        {[...picked.values()].map((b) => b.title).join(', ')}. The time is released; each stays in the history as cancelled. A repeating booking loses only the picked occurrence.
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={Boolean(askMove)}
+        title={askMove ? `Move ${askMove.title}?` : ''}
+        confirmLabel="Move"
+        onConfirm={() => {
+          if (askMove) mover.start(askMove)
+          setAskMove(null)
+        }}
+        onClose={() => setAskMove(null)}
+      >
+        {askMove && `To ${formatDay(zoned(askMove.startsAt, tz).date)}, ${formatMinutes(zoned(askMove.startsAt, tz).minutes)} to ${formatMinutes(zoned(askMove.endsAt, tz).minutes)}.`}
+      </ConfirmDialog>
 
       {cal.isPending ? (
         <LoadingState label="Loading the schedule" />

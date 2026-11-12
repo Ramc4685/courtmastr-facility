@@ -19,9 +19,25 @@ status, including everything not built: `docs/status/08-billing-payments.md`.
 | `router.py` | staff, portal, public pay-link and webhook routes |
 
 Ports and adapters: `app/ports/payment_provider.py`; `app/adapters/fake_payments.py` (scripted by token: see
-its docstring; emits signed webhook events into `outbox`); `app/adapters/stripe_connect.py` (off by default:
-`payments.stripe.enabled`, keys from `FH_STRIPE_SECRET_KEY` and `FH_STRIPE_WEBHOOK_SECRET`). Global tables for
-webhook routing live in `app/core/inbound_webhooks.py`.
+its docstring; emits signed webhook events into `outbox`); `app/adapters/stripe_connect.py`, selected by
+`payments.provider: stripe` (or `FH_PAYMENTS_PROVIDER=stripe` outside tests) with keys from
+`FH_STRIPE_SECRET_KEY`, `FH_STRIPE_PUBLISHABLE_KEY` and `FH_STRIPE_WEBHOOK_SECRET`. Global tables for webhook
+routing live in `app/core/inbound_webhooks.py`.
+
+## Stripe test mode
+
+The fake stays the default for development, tests and CI. To run against a Stripe test account: test-mode keys
+in `.env`, then forward webhooks from connected accounts with the Stripe CLI:
+
+```bash
+stripe listen --forward-to localhost:8100/api/v1/webhooks/stripe --forward-connect-to localhost:8100/api/v1/webhooks/stripe
+```
+
+Full steps, test cards and what is not built: `docs/dev/stripe-test-mode.md`. A live key (`sk_live_`,
+`pk_live_`, `rk_live_`) refuses to start unless `FH_ENV` is `prod` or `production`. Card entry in the web app
+is Stripe Elements (`web/src/features/billing/StripeCardField.tsx`) on the tenant's connected account; the
+browser gets the publishable key and account id from `GET /provider-accounts`, the setup-intent responses and
+the pay-link lookup (`publishable_key`, `account_ref`), and hands the API a `pm_...` reference only.
 
 ## Internal interface (what other contexts call)
 
@@ -75,7 +91,7 @@ Rules a caller must know:
 - **Dates are local** to the charge's or payment's location; instants are UTC. A posting dated on or before
   `tenant.billing_locked_through_on` is `409 period-locked`.
 - Events emitted: `billing.charge.created|reversed|voided|adjusted`, `billing.invoice.issued|paid|voided|past_due`,
-  `billing.payment.processing|succeeded|failed|refunded|voided`, `billing.payment_method.expiring`.
+  `billing.payment.processing|succeeded|failed|refunded|voided|disputed|dispute_closed`, `billing.payment_method.expiring`.
 
 ## Jobs
 
@@ -132,5 +148,16 @@ scheduler or per-tenant fan-out. Until it does, autopay runs when staff start a 
 - **Staff `Idempotency-Key`s are scoped to the caller** before they reach `take_payment` and `refund`.
 - Tender types, the two system revenue categories and (with `payments.provider = fake`) the provider account
   are created on first use. A tenant whose processor was disconnected does not get the fake back by itself.
+- **Disputes** (PAY-17, ADR 0003 section 9) arrive only by webhook (`charge.dispute.*`, fake `dispute.*`) and
+  are applied by `service.sync_dispute`, which re-reads the processor. Opened: `dispute` row, payment
+  `disputed`, allocations released, `dispute_opened` posted. Won: payment `succeeded` with the money as
+  unapplied credit (not re-applied). Lost: `charged_back`. A bank-debit dispute is lost on arrival; inquiries
+  and prevented disputes (no money withdrawn) are ignored. Shortcut: one dispute per payment for its disputed
+  amount; a second one on a disputed payment moves no money. While open, the money stays in `client_credit` in
+  the ledger and is parked in `disputed_funds` (the books check adds open disputes to credit). No staff screen
+  or route: evidence is submitted in the tenant's Stripe dashboard. Events `billing.payment.disputed`,
+  `billing.payment.dispute_closed`.
+- **Stripe requests use dynamic payment methods** (`automatic_payment_methods`, redirects off), never
+  `payment_method_types`; `create_setup`'s `kinds` is therefore advisory for Stripe.
 - Kernel assumptions still standing: zero-total invoices stay `open`; client-following keys are checked as
   "holds the key at any location"; a declined payment returns `201` with `status = failed`.

@@ -1,7 +1,8 @@
 # Phase 8 chip S3: OIDC sign-in for staff
 
-Date: 2026-11-11. Branch `claude/p8-s3-oidc`, cut from `claude/phase8-wave7-5be825` (`ac21204`). Migrations
-`1240` (down from `1231`) and `1241` (link confirmation, after the security review). Scope:
+Date: 2026-11-11. Branch `claude/p8-s3-oidc`, cut from `claude/phase8-wave7-5be825` (`ac21204`), later
+merged with it again (T1, T2 and `main` with Phase 10). Migrations `1240` (down from `1263`, the phase branch
+head) and `1241` (link confirmation, after the security review). Scope:
 `docs/planning/phase-8.md` chip S3, with the S2 hand-over notes (`docs/status/phase8-s2-mfa.md`, "For S3").
 The behaviour description is in `backend/app/modules/platform/README.md` under "OIDC sign-in for staff".
 
@@ -12,7 +13,7 @@ The behaviour description is in `backend/app/modules/platform/README.md` under "
 | Per-tenant provider settings: preset, button name, issuer, client id, sealed write-only secret, scopes, domains, `asserts_mfa`, enabled; read by Owner and Admin, changed by the Owner only, behind step-up; discovery checked on save | `identity_provider_config`, `oidc.py` admin functions, `/identity-providers` | `test_oidc.py`: secret never returned or audited, management needs step-up, Admin may read but not change, issuer and SSRF cases; `security.test.tsx` card tests |
 | Authorization code flow with PKCE S256, state and nonce bound to the pre-session cookie, exact redirect URI | `oidc.start_sign_in`, `oidc.complete`, `auth_token` purpose `oidc_state` | happy path, wrong or foreign state, replay, missing pre-session |
 | ID token checks: signature (RS256, PS256, ES256 only), `iss`, `aud`/`azp`, `exp`, `iat`, `nonce`, `sub` | `oidc.verify_id_token` | bad nonce, audience, foreign audiences, issuer, expiry, no `sub`; forged HS256, `none`, unknown key; key rotation |
-| Outbound fetches with one 5 s deadline, identity encoding only, 1 MiB cap, no redirects, a bounded one-hour cache with a 30 s negative cache for failed discovery, SSRF guard on the resolved and pinned address, connection errors mapped | `oidc._fetch`, `_PinnedTransport`, `_cached`, `core.networks.blocked_reason` | SSRF cases (one message for private and unresolvable), encoded body refused, negative cache, bounded cache, deadline, connection refused |
+| Outbound fetches with one 5 s wall-clock deadline over the whole exchange (headers and 1xx included), identity encoding only, 1 MiB cap, no redirects, malformed issuer documents refused, a bounded LRU one-hour cache with a 30 s negative cache for failed discovery, SSRF guard on the resolved and pinned address, connection errors mapped | `oidc._fetch`, `_PinnedTransport`, `_DeadlineStream`, `_cached`, `core.networks.blocked_reason` | SSRF cases (one message for private and unresolvable), encoded body refused, negative cache, LRU cache, slow headers and endless `100 Continue` on a real socket, malformed documents, connection refused |
 | Verified email only, with Microsoft and Google claim differences | `oidc.verified_email`, `_issuers` | Microsoft `xms_edov`, Google issuer with and without scheme |
 | Linking only by the user's emailed confirmation, in the same browser; then by issuer + subject; never creates users, never crosses tenants, neutral answers | `oidc._offer_link`, `oidc.confirm_link`, `external_login`, `auth_token` purpose `oidc_link` | issuer claiming the Owner's email, other browser, spent link, user disabled before confirming, unmatched vs matched answer the same, second account, cross-tenant |
 | Sessions via `_second_factor` and `_start_session`; MFA only for `asserts_mfa` providers whose token shows a second factor; IP allow-list first; rate limited | `oidc.complete`, `oidc` rate bucket | MFA challenge vs asserted (`amr`, `acr`, neither), IP allow-list |
@@ -64,6 +65,25 @@ Also checked, as asked:
   `auth.authenticate` in the callback), and that checks the allow-list. Test:
   `test_step_up_round_trip_obeys_the_ip_allowlist`.
 
+### Re-review fixes (2026-11-11, second round)
+
+1. **N1 MEDIUM, deadline did not cover headers.** Confirmed: the deadline was checked between body chunks,
+   and every socket read got the same timeout, so a peer dripping header bytes or sending endless
+   `100 Continue` held the worker for as long as it liked. Now the pinned backend wraps the socket in
+   `_DeadlineStream`, which gives every connect, TLS handshake, write and read only the time left before the
+   one 5 s deadline. Tests: `test_the_deadline_bounds_headers_and_1xx_on_a_real_socket` (a real local server,
+   slow headers and endless `100 Continue`; both end inside 2 s instead of 10). **The state row lock is still
+   held across the fetches**: services may not commit, and the lock is what makes a state single use. It is
+   now bounded: at most about 20 s (discovery, token, two JWKS fetches at 5 s each), usually under a second
+   because discovery and keys are cached.
+2. **N2 LOW, single methods counted as MFA.** Confirmed. The rule is in decision 2 below. Tests:
+   `test_mfa_needs_evidence_in_the_token`, the sign-in test.
+3. **N3 LOW, malformed issuer documents gave a 500.** Confirmed for a non-list
+   `code_challenge_methods_supported` or `keys`, and for a URL httpx rejects (`InvalidURL` is not an
+   `HTTPError`). All three are now `ProviderError`. Test: `test_malformed_issuer_documents_are_provider_errors`.
+4. The cache now evicts the least recently used entry (`test_the_cache_is_bounded_least_recently_used_out`),
+   and the provider section comment names both keys.
+
 **Proposed matrix change** (already added to `docs/architecture/rbac-matrix.md` section 6.1, because the
 catalogue test requires it): `platform.identity_provider.manage`, tenant scope, `OO +`, no role defaults.
 `platform.security.manage` keeps "OIDC" in its description for reading providers.
@@ -75,9 +95,11 @@ catalogue test requires it): `platform.identity_provider.manage`, tenant scope, 
    started hours ago, so the sign-in does not prove the person is at the keyboard now. Step-up actions ask for
    a fresh check through the provider round trip (`prompt=login`, `max_age=0`, `auth_time` checked).
 2. **MFA trusts the token, not just the setting.** The provider must be marked `asserts_mfa` *and* the token's
-   `amr` must name a second factor or its `acr` a multi-factor level. A provider that sends neither claim
-   never skips our code step. Google sends no `amr` today, so Google users with our factor will still be asked
-   for it.
+   `amr` must contain `mfa` or RFC 8176 methods from two factor classes (know, have, are), or its `acr` must be
+   an OpenID PAPE multi-factor policy URI. One method alone (`hwk`, `swk`, `otp`, `sms`, `tel`, a passkey) is
+   one factor. A provider that sends neither claim never skips our code step. Microsoft sends `["pwd", "mfa"]`
+   after MFA; Google sends no `amr` today, so Google users with our factor will still be asked for it. A
+   per-tenant accepted `acr` list is not built.
 3. **First sign-in needs an emailed confirmation in the same browser.** This costs staff one email round trip
    per provider, once. The same-browser rule means a link opened on a phone after signing in on a laptop
    fails, and the user signs in with the provider again from the phone. I chose it because it stops a link
