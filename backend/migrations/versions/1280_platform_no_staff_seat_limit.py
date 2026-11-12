@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "1280"
-down_revision = "1263"
+down_revision = "1264"
 
 _PLAN_LIMITS = {"essentials": 5, "growth": 15}  # as seeded by 1250
 
