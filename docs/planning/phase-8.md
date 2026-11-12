@@ -133,6 +133,15 @@ Playwright helpers that read cookies by name must use the shared sign-in helper.
 | 2026-11-11 | T1 | merged `872f558` (chip `b953226` to `4815b0b`); migration 1250; chip lane gate green, phase gate not rerun yet | `4815b0b` |
 | 2026-11-11 | S3 | built (`11cab48`), held out: two security reviews found an Admin-to-Owner takeover through a tenant-configured issuer; fixes with the builder; merge only after a re-review | |
 | 2026-11-11 | I1 | started (background agent, Opus) | |
+| 2026-11-11 | T2 | merged `f00c58c` (1260 re-pointed onto 1250); security review (3 medium, 6 low) fixed and merged with the Phase 10 file handovers (chip `d4bfae9` to `0dfd572`); migrations 1260 to 1264 | `0dfd572` |
+| 2026-11-11 | main | Phase 10 (`f38e826`) merged in at `6016ecb`; 1210 re-chained onto 1081; mypy debt from Phase 10 code fixed or listed; Stripe live-key test given a real scanner | `6016ecb` |
+| 2026-11-11 | S4 | merged (chip `ffe164c` to `4884fe4`): allow-list bypass removed, lost-authenticator reset, staff-seat metering off, placeholders marked, `sort_order` bounded; migration 1280 | `4884fe4` |
+| 2026-11-11 | S3 | merged `b9e83c8` after two security reviews and a re-review (takeover closed; header deadline, MFA evidence rule and malformed-document fixes in `52e5638`); migrations 1240, 1241 | `179043d` |
+| 2026-11-11 | I1 | merged `44728c5` (chip to `13f6c30`): `imports` context, four import types, dry run, chunked commit; imports skip welcome automations and respect GDPR mode; migrations 1270, 1271; chip lane gate green on the merged tip (4,869 backend, 195 web); security review running | `13f6c30` |
+| 2026-11-11 | O2, flake fix | O2 (load test, budget, keyboard accessibility) building; a separate agent is finding the root cause of the load-sensitive `mfa.test.tsx` / `auth.test.tsx` web tests | |
+
+Migration chain on the phase branch: ... 0953 ... 1081 (Phase 10 head) → 1210 → 1211 → 1220 → 1230 → 1231 → 1250
+→ 1260 → 1261 → 1262 → 1263 → 1264 → 1280 → 1240 → 1241 → 1270 → 1271 (head). Numbers are block labels, not order.
 
 Decisions relayed by the top coordinator on 2026-11-11 under the owner's blanket approval (assumptions until the
 owner says otherwise): (1) remove the Owner and Admin bypass of the staff IP allow-list; (2) build "Owner or
