@@ -10,5 +10,9 @@ from app.modules.imports import models, service  # isort: skip
 from app.modules.imports import jobs  # noqa: F401  (registers the actor)
 
 _platform.retention.register_purge("import_job_files", service.purge_expired_files)
+_platform.retention.register_purge("import_job_rows", service.purge_expired_rows)
+_platform.privacy.register_subject_handler(
+    "imports", tables=("import_job_row",), export=lambda session, client_id: {}, erase=service.erase_client_rows
+)  # export: a row holds no cell values, only its number, keyed MAC and outcome, so nothing personal to hand over
 
 __all__ = ["models", "service"]

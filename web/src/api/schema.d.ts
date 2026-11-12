@@ -4797,7 +4797,9 @@ export interface paths {
         put?: never;
         /**
          * Create Import Job Commit
-         * @description Import the checked rows; the job moves to completed with a report of rows that failed.
+         * @description Import the checked rows; the job moves to completed with a report of rows that failed. Needs every
+         *     location (403 all-locations-required) and the keys of the staff commands the type's writes stand for;
+         *     409 check-stale when the file changed after the check.
          */
         post: operations["createImportJobCommit"];
         delete?: never;
@@ -4817,7 +4819,8 @@ export interface paths {
         put?: never;
         /**
          * Create Import Job Dry Run
-         * @description Check every row without importing anything; the job moves to validated or needs_review.
+         * @description Check every row without importing anything; the job moves to validated or needs_review. Needs every
+         *     location (403 all-locations-required).
          */
         post: operations["createImportJobDryRun"];
         delete?: never;
@@ -20432,6 +20435,8 @@ export interface components {
             started_at: string | null;
             /** Status */
             status: string;
+            /** Stop Reason */
+            stop_reason: string | null;
             /**
              * Submitted By Staff User Id
              * Format: uuid

@@ -650,6 +650,7 @@ def take_payment(
     allocations: Allocations | None = None,
     external_reference: str | None = None,
     memo: str | None = None,
+    audit_changes: dict | None = None,
 ) -> Payment:
     """Receive money from one payer in one tender, then allocate it (see allocate()).
 
@@ -675,7 +676,7 @@ def take_payment(
     if amount_minor <= 0:
         raise ValidationFailed("The amount must be greater than zero.", pointer="/amount_minor")
     tender = _tender(session, tender_kind, tender_type_id)
-    if not tender.is_enabled:
+    if not tender.is_enabled and tender.label != OPENING_BALANCE_TENDER:  # internal: imports, never a desk choice
         raise ValidationFailed("This payment method is not offered.", pointer="/tender_kind")
     if client_id is not None:
         try:
@@ -745,7 +746,7 @@ def take_payment(
         session, "billing.payment.take", payment, location_id=location_id,
         changes={
             "amount_minor": [None, amount_minor], "tender_kind": [None, tender.kind], "status": [None, payment.status]
-        },
+        } | (audit_changes or {}),
     )  # fmt: skip
     return payment
 
@@ -1217,29 +1218,60 @@ def void_payment(session: Session, payment_id: UUID, *, reason: str) -> Payment:
 
 def post_opening_balance(
     session: Session, *, client_id: UUID, location_id: UUID, amount_minor: int, kind: str, as_of: date,
-    description: str, key: str,
-) -> tuple[str, UUID]:  # fmt: skip
+    description: str, key: str, reference: str | None = None, submitted_by: UUID | None = None,
+) -> tuple[str, UUID, bool]:  # fmt: skip
     """Internal (imports): a balance carried over from another system, as ledger entries, never a written
     balance. `owed`: an untaxed charge on the uncategorised revenue category with revenue on `as_of`, on its own
-    invoice. `credit`: an `external` payment allocated to nothing, which is the client's account credit.
-    Idempotent by `key`: it is the charge's origin and the payment's idempotency key. Returns (entity, id)."""
+    invoice. `credit`: an `external` payment allocated to nothing (the client's account credit), on the tender
+    "Opening balance" (disabled, so never offered at the desk), so reports never read it as money taken on the
+    import day; `reference` goes in its external reference and `submitted_by` (the importing staff user, id
+    only) in its audit row. Refunding it is an external hand-back, never to a card. Idempotent by `key`: it is
+    the charge's origin and the payment's idempotency key. Returns (entity, id, created)."""
     if amount_minor <= 0:
         raise ValidationFailed("The amount must be greater than zero.", pointer="/amount_minor")
     if kind == "credit":
+        idempotency_key = f"import:{key}"
+        if (existing := _payment_by_key(session, idempotency_key)) is not None:
+            return "payment", existing.id, False
         payment = take_payment(
             session, client_id=client_id, location_id=location_id, amount_minor=amount_minor, tender_kind="external",
-            idempotency_key=f"import:{key}", memo=description,
+            tender_type_id=_opening_balance_tender(session).id, idempotency_key=idempotency_key, memo=description,
+            external_reference=reference,
+            audit_changes={"submitted_by_staff_user_id": [None, str(submitted_by)]} if submitted_by else None,
         )  # fmt: skip
-        return "payment", payment.id
+        return "payment", payment.id, True
+    source_id = uuid5(NAMESPACE_URL, f"import:{key}")
+    exists_ = session.scalar(select(Charge.id).where(
+        Charge.source_context == "imports", Charge.source_type == "opening_balance", Charge.source_id == source_id))  # fmt: skip
+    if exists_ is not None:
+        return "charge", exists_, False
     charge = post_charge(
         session, client_id=client_id, location_id=location_id, description=description,
         unit_price_minor=amount_minor, source_context="imports", source_type="opening_balance",
-        source_id=uuid5(NAMESPACE_URL, f"import:{key}"), revenue_category_id=default_revenue_category(session).id,
-        revenue_on=as_of, tax_ids=(),
+        source_id=source_id, revenue_category_id=default_revenue_category(session).id, revenue_on=as_of, tax_ids=(),
     )  # fmt: skip
     if charge.invoice_id is None:
         create_invoice_for_charges(session, [charge.id], origin="system")
-    return "charge", charge.id
+    return "charge", charge.id, True
+
+
+OPENING_BALANCE_TENDER = "Opening balance"
+
+
+def _opening_balance_tender(session: Session) -> TenderType:
+    """The record-only tender opening credits are booked on, created disabled on first use (one per tenant)."""
+    stmt = select(TenderType).where(TenderType.kind == "external", TenderType.label == OPENING_BALANCE_TENDER)
+    tender = session.scalar(stmt)
+    if tender is None:
+        ensure_defaults(session)  # first: the plain external tender must stay the kind's default (sort order)
+        session.execute(pg_insert(TenderType).values(
+            id=new_id(), tenant_id=session.info["tenant_id"], kind="external", label=OPENING_BALANCE_TENDER,
+            is_processed=False, is_optional=True, is_enabled=False, sort_order=1000,
+        ).on_conflict_do_nothing(constraint="uq_tender_type_label"))  # fmt: skip
+        tender = session.scalar(stmt)
+        if tender is None:
+            raise Conflict("A payment method named Opening balance already exists with another kind.")
+    return tender
 
 
 def tax_ids_by_code(session: Session, codes: Iterable[str]) -> dict[str, UUID]:

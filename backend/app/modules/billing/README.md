@@ -95,8 +95,12 @@ Rules a caller must know:
 
 Imports (Phase 8 I1): `post_opening_balance` posts an opening balance as ledger entries, never a balance write:
 owed is a charge (`source_context` imports, `source_type` opening_balance, default revenue category, no tax) on a
-system invoice; credit is an external payment that becomes account credit. Both are idempotent on the key the
-importer passes (job id plus the row's natural key). `tax_ids_by_code` resolves tax codes without case.
+system invoice; credit is an external payment that becomes account credit, on the tender "Opening balance"
+(kind external, created disabled so the desk never offers it; reports show it apart from money taken that day),
+with the import job as its `external_reference` and the importing staff user's id in its audit row. Both are
+idempotent on the key the importer passes (the resolved client, as-of date, direction and amount, never the job),
+and say whether they posted (`created`). `take_payment` gained `audit_changes` (merged into its one audit row).
+`tax_ids_by_code` resolves tax codes without case.
 
 ## Jobs
 

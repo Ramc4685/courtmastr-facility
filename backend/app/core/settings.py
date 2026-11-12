@@ -172,6 +172,13 @@ class Support(BaseModel):
     operator_email: str = "support@facilityhub.localhost"  # ONB-03 support requests go here
 
 
+class Imports(BaseModel):
+    """CSV imports (Phase 8 I1)."""
+
+    max_opening_balance_minor: int = 10_000_000  # one opening balance, owed or credit: 100,000.00 in the currency
+    stalled_minutes: int = 60  # a running import with no progress this long is marked failed (its files can expire)
+
+
 class Entitlements(BaseModel):
     default_plan: str = "complete"  # subscription_plan.code for new tenants and tenants without a plan (PLT-14)
 
@@ -194,6 +201,7 @@ class Settings(BaseModel):
     retention: Retention = Retention()
     entitlements: Entitlements = Entitlements()
     support: Support = Support()
+    imports: Imports = Imports()
 
     def db_url(self, role: str) -> str:
         """role is owner, app or platform; the password comes from FH_DB_<ROLE>_PASSWORD."""

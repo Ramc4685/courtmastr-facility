@@ -1132,7 +1132,8 @@ def import_client(session: Session, data: dict, *, import_job_id: UUID | None = 
     """Importer entry point (IMP-01): match on member number, then on a single client with the same primary
     email and names; update that client, else create one (created_via `import`, no verification email).
     A new record that the duplicate rule (`_duplicate_of`) pairs with an existing client is refused with 409
-    `possible-duplicate`, so an import never adds a likely duplicate. An update keeps the home location.
+    `possible-duplicate`, so an import never adds a likely duplicate. An update keeps the home location, member
+    number and primary email; a new email is added as a secondary address (primary only when there was none).
     Returns (client, created). Field policy is the staff context; the caller runs it per row in a savepoint."""
     actor = session.info["actor"]
     match = None
@@ -1159,15 +1160,13 @@ def import_client(session: Session, data: dict, *, import_job_id: UUID | None = 
         return client, True
     skip = ("primary_email", "member_number", "home_location_id")
     update = {k: v for k, v in data.items() if k not in skip and v is not None}
-    if data.get("primary_email"):
-        current = [
-            {"email": e, "is_primary": e == data["primary_email"].lower()} for e in client_addresses(session, match.id)
+    current = client_addresses(session, match.id)
+    if data.get("primary_email") and data["primary_email"].lower() not in current:
+        # An import never changes an existing client's primary email: a new address is added as a secondary one.
+        primary = (match.primary_email or "").lower()
+        update["emails"] = [{"email": e, "is_primary": e == primary} for e in current] + [
+            {"email": data["primary_email"], "is_primary": not current}
         ]
-        if data["primary_email"].lower() not in [e["email"] for e in current]:
-            current.append({"email": data["primary_email"], "is_primary": True})
-            for e in current[:-1]:
-                e["is_primary"] = False
-        update["emails"] = current
     changes = apply_update(session, match, update, context="staff", actor_staff_id=None)
     if changes:
         audit.record(session, "clients.client.update", match, location_id=match.home_location_id, changes=changes)

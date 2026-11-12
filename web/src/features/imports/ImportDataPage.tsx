@@ -304,7 +304,7 @@ function CurrentJob({ jobId, templates, onClose }: { jobId: string; templates: T
       {data.status === 'failed' && (
         <Card title="Import stopped">
           <p className="text-sm">
-            The import stopped after {data.processed_row_count} of {data.total_row_count} rows because of an error on our side. Start another import with the same file:
+            The import stopped after {data.processed_row_count} of {data.total_row_count} rows. {data.stop_reason ?? 'Something went wrong on our side.'} Start another import with the same file:
             rows that were already imported are recognised and not added twice.
           </p>
         </Card>
