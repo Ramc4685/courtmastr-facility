@@ -1,7 +1,7 @@
 # platform (build module 1)
 
-Layer 0: tenants, locations (IANA time zone, facility hours), identities for staff and clients, password and
-magic-link sign-in, server-side sessions, roles and the permission catalogue, per-user overrides and location
+Layer 0: tenants, locations (IANA time zone, facility hours), identities for staff and clients, password,
+magic-link and OIDC sign-in, MFA and step-up, server-side sessions, roles and the permission catalogue, per-user overrides and location
 scope, the audit trail read API and tenant onboarding. Calls no other context.
 
 | File | Holds |
@@ -10,30 +10,35 @@ scope, the audit trail read API and tenant onboarding. Calls no other context.
 | `auth.py` | sign-in, emailed links (magic link, reset, invite), sessions, CSRF check, lockout, staff IP allow-list, `authenticate` |
 | `staff.py` | staff users, roles, overrides, and the escalation rules of `rbac-matrix.md` section 13 |
 | `rbac.py` | effective-permission resolution (system roles from code, custom roles from rows, overrides win) |
-| `permissions.py` | the 28 `platform.*` catalogue entries; a test diffs them against `rbac-matrix.md` 6.1 |
-| `retention.py` | hourly retention purges (`purge_expired`) and the dead-letter commands (`resolve_failed_job`) |
+| `permissions.py` | the 31 `platform.*` catalogue entries; a test diffs them against `rbac-matrix.md` 6.1 |
+| `retention.py` | hourly retention purges (`purge_expired`), `register_purge`, and the dead-letter commands (`resolve_failed_job`) |
 | `entitlements.py`, `entitlements_router.py` | plans, feature and limit checks, `Me.entitlements`, the plan screen and operator plan routes (Phase 8 T1) |
 | `files.py`, `files_router.py` | stored files (security-baseline 8): checks, scan, store, read, load, remove, signed downloads, `purge_files` |
+| `mfa.py` | TOTP factors, recovery codes and the tenant MFA policy (Phase 8 S2) |
+| `oidc.py`, `oidc_router.py` | OIDC providers, sign-in, link confirmation and provider step-up (Phase 8 S3) |
+| `branding.py`, `privacy.py`, `onboarding.py`, `tenant_export.py` and their routers | logos, GDPR mode and data-subject requests, setup checklist and support requests, whole-account export (Phase 8 T2) |
 
-Other contexts use `service`, `auth` and `staff` only, never the models.
+Other contexts use `service`, `auth` and `staff` only, never the models. Exception: `privacy` calls
+`clients.service` for erasure, a listed boundary breach (`docs/architecture/overview.md` section 2).
 
-Not built yet (stubs in `docs/api/openapi-core.yaml`): OIDC, per-location networks
-(`/locations/{id}/networks`), subscription billing (`/tenant/subscription`), brand assets, imports, support access, audit
-export. API keys live in `integrations`, kiosk devices in `access`.
+Not built yet (stubs in `docs/api/openapi-core.yaml`): per-location networks (`/locations/{id}/networks`),
+subscription billing (`/tenant/subscription`), support access, audit export. The CSV import lives in the
+`imports` context. API keys live in `integrations`, kiosk devices in `access`.
 
 ## Known gaps against the specs (acceptance pass, 2026-11-10)
 
 Later modules must not assume these exist.
 
-- **Auth:** no OIDC (the brief lists it for module 1): chip S3. No new-device sign-in notification (baseline
-  5.1; deferred, see `docs/status/phase8-s1-signin.md`). No staff reset of another user's lost factor. Closed by
-  S1: cookies and CSRF, per-identity and per-address rate limits, lockout, the common-password list and the staff
-  IP allow-list. Closed by S2: TOTP MFA, step-up and baseline session lifetimes (sections below).
+- **Auth:** no new-device sign-in notification (baseline 5.1; deferred, see `docs/status/phase8-s1-signin.md`).
+  Closed by S1: cookies and CSRF, per-identity and per-address rate limits, lockout, the common-password list and
+  the staff IP allow-list. Closed by S2: TOTP MFA, step-up and baseline session lifetimes. Closed by S3: OIDC for
+  staff. Closed by S4: Owner or Admin reset of another user's lost factor (sections below).
 - **Permissions:** subject-scoped grants are stored but not applied. `Me.entitlements` is filled since T1.
-- **Kernel:** no `import-linter` boundary contracts, no mypy. Scheduler, purges and dead
-  letters: see "Jobs and retention" below. No `job_run` table yet (the once-per-local-day guard has no caller).
-- **Contract tests:** the committed snapshot and the generated web types are checked; Schemathesis is not in
-  the suite (a manual run of 2,849 cases found one 500, fixed) and there is no breaking-change diff.
+- **Kernel:** scheduler, purges and dead letters: see "Jobs and retention" below. No `job_run` table yet (the
+  once-per-local-day guard has no caller). import-linter contracts and mypy run since K3 (`docs/dev/checks.md`).
+- **Contract tests:** the committed snapshot and the generated web types are checked; since K3 a sampled
+  Schemathesis run is in the suite (`make contract` runs every operation) and `make api-diff` fails on breaking
+  changes against `main`.
 - **Guards waiting on other contexts:** `location-has-future-bookings` on archive (scheduling), currency
   immutability once a charge exists (billing), FKs for `staff_user.linked_resource_id` (resources) and
   `auth_session.target_client_id` (clients).
