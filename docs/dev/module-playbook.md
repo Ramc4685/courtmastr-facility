@@ -53,7 +53,8 @@ new module must know. The rules that integration added:
 
 - **Migration blocks used so far:** `01xx`, `02xx`, `03xx` (first lanes), `0401`, `05xx` to `09xx` (later
   modules), `1001` to `1099` (Phase 10; head `1081`, plus `1091`), `1101` (leagues), `12xx` (Phase 8: 1210, 1211,
-  1220, 1230, 1231, 1240, 1241, 1250, 1260 to 1264, 1270, 1271, 1280), `13xx` reserved for Phase 9. Numbers are
+  1220, 1230, 1231, 1240, 1241, 1250, 1260 to 1264, 1270, 1271, 1280), `13xx` Phase 9, `14xx` Phase 14, `15xx` Phase 11,
+  `16xx` Phase 12 (chips A 1601-1619, B 1621-1639, C 1641-1659, D 1661-1679; `docs/planning/phase-12.md`). Numbers are
   block labels, not order: read the chain with `uv run alembic heads` and `history`.
 - **Lane databases:** Phase 8's first revision (1210) was re-chained onto Phase 10's head (1081). A lane database
   that applied Phase 8 migrations before Phase 10's cannot be upgraded: drop it and recreate it with `make lane-db`.

@@ -34,8 +34,10 @@ Status per feature: `docs/status/15-reporting.md`.
 
 ## Assumptions (requirements that were ambiguous)
 
-- **Location-local dates.** A period resolves against today in the one chosen location's zone; with several
-  locations, against the earliest "today" among them, so no location sees a day that has not started.
+- **Location-local dates.** A relative period resolves against today in each location's own zone, and each
+  location's rows are filtered by its own range (`_between`); the frozen `from_on`/`to_on` span every location's
+  range. Explicit dates apply to every location as typed; the as-of default uses the chosen location's today, or
+  the earliest one when several are in play. New report families go in `reports/` and register in `catalogue.py`.
 - **Range limit.** A run covers at most 366 days, and `to_on` must not be before `from_on` (422 with a pointer).
 - **Row cap.** One snapshot holds at most 50,000 rows (summary plus detail). Queries fetch at most one row past
   the cap in SQL and the run fails with 422 `report-too-large`; narrow the dates or locations.
