@@ -85,7 +85,9 @@ retention:                            # purge periods in days (ADR 0007 section 
   support_screenshot_days: 1          # a support screenshot never attached to a request (ONB-03)
 storage:
   local_dir: var/storage              # relative to the repository root (git-ignored)
-  max_upload_bytes: 20971520          # the one route that takes file bytes (scanned documents, 20 MiB)
+  max_upload_bytes: 20971520          # the one route that takes file bytes (scanned documents, 20 MiB). clamd's
+                                      # StreamMaxLength must be at least this (ClamAV's sample default is 25M)
+                                      # or user uploads fail closed; system-generated files are not scanned
   adapter: local                      # local | s3 (AWS S3, Fly Tigris, MinIO; keys from FH_S3_* env vars)
   s3: {bucket: facilityhub, endpoint_url: null, region: us-east-1, path_style: false}
   scanner: noop                       # noop | clamd. Refused outside dev and test: production must scan uploads
