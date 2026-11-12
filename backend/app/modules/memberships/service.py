@@ -273,7 +273,7 @@ def duplicate_plan(session: Session, principal: Principal, plan_id: UUID) -> dic
     for addon in _addons(session, source.id):
         session.add(MembershipPlanAddon(
             membership_plan_id=copy.id, addon_kind=addon.addon_kind, package_plan_id=addon.package_plan_id,
-            quantity=addon.quantity, sort_order=addon.sort_order,
+            catalog_item_id=addon.catalog_item_id, quantity=addon.quantity, sort_order=addon.sort_order,
         ))  # fmt: skip
     session.flush()
     audit.record(session, _MANAGE, copy, changes={"name": [None, copy.name], "copied_from": [None, str(source.id)]})
@@ -281,16 +281,21 @@ def duplicate_plan(session: Session, principal: Principal, plan_id: UUID) -> dic
 
 
 def replace_plan_addons(session: Session, principal: Principal, plan_id: UUID, addons: list[dict]) -> dict:
-    """Bundled package plans (MEM-04). Pre-defined billing items are not available yet (billing catalog_item)."""
+    """Bundled package plans and pre-defined billing items (MEM-04). An item add-on is billed with the dues:
+    every period when the item recurs, once with the first when it is a one-off."""
     authorize(principal, _MANAGE)
     plan = _get(session, MembershipPlan, plan_id, lock=True)
     for row in _addons(session, plan.id):
         session.delete(row)
     session.flush()
     for order, addon in enumerate(addons):
+        item_id = addon.get("catalog_item_id")
+        if item_id is not None and not billing.catalog.item_exists(session, item_id):
+            raise ValidationFailed("Unknown catalogue item.", pointer=f"/addons/{order}/catalog_item_id")
         session.add(MembershipPlanAddon(
-            membership_plan_id=plan.id, addon_kind="package_plan", package_plan_id=addon["package_plan_id"],
-            quantity=addon.get("quantity", 1), sort_order=order,
+            membership_plan_id=plan.id, addon_kind=addon.get("addon_kind", "package_plan"),
+            package_plan_id=addon.get("package_plan_id"), catalog_item_id=item_id, quantity=addon.get("quantity", 1),
+            sort_order=order,
         ))  # fmt: skip
     audit.record(session, _MANAGE, plan, changes={"addons": [None, len(addons)]})
     session.flush()
@@ -298,6 +303,50 @@ def replace_plan_addons(session: Session, principal: Principal, plan_id: UUID, a
 
 
 # --- the sale (MEM-06, MEM-07, MEM-08) ---------------------------------------------------------------------------
+
+
+def _addon_dict(addon) -> dict:
+    get = addon.get if isinstance(addon, dict) else lambda key: getattr(addon, key)
+    keys = ("addon_kind", "package_plan_id", "catalog_item_id", "quantity")
+    return {key: get(key) for key in keys} | {"quantity": get("quantity") or 1}
+
+
+def _addon_periods(
+    session: Session,
+    addons: list[dict],
+    periods: list[domain.Period],
+    location_id: UUID,
+    name: str,
+    start: date,
+    *,
+    renewal: bool = False,
+) -> tuple[list[domain.Period], list[dict]]:
+    """Item add-ons (MEM-04) as `addon_item` rows priced from the catalogue now: a recurring item is billed with
+    every dues period, a one-off once with the first (or at the start when there are no dues). A renewal
+    carries only recurring items still sold at the location. Returns the rows and the add-ons they came from."""
+    dues = [p for p in periods if p.kind == "dues"]
+    rows, kept = [], []
+    for addon in addons:
+        if addon["addon_kind"] != "catalog_item":
+            continue
+        try:
+            item = billing.catalog.addon_terms(session, addon["catalog_item_id"], location_id=location_id)
+        except ValidationFailed:
+            if renewal:
+                continue
+            raise
+        if renewal and not item["is_recurring"]:
+            continue
+        kept.append(addon)
+        amount = item["amount_minor"] * addon["quantity"]
+        label = f"{name}: {item['description']}" + (f" x {addon['quantity']}" if addon["quantity"] > 1 else "")
+        for period in (dues if item["is_recurring"] else dues[:1]) or [None]:
+            rows.append(domain.Period(
+                kind="addon_item", sequence_number=len(rows) + 1, starts_on=period and period.starts_on,
+                ends_on=period and period.ends_on, due_on=period.due_on if period else start,
+                list_amount_minor=amount, amount_minor=amount, catalog_item_id=item["catalog_item_id"], description=label,
+            ))  # fmt: skip
+    return rows, kept
 
 
 def _draft(session: Session, principal: Principal, data: dict, channel: str) -> tuple[dict, list[domain.Period]]:
@@ -352,6 +401,14 @@ def _draft(session: Session, principal: Principal, data: dict, channel: str) -> 
     periods, end_on = domain.build_schedule(terms)
     # the enrolment fee is due at the sale, also when the membership starts later
     periods = [replace(p, due_on=min(p.due_on, today)) if p.kind == "initiation" else p for p in periods]
+    addons = [_addon_dict(a) for a in _addons(session, plan.id)]
+    if data.get("addons") is not None:  # this sale's own add-ons (MEM-04)
+        chosen = [_addon_dict(a) for a in data["addons"]]
+        if chosen != addons:
+            authorize(principal, _CUSTOMIZE, location_id=location_id)
+        addons = chosen
+    extra, _ = _addon_periods(session, addons, periods, location_id, plan.name, start)
+    periods = periods + extra
     invoice_mode = data.get("invoice_mode") or plan.default_invoice_mode
     if sum(p.amount_minor for p in periods) == 0:
         invoice_mode, periods = "none", []  # a record-only membership (MEM-06): no schedule, nothing to bill
@@ -376,7 +433,7 @@ def _draft(session: Session, principal: Principal, data: dict, channel: str) -> 
         "renews_as_plan_id": plan.renews_as_plan_id,
         "sold_by_staff_user_id": data.get("sold_by_staff_user_id") or _staff_id(principal),
         "referred_by_client_id": data.get("referred_by_client_id"), "sales_channel": channel,
-        "internal_notes": data.get("internal_notes"), "status": "upcoming",
+        "internal_notes": data.get("internal_notes"), "status": "upcoming", "addons": addons,
     }  # fmt: skip
     return fields, periods
 
@@ -425,6 +482,8 @@ def _check_overlap(session: Session, contract: MembershipContract) -> None:
 
 
 def _describe(contract: MembershipContract, period: domain.Period) -> str:
+    if period.description:
+        return period.description
     if period.kind == "initiation":
         return f"{contract.name}: enrolment fee"
     last = period.ends_on - _ONE_DAY
@@ -442,6 +501,7 @@ def _add_periods(session: Session, contract: MembershipContract, periods: list[d
             revenue_on=single_revenue or period.starts_on or period.due_on,
             list_amount_minor=period.list_amount_minor, amount_minor=period.amount_minor,
             is_prorated=period.is_prorated, description=_describe(contract, period),
+            catalog_item_id=period.catalog_item_id,
         ))  # fmt: skip
     session.flush()
 
@@ -463,7 +523,11 @@ def _bill_rows(session: Session, contract: MembershipContract, rows: list[Period
             session, client_id=contract.owner_client_id, location_id=contract.location_id,
             description=row.description, unit_price_minor=row.amount_minor, source_context="memberships",
             source_type="billing_schedule_period", source_id=row.id, source_line_no=row.charge_sequence,
-            revenue_category_id=contract.revenue_category_id, revenue_on=row.revenue_on,
+            revenue_category_id=(
+                billing.catalog.revenue_category_of(session, row.catalog_item_id)
+                if row.catalog_item_id else contract.revenue_category_id
+            ),
+            revenue_on=row.revenue_on,
             additional_description=contract.invoice_description, service_starts_on=lower,
             service_ends_on=upper and upper - _ONE_DAY,
         )  # fmt: skip
@@ -502,6 +566,7 @@ def _add_share(session: Session, contract: MembershipContract, client_id: UUID, 
 def _sell(session: Session, principal: Principal, data: dict, channel: str):
     """The sale itself, shared by the desk and the portal. Returns (contract, invoice for what is due now)."""
     fields, periods = _draft(session, principal, data, channel)
+    addons = fields.pop("addons")
     if channel == "staff":  # what the sale carries is gated like the commands that would set it later
         if data.get("share_client_ids"):
             authorize(principal, _SHARE, location_id=fields["location_id"])
@@ -514,11 +579,8 @@ def _sell(session: Session, principal: Principal, data: dict, channel: str):
     _check_overlap(session, contract)
     today = _today(session, contract.location_id)
     _add_periods(session, contract, periods, today)
-    for addon in _addons(session, contract.membership_plan_id):
-        session.add(MembershipContractAddon(
-            membership_contract_id=contract.id, addon_kind=addon.addon_kind, package_plan_id=addon.package_plan_id,
-            quantity=addon.quantity,
-        ))  # fmt: skip
+    for addon in addons:
+        session.add(MembershipContractAddon(membership_contract_id=contract.id, **addon))
     for client_id in data.get("share_client_ids") or []:
         _add_share(session, contract, client_id, _staff_id(principal))
     clients.service.ensure_member_number(session, contract.owner_client_id)
@@ -1249,8 +1311,18 @@ def _renew(
     session.add(successor)
     session.flush()
     _check_overlap(session, successor)
+    item_addons = select(MembershipContractAddon).where(
+        MembershipContractAddon.membership_contract_id == contract.id,
+        MembershipContractAddon.catalog_item_id.is_not(None),
+    )
+    extra, kept = _addon_periods(
+        session, [_addon_dict(a) for a in session.scalars(item_addons)], periods, successor.location_id, successor.name,
+        successor.start_on, renewal=True,
+    )  # fmt: skip
+    for addon in kept:  # recurring item add-ons ride along; one-offs were billed once, with the first term
+        session.add(MembershipContractAddon(membership_contract_id=successor.id, **addon))
     if successor.invoice_mode != "none":
-        _add_periods(session, successor, periods, today)
+        _add_periods(session, successor, periods + extra, today)
     shares = select(MembershipShare).where(
         MembershipShare.membership_contract_id == contract.id, MembershipShare.revoked_at.is_(None)
     )

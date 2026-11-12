@@ -15,7 +15,18 @@ from app.core.auth.deps import Ctx, current_ctx, public_session, require
 from app.core.idempotency import KEY_PATTERN, idempotency
 from app.core.pagination import ListQuery, list_query, paginate
 from app.core.ratelimit import rate_limit
-from app.modules.billing import autopay, catalogue, desk, documents, methods, portal, service, statements, webhooks
+from app.modules.billing import (
+    autopay,
+    catalog,
+    catalogue,
+    desk,
+    documents,
+    methods,
+    portal,
+    service,
+    statements,
+    webhooks,
+)
 from app.modules.billing import schemas as s
 from app.modules.billing.models import BillingNotice
 
@@ -299,6 +310,56 @@ def delete_coupon(coupon_id: UUID, ctx: Ctx = Depends(require("billing.coupon.ma
 @router.get("/coupons/{coupon_id}/redemptions", response_model=list[s.CouponRedemptionOut])
 def list_coupon_redemptions(coupon_id: UUID, ctx: Ctx = Depends(require("billing.coupon.manage"))):
     return catalogue.list_coupon_redemptions(ctx.session, ctx.principal, coupon_id)
+
+
+# --- pre-defined items (BIL-14) ----------------------------------------------------------------------------
+
+
+@router.get("/catalog-items", response_model=s.Page[s.CatalogItemOut])
+def list_catalog_items(query: Lists, ctx: Ctx = Staff):
+    """Filters: location_id, kind, is_active; q searches the description. Sort: description, created_at."""
+    return catalog.list_items(ctx.session, ctx.principal, query)
+
+
+@router.post("/catalog-items", response_model=s.CatalogItemOut, status_code=201)
+def create_catalog_item(body: s.CatalogItemCreate, ctx: Ctx = Depends(require("billing.item.manage"))):
+    return catalog.create_item(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.get("/catalog-items/{catalog_item_id}", response_model=s.CatalogItemOut)
+def get_catalog_item(catalog_item_id: UUID, ctx: Ctx = Staff):
+    return catalog.get_item(ctx.session, ctx.principal, catalog_item_id)
+
+
+@router.patch("/catalog-items/{catalog_item_id}", response_model=s.CatalogItemOut)
+def update_catalog_item(
+    catalog_item_id: UUID, body: s.CatalogItemUpdate, ctx: Ctx = Depends(require("billing.item.manage"))
+):
+    """Edits apply to later sales; set is_active false to stop selling it."""
+    return catalog.update_item(ctx.session, ctx.principal, catalog_item_id, _patch(body))
+
+
+@router.post("/catalog-items/{catalog_item_id}/sales", response_model=s.CatalogItemSaleOut, status_code=201)
+def sell_catalog_item(
+    catalog_item_id: UUID, body: s.CatalogItemSaleCreate, ctx: Ctx = Depends(require("billing.charge.create"))
+):
+    """Sell an item to a client: one billing item per occurrence, invoiced as the item says. A fee or
+    discount other than the item's needs billing.charge.override_price."""
+    return catalog.sell_item(ctx.session, ctx.principal, catalog_item_id, _patch(body) | {"client_id": body.client_id})
+
+
+@router.get("/catalog-item-sales", response_model=s.Page[s.CatalogItemSaleOut])
+def list_catalog_item_sales(query: Lists, ctx: Ctx = Depends(require("billing.charge.read"))):
+    """Filters: client_id, catalog_item_id, status, location_id. Sort: starts_on, created_at."""
+    return catalog.list_sales(ctx.session, ctx.principal, query)
+
+
+@router.post("/catalog-item-sales/{catalog_item_sale_id}/cancel", response_model=s.CatalogItemSaleOut)
+def cancel_catalog_item_sale(
+    catalog_item_sale_id: UUID, body: s.ReasonRequest, ctx: Ctx = Depends(require("billing.charge.reverse"))
+):
+    """Occurrences not started yet are reversed; money applied to them becomes account credit."""
+    return catalog.cancel_sale(ctx.session, ctx.principal, catalog_item_sale_id, body.model_dump())
 
 
 # --- items -------------------------------------------------------------------------------------------------

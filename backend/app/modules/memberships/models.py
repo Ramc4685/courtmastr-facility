@@ -219,13 +219,19 @@ class MembershipPlanAddon(TenantOwned, Timestamps, Base):
         *tfk("membership_plan_id", "membership_plan", ondelete="CASCADE"),
         *tfk("package_plan_id", "package_plan"),
         enum_check("addon_kind", AddonKind),
-        CheckConstraint("(addon_kind = 'package_plan') = (package_plan_id IS NOT NULL)", name="target"),
+        *tfk("catalog_item_id", "catalog_item"),
+        CheckConstraint(
+            "(addon_kind = 'package_plan') = (package_plan_id IS NOT NULL) "
+            "AND (addon_kind = 'catalog_item') = (catalog_item_id IS NOT NULL)",
+            name="target",
+        ),
         CheckConstraint("quantity >= 1", name="quantity"),
     )
 
     membership_plan_id: Mapped[UUID]
     addon_kind: Mapped[str] = enum_column()
     package_plan_id: Mapped[UUID | None]
+    catalog_item_id: Mapped[UUID | None]
     quantity: Mapped[int] = mapped_column(server_default=text("1"))
     sort_order: Mapped[int] = mapped_column(server_default=text("0"))
 
@@ -363,13 +369,19 @@ class MembershipContractAddon(TenantOwned, Timestamps, Base):
         *tfk("membership_contract_id", "membership_contract", ondelete="CASCADE"),
         *tfk("package_plan_id", "package_plan"),
         enum_check("addon_kind", AddonKind),
-        CheckConstraint("(addon_kind = 'package_plan') = (package_plan_id IS NOT NULL)", name="target"),
+        *tfk("catalog_item_id", "catalog_item"),
+        CheckConstraint(
+            "(addon_kind = 'package_plan') = (package_plan_id IS NOT NULL) "
+            "AND (addon_kind = 'catalog_item') = (catalog_item_id IS NOT NULL)",
+            name="target",
+        ),
         CheckConstraint("quantity >= 1", name="quantity"),
     )
 
     membership_contract_id: Mapped[UUID]
     addon_kind: Mapped[str] = enum_column()
     package_plan_id: Mapped[UUID | None]
+    catalog_item_id: Mapped[UUID | None]
     quantity: Mapped[int] = mapped_column(server_default=text("1"))
 
 
@@ -382,6 +394,8 @@ class BillingSchedulePeriod(TenantOwned, Timestamps, Base):
         *tfk("suspension_id", "membership_suspension"),
         *tfk("charge_id", "charge", index=False),
         *tfk("withheld_by_freeze_id", "membership_freeze"),
+        *tfk("catalog_item_id", "catalog_item"),
+        CheckConstraint("(kind = 'addon_item') = (catalog_item_id IS NOT NULL)", name="addon_item"),
         enum_check("kind", PeriodKind),
         enum_check("status", PeriodStatus),
         enum_check("cancelled_reason", PeriodCancelledReason),
@@ -413,6 +427,7 @@ class BillingSchedulePeriod(TenantOwned, Timestamps, Base):
     is_prorated: Mapped[bool] = mapped_column(server_default=text("false"))
     description: Mapped[str] = mapped_column(info={"audit": "value"})
     suspension_id: Mapped[UUID | None]
+    catalog_item_id: Mapped[UUID | None]
     status: Mapped[str] = enum_column(server_default=text("'scheduled'"))
     charge_id: Mapped[UUID | None]
     charge_sequence: Mapped[int] = mapped_column(server_default=text("0"))

@@ -43,7 +43,7 @@ Counts (39 features):
 | Priority | done | partial | not built |
 |---|---|---|---|
 | P0 | 10 | 5 | 0 |
-| P1 | 10 | 8 | 3 |
+| P1 | 11 | 7 | 3 |
 | P2 | 1 | 0 | 2 |
 
 The P1 count moved by 4 from the backend file: MEM-13 and MEM-14 are now partial because their edit commands
@@ -56,7 +56,7 @@ have no screen, and PKG-09 is partial because it has no portal page.
 | MEM-01 Membership type catalogue | P0 | done | Memberships > Types | backend `test_sale::test_catalogue...`; e2e scan | Retire and reactivate; no delete. |
 | MEM-02 Membership plan templates | P0 | done | Memberships > Plans (dialog, Duplicate) | backend; e2e scan of the dialog | Edits reach later sales only (snapshot). |
 | MEM-03 Plan proration rules | P1 | done | plan dialog (mode, tail); sell dialog periods table | backend `test_schedule`; Vitest sale test | With seller's choice, the sell dialog asks whether to prorate. |
-| MEM-04 Plan add-ons | P1 | partial | plan dialog "Included packages" (PUT addons) | backend `test_credits` | Billing items as add-ons and per-sale add-on changes are not built (backend gap). |
+| MEM-04 Plan add-ons | P1 | done | plan dialog "Included packages" and "Billed add-ons" (pre-defined items) (PUT addons) | backend `test_credits`, `test_catalog_addons`; e2e `memberships.spec` (axe) | The sale dialog sells the plan's own add-ons; changing them for one sale is API only (`addons` on the sale, behind `memberships.contract.customize_terms`). |
 | MEM-05 Membership preferences | P0 | partial | Memberships > Preferences | backend; e2e scan | The payment-method capture settings are stored but have no effect (no stored payment methods). |
 | MEM-06 Simple (record-only) membership | P2 | done | a zero-fee plan sold from the client tab | backend `test_sale::test_record_only...` | |
 | MEM-07 Staff sale of a membership contract | P0 | done | client Memberships > Sell membership | backend; Vitest sale test; e2e scan | Per-sale customised terms (fee, discount, end date, occurrences, visit cap) are API only. No card saving or coupons. |

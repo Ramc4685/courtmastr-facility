@@ -1015,8 +1015,8 @@ class StatementRecipientOut(Out):
 class StatementBatchOut(Out):
     id: UUID
     location_id: UUID
-    period_from_on: date | None
-    period_to_on: date | None
+    period_from_on: date
+    period_to_on: date
     date_basis: Literal["invoice_date", "due_date"]
     is_open_only: bool
     status: Literal["queued", "running", "completed", "failed"]
@@ -1072,3 +1072,121 @@ class PortalStatementOut(Out):
     refunded_minor: int
     balance_due_minor: int
     credit_minor: int
+
+
+# --- pre-defined items (BIL-14) ----------------------------------------------------------------------------
+
+Unit = Literal["day", "week", "month", "year"]
+InvoiceOption = Literal["single_invoice", "invoice_per_occurrence", "leave_uninvoiced"]
+Pct = Annotated[Decimal, Field(ge=0, le=100, decimal_places=2)]
+Occurrences = Annotated[int, Field(ge=1, le=366)]
+Every = Annotated[int, Field(ge=1, le=366)]
+
+
+class CatalogItemCreate(In):
+    location_id: UUID
+    kind: Literal["one_off", "recurring"]
+    description: Text
+    additional_description: Text | None = None
+    internal_remarks: Text | None = None
+    start_mode: Literal["sale_date", "fixed_date"] = "sale_date"
+    starts_on: date | None = None
+    length_count: Every | None = None
+    length_unit: Unit | None = None
+    recurrence_unit: Unit | None = None
+    recurrence_every: Every | None = None
+    recurrence_count: Occurrences | None = None
+    fee_minor: Minor
+    discount_pct: Pct | None = None
+    discount_minor: Minor | None = None
+    invoice_option: InvoiceOption = "single_invoice"
+    is_autopay: bool = False
+    is_auto_renew: bool = False
+    renew_lead_days: Annotated[int, Field(ge=0, le=366)] = 0
+    renews_as_catalog_item_id: UUID | None = None
+    revenue_category_id: UUID
+    is_active: bool = True
+
+
+class CatalogItemUpdate(In):
+    location_id: UUID | None = None
+    kind: Literal["one_off", "recurring"] | None = None
+    description: Text | None = None
+    additional_description: Text | None = None
+    internal_remarks: Text | None = None
+    start_mode: Literal["sale_date", "fixed_date"] | None = None
+    starts_on: date | None = None
+    length_count: Every | None = None
+    length_unit: Unit | None = None
+    recurrence_unit: Unit | None = None
+    recurrence_every: Every | None = None
+    recurrence_count: Occurrences | None = None
+    fee_minor: Minor | None = None
+    discount_pct: Pct | None = None
+    discount_minor: Minor | None = None
+    invoice_option: InvoiceOption | None = None
+    is_autopay: bool | None = None
+    is_auto_renew: bool | None = None
+    renew_lead_days: Annotated[int, Field(ge=0, le=366)] | None = None
+    renews_as_catalog_item_id: UUID | None = None
+    revenue_category_id: UUID | None = None
+    is_active: bool | None = None
+
+
+class CatalogItemOut(Out):
+    id: UUID
+    location_id: UUID
+    kind: Literal["one_off", "recurring"]
+    description: str
+    additional_description: str | None
+    internal_remarks: str | None
+    start_mode: Literal["sale_date", "fixed_date"]
+    starts_on: date | None
+    length_count: int | None
+    length_unit: Unit | None
+    recurrence_unit: Unit | None
+    recurrence_every: int | None
+    recurrence_count: int | None
+    fee_minor: int
+    discount_pct: Decimal | None
+    discount_minor: int | None
+    invoice_option: InvoiceOption
+    is_autopay: bool
+    is_auto_renew: bool
+    renew_lead_days: int
+    renews_as_catalog_item_id: UUID | None
+    revenue_category_id: UUID
+    is_active: bool
+
+
+class CatalogItemSaleCreate(In):
+    """Per-sale overrides of the item's terms; a fee or discount other than the item's needs
+    billing.charge.override_price."""
+
+    client_id: UUID
+    starts_on: date | None = None
+    fee_minor: Minor | None = None
+    discount_pct: Pct | None = None
+    discount_minor: Minor | None = None
+    excluded_tax_ids: Annotated[list[UUID], Field(max_length=20)] = []
+    is_auto_renew: bool | None = None
+    is_autopay: bool | None = None
+    invoice_option: InvoiceOption | None = None
+
+
+class CatalogItemSaleOut(Out):
+    id: UUID
+    catalog_item_id: UUID
+    client_id: UUID
+    location_id: UUID
+    sold_on: date
+    starts_on: date
+    ends_on: date | None
+    is_auto_renew: bool
+    renew_on: date | None
+    renews_as_catalog_item_id: UUID | None
+    previous_sale_id: UUID | None
+    status: Literal["active", "renewed", "ended", "cancelled"]
+    terms: dict
+    charge_ids: list[UUID]
+    invoice_ids: list[UUID]

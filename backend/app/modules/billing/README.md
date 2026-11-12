@@ -107,6 +107,45 @@ Output is deterministic (uncompressed, fixed creation date), so tests assert tex
 invoice, receipt and statement also stores its PDF through `platform.files.store` (purpose `billing.invoice`,
 `billing.receipt`, `billing.statement`) and keeps the id on the delivery or recipient row.
 
+## Pre-defined items (BIL-14, `catalog.py`)
+
+`catalog_item` holds a fee the tenant sells again and again, at one location: one-off (open-ended or with a
+length) or recurring (every N days, weeks, months or years, a number of times per term), with a discount
+(percent or amount, never both), an invoicing option, autopay and auto-renew flags, a renewal lead and an
+optional item to renew as. `catalog_item_sale` freezes the item's terms at sale (`terms` JSONB), so editing
+an item changes later sales only. Staff routes: `/catalog-items` (list, create, get, update) behind
+`billing.item.manage`, `POST /catalog-items/{id}/sales` behind `billing.charge.create` at the item's location
+(a different fee or discount also needs `billing.charge.override_price`), `GET /catalog-item-sales`
+(`billing.charge.read`, client-following like the charge list) and `POST /catalog-item-sales/{id}/cancel`
+behind `billing.charge.reverse` at the sale's location.
+
+Internal, for other contexts (no principal, ADR 0009 section 9), in `billing.catalog`:
+
+```python
+sell(session, item_id, *, client_id, starts_on=None, overrides=None, is_auto_renew=None) -> CatalogItemSale
+renew_due(session) -> {"renewed": n, "ended": n, "failed": n}   # the hourly job's body, per tenant
+addon_terms(session, item_id, *, location_id, pointer="/addons") -> dict  # MEM-04: description, net amount,
+                                                                          # is_recurring, revenue category
+item_exists(session, item_id) -> bool;  revenue_category_of(session, item_id) -> UUID
+```
+
+Assumptions:
+
+- **Every occurrence is posted at sale.** One charge per occurrence (`source_context="billing"`,
+  `source_type="catalog_item_sale"`, `source_line_no` = occurrence index, so a replay posts nothing twice),
+  billed today; the occurrence dates go to `revenue_on` (never before today) and the service dates. Bounded at
+  366 occurrences per term. Invoicing: one invoice for all (due on the start), one per occurrence (due on its
+  first day), or none.
+- **The discount applies per occurrence** and a percentage rounds half-up once on each line.
+- **Cancel** reverses the occurrences whose service has not started; money applied to them becomes account
+  credit through the reversal. Started occurrences stay billed.
+- **Renewal** runs hourly (`renew_catalog_item_sales`) and acts on sales whose `renew_on` (the day after the
+  term, less the lead) is the location's today or earlier. Renewing as another item uses that item's current
+  terms; an inactive renew-as item ends the sale instead. Without auto-renew a sale past its end becomes
+  `ended`. The successor is unique per sale, so a second run creates nothing.
+- **Membership add-ons (MEM-04)** bill through the membership schedule, not through a sale: the item is a price
+  list entry there, and it must belong to the contract's location.
+
 ## Jobs
 
 `webhooks.process_provider_event` (enqueued by the webhook route), `statements.run_statement_batch` (a batch

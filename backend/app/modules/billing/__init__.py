@@ -11,4 +11,7 @@ from app.modules.billing import catalogue, methods, autopay, checkout, documents
 from app.modules.billing import statements  # noqa: E402, F401  (after documents, which it builds on)
 
 __all__ = ["autopay", "catalogue", "checkout", "documents", "methods", "models", "permissions", "service", "webhooks"]
-from app.modules.billing import subject  # noqa: E402, F401  (registers the merge and data-subject handlers)
+from app.modules.billing import (
+    catalog,  # noqa: E402, F401  (pre-defined items; registers its renewal actor)
+    subject,  # noqa: E402, F401  (registers the merge and data-subject handlers)
+)

@@ -56,6 +56,7 @@ function planForm(p?: Plan) {
     is_sold_online: p?.is_sold_online ?? false,
     is_active: p?.is_active ?? true,
     addons: (p?.addons ?? []).filter((a) => a.package_plan_id).map((a) => ({ package_plan_id: a.package_plan_id as string, quantity: String(a.quantity) })),
+    items: (p?.addons ?? []).filter((a) => a.catalog_item_id).map((a) => ({ catalog_item_id: a.catalog_item_id as string, quantity: String(a.quantity) })),
   }
 }
 
@@ -65,8 +66,10 @@ function PlanDialog({ plan, types, onClose }: { plan?: Plan; types: MType[]; onC
   const { can } = useAuth()
   const plans = useMembershipPlans(true).data?.data ?? []
   const packagePlans = usePackagePlans(true).data?.data ?? []
+  const catalog = useQuery({ queryKey: ['billing', 'catalog-items', 'all'], queryFn: () => api.get('/api/v1/catalog-items', { query: { limit: 200, sort: 'description' } }) })
   const [form, setForm] = useState(() => planForm(plan))
   const set = (patch: Partial<typeof form>) => setForm({ ...form, ...patch })
+  const catalogItems = (catalog.data?.data ?? []).filter((c) => c.is_active || form.items.some((a) => a.catalog_item_id === c.id))
   const save = useMutation({
     mutationFn: async () => {
       const lead = form.auto_renew_lead_count === '' ? null : Number(form.auto_renew_lead_count)
@@ -96,9 +99,12 @@ function PlanDialog({ plan, types, onClose }: { plan?: Plan; types: MType[]; onC
       const saved = plan
         ? await api.patch('/api/v1/membership-plans/{membership_plan_id}', { path: { membership_plan_id: plan.id }, body })
         : await api.post('/api/v1/membership-plans', { body })
-      const addons = form.addons.filter((a) => a.package_plan_id).map((a) => ({ package_plan_id: a.package_plan_id, quantity: Number(a.quantity) || 1 }))
-      const before = JSON.stringify(planForm(plan).addons)
-      if (JSON.stringify(form.addons) !== before) {
+      const addons = [
+        ...form.addons.filter((a) => a.package_plan_id).map((a) => ({ addon_kind: 'package_plan' as const, package_plan_id: a.package_plan_id, quantity: Number(a.quantity) || 1 })),
+        ...form.items.filter((a) => a.catalog_item_id).map((a) => ({ addon_kind: 'catalog_item' as const, catalog_item_id: a.catalog_item_id, quantity: Number(a.quantity) || 1 })),
+      ]
+      const before = planForm(plan)
+      if (JSON.stringify([form.addons, form.items]) !== JSON.stringify([before.addons, before.items])) {
         return api.put('/api/v1/membership-plans/{membership_plan_id}/addons', { path: { membership_plan_id: saved.id }, body: { addons } })
       }
       return saved
@@ -225,6 +231,29 @@ function PlanDialog({ plan, types, onClose }: { plan?: Plan; types: MType[]; onC
           ))}
           <Button size="sm" variant="secondary" onClick={() => set({ addons: [...form.addons, { package_plan_id: '', quantity: '1' }] })}>
             Add a package
+          </Button>
+        </fieldset>
+        <fieldset className="space-y-3 rounded border border-border p-3 sm:col-span-2">
+          <legend className="px-1 text-sm font-medium">Billed add-ons</legend>
+          <p className="text-xs text-muted">Pre-defined items billed with the contract: recurring ones with each dues period, one-off ones once at sale.</p>
+          {form.items.map((a, i) => (
+            <div key={i} className="flex items-end gap-2">
+              <Select
+                className="flex-1"
+                label={`Add-on ${i + 1}`}
+                value={a.catalog_item_id}
+                placeholder="Choose a pre-defined item"
+                onChange={(e) => set({ items: form.items.map((x, j) => (j === i ? { ...x, catalog_item_id: e.target.value } : x)) })}
+                options={catalogItems.map((c) => ({ value: c.id, label: c.description }))}
+              />
+              <Input className="w-24" label="Quantity" type="number" min={1} value={a.quantity} onChange={(e) => set({ items: form.items.map((x, j) => (j === i ? { ...x, quantity: e.target.value } : x)) })} />
+              <Button variant="ghost" aria-label={`Remove add-on ${i + 1}`} onClick={() => set({ items: form.items.filter((_, j) => j !== i) })}>
+                Remove
+              </Button>
+            </div>
+          ))}
+          <Button size="sm" variant="secondary" onClick={() => set({ items: [...form.items, { catalog_item_id: '', quantity: '1' }] })}>
+            Add a billed add-on
           </Button>
         </fieldset>
       </form>

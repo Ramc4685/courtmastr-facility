@@ -8,6 +8,7 @@ const LINKS = [
   { to: '/billing/receivables', label: 'Receivables', permission: 'billing.invoice.read' },
   { to: '/billing/statements', label: 'Statements', permission: 'billing.statement.send' },
   { to: '/billing/coupons', label: 'Coupons', permission: 'billing.charge.read' },
+  { to: '/billing/catalog', label: 'Pre-defined items', permission: 'billing.charge.read' },
   { to: '/billing/setup', label: 'Set-up', permission: 'billing.charge.read' },
   { to: '/billing/settings', label: 'Preferences', permission: 'billing.settings.manage' },
 ]

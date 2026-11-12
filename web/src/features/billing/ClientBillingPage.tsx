@@ -15,6 +15,7 @@ import { useAuth, useCurrentLocation } from '../../lib/auth'
 import { formatDateTime, fullName } from '../../lib/format'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { AddChargeDialog, EditChargeDialog, ReverseChargeDialog, VoidChargeDialog } from './ChargeDialogs'
+import { ClientItemSales, SellItemDialog } from './CatalogPage'
 import { CHARGE_STATUS, INVOICE_STATUS, PAYMENT_STATUS, TENDER_LABEL, formatMoney, parseMoney, today } from './money'
 import { PaymentMethodField } from './PaymentMethodField'
 import { ClientName, Facts, FormDialog, ListTable, Money, MoneyInput, PdfButton, StatusBadge, TextArea, useClient, useCurrency } from './shared'
@@ -73,7 +74,7 @@ function ItemsTab({ clientId, homeLocationId }: { clientId: string; homeLocation
   const { can } = useAuth()
   const [filter, setFilter] = useState('open')
   const [chosen, setChosen] = useState<string[]>([])
-  const [dialog, setDialog] = useState<null | { kind: 'add' | 'invoice' } | { kind: 'edit' | 'reverse' | 'void'; charge: Charge }>(null)
+  const [dialog, setDialog] = useState<null | { kind: 'add' | 'sell' | 'invoice' } | { kind: 'edit' | 'reverse' | 'void'; charge: Charge }>(null)
   const query = filter === 'uninvoiced' ? { is_uninvoiced: true } : filter === 'open' ? { is_open: true } : {}
   const paging = useKeysetQuery(['billing', 'charges', 'client', clientId, filter], (cursor) => api.get('/api/v1/charges', { query: { client_id: clientId, cursor, ...query } }))
   const toggle = (id: string, on: boolean) => setChosen(on ? [...chosen, id] : chosen.filter((x) => x !== id))
@@ -132,11 +133,14 @@ function ItemsTab({ clientId, homeLocationId }: { clientId: string; homeLocation
               Invoice selected ({chosen.length})
             </Button>
           )}
+          {can('billing.charge.create') && <Button variant="secondary" onClick={() => setDialog({ kind: 'sell' })}>Sell pre-defined item</Button>}
           {can('billing.charge.create') && <Button onClick={() => setDialog({ kind: 'add' })}>Add item</Button>}
         </div>
       </div>
       <Table caption="Billing items" columns={columns} rowKey={(c) => c.id} paging={paging} empty={<EmptyState title="No items" />} />
+      <ClientItemSales clientId={clientId} />
       {dialog?.kind === 'add' && <AddChargeDialog clientId={clientId} defaultLocationId={homeLocationId} onClose={close} />}
+      {dialog?.kind === 'sell' && <SellItemDialog clientId={clientId} onClose={close} />}
       {dialog?.kind === 'invoice' && <CreateInvoiceDialog clientId={clientId} chargeIds={chosen} onClose={close} />}
       {dialog?.kind === 'edit' && <EditChargeDialog charge={dialog.charge} onClose={close} />}
       {dialog?.kind === 'reverse' && <ReverseChargeDialog charge={dialog.charge} onClose={close} />}

@@ -935,3 +935,110 @@ class StatementRecipient(TenantOwned, Timestamps, Base):
     stored_file_id: Mapped[UUID | None]
     failure_message: Mapped[str | None]
     sent_at: Mapped[datetime | None]
+
+
+# --- pre-defined items (BIL-14, data-model-money 1.1) ------------------------------------------------------
+
+CatalogItemKind = _values("one_off", "recurring")
+CatalogUnit = _values("day", "week", "month", "year")
+CatalogStartMode = _values("sale_date", "fixed_date")
+CatalogInvoiceOption = _values("single_invoice", "invoice_per_occurrence", "leave_uninvoiced")
+CatalogSaleStatus = _values("active", "renewed", "ended", "cancelled")
+
+
+class CatalogItem(TenantOwned, Timestamps, Base):
+    """A reusable fee definition, one-off or recurring, sold to clients as a `catalog_item_sale`."""
+
+    __tablename__ = "catalog_item"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", index=False),
+        *tfk("revenue_category_id", "revenue_category"),
+        *tfk("renews_as_catalog_item_id", "catalog_item"),
+        enum_check("kind", CatalogItemKind),
+        enum_check("start_mode", CatalogStartMode),
+        enum_check("length_unit", CatalogUnit),
+        enum_check("recurrence_unit", CatalogUnit),
+        enum_check("invoice_option", CatalogInvoiceOption),
+        CheckConstraint(
+            "(kind = 'recurring') = (num_nonnulls(recurrence_unit, recurrence_every, recurrence_count) = 3) "
+            "AND num_nonnulls(recurrence_unit, recurrence_every, recurrence_count) IN (0, 3)",
+            name="recurrence",
+        ),
+        CheckConstraint("recurrence_every IS NULL OR recurrence_every >= 1", name="every"),
+        CheckConstraint("recurrence_count IS NULL OR recurrence_count BETWEEN 1 AND 366", name="count"),
+        CheckConstraint(
+            "kind = 'one_off' OR length_count IS NULL", name="length_one_off"
+        ),
+        CheckConstraint("(length_count IS NULL) = (length_unit IS NULL) AND COALESCE(length_count, 1) >= 1", name="length"),
+        CheckConstraint("start_mode <> 'fixed_date' OR starts_on IS NOT NULL", name="start"),
+        CheckConstraint("fee_minor >= 0", name="fee"),
+        CheckConstraint(
+            "num_nonnulls(discount_pct, discount_minor) <= 1 AND COALESCE(discount_pct, 0) BETWEEN 0 AND 100 "
+            "AND COALESCE(discount_minor, 0) >= 0",
+            name="discount",
+        ),
+        CheckConstraint("renew_lead_days BETWEEN 0 AND 366", name="renew_lead_days"),
+        CheckConstraint("renews_as_catalog_item_id IS NULL OR is_auto_renew", name="renews_as"),
+        Index("ix_catalog_item_location", "tenant_id", "location_id", "is_active", "description"),
+    )  # fmt: skip
+
+    location_id: Mapped[UUID]
+    kind: Mapped[str] = enum_column()
+    description: Mapped[str]
+    additional_description: Mapped[str | None]
+    internal_remarks: Mapped[str | None]
+    start_mode: Mapped[str] = enum_column(server_default=text("'sale_date'"))
+    starts_on: Mapped[date | None]
+    length_count: Mapped[int | None]
+    length_unit: Mapped[str | None] = enum_column()
+    recurrence_unit: Mapped[str | None] = enum_column()
+    recurrence_every: Mapped[int | None]
+    recurrence_count: Mapped[int | None]
+    fee_minor: Mapped[int] = _money()
+    discount_pct: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
+    discount_minor: Mapped[int | None] = mapped_column(BigInteger)
+    invoice_option: Mapped[str] = enum_column(server_default=text("'single_invoice'"))
+    is_autopay: Mapped[bool] = _false()
+    is_auto_renew: Mapped[bool] = _false()
+    renew_lead_days: Mapped[int] = mapped_column(server_default=text("0"))
+    renews_as_catalog_item_id: Mapped[UUID | None]
+    revenue_category_id: Mapped[UUID]
+    is_active: Mapped[bool] = mapped_column(server_default=text("true"))
+
+
+class CatalogItemSale(TenantOwned, Timestamps, Base):
+    """One sale of an item to a client: the `source` of the charges it expands into, and the row the renewal
+    job advances. `previous_sale_id` is unique, so a renewal is created once however often the job runs."""
+
+    __tablename__ = "catalog_item_sale"
+    __table_args__ = tenant_args(
+        *tfk("catalog_item_id", "catalog_item"),
+        *tfk("client_id", "client"),
+        *tfk("location_id", "location"),
+        *tfk("renews_as_catalog_item_id", "catalog_item"),
+        *tfk("previous_sale_id", "catalog_item_sale", index=False),
+        *tfk("sold_by_staff_user_id", "staff_user"),
+        enum_check("status", CatalogSaleStatus),
+        UniqueConstraint("tenant_id", "previous_sale_id", name="uq_catalog_item_sale_previous"),
+        CheckConstraint("ends_on IS NULL OR ends_on >= starts_on", name="term"),
+        CheckConstraint("NOT is_auto_renew OR renew_on IS NOT NULL", name="renew_on"),
+        Index(
+            "ix_catalog_item_sale_renew_due", "tenant_id", "renew_on",
+            postgresql_where=text("status = 'active' AND is_auto_renew"),
+        ),
+        Index("ix_catalog_item_sale_ends", "tenant_id", "ends_on", postgresql_where=text("status = 'active'")),
+    )  # fmt: skip
+
+    catalog_item_id: Mapped[UUID]
+    client_id: Mapped[UUID]
+    location_id: Mapped[UUID]
+    terms: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    sold_on: Mapped[date]
+    starts_on: Mapped[date]
+    ends_on: Mapped[date | None]
+    is_auto_renew: Mapped[bool] = _false()
+    renew_on: Mapped[date | None]
+    renews_as_catalog_item_id: Mapped[UUID | None]
+    previous_sale_id: Mapped[UUID | None]
+    status: Mapped[str] = enum_column(server_default=text("'active'"))
+    sold_by_staff_user_id: Mapped[UUID | None]

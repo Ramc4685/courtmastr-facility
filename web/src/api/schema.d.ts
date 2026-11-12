@@ -1376,6 +1376,109 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/catalog-item-sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Catalog Item Sales
+         * @description Filters: client_id, catalog_item_id, status, location_id. Sort: starts_on, created_at.
+         */
+        get: operations["listCatalogItemSales"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/catalog-item-sales/{catalog_item_sale_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Catalog Item Sale
+         * @description Occurrences not started yet are reversed; money applied to them becomes account credit.
+         */
+        post: operations["cancelCatalogItemSale"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/catalog-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Catalog Items
+         * @description Filters: location_id, kind, is_active; q searches the description. Sort: description, created_at.
+         */
+        get: operations["listCatalogItems"];
+        put?: never;
+        /** Create Catalog Item */
+        post: operations["createCatalogItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/catalog-items/{catalog_item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Catalog Item */
+        get: operations["getCatalogItem"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Catalog Item
+         * @description Edits apply to later sales; set is_active false to stop selling it.
+         */
+        patch: operations["updateCatalogItem"];
+        trace?: never;
+    };
+    "/api/v1/catalog-items/{catalog_item_id}/sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sell Catalog Item
+         * @description Sell an item to a client: one billing item per occurrence, invoiced as the item says. A fee or
+         *     discount other than the item's needs billing.charge.override_price.
+         */
+        post: operations["sellCatalogItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/charges": {
         parameters: {
             query?: never;
@@ -14204,6 +14307,283 @@ export interface components {
              */
             status: "ok" | "capacity-below-booked";
         };
+        /** CatalogItemCreate */
+        CatalogItemCreate: {
+            /** Additional Description */
+            additional_description?: string | null;
+            /** Description */
+            description: string;
+            /** Discount Minor */
+            discount_minor?: number | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
+            /** Fee Minor */
+            fee_minor: number;
+            /** Internal Remarks */
+            internal_remarks?: string | null;
+            /**
+             * Invoice Option
+             * @default single_invoice
+             * @enum {string}
+             */
+            invoice_option: "single_invoice" | "invoice_per_occurrence" | "leave_uninvoiced";
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Auto Renew
+             * @default false
+             */
+            is_auto_renew: boolean;
+            /**
+             * Is Autopay
+             * @default false
+             */
+            is_autopay: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "one_off" | "recurring";
+            /** Length Count */
+            length_count?: number | null;
+            /** Length Unit */
+            length_unit?: ("day" | "week" | "month" | "year") | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Recurrence Count */
+            recurrence_count?: number | null;
+            /** Recurrence Every */
+            recurrence_every?: number | null;
+            /** Recurrence Unit */
+            recurrence_unit?: ("day" | "week" | "month" | "year") | null;
+            /**
+             * Renew Lead Days
+             * @default 0
+             */
+            renew_lead_days: number;
+            /** Renews As Catalog Item Id */
+            renews_as_catalog_item_id?: string | null;
+            /**
+             * Revenue Category Id
+             * Format: uuid
+             */
+            revenue_category_id: string;
+            /**
+             * Start Mode
+             * @default sale_date
+             * @enum {string}
+             */
+            start_mode: "sale_date" | "fixed_date";
+            /** Starts On */
+            starts_on?: string | null;
+        };
+        /** CatalogItemOut */
+        CatalogItemOut: {
+            /** Additional Description */
+            additional_description: string | null;
+            /** Description */
+            description: string;
+            /** Discount Minor */
+            discount_minor: number | null;
+            /** Discount Pct */
+            discount_pct: string | null;
+            /** Fee Minor */
+            fee_minor: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Internal Remarks */
+            internal_remarks: string | null;
+            /**
+             * Invoice Option
+             * @enum {string}
+             */
+            invoice_option: "single_invoice" | "invoice_per_occurrence" | "leave_uninvoiced";
+            /** Is Active */
+            is_active: boolean;
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /** Is Autopay */
+            is_autopay: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "one_off" | "recurring";
+            /** Length Count */
+            length_count: number | null;
+            /** Length Unit */
+            length_unit: ("day" | "week" | "month" | "year") | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Recurrence Count */
+            recurrence_count: number | null;
+            /** Recurrence Every */
+            recurrence_every: number | null;
+            /** Recurrence Unit */
+            recurrence_unit: ("day" | "week" | "month" | "year") | null;
+            /** Renew Lead Days */
+            renew_lead_days: number;
+            /** Renews As Catalog Item Id */
+            renews_as_catalog_item_id: string | null;
+            /**
+             * Revenue Category Id
+             * Format: uuid
+             */
+            revenue_category_id: string;
+            /**
+             * Start Mode
+             * @enum {string}
+             */
+            start_mode: "sale_date" | "fixed_date";
+            /** Starts On */
+            starts_on: string | null;
+        };
+        /**
+         * CatalogItemSaleCreate
+         * @description Per-sale overrides of the item's terms; a fee or discount other than the item's needs
+         *     billing.charge.override_price.
+         */
+        CatalogItemSaleCreate: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Discount Minor */
+            discount_minor?: number | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
+            /**
+             * Excluded Tax Ids
+             * @default []
+             */
+            excluded_tax_ids: string[];
+            /** Fee Minor */
+            fee_minor?: number | null;
+            /** Invoice Option */
+            invoice_option?: ("single_invoice" | "invoice_per_occurrence" | "leave_uninvoiced") | null;
+            /** Is Auto Renew */
+            is_auto_renew?: boolean | null;
+            /** Is Autopay */
+            is_autopay?: boolean | null;
+            /** Starts On */
+            starts_on?: string | null;
+        };
+        /** CatalogItemSaleOut */
+        CatalogItemSaleOut: {
+            /**
+             * Catalog Item Id
+             * Format: uuid
+             */
+            catalog_item_id: string;
+            /** Charge Ids */
+            charge_ids: string[];
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Ends On */
+            ends_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Ids */
+            invoice_ids: string[];
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Previous Sale Id */
+            previous_sale_id: string | null;
+            /** Renew On */
+            renew_on: string | null;
+            /** Renews As Catalog Item Id */
+            renews_as_catalog_item_id: string | null;
+            /**
+             * Sold On
+             * Format: date
+             */
+            sold_on: string;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "renewed" | "ended" | "cancelled";
+            /** Terms */
+            terms: {
+                [key: string]: unknown;
+            };
+        };
+        /** CatalogItemUpdate */
+        CatalogItemUpdate: {
+            /** Additional Description */
+            additional_description?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Discount Minor */
+            discount_minor?: number | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
+            /** Fee Minor */
+            fee_minor?: number | null;
+            /** Internal Remarks */
+            internal_remarks?: string | null;
+            /** Invoice Option */
+            invoice_option?: ("single_invoice" | "invoice_per_occurrence" | "leave_uninvoiced") | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Is Auto Renew */
+            is_auto_renew?: boolean | null;
+            /** Is Autopay */
+            is_autopay?: boolean | null;
+            /** Kind */
+            kind?: ("one_off" | "recurring") | null;
+            /** Length Count */
+            length_count?: number | null;
+            /** Length Unit */
+            length_unit?: ("day" | "week" | "month" | "year") | null;
+            /** Location Id */
+            location_id?: string | null;
+            /** Recurrence Count */
+            recurrence_count?: number | null;
+            /** Recurrence Every */
+            recurrence_every?: number | null;
+            /** Recurrence Unit */
+            recurrence_unit?: ("day" | "week" | "month" | "year") | null;
+            /** Renew Lead Days */
+            renew_lead_days?: number | null;
+            /** Renews As Catalog Item Id */
+            renews_as_catalog_item_id?: string | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Start Mode */
+            start_mode?: ("sale_date" | "fixed_date") | null;
+            /** Starts On */
+            starts_on?: string | null;
+        };
         /** CategoryCreate */
         CategoryCreate: {
             /**
@@ -15886,6 +16266,8 @@ export interface components {
         };
         /** ContractQuote */
         ContractQuote: {
+            /** Addons */
+            addons?: components["schemas"]["PlanAddonIn"][] | null;
             /**
              * Client Id
              * Format: uuid
@@ -16104,6 +16486,8 @@ export interface components {
         };
         /** ContractSell */
         ContractSell: {
+            /** Addons */
+            addons?: components["schemas"]["PlanAddonIn"][] | null;
             /**
              * Client Id
              * Format: uuid
@@ -21303,6 +21687,18 @@ export interface components {
             data: components["schemas"]["CampaignOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[CatalogItemOut] */
+        Page_CatalogItemOut_: {
+            /** Data */
+            data: components["schemas"]["CatalogItemOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[CatalogItemSaleOut] */
+        Page_CatalogItemSaleOut_: {
+            /** Data */
+            data: components["schemas"]["CatalogItemSaleOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[CategoryOut] */
         Page_CategoryOut_: {
             /** Data */
@@ -22569,13 +22965,21 @@ export interface components {
             /** Grants */
             grants: components["schemas"]["PermissionGrant"][];
         };
-        /** PlanAddonIn */
+        /**
+         * PlanAddonIn
+         * @description A bundled package plan, or a pre-defined billing item billed with the dues (MEM-04).
+         */
         PlanAddonIn: {
             /**
-             * Package Plan Id
-             * Format: uuid
+             * Addon Kind
+             * @default package_plan
+             * @enum {string}
              */
-            package_plan_id: string;
+            addon_kind: "package_plan" | "catalog_item";
+            /** Catalog Item Id */
+            catalog_item_id?: string | null;
+            /** Package Plan Id */
+            package_plan_id?: string | null;
             /**
              * Quantity
              * @default 1
@@ -22586,6 +22990,8 @@ export interface components {
         PlanAddonOut: {
             /** Addon Kind */
             addon_kind: string;
+            /** Catalog Item Id */
+            catalog_item_id: string | null;
             /**
              * Id
              * Format: uuid
@@ -29482,10 +29888,16 @@ export interface components {
              * Format: uuid
              */
             location_id: string;
-            /** Period From On */
-            period_from_on: string | null;
-            /** Period To On */
-            period_to_on: string | null;
+            /**
+             * Period From On
+             * Format: date
+             */
+            period_from_on: string;
+            /**
+             * Period To On
+             * Format: date
+             */
+            period_to_on: string;
             /** Queued Count */
             queued_count: number;
             /** Recipient Count */
@@ -34508,6 +34920,276 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MessageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCatalogItemSales: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CatalogItemSaleOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancelCatalogItemSale: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                catalog_item_sale_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItemSaleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCatalogItems: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CatalogItemOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createCatalogItem: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogItemCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getCatalogItem: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                catalog_item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateCatalogItem: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                catalog_item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogItemUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sellCatalogItem: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                catalog_item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogItemSaleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItemSaleOut"];
                 };
             };
             /** @description Validation Error */
