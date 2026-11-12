@@ -18,8 +18,10 @@ def test_meeting_and_join_window(client, owner, tenant, mailbox):
     booking, seat = made["booking"], made["booking"]["session"]["id"]
     path = f"{API}/sessions/{seat}/meeting"
     assert ok(client.get(path, headers=owner), 200)["is_virtual"] is False
-    desk = login(client, tenant, add_staff(tenant, "front_desk", location_ids=[f.location])[0])
-    assert client.put(path, headers=desk).status_code == 403
+    elsewhere = facility(client, owner, "America/New_York")
+    admin = login(client, tenant, add_staff(tenant, "admin", location_ids=[elsewhere.location])[0])
+    assert client.put(path, headers=admin).status_code == 404  # another location's staff
+    assert client.get(path, headers=admin).status_code == 404
     meeting = ok(client.put(path, headers=owner), 200)
     assert meeting["is_virtual"] and meeting["join_url"] and meeting["host_url"]
     assert ok(client.put(path, headers=owner), 200)["join_url"] == meeting["join_url"]  # idempotent

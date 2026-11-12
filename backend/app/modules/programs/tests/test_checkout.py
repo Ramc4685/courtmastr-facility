@@ -206,7 +206,12 @@ def test_reg_10_deposit_and_instalment_plans(client, owner, tenant, f, mailbox):
     lax = client.put(config, headers=owner, json=base | {"payment_requirement": "pay_later_allowed",
                                                          "payment_plan": "deposit", "balance_due_on": "2031-06-01"})  # fmt: skip
     assert lax.status_code == 422
-    plan = {"payment_plan": "instalments", "balance_due_on": "2031-06-01", "instalment_count": 3, "instalment_unit": "month"}
+    plan = {
+        "payment_plan": "instalments",
+        "balance_due_on": "2031-06-01",
+        "instalment_count": 3,
+        "instalment_unit": "month",
+    }
     saved = ok(client.put(config, headers=owner, json=base | plan), 200)
     assert saved["instalment_count"] == 3
     ok(client.post(f"{API}/program-groups/{camp['id']}/publish", headers=owner), 200)

@@ -463,4 +463,6 @@ def test_portal_rental_defaults_and_stored_method(client, owner, f, tenant):
     assert billed["total_minor"] - billed["balance_minor"] == due  # the deposit only
     again = ok(client.post(confirm, headers=portal | key, json={"payment_method_id": card["id"]}), 200)
     assert again["rental"]["status"] == "confirmed"
-    assert invoice(client, owner, paid["invoice_id"])["balance_minor"] == billed["balance_minor"]  # a replay moves no money
+    assert (
+        invoice(client, owner, paid["invoice_id"])["balance_minor"] == billed["balance_minor"]
+    )  # a replay moves no money
