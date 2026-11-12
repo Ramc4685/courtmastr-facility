@@ -92,3 +92,10 @@ BIL-23 public API (wave 8). The XLSX engine is Phase 12's; B builds PDF only.
 | 2026-11-11 | B | Fable review: 1 blocking (erasure left stored PDFs), fixed in 26e2820; smaller fixes in progress | 26e2820 |
 | 2026-11-11 | C, D | briefs committed; C start requested from Phase 0, D held for the two-chip cap | 733daa2 |
 | 2026-11-11 | A | Fable review: no blocking; merged (migrations 1301, 1302; hourly renewal job); follow-up fixes requested | 94b6c9f |
+| 2026-11-11 | A | review fixes merged (f10a0a7, 797c307) | 332deee |
+| 2026-11-11 | B | review fixes 9e696f6, 4526ae1; merged; migration 1310 revises 1302, single head | (this merge) |
+| 2026-11-11 | D | start requested from Phase 0 after B merged | |
+
+Follow-ups noted: a test asserting `catalog.list_sales` is client-following (no location scope, like `list_charges`);
+the clients privacy sentinel test is order-dependent (an email-verification message without client_id keeps the
+address after erasure), owner clients or engagement.
