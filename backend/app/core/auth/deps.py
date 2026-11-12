@@ -70,6 +70,15 @@ def set_csrf_verifier(fn: Callable[[Session, Principal, str], bool]) -> None:
     _csrf_verifier = fn
 
 
+# Checks a module adds for every client (portal) request after sign-in: fn(session, principal, request) raises
+# to refuse it. Billing's past-due lockout (BIL-22) is one; core stays below the modules.
+_client_guards: list[Callable[[Session, Principal, Request], None]] = []
+
+
+def add_client_guard(fn: Callable[[Session, Principal, Request], None]) -> None:
+    _client_guards.append(fn)
+
+
 def _accepts_api_key(route) -> bool:
     """True when the route is gated by require() with at least one key: API keys reach the staff surface only, never the self-service
     routes (/me, /auth/*) or the portal, which assume a person behind the principal."""
@@ -137,6 +146,9 @@ def current_ctx(request: Request) -> Ctx:
             raise PermissionDenied("Missing or wrong X-CSRF-Token", code="csrf-failed")
     session.info["actor"] = principal
     request.state.principal = principal
+    if principal.kind == "client":
+        for guard in _client_guards:
+            guard(session, principal, request)
     return Ctx(session, principal)
 
 

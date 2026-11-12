@@ -26,6 +26,8 @@ EVERY_HOUR = (
     "send_low_stock_digest",
     "renew_catalog_item_sales",  # billing pre-defined items (BIL-14)
     "retry_provider_events",  # billing: webhooks stored but never processed (PAY-11)
+    "send_billing_digest",  # billing: staff daily digest of failed and due autopay (PAY-08)
+    "suspend_past_due_memberships",  # memberships: non-payment suspension and lift (MEM-14)
 )  # fmt: skip
 # Retention keeps running for a suspended tenant (purges, export expiry, file byte deletion): suspension stops
 # the business, not the data-protection clock. Billing and messaging stay with active tenants only.

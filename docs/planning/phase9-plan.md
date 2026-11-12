@@ -108,3 +108,8 @@ the clients privacy sentinel test is order-dependent (an email-verification mess
 address after erasure), owner clients or engagement; chip C left a 3-D Secure payment abandoned by the browser and
 settled by webhook as unapplied credit with the invoice still open (documented in the billing README; fix by
 recording the intended invoices on the payment and allocating in `apply_event`), a candidate for chip E. From Phase 8 (for the reporting phase, not this one): three reporting tests fail between 23:00 and 24:00 Chicago, because `last_30_days` drops the first hour of an eastern location's day, likely a real behaviour bug, not a test problem.
+| 2026-11-12 | main | interim merge of A, B, C into main (4078e5c); portal pay dialog Close button keyed so it no longer fades in from Pay mid-axe-scan (adf024e, main 882c8a6) | 882c8a6 |
+| 2026-11-12 | D | started by Phase 0 from 882c8a6 (local_dda5d571, lane p9d, migrations 1330, 1331) | |
+| 2026-11-12 | D | Fable review: 1 blocking (portal lockout missed clients reached by relationship), fixed with audit-before-flush, bounded sweep, savepoint lifts, fresh read, index (14515c0, a84d105); 1331 lifts FORCE RLS for its backfills; autopay card save at online sale left as a known limit (needs a `checkout.py` change); merged | d408f2c |
+| 2026-11-12 | gate | final gate on d408f2c: lint, typecheck, boundaries, web-check, web-test 211, test 0 failed (chip reported 5093 passed, 915 skipped), coverage 94%; Playwright 57 with one worker: 56 passed, documents journey over the 30 s budget on a cold server (24 s warm), given `test.slow()` in d3311b1 and green | d3311b1 |
+| 2026-11-12 | E, F | not started: Phase 0 asked for the final gate and merge after D; batch 3 stays in remaining-work for a later wave | |

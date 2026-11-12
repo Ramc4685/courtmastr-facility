@@ -10,6 +10,7 @@ async function scan(page: Page, label: string) {
 }
 
 test('templates, the editor, the documents tab, in-person signing and the public page pass axe WCAG 2.1 AA', async ({ page }) => {
+  test.slow() // eight axe scans plus signing: ~24 s warm, over the 30 s default on a cold dev server
   await page.goto('/documents')
   await page.getByRole('textbox', { name: 'Email' }).fill(OWNER.email)
   await page.getByRole('textbox', { name: 'Password' }).fill(OWNER.password)

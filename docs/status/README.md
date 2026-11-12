@@ -174,8 +174,8 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 
 | Priority | Total | Done | Partial | Not built |
 |---|---|---|---|---|
-| P0 | 15 | 11 | 4 | 0 |
-| P1 | 21 | 12 | 7 | 2 |
+| P0 | 15 | 12 | 3 | 0 |
+| P1 | 21 | 13 | 6 | 2 |
 | P2 | 3 | 1 | 1 | 1 |
 
 | Feature | Priority | Status | What is missing, or where it changed at integration |
@@ -184,7 +184,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | MEM-02 Membership plan templates | P0 | done |  |
 | MEM-03 Plan proration rules | P1 | done |  |
 | MEM-04 Plan add-ons | P1 | done | Pre-defined items as billed add-ons; per-sale add-on changes are API only. |
-| MEM-05 Membership preferences | P0 | partial | Autopay invoices are now collected (integration). `payment_method_capture`, `online_card_save_mode` and `freeze_resume_invoice_mode` are stored but have no effect. |
+| MEM-05 Membership preferences | P0 | done | Autopay invoices are collected; capture, card-save and freeze-resume settings take effect (Phase 9 chip D). |
 | MEM-06 Simple (record-only) membership | P2 | done |  |
 | MEM-07 Staff sale of a membership contract | P0 | done |  |
 | MEM-08 Contract document acceptance at sale | P1 | done |  |
@@ -193,7 +193,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | MEM-11 Contract renewal | P0 | done |  |
 | MEM-12 Freeze a contract | P0 | done |  |
 | MEM-13 Edit or remove a freeze and re-bill | P1 | done | Staff screens in the contract's Details dialog: freeze end date and removal, period edit, reprice, invoice deferred periods (phase 10 chip E). |
-| MEM-14 Suspend and unsuspend a contract | P1 | partial | Editing and removing a suspension on the Details dialog. Automatic suspension for non-payment is not built. |
+| MEM-14 Suspend and unsuspend a contract | P1 | done | Editing and removing a suspension on the Details dialog; automatic suspension for non-payment, off by default (Q13). |
 | MEM-15 Cancel a contract | P0 | done |  |
 | MEM-16 Cancel with full or partial refund | P1 | done |  |
 | MEM-17 Shared membership | P1 | done |  |
@@ -278,8 +278,8 @@ Lane detail: `08-billing-payments.md`, `08-billing-payments-web.md`.
 
 | Priority | Total | Done | Partial | Not built |
 |---|---|---|---|---|
-| P0 | 27 | 14 | 13 | 0 |
-| P1 | 12 | 2 | 4 | 6 |
+| P0 | 27 | 17 | 10 | 0 |
+| P1 | 12 | 4 | 3 | 5 |
 | P2 | 2 | 0 | 0 | 2 |
 | v2-adapter | 2 | 0 | 0 | 2 |
 
@@ -301,12 +301,12 @@ Lane detail: `08-billing-payments.md`, `08-billing-payments-web.md`.
 | BIL-14 Pre-defined items | P0 | done | Catalogue, sell and cancel from client billing; hourly renewal job. No portal purchase. |
 | BIL-15 Coupons | P0 | done |  |
 | BIL-16 Billing preferences | P0 | done |  |
-| BIL-17 Autopay defaults and per-invoice flag | P0 | partial | Integration: memberships and packages pass their autopay flag to the invoice at sale. Not built: the tenant-setting and channel defaults. |
+| BIL-17 Autopay defaults and per-invoice flag | P0 | done | Plan, then the billing setting for the sales channel (Phase 9 chip D). |
 | BIL-18 Post-billed package period close | P1 | not built | Belongs to `packages`. |
 | BIL-19 Accounts receivable report | P1 | partial | No export. Ageing is by invoice due date (backend gap). |
-| BIL-20 Collections tagging and reports | P1 | not built |  |
+| BIL-20 Collections tagging and reports | P1 | done | Tags, client profile, report (Phase 9 chip D). |
 | BIL-21 Client account credit | P0 | partial | Backend gaps carry over. |
-| BIL-22 Billing reminders and past-due enforcement | P0 | partial | Integration: the daily job is now scheduled. Email only; portal lockout for past-due payers is a stored setting nothing enforces. |
+| BIL-22 Billing reminders and past-due enforcement | P0 | done | Daily job scheduled; portal lockout enforced server-side; Notices screen. Email only. |
 | BIL-23 Invoice API endpoints | P1 | partial | The public API v1 belongs to `integrations`. |
 | BIL-24 Outsourced billing and collections | P2 | not built | Not planned. |
 | PAY-01 Take payment and allocate | P0 | done |  |
@@ -315,8 +315,8 @@ Lane detail: `08-billing-payments.md`, `08-billing-payments-web.md`.
 | PAY-04 Void payment | P0 | done |  |
 | PAY-05 Refunds | P0 | partial | Only unapplied money can be refunded; the dialog defaults to that amount. Backend gaps carry over. |
 | PAY-06 Stored payment methods | P0 | partial | Methods are added through the provider-agnostic `PaymentMethodField`: scripted test methods for the fake processor. With Stripe, cards go through Stripe Elements (`StripeCardField`); bank accounts through Stripe are not built (Financial Connections). |
-| PAY-07 Card expiry notifications and report | P1 | partial |  |
-| PAY-08 Decline notifications | P0 | partial |  |
+| PAY-07 Card expiry notifications and report | P1 | done | Expiring-cards report and screen. |
+| PAY-08 Decline notifications | P0 | done | Per-event alerts and the staff daily digest. |
 | PAY-09 Autopay collection run | P0 | done | Integration: `make scheduler` starts the daily pass per tenant; staff can still start a run by hand. |
 | PAY-10 ACH / direct debit | P0 | partial | Fake processor end to end; Stripe adapter and webhooks handle ACH debits and returns, but no browser bank entry through Stripe. |
 | PAY-11 Merchant processor integration | P0 | partial | Stripe test mode works end to end with Elements card entry and signed webhooks (`docs/dev/stripe-test-mode.md`); never run against Stripe live. Not built: browser bank-account entry through Stripe, 3-D Secure completion, platform application fee. |

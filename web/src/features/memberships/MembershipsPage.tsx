@@ -52,7 +52,7 @@ function planForm(p?: Plan) {
     renewal_target: p?.renewal_target ?? 'same_terms',
     renews_as_plan_id: p?.renews_as_plan_id ?? '',
     discount_pct: p?.discount_pct ? String(p.discount_pct) : '',
-    is_autopay_default: p?.is_autopay_default ?? false,
+    is_autopay_default: p?.is_autopay_default == null ? '' : String(p.is_autopay_default),
     is_sold_online: p?.is_sold_online ?? false,
     is_active: p?.is_active ?? true,
     addons: (p?.addons ?? []).filter((a) => a.package_plan_id).map((a) => ({ package_plan_id: a.package_plan_id as string, quantity: String(a.quantity) })),
@@ -92,7 +92,7 @@ function PlanDialog({ plan, types, onClose }: { plan?: Plan; types: MType[]; onC
         renewal_target: form.renewal_target,
         renews_as_plan_id: form.renewal_target === 'plan' ? form.renews_as_plan_id || null : null,
         discount_pct: form.discount_pct ? form.discount_pct : null,
-        is_autopay_default: form.is_autopay_default,
+        is_autopay_default: form.is_autopay_default === '' ? null : form.is_autopay_default === 'true',
         is_sold_online: form.is_sold_online,
         is_active: form.is_active,
       } as unknown as Schemas['MembershipPlanCreate']
@@ -206,7 +206,17 @@ function PlanDialog({ plan, types, onClose }: { plan?: Plan; types: MType[]; onC
         )}
         <Input label="Invoice description" className="sm:col-span-2" value={form.invoice_description} onChange={(e) => set({ invoice_description: e.target.value })} />
         <div className="space-y-2 sm:col-span-2">
-          <Checkbox label="Autopay on by default" checked={form.is_autopay_default} onChange={(e) => set({ is_autopay_default: e.target.checked })} />
+          <Select
+            label="Autopay when the sale does not say"
+            className="max-w-sm"
+            value={form.is_autopay_default}
+            onChange={(e) => set({ is_autopay_default: e.target.value })}
+            options={[
+              { value: '', label: 'Follow the billing preference' },
+              { value: 'true', label: 'Autopay on' },
+              { value: 'false', label: 'Autopay off' },
+            ]}
+          />
           <Checkbox label="Sold online" checked={form.is_sold_online} onChange={(e) => set({ is_sold_online: e.target.checked })} />
           <Checkbox label="Active (offered for sale)" checked={form.is_active} onChange={(e) => set({ is_active: e.target.checked })} />
         </div>
@@ -499,7 +509,40 @@ function SettingsTab() {
           defaultValue={s.billing_lead_days}
           onBlur={(e) => Number(e.target.value) !== s.billing_lead_days && save.mutate({ billing_lead_days: Number(e.target.value) })}
         />
-        <p className="text-xs text-muted">Stored for the billing module but not applied yet: payment method capture, online card saving and the invoice mode after a freeze.</p>
+        <Select
+          label="Payment method at a staff sale"
+          className="max-w-sm"
+          value={s.payment_method_capture}
+          hint="Required: an autopay sale needs a stored card or bank account."
+          onChange={(e) => save.mutate({ payment_method_capture: e.target.value as Schemas['MembershipSettingsUpdate']['payment_method_capture'] })}
+          options={[
+            { value: 'hidden', label: 'Do not ask' },
+            { value: 'optional', label: 'Optional' },
+            { value: 'required', label: 'Required for autopay' },
+          ]}
+        />
+        <Select
+          label="Keep the card that pays online"
+          className="max-w-sm"
+          value={s.online_card_save_mode}
+          onChange={(e) => save.mutate({ online_card_save_mode: e.target.value as Schemas['MembershipSettingsUpdate']['online_card_save_mode'] })}
+          options={[
+            { value: 'always', label: 'Always' },
+            { value: 'ask', label: 'Ask the member' },
+            { value: 'when_nothing_due', label: 'Only when nothing is due now' },
+          ]}
+        />
+        <Select
+          label="Billing after a freeze ends"
+          className="max-w-sm"
+          value={s.freeze_resume_invoice_mode}
+          onChange={(e) => save.mutate({ freeze_resume_invoice_mode: e.target.value as Schemas['MembershipSettingsUpdate']['freeze_resume_invoice_mode'] })}
+          options={[
+            { value: 'per_period', label: 'Bill each period on its date' },
+            { value: 'single', label: 'Bill everything left on the resume day' },
+            { value: 'deferred', label: 'Hold for staff to invoice' },
+          ]}
+        />
       </div>
     </Card>
   )

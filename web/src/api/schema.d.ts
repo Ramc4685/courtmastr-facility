@@ -2899,6 +2899,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/clients/{client_id}/collections-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Collections Profile
+         * @description 404 not-in-collections when the client has no profile.
+         */
+        get: operations["getCollectionsProfile"];
+        /**
+         * Put Collections Profile
+         * @description Place the client in collections or change the profile; checked at the client's home location.
+         */
+        put: operations["putCollectionsProfile"];
+        post?: never;
+        /** Delete Collections Profile */
+        delete: operations["deleteCollectionsProfile"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/clients/{client_id}/communication-preferences": {
         parameters: {
             query?: never;
@@ -3381,6 +3406,64 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collections-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Collections Report
+         * @description Clients in collections and what they owe. Filter collections_tag_id; sort placed_on.
+         */
+        get: operations["getCollectionsReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collections-tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Collections Tags
+         * @description Filters: is_active; q searches the name.
+         */
+        get: operations["listCollectionsTags"];
+        put?: never;
+        /** Create Collections Tag */
+        post: operations["createCollectionsTag"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collections-tags/{collections_tag_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Collections Tag */
+        patch: operations["updateCollectionsTag"];
         trace?: never;
     };
     "/api/v1/competition-teams/{competition_team_id}": {
@@ -4499,6 +4582,27 @@ export interface paths {
          * @description Proposed fees only: staff confirm (or waive) them on the return.
          */
         get: operations["getEquipmentReturnQuote"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/expiring-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Expiring Cards
+         * @description Active cards expiring through `through` (YYYY-MM, default next month), expired ones included.
+         *     Filters: is_autopay, client_id.
+         */
+        get: operations["listExpiringCards"];
         put?: never;
         post?: never;
         delete?: never;
@@ -14814,6 +14918,8 @@ export interface components {
              * @default false
              */
             is_program_description_on_invoice: boolean;
+            /** Membership Suspend After Days */
+            membership_suspend_after_days?: number | null;
             /**
              * Package Invoice Sessions
              * @default all
@@ -14929,6 +15035,8 @@ export interface components {
             is_program_description_on_invoice: boolean;
             /** Location Id */
             location_id: string | null;
+            /** Membership Suspend After Days */
+            membership_suspend_after_days?: number | null;
             /**
              * Package Invoice Sessions
              * @default all
@@ -17708,6 +17816,108 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** CollectionsProfileIn */
+        CollectionsProfileIn: {
+            /**
+             * Collections Tag Id
+             * Format: uuid
+             */
+            collections_tag_id: string;
+            /** Notes */
+            notes?: string | null;
+            /** Placed On */
+            placed_on?: string | null;
+        };
+        /** CollectionsProfileOut */
+        CollectionsProfileOut: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Collections Tag Id
+             * Format: uuid
+             */
+            collections_tag_id: string;
+            /** Notes */
+            notes: string | null;
+            /**
+             * Placed On
+             * Format: date
+             */
+            placed_on: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** CollectionsReportRow */
+        CollectionsReportRow: {
+            /** Balance Minor */
+            balance_minor: number;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Name */
+            client_name: string;
+            /**
+             * Collections Tag Id
+             * Format: uuid
+             */
+            collections_tag_id: string;
+            /** Collections Tag Name */
+            collections_tag_name: string;
+            /** Notes */
+            notes: string | null;
+            /** Oldest Past Due On */
+            oldest_past_due_on: string | null;
+            /** Past Due Minor */
+            past_due_minor: number;
+            /**
+             * Placed On
+             * Format: date
+             */
+            placed_on: string;
+        };
+        /** CollectionsTagCreate */
+        CollectionsTagCreate: {
+            /** Description */
+            description?: string | null;
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /** Name */
+            name: string;
+        };
+        /** CollectionsTagOut */
+        CollectionsTagOut: {
+            /** Description */
+            description: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+        };
+        /** CollectionsTagUpdate */
+        CollectionsTagUpdate: {
+            /** Description */
+            description?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+        };
         /** CommissionRuleIn */
         CommissionRuleIn: {
             /**
@@ -18292,6 +18502,8 @@ export interface components {
         };
         /** ContractQuoteOut */
         ContractQuoteOut: {
+            /** Card Save Mode */
+            card_save_mode: string;
             /** Due Now Minor */
             due_now_minor: number;
             /**
@@ -18303,6 +18515,8 @@ export interface components {
             invoice_mode: string;
             /** Is Auto Renew */
             is_auto_renew: boolean;
+            /** Is Autopay */
+            is_autopay: boolean;
             /** Is Prorated */
             is_prorated: boolean;
             /** Periods */
@@ -20205,6 +20419,33 @@ export interface components {
             replacement_fee_minor: number;
             /** Return Condition */
             return_condition?: ("good" | "damaged") | null;
+        };
+        /** ExpiringCardOut */
+        ExpiringCardOut: {
+            /** Brand */
+            brand: string | null;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Name */
+            client_name: string;
+            /** Exp Month */
+            exp_month: number;
+            /** Exp Year */
+            exp_year: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Autopay */
+            is_autopay: boolean;
+            /** Is Expired */
+            is_expired: boolean;
+            /** Last4 */
+            last4: string;
         };
         /** ExportJobCreate */
         ExportJobCreate: {
@@ -22291,11 +22532,8 @@ export interface components {
              * @default true
              */
             is_active: boolean;
-            /**
-             * Is Autopay Default
-             * @default false
-             */
-            is_autopay_default: boolean;
+            /** Is Autopay Default */
+            is_autopay_default?: boolean | null;
             /**
              * Is Sold Online
              * @default false
@@ -22372,7 +22610,7 @@ export interface components {
             /** Is Active */
             is_active: boolean;
             /** Is Autopay Default */
-            is_autopay_default: boolean;
+            is_autopay_default: boolean | null;
             /** Is Sold Online */
             is_sold_online: boolean;
             /** Max Visits Count */
@@ -24324,6 +24562,18 @@ export interface components {
             data: components["schemas"]["ClientListItem"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[CollectionsReportRow] */
+        Page_CollectionsReportRow_: {
+            /** Data */
+            data: components["schemas"]["CollectionsReportRow"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[CollectionsTagOut] */
+        Page_CollectionsTagOut_: {
+            /** Data */
+            data: components["schemas"]["CollectionsTagOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[CompetitionOut] */
         Page_CompetitionOut_: {
             /** Data */
@@ -24418,6 +24668,12 @@ export interface components {
         Page_EquipmentLoanOut_: {
             /** Data */
             data: components["schemas"]["EquipmentLoanOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[ExpiringCardOut] */
+        Page_ExpiringCardOut_: {
+            /** Data */
+            data: components["schemas"]["ExpiringCardOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[ExportJobOut] */
@@ -26153,6 +26409,8 @@ export interface components {
             method_token?: string | null;
             /** Proration Tail */
             proration_tail?: ("extend_last" | "drop_last" | "prorate_last") | null;
+            /** Save Method */
+            save_method?: boolean | null;
             /** Start On */
             start_on?: string | null;
             /**
@@ -33473,6 +33731,8 @@ export interface components {
              * Format: uuid
              */
             membership_contract_id: string;
+            /** Past Due Invoice Id */
+            past_due_invoice_id: string | null;
             /** Remarks */
             remarks: string | null;
             /** Removal Remarks */
@@ -42147,6 +42407,110 @@ export interface operations {
             };
         };
     };
+    getCollectionsProfile: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionsProfileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putCollectionsProfile: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionsProfileIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionsProfileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteCollectionsProfile: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getClientCommunicationPreferences: {
         parameters: {
             query?: never;
@@ -43332,6 +43696,166 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Timeline"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getCollectionsReport: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CollectionsReportRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCollectionsTags: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CollectionsTagOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createCollectionsTag: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionsTagCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionsTagOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateCollectionsTag: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                collections_tag_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionsTagUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionsTagOut"];
                 };
             };
             /** @description Validation Error */
@@ -46386,6 +46910,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EquipmentReturnQuote"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listExpiringCards: {
+        parameters: {
+            query?: {
+                through?: string | null;
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ExpiringCardOut_"];
                 };
             };
             /** @description Validation Error */

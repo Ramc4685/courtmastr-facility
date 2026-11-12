@@ -16,6 +16,7 @@ import { formatDateTime, fullName } from '../../lib/format'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { AddChargeDialog, EditChargeDialog, ReverseChargeDialog, VoidChargeDialog } from './ChargeDialogs'
 import { ClientItemSales, SellItemDialog } from './CatalogPage'
+import { CollectionsTab } from './CollectionsPage'
 import { CHARGE_STATUS, INVOICE_STATUS, PAYMENT_STATUS, TENDER_LABEL, formatMoney, parseMoney, today } from './money'
 import { PaymentMethodField } from './PaymentMethodField'
 import { ClientName, Facts, FormDialog, ListTable, Money, MoneyInput, PdfButton, StatusBadge, TextArea, useClient, useCurrency } from './shared'
@@ -457,6 +458,7 @@ export function ClientBillingPage() {
     ...(can('billing.payment_method.read') ? [{ id: 'methods', label: 'Payment methods & autopay', content: <MethodsTab clientId={clientId} /> }] : []),
     { id: 'credit', label: 'Account credit', content: <CreditTab clientId={clientId} /> },
     { id: 'statement', label: 'Statement', content: <StatementTab clientId={clientId} /> },
+    ...(can('billing.collections.read') ? [{ id: 'collections', label: 'Collections', content: <CollectionsTab clientId={clientId} /> }] : []),
   ]
   return (
     <>
