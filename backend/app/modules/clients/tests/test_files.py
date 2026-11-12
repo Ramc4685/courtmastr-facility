@@ -74,8 +74,8 @@ def test_photo_upload_replace_and_remove(client, tenant, owner, location_id):
         (b'<svg xmlns="http://www.w3.org/2000/svg"/>', "image/svg+xml", "file-type-mismatch"),
         (PDF, "application/pdf", "file-type-mismatch"),  # a PDF is no photo
         (b"", "image/png", "file-empty"),
-        # over api.max_body_bytes: refused before the route (413) until Phase 8 lists the route in UPLOAD_PATHS
-        (b"\x89PNG\r\n\x1a\n" + b"0" * 5_242_881, "image/png", "payload-too-large"),
+        # over api.max_body_bytes but an UPLOAD_PATHS route: the route's own 5 MiB photo cap refuses it
+        (b"\x89PNG\r\n\x1a\n" + b"0" * 5_242_881, "image/png", "file-too-large"),
     ],
 )
 def test_photo_refuses_what_is_not_a_small_image(client, owner, location_id, data, kind, code):

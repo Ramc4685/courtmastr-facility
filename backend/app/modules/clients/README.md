@@ -71,9 +71,8 @@ the portal member card, a scheduler for task reminders, derived system alerts, a
   JPEG or PNG and re-encoded (EXIF and GPS dropped); attachments are PDF, JPEG or PNG. No SVG or HTML. The stored
   key is generated; the user's filename is kept only as sanitised metadata for `Content-Disposition`.
 - Size caps: photo 5 MiB, attachment `storage.max_upload_bytes`, at most 5 attachments per note
-  (`too-many-attachments`). **Effective cap today is 1 MiB**: `core/api.py` `BodyLimitMiddleware` lists only the
-  paper-scan route in `UPLOAD_PATHS`, so larger bodies get 413 before the route. Phase 8 owns `core/*`: handover
-  to add `/clients/{id}/photo` and `/client-notes/{id}/attachments` there.
+  (`too-many-attachments`). Both routes are in `core/api.py` `BodyLimitMiddleware.UPLOAD_PATHS` and the Caddy
+  `@upload` matcher, so the 1 MiB body cap does not apply to them.
 - Bytes are served by permission-checked routes (`getClientPhoto` inline, `getClientNoteAttachment` always as a
   download) with `nosniff`, `no-store` and a sandboxing CSP. `files.read` is followed by a `purpose` check, so a
   file of another purpose is 404.

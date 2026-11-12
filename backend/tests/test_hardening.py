@@ -99,6 +99,19 @@ def test_request_body_size_cap(client, tenant):
     assert client.post(url, content=padded(2000), headers=headers).status_code == 422
 
 
+def test_only_the_file_routes_take_large_bodies():
+    """The Caddy @upload matcher (infra/proxy/Caddyfile) must list the same routes."""
+    from app.core.api import BodyLimitMiddleware
+
+    match = BodyLimitMiddleware.UPLOAD_PATHS.match
+    for path in ("client-documents/x/paper-scan", "clients/x/photo", "client-notes/x/attachments"):
+        assert match(f"/api/v1/{path}")
+    for path in ("clients/x", "clients/x/photo/extra", "client-notes/x/attachments/y", "auth/sign-in"):
+        assert not match(f"/api/v1/{path}")
+    caddy = (REPO_ROOT / "infra/proxy/Caddyfile").read_text()
+    assert "clients/[^/]+/photo" in caddy and "client-notes/[^/]+/attachments" in caddy
+
+
 # --- lane isolation ------------------------------------------------------------------------------------------
 
 
