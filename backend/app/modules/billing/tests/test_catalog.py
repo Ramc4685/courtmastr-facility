@@ -7,11 +7,13 @@ from sqlalchemy import select
 
 from app.core.audit import AuditEvent
 from app.core.dates import add_interval
+from app.core.errors import ValidationFailed
 from app.core.events import OutboxEvent
 from app.modules import platform
-from app.modules.billing import catalog
+from app.modules.billing import catalog, subject
 from app.modules.billing.models import CatalogItemSale, Charge, Invoice
 from app.modules.billing.tests.test_billing import API, work
+from conftest import new_client
 
 DAY = timedelta(days=1)
 
@@ -151,3 +153,93 @@ def test_the_renewal_job_renews_once_and_ends_what_does_not_renew(client, shop):
     repeat = successors[sold[copy["id"]]["id"]]
     assert (repeat.terms["fee_minor"], repeat.is_auto_renew) == (3000, True)
     assert repeat.renew_on == add_interval(today, "month", 1)
+
+
+def test_a_sale_needs_a_key_replays_on_it_and_starts_within_a_year(client, shop):
+    item = _item(client, shop)
+    url = f"{API}/catalog-items/{item['id']}/sales"
+    body = {"client_id": str(shop.client_id)}
+    assert client.post(url, headers=shop.owner, json=body).status_code in (400, 422)  # no Idempotency-Key
+    key = _key()
+    first = client.post(url, headers=shop.owner | key, json=body)
+    again = client.post(url, headers=shop.owner | key, json=body)
+    assert first.status_code == again.status_code == 201 and again.json()["id"] == first.json()["id"]
+    with work(shop.tenant) as session:
+        assert (
+            len(session.scalars(select(CatalogItemSale).where(CatalogItemSale.catalog_item_id == item["id"])).all())
+            == 1
+        )
+    far = (_today(shop) + timedelta(days=400)).isoformat()
+    refused = _sell(client, shop, item, starts_on=far)
+    assert (refused.status_code, refused.json()["errors"][0]["pointer"]) == (422, "/starts_on")
+
+
+def test_a_renewal_that_keeps_failing_is_logged_then_ends_with_its_term(client, shop, monkeypatch, caplog):
+    today = _today(shop)
+    item = _item(client, shop, recurrence_count=1, is_auto_renew=True, renew_lead_days=3)
+    started = add_interval(today, "month", -1) + 2 * DAY  # renews in the lead, term ends tomorrow
+    sale = _sell(client, shop, item, starts_on=started.isoformat()).json()
+
+    def broken(*args, **kwargs):
+        raise ValidationFailed("The client is disabled.", pointer="/client_id")
+
+    monkeypatch.setattr(catalog, "_create_sale", broken)
+    with work(shop.tenant) as session:
+        assert catalog.renew_due(session) == {"renewed": 0, "ended": 0, "failed": 1}
+        assert session.get(CatalogItemSale, sale["id"]).status == "active"  # term not over: retried next run
+    assert "did not renew" in caplog.text
+    with work(shop.tenant) as session:
+        row = session.get(CatalogItemSale, sale["id"])
+        row.ends_on = today - DAY  # the term is now over
+    with work(shop.tenant) as session:
+        assert catalog.renew_due(session)["failed"] == 1
+        row = session.get(CatalogItemSale, sale["id"])
+        assert (row.status, row.is_auto_renew) == ("ended", False)
+    with work(shop.tenant) as session:
+        assert catalog.renew_due(session) == {"renewed": 0, "ended": 0, "failed": 0}  # no hourly retry forever
+
+
+def test_a_renewal_successor_is_audited_and_announced(client, shop):
+    started = add_interval(_today(shop), "month", -1)
+    item = _item(client, shop, recurrence_count=1, is_auto_renew=True)
+    sold = _sell(client, shop, item, starts_on=started.isoformat()).json()
+    with work(shop.tenant) as session:
+        catalog.renew_due(session)
+        successor = session.scalar(select(CatalogItemSale).where(CatalogItemSale.previous_sale_id == sold["id"]))
+        events = session.scalars(select(OutboxEvent.event_type).where(OutboxEvent.aggregate_id == successor.id)).all()
+        audits = session.scalars(select(AuditEvent.action).where(AuditEvent.entity_id == successor.id)).all()
+    assert events == ["billing.catalog_item_sale.sold"] and audits == ["billing.charge.create"]
+
+
+def test_an_item_with_sales_or_renewing_items_keeps_its_location(client, shop):
+    west = client.post(
+        f"{API}/locations", headers=shop.owner, json={"name": "West", "time_zone": "UTC", "country_code": "US"}
+    ).json()["id"]
+    full = _item(client, shop, **_one_off())
+    _item(client, shop, renews_as_catalog_item_id=full["id"], is_auto_renew=True)
+    moved = client.patch(f"{API}/catalog-items/{full['id']}", headers=shop.owner, json={"location_id": west})
+    assert moved.status_code == 409
+    sold = _item(client, shop, **_one_off())
+    _sell(client, shop, sold)
+    assert (
+        client.patch(f"{API}/catalog-items/{sold['id']}", headers=shop.owner, json={"location_id": west}).status_code
+        == 409
+    )
+    free = _item(client, shop, **_one_off())
+    assert (
+        client.patch(f"{API}/catalog-items/{free['id']}", headers=shop.owner, json={"location_id": west}).status_code
+        == 200
+    )
+
+
+def test_merge_moves_sales_and_erasure_stops_their_renewal(client, shop):
+    item = _item(client, shop, recurrence_count=1, is_auto_renew=True)
+    loser = new_client(client, shop.owner, shop.location_id)["id"]
+    sale = _sell(client, shop, item, client_id=loser).json()
+    with work(shop.tenant) as session:
+        subject._repoint(session, loser, shop.client_id)
+        assert str(session.get(CatalogItemSale, sale["id"]).client_id) == str(shop.client_id)
+    with work(shop.tenant) as session:
+        subject._erase(session, shop.client_id)
+        row = session.get(CatalogItemSale, sale["id"])
+        assert (row.is_auto_renew, row.status) == (False, "active")  # kept as a record; nothing more is billed

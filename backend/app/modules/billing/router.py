@@ -319,7 +319,10 @@ def update_catalog_item(
 
 @router.post("/catalog-items/{catalog_item_id}/sales", response_model=s.CatalogItemSaleOut, status_code=201)
 def sell_catalog_item(
-    catalog_item_id: UUID, body: s.CatalogItemSaleCreate, ctx: Ctx = Depends(require("billing.charge.create"))
+    catalog_item_id: UUID,
+    body: s.CatalogItemSaleCreate,
+    idempotency_key: RequiredKey,
+    ctx: Ctx = Depends(require("billing.charge.create")),
 ):
     """Sell an item to a client: one billing item per occurrence, invoiced as the item says. A fee or
     discount other than the item's needs billing.charge.override_price."""

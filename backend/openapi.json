@@ -69847,22 +69847,17 @@
             }
           },
           {
-            "description": "Optional; keys live 24 hours.",
+            "description": "Required; keys live 24 hours.",
             "in": "header",
             "name": "idempotency-key",
-            "required": false,
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional; keys live 24 hours.",
-              "title": "Idempotency-Key"
+              "description": "Required; keys live 24 hours.",
+              "maxLength": 255,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+              "title": "Idempotency-Key",
+              "type": "string"
             }
           }
         ],

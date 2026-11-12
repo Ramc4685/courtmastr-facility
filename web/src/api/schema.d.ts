@@ -34748,9 +34748,9 @@ export interface operations {
     sellCatalogItem: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Optional; keys live 24 hours. */
-                "idempotency-key"?: string | null;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
             };
             path: {
                 catalog_item_id: string;

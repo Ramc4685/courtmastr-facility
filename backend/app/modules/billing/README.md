@@ -112,7 +112,7 @@ sell(session, item_id, *, client_id, starts_on=None, overrides=None, is_auto_ren
 renew_due(session) -> {"renewed": n, "ended": n, "failed": n}   # the hourly job's body, per tenant
 addon_terms(session, item_id, *, location_id, pointer="/addons") -> dict  # MEM-04: description, net amount,
                                                                           # is_recurring, revenue category
-item_exists(session, item_id) -> bool;  revenue_category_of(session, item_id) -> UUID
+item_is_active(session, item_id) -> bool;  revenue_category_of(session, item_id) -> UUID
 ```
 
 Assumptions:
@@ -124,13 +124,21 @@ Assumptions:
   first day), or none.
 - **The discount applies per occurrence** and a percentage rounds half-up once on each line.
 - **Cancel** reverses the occurrences whose service has not started; money applied to them becomes account
-  credit through the reversal. Started occurrences stay billed.
+  credit through the reversal. Started occurrences stay billed. Only an `active` sale cancels: one already
+  `renewed` returns 409, and its successor is a sale of its own that is cancelled separately.
+- **Selling needs an `Idempotency-Key`** (one call can post up to 366 charges and their invoices); a replay
+  returns the first sale. A desk sale starts within a year either side of the location's today.
+- **An item's location is fixed** once another item renews as it or it has active sales (409).
 - **Renewal** runs hourly (`renew_catalog_item_sales`) and acts on sales whose `renew_on` (the day after the
   term, less the lead) is the location's today or earlier. Renewing as another item uses that item's current
   terms; an inactive renew-as item ends the sale instead. Without auto-renew a sale past its end becomes
-  `ended`. The successor is unique per sale, so a second run creates nothing.
+  `ended`. The successor is unique per sale, so a second run creates nothing; it is audited and announced
+  (`billing.catalog_item_sale.sold`) like a desk sale. A renewal that fails (a `DomainError`) is logged and
+  retried hourly until the term is over, then the sale ends with the failure as its reason.
 - **Membership add-ons (MEM-04)** bill through the membership schedule, not through a sale: the item is a price
-  list entry there, and it must belong to the contract's location.
+  list entry there. A plan add-on must be active when saved; plans are tenant-wide, so at each sale an item
+  that is inactive or sold at another location is skipped (as at renewal). An add-on chosen for one sale must
+  be active at the sale's location, or the sale is refused (422 `/addons`).
 
 ## Jobs
 
