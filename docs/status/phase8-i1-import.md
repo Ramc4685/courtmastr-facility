@@ -1,8 +1,24 @@
 # Phase 8 chip I1: generic CSV import
 
-Date: 2026-11-11. Branch `claude/p8-i1-import`, cut from `872f558` (phase branch after T1). Migration `1270`
-(down from `1250`). Scope: `docs/planning/phase-8.md` chip I1, backlog rows IMP-01, IMP-02, MEM-23. Behaviour
+Date: 2026-11-11. Branch `claude/p8-i1-import`, cut from `872f558` (phase branch after T1), then merged with the
+phase branch twice (T2, Phase 10 main, S4; then S3 at `b9e83c8`). Migrations `1270` (down from `1241`, the phase
+head) and `1271`. Scope: `docs/planning/phase-8.md` chip I1, backlog rows IMP-01, IMP-02, MEM-23. Behaviour
 description: `backend/app/modules/imports/README.md`.
+
+## Review round (coordinator changes A, B, C)
+
+| Change | What changed | Regression test |
+|---|---|---|
+| A. No welcome messages from imports | `clients.client.created` from an import carries `source: "import"` and `import_job_id`; engagement's `on_client_created` skips it (handler condition). An imported contract activates with reason `import`, also when an imported upcoming contract reaches its start date (`memberships._converge` uses the contract's `sales_channel`); engagement's `on_contract_activated` skips it. Other subscribers still get both events. | `test_imports_never_start_welcome_automations` (rules on both triggers; nothing queued for the imported client and contracts; a staff-created control client gets its message) |
+| B. GDPR mode consent | New client columns `consent_date`, `consent_source`. GDPR mode: an opt-in is express only with both, recorded on the consent event (`occurred_at` = that date at the location, source text in the note); without them the client is imported not subscribed and the row carries the warning `consent-evidence-missing`, listed in the report as "Imported with a warning" (dry run: "Would import with a warning"). Outside GDPR mode the basis is the new `import` (migration 1271), which GDPR mode does not count as express. Opt-outs always recorded. | `test_gdpr_mode_needs_consent_evidence_and_outside_it_the_basis_is_import` |
+| C. Dry run and resume | Confirmed, no fix needed (see the imports README "What a dry run cannot leak"): outbox rows, consent and audit rows and the member/invoice counters (`platform.next_number`, a locked row) roll back with the savepoint; emails and queued jobs are `after_commit` hooks the engine drops; no import path writes storage, takes a rate-limit token or uses a sequence. A crash mid-chunk rolls back the chunk's rows, outcomes and cursor together, so a resumed commit neither duplicates nor skips. | `test_a_dry_run_leaks_nothing_outside_its_transaction` (counter, outbox, consent rows, mailbox; then gapless numbers on commit); existing `test_chunk_retry_never_duplicates` |
+| Dead letters | A chunk that exhausts its retries now ends the job as `failed` through T2's `on_dead_letter` hook (screen: "Stopped", with how far it got). | `test_a_dead_lettered_chunk_stops_the_job_instead_of_running_forever` |
+| S4 bounds | SKU (also the product ID) capped at 60 like the catalogue, tax codes at 20; price (at most 999,999,999.99) and stock (at most 1,000,000) were already within the bounds. | covered by the products test and the parsers |
+
+What imports send and do not send: not sent are new-client and membership-started automations, verification emails,
+household confirmation requests, and notices for periods before the next bill date (those periods are not created).
+Still sent, as for any member: billing from the next bill date on (invoices, receipts, failed-payment notices),
+auto-renewal notices, and messages for later events.
 
 ## Built
 
@@ -31,7 +47,7 @@ description: `backend/app/modules/imports/README.md`.
 
 - Clients: member_number, first_name*, last_name*, preferred_name, email, mobile_phone, home_phone, birth_date,
   gender, address_line1, address_line2, city, region, postal_code, country_code, household_ref, household_head,
-  relationship_to_head, email_marketing, sms_marketing.
+  relationship_to_head, email_marketing, sms_marketing, consent_date, consent_source.
 - Memberships: client_member_number or client_email (one required), membership*, start_date*, end_date,
   next_bill_date, status, price.
 - Balances: client_member_number or client_email, amount*, as_of_date*, direction* (owed or credit), description.
@@ -39,25 +55,32 @@ description: `backend/app/modules/imports/README.md`.
 
 ## Gates (lane `p8i1`)
 
-- `make lint typecheck boundaries`: clean; mypy 285 files; 21 import-linter contracts kept.
-- `make test`: 4,368 passed, 1 failed, 811 skipped (contract sample), 1 xfailed in 20 min. The one failure was
-  `test_retention_jobs.py::test_purge_removes_only_rows_past_retention_in_its_own_tenant_and_is_idempotent`, which
-  compared `purge()`'s whole result and now also sees the registered `import_job_files` purger. Fixed by narrowing
-  the test to its own tables; that file passes (6). The full suite was not rerun after this test-only change.
-- Domain coverage gate: 93% (`imports/service.py` 95%). Overall 95%.
-- Migration 1270: up, down, up clean; `alembic check` clean.
-- `make openapi web-api`: additions only, stable on regeneration.
-- `make web-check web-test`: tsc and eslint clean; 35 files, 153 tests passed.
-- Playwright `e2e/imports.spec.ts` against the lane API (:8244) and web (:5244): passed (also smoke, plans and
-  documents specs: 5 passed).
+After the review round and both merges (phase branch at `b9e83c8`):
+
+- `make lint typecheck boundaries`: clean; mypy 295 files; 21 import-linter contracts kept.
+- `make test` (full, after the last code change): 4,869 passed, 0 failed, 884 skipped (contract sample) in 28 min.
+- Domain coverage gate: 94%. Overall 95%.
+- Migrations: one head (`uv run alembic heads`: 1271; chain ... 1280, 1240, 1241, 1270, 1271). Lane database down
+  to 1081 and up again clean; `alembic check` clean.
+- `make openapi web-api`: additions only; a second regeneration leaves no drift.
+- `make web-check web-test`: tsc and eslint clean; 43 files, 195 tests passed (two full runs). Load flakes seen
+  while the backend suite or the lane servers were running, each passing 3 of 3 alone and in the idle full runs:
+  `src/features/auth/mfa.test.tsx` "asks for a code after the password, then signs in" and "walks a required role
+  through enrolment ...", `src/app/auth.test.tsx` "sends a signed-out visitor to sign-in, then back ...".
+- Playwright `e2e/imports.spec.ts` against the lane API (:8244) and web (:5244), freshly seeded: passed.
+- Lane databases `facilityhub_p8i1` and `facilityhub_test_p8i1` were dropped and rebuilt once during the first
+  merge (Phase 10 migrations had been inserted below the old chain).
 
 ## Decisions and assumptions (owner to confirm)
 
 - **Placement**: a new `imports` context rather than platform, because platform may not call clients and the rest.
   The keys stay `platform.import_job.*`.
-- **Imported email consent skips double opt-in** (the person agreed in the old system).
-- **Automations fire** for imported clients (`clients.client.created`); imported memberships converge with reason
-  `import`, so a rule can exclude them.
+- **Imported consent skips double opt-in** outside GDPR mode (basis `import`); in GDPR mode it needs the evidence
+  columns (review round B).
+- **Automations do not fire** for imported clients or contracts (review round A).
+- **Switching GDPR mode off** writes an opt-out for `import`-basis opt-ins too, because T2's switch-off rule covers
+  every opt-in GDPR mode was ignoring. Errs toward not mailing.
+- A stopped (`failed`) job is final; the person starts a new import of the same file.
 - **Possible duplicates are skipped, never merged.**
 - **Opening credit** is an external payment received now; the as-of date is in its memo.
 - Row numbers are spreadsheet rows (header = row 1), not the data model's 1-based data rows.
@@ -68,7 +91,8 @@ description: `backend/app/modules/imports/README.md`.
 
 ## Deferred (by name)
 
-- Cancelling a running import job.
+- Cancelling a running import job; restarting a stopped job in place.
+- A warning count on the job (warnings are listed in the report only).
 - IMP-02 operator-assisted imports (an operator running a file for a tenant).
 - Cancelled contracts, custom fields, tags, notes and package balances in imports.
 - Throughput: about 15 to 30 ms a row through the clients service (dry run plus commit doubles it); batching the
