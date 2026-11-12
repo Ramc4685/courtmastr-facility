@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, ApiError, setCsrfToken, setUnauthenticatedHandler, type Schemas } from '../api/client'
 
 export type Me = Schemas['Me']
@@ -44,11 +44,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
   }, [qc])
 
+  // React Query tells observers about setQueryData on a later tick. Callers navigate as soon as sessionStarted
+  // resolves, so it waits for this provider to commit the new session; otherwise the route guard still sees no
+  // session and bounces the user through /sign-in.
+  const rendered = useRef<Me | null | undefined>(undefined)
+  const waiters = useRef<(() => void)[]>([])
+  useEffect(() => {
+    rendered.current = session.data
+    for (const resolve of waiters.current.splice(0)) resolve()
+  }, [session.data])
+
   const sessionStarted = useCallback(
     async (csrf: string | null | undefined) => {
       setCsrfToken(csrf)
       qc.removeQueries(notSession)
-      qc.setQueryData(SESSION_KEY, await api.get('/api/v1/me'))
+      const next = await api.get('/api/v1/me')
+      await new Promise<void>((resolve) => {
+        qc.setQueryData(SESSION_KEY, next)
+        // Structural sharing keeps the old object when nothing changed, and then no re-render is coming.
+        if (qc.getQueryData(SESSION_KEY) === rendered.current) resolve()
+        else waiters.current.push(resolve)
+      })
     },
     [qc],
   )

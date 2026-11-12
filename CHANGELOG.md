@@ -19,6 +19,9 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Sign-in is harder to abuse: per-address and per-account rate limits, escalating lockouts, a common-password check, and a sign-in token that expires with the page.
 - Staff can only sign in from the networks the owner lists, when a list is set.
 
+### Fixed
+- Signing in no longer flashes the sign-in page again before opening the page you asked for.
+
 ## [MVP] - 2026-11-11
 
 ### Added
