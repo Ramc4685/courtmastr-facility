@@ -43,7 +43,7 @@ points at the head it finds (`alembic heads`); the coordinator re-points one `do
 | **O2 Load and accessibility** | Sonnet | load test and performance budget (REL-02), manual keyboard and screen-reader pass with findings fixed or listed | new `perf/`, `docs/ops/performance-budget.md`, `docs/status/accessibility-manual.md` | none | O1 (runs against the container stack); late, so it measures the finished phase |
 | **T1 Tenant plans and entitlements** | Opus | PLT-14 (plans, metered limits, add-on gating, `Me.entitlements`), PLT-09 (covered by the same flag mechanism), PLT-13 (branded-app portal users as an entitlement) | `platform/entitlements.py`, `platform/models.py` (`subscription_plan`, `tenant_entitlement`), platform router and screens | 1250 to 1259 | none |
 | **T2 Privacy, branding and onboarding** | Sonnet | PLT-08 logos, PLT-06 campaign permission levels, PLT-16 GDPR mode, IMP-04 export bundle as a stored file, ONB-01 setup checklist, ONB-03 support requests | `platform/privacy.py`, `platform/branding.py`, `platform/onboarding.py`, one permission edit in `engagement/permissions.py` (agreed with whoever owns engagement) | 1260 to 1269 | K1 merged (logos, export bundle) |
-| **T3 Location day in billing** | Sonnet | REL-04: statements and the AR cut use the location's day, not UTC | `billing/service.py` statement and AR functions and their tests only | none | Stripe lane merged to `main` and the phase branch rebased, so billing is not edited under a running lane |
+| ~~T3 Location day in billing~~ | - | REL-04 moved to Phase 9 chip B (`claude/phase9-wave1-711cdd`), which owns billing; Phase 9 migrations use `13xx` | - | - | handed over 2026-11-11 |
 | **I1 Import** | Opus | IMP-01 templates, IMP-02 assisted import, MEM-23, as a generic CSV import (decision 5) | `platform/imports.py`, `import_job`, per-context import handlers | 1270 to 1279 | K1 and K2 merged |
 | **D1 Docs refresh** | coordinator | stale READMEs, `16-integrations.md`, CLAUDE.md status table, status rows for the † rows, `unknowns.md` read | docs only | none | the three Phase 6 to 7 lanes merged |
 
@@ -56,7 +56,7 @@ services), which are not software. PLT-11 and PLT-12 belong to Wave 6, IMP-03 to
 1. **Batch 1 (now):** K1, K2, S1. K1 publishes its interface first.
 2. **Batch 2:** K3, O1, then S2 as S1 merges.
 3. **Batch 3:** T1, T2 (after K1), S3 (after S1 and the provider answer).
-4. **Batch 4:** O2, T3 (after the Stripe lane merges), I1 (when unblocked), D1.
+4. **Batch 4:** O2, I1 (when unblocked), D1.
 
 ## Shared files
 

@@ -48,13 +48,19 @@ def link_token(message) -> str:
     return message.body.split("#token=")[1].split()[0].split("&")[0]
 
 
-def make_tenant(time_zone: str = "America/Chicago") -> SimpleNamespace:
+def make_tenant(time_zone: str = "America/Chicago", mfa_policy: str = "optional") -> SimpleNamespace:
+    """A fresh tenant. MFA is optional by default so tests sign in with a password alone; the MFA tests pass
+    mfa_policy="privileged" (the product default) or "all"."""
+    from app.modules.platform.models import Tenant
+
     slug = f"t-{uuid4().hex[:12]}"
     owner_email = f"owner@{slug}.example.com"
     created = service.onboard_tenant(
         name=f"Club {slug}", slug=slug, default_time_zone=time_zone, owner_email=owner_email,
         owner_first_name="Olive", owner_last_name="Owner", owner_password=PASSWORD,
     )  # fmt: skip
+    with tenant_session(created["tenant_id"]) as session:
+        session.get(Tenant, created["tenant_id"]).staff_mfa_policy = mfa_policy
     return SimpleNamespace(
         id=created["tenant_id"], slug=slug, owner_email=owner_email, owner_id=created["owner_staff_user_id"]
     )
@@ -82,8 +88,12 @@ def add_staff(tenant, role_key: str, *, location_ids=(), all_locations: bool = F
         return email_address, user.id
 
 
-def login(client, tenant, email_address: str | None = None, password: str = PASSWORD, audience: str = "staff") -> dict:
-    """Bearer headers for a signed-in principal (mobile-style session, so no CSRF dance)."""
+def login(
+    client, tenant, email_address: str | None = None, password: str = PASSWORD, audience: str = "staff",
+    *, elevated: bool = True,
+) -> dict:  # fmt: skip
+    """Bearer headers for a signed-in principal (mobile-style session, so no CSRF dance). A password sign-in is
+    a fresh re-authentication, so the session satisfies `+` keys for 10 minutes; elevated=False clears that."""
     response = client.post(
         "/api/v1/auth/sign-in",
         headers={"X-Tenant-Slug": tenant.slug},
@@ -95,7 +105,43 @@ def login(client, tenant, email_address: str | None = None, password: str = PASS
         },
     )
     assert response.status_code == 200, response.text
-    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+    token = response.json()["access_token"]
+    if not elevated:
+        drop_elevation(tenant, token)
+    return {"Authorization": f"Bearer {token}"}
+
+
+def totp(secret: str, steps: int = 0) -> str:
+    """The TOTP code for `secret` at the (frozen) clock, `steps` 30-second steps away."""
+    import pyotp
+
+    return pyotp.TOTP(secret).at(int(clock.now().timestamp()) + 30 * steps)
+
+
+def finish_enrolment(client, challenge: dict) -> tuple[dict, str]:
+    """Walk a forced enrolment from a 202 sign-in challenge: new secret, first code. (session body, secret)."""
+    assert challenge["enrolment_required"], challenge
+    started = client.post("/api/v1/auth/mfa/enrolment", json={"mfa_token": challenge["mfa_token"]})
+    assert started.status_code == 200, started.text
+    secret = started.json()["secret"]
+    done = client.post("/api/v1/auth/mfa/verify", json={"mfa_token": challenge["mfa_token"], "code": totp(secret)})
+    assert done.status_code == 200, done.text
+    return done.json(), secret
+
+
+def drop_elevation(tenant, access_token: str) -> None:
+    """End a session's step-up window, as if its re-authentication were more than 10 minutes old."""
+    from sqlalchemy import update
+
+    from app.core.auth import tokens
+    from app.modules.platform.models import AuthSession
+
+    with tenant_session(tenant.id) as session:
+        session.execute(
+            update(AuthSession)
+            .where(AuthSession.access_token_hash == tokens.digest(access_token))
+            .values(elevated_until_at=None)
+        )
 
 
 def role_id(tenant, system_key: str):
@@ -222,7 +268,23 @@ def populate(client, tenant) -> SimpleNamespace:
         **leagues,
         **integration, **reporting,
         **_populate_files(tenant),
+        **_populate_mfa(tenant),
     )  # fmt: skip
+
+
+def _populate_mfa(tenant) -> dict:
+    """A staff member with a confirmed TOTP factor and recovery codes (Phase 8 S2)."""
+    from sqlalchemy import select
+
+    from app.modules.platform import mfa
+
+    email_address, staff_user_id = add_staff(tenant, "front_desk", all_locations=True)
+    with tenant_session(tenant.id) as session:
+        identity = session.scalar(select(Identity).where(Identity.email == email_address))
+        mfa.start_enrolment(session, identity)
+        mfa.factor(session, identity.id).confirmed_at = clock.now()
+        mfa.new_recovery_codes(session, identity.id)
+    return {"mfa_staff_user_id": staff_user_id}
 
 
 def _populate_files(tenant) -> dict:

@@ -82,7 +82,55 @@ class AuthSessionOut(Out):
     absolute_expires_at: datetime
     mfa_verified_at: datetime | None = None
     mfa_required: bool = False
+    elevated_until_at: datetime | None = None  # `+` permissions work until then (step-up)
     csrf_token: str | None = None
+    recovery_codes: list[str] | None = None  # only when MFA enrolment completed during this sign-in
+
+
+class MfaChallengeOut(Out):
+    """A pending sign-in: send mfa_token with a code to /auth/mfa/verify (after /auth/mfa/enrolment when
+    enrolment_required). It grants nothing else and expires in minutes."""
+
+    mfa_token: str
+    expires_at: datetime
+    enrolment_required: bool
+
+
+class MfaChallengeToken(In):
+    mfa_token: Annotated[str, StringConstraints(max_length=200)]
+
+
+class MfaChallengeCode(MfaChallengeToken):
+    code: Annotated[str, StringConstraints(max_length=32)]
+
+
+class MfaCode(In):
+    code: Annotated[str, StringConstraints(max_length=32)]
+
+
+class MfaEnrolmentOut(Out):
+    """Shown once. Render otpauth_uri as a QR code on the device; never send it anywhere."""
+
+    secret: str
+    otpauth_uri: str
+
+
+class MfaRecoveryCodesOut(Out):
+    recovery_codes: list[str]
+
+
+class MfaStatus(Out):
+    enrolled: bool
+    confirmed_at: datetime | None
+    recovery_codes_remaining: int
+    required: bool
+
+
+class StepUpRequest(In):
+    """A code when two-step verification is on (TOTP or a recovery code), otherwise the password."""
+
+    code: Annotated[str, StringConstraints(max_length=32)] | None = None
+    password: Annotated[str, StringConstraints(max_length=1024)] | None = None
 
 
 class OwnSession(Out):
@@ -127,15 +175,21 @@ class TenantUpdate(In):
 
 
 class SecuritySettings(Out):
-    """Tenant security policy (PLT-07). An empty staff_ip_allowlist means staff may act from anywhere."""
+    """Tenant security policy. An empty staff_ip_allowlist means staff may act from anywhere (PLT-07).
+    staff_mfa_policy: who must use two-step verification (privileged = Owner and Admin). staff_idle_timeout_min:
+    minutes a staff web session survives unused."""
 
     staff_ip_allowlist: list[str]
+    staff_mfa_policy: Literal["optional", "privileged", "all"]
+    staff_idle_timeout_min: int
 
 
 class SecuritySettingsUpdate(In):
     staff_ip_allowlist: (
         Annotated[list[Annotated[str, StringConstraints(max_length=64)]], Field(max_length=100)] | None
     ) = None
+    staff_mfa_policy: Literal["optional", "privileged", "all"] | None = None
+    staff_idle_timeout_min: Annotated[int, Field(ge=15, le=60)] | None = None
 
 
 class TenantOnboard(In):

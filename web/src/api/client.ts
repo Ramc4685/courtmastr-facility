@@ -5,6 +5,8 @@
  *   (login CSRF), fetched once from GET /auth/pre-session and fetched again if the server refuses it.
  * - Every mutation carries an Idempotency-Key, reused on that one retry.
  * - Non-2xx responses become ApiError with the problem+json body; a 401 means the session is over.
+ * - A 403 `step-up-required` (a `+` permission, ADR 0002 section 4) asks the registered handler to confirm the
+ *   user once (one shared prompt for concurrent requests), then retries the original request once.
  */
 import type { components, paths } from './schema'
 
@@ -67,6 +69,19 @@ export const setUnauthenticatedHandler = (fn: () => void) => {
   onUnauthenticated = fn
 }
 
+/** Resolves true once the user has re-authenticated (the session and CSRF token have rotated), false if they gave up. */
+let onStepUp: (() => Promise<boolean>) | null = null
+let stepUpPrompt: Promise<boolean> | null = null
+export const setStepUpHandler = (fn: (() => Promise<boolean>) | null) => {
+  onStepUp = fn
+}
+function confirmIdentity(): Promise<boolean> {
+  stepUpPrompt ??= (onStepUp ? onStepUp() : Promise.resolve(false)).finally(() => {
+    stepUpPrompt = null
+  })
+  return stepUpPrompt
+}
+
 // Anonymous routes find the tenant from the host; where the host carries no tenant (local development on
 // localhost) the slug is sent as a header. It is an address, not a credential.
 const TENANT_SLUG: string | undefined =
@@ -75,7 +90,8 @@ const TENANT_SLUG: string | undefined =
 // Anonymous auth endpoints guarded by the pre-session token (security-baseline 5.3 item 4).
 const PRE_SESSION = [
   '/api/v1/auth/sign-in', '/api/v1/auth/magic-links', '/api/v1/auth/password-resets', '/api/v1/auth/magic-links/consume',
-  '/api/v1/auth/password-resets/consume', '/api/v1/auth/invitations/accept',
+  '/api/v1/auth/password-resets/consume', '/api/v1/auth/invitations/accept', '/api/v1/auth/mfa/enrolment',
+  '/api/v1/auth/mfa/verify',
 ]
 // A 401 from these is an answer, not an expired session. Kiosk routes use the device's kiosk cookie.
 const NOT_SESSION = [...PRE_SESSION, '/api/v1/kiosk/pair', '/api/v1/kiosk/config', '/api/v1/kiosk/lookups', '/api/v1/kiosk/check-ins', '/api/v1/kiosk/exit']
@@ -98,8 +114,8 @@ function preSessionToken(): Promise<string | null> {
   return preToken
 }
 
-const csrfRefused = async (res: Response) =>
-  res.status === 403 && ((await res.clone().json().catch(() => ({}))) as Problem).code === 'csrf-failed'
+const refusedWith = async (res: Response, code: string) =>
+  res.status === 403 && ((await res.clone().json().catch(() => ({}))) as Problem).code === code
 
 export async function request<T>(method: Method, template: string, opts: Options = {}): Promise<T> {
   const url = buildUrl(template, opts)
@@ -121,9 +137,12 @@ export async function request<T>(method: Method, template: string, opts: Options
   }
 
   let res = await send()
-  if (guarded && (await csrfRefused(res))) {
+  if (guarded && (await refusedWith(res, 'csrf-failed'))) {
     preToken = null // the pre-session cookie lapsed: take a fresh pair and retry once
     res = await send()
+  }
+  if (template !== '/api/v1/auth/step-up' && (await refusedWith(res, 'step-up-required')) && (await confirmIdentity())) {
+    res = await send() // same Idempotency-Key: the refused attempt released its claim
   }
   if (res.status === 401 && !NOT_SESSION.includes(template)) onUnauthenticated()
   // 202 may carry a body (a long booking series answers with its status_url); an empty one parses to undefined.

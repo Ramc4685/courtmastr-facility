@@ -56,8 +56,8 @@ class Argon2(BaseModel):
 
 
 class SessionLifetime(BaseModel):
-    idle_hours: int
-    absolute_days: int
+    idle_min: int
+    absolute_hours: int
 
 
 class Stripe(BaseModel):
@@ -94,6 +94,8 @@ class Auth(BaseModel):
     cookie_secure: bool
     argon2: Argon2
     sessions: dict[str, SessionLifetime]
+    step_up_min: int = 10  # how long a re-authentication satisfies `+` keys (owner decision 4)
+    mfa_challenge_ttl_min: int = 5  # the pending sign-in between password (or link) and the second factor
 
 
 class Bucket(BaseModel):

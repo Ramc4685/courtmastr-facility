@@ -108,7 +108,7 @@ def _session_body(row, principal) -> dict:
     return {
         "id": row.id, "kind": row.kind, "principal": principal, "access_expires_at": row.access_expires_at,
         "idle_expires_at": row.idle_expires_at, "absolute_expires_at": row.absolute_expires_at,
-        "mfa_verified_at": row.mfa_verified_at,
+        "mfa_verified_at": row.mfa_verified_at, "elevated_until_at": row.elevated_until_at,
     }  # fmt: skip
 
 
@@ -121,7 +121,7 @@ def _session_out(grant: auth.Grant, response: Response) -> dict:
     """Bearer clients get the tokens in the body; web gets the one HttpOnly session cookie and a CSRF token.
     The cookie carries the CSRF token too, because the database keeps only its hash and GET /auth/session
     must be able to hand it to a freshly loaded page."""
-    out = _session_body(grant.auth_session, grant.principal)
+    out = _session_body(grant.auth_session, grant.principal) | {"recovery_codes": grant.recovery_codes}
     if grant.auth_session.kind == "mobile":
         return out | {"access_token": grant.access_token, "refresh_token": grant.refresh_token}
     response.set_cookie(session_cookie(), f"{grant.access_token}.{grant.csrf_token}", **_cookie_flags())
@@ -137,6 +137,21 @@ def _token_session(request: Request, token: str | None, prefix: str, code: str) 
 
 
 _session_route = {"response_model": s.AuthSessionOut, "response_model_exclude_none": True}
+# Sign-in routes answer 202 with a pending MFA challenge when a second factor (or forced enrolment) comes next.
+_sign_in_route = {
+    "response_model": s.AuthSessionOut | s.MfaChallengeOut, "response_model_exclude_none": True,
+    "responses": {202: {"model": s.MfaChallengeOut}},
+}  # fmt: skip
+
+
+def _sign_in_out(result: auth.Grant | auth.Challenge, response: Response) -> dict:
+    if isinstance(result, auth.Challenge):
+        response.status_code = 202
+        return {
+            "mfa_token": result.token, "expires_at": result.expires_at,
+            "enrolment_required": result.enrolment_required,
+        }  # fmt: skip
+    return _session_out(result, response)
 
 
 def _guarded(bucket: str) -> list:
@@ -163,12 +178,12 @@ def get_pre_session(request: Request, response: Response):
     return {"csrf_token": token}
 
 
-@public.post("/auth/sign-in", dependencies=_guarded("sign-in"), **_session_route)
+@public.post("/auth/sign-in", dependencies=_guarded("sign-in"), **_sign_in_route)
 def sign_in(body: s.SignInRequest, response: Response, session: PublicSession):
-    """Sign in with email and password. Errors: invalid-credentials, identity-locked, ip-not-allowed,
-    csrf-failed, rate-limited."""
+    """Sign in with email and password. 202 with an MFA challenge when a second factor comes next. Errors:
+    invalid-credentials, identity-locked, ip-not-allowed, csrf-failed, rate-limited."""
     _per_address(session, "sign-in-identity", body, response)
-    return _session_out(auth.sign_in(session, **body.model_dump()), response)
+    return _sign_in_out(auth.sign_in(session, **body.model_dump()), response)
 
 
 @public.post("/auth/magic-links", status_code=202, dependencies=_guarded("magic-link"))
@@ -178,11 +193,11 @@ def request_magic_link(body: s.EmailLinkRequest, response: Response, session: Pu
     auth.request_magic_link(session, **body.model_dump())
 
 
-@public.post("/auth/magic-links/consume", dependencies=_guarded("consume"), **_session_route)
+@public.post("/auth/magic-links/consume", dependencies=_guarded("consume"), **_sign_in_route)
 def consume_magic_link(body: s.TokenConsumeRequest, request: Request, response: Response):
     """Exchange a magic-link token for a session. Errors: token-invalid, token-expired."""
     session = _token_session(request, body.token, "fhl", "token-invalid")
-    return _session_out(auth.consume_magic_link(session, token=body.token, client_kind=body.client_kind), response)
+    return _sign_in_out(auth.consume_magic_link(session, token=body.token, client_kind=body.client_kind), response)
 
 
 @public.post("/auth/password-resets", status_code=202, dependencies=_guarded("reset-request"))
@@ -192,7 +207,7 @@ def request_password_reset(body: s.EmailLinkRequest, response: Response, session
     auth.request_password_reset(session, email=body.email, audience=body.audience)
 
 
-@public.post("/auth/password-resets/consume", dependencies=_guarded("consume"), **_session_route)
+@public.post("/auth/password-resets/consume", dependencies=_guarded("consume"), **_sign_in_route)
 def consume_password_reset(body: s.TokenConsumeRequest, request: Request, response: Response):
     """Set a new password; revokes every other session. Errors: token-invalid, token-expired, password-too-weak."""
     if not body.new_password:
@@ -201,14 +216,33 @@ def consume_password_reset(body: s.TokenConsumeRequest, request: Request, respon
     grant = auth.consume_password_reset(
         session, token=body.token, new_password=body.new_password, client_kind=body.client_kind
     )
-    return _session_out(grant, response)
+    return _sign_in_out(grant, response)
 
 
-@public.post("/auth/invitations/accept", dependencies=_guarded("consume"), **_session_route)
+@public.post("/auth/invitations/accept", dependencies=_guarded("consume"), **_sign_in_route)
 def accept_invitation(body: s.TokenConsumeRequest, request: Request, response: Response):
     """Accept an invite and activate the identity; the password is optional (magic link remains available)."""
     session = _token_session(request, body.token, "fhl", "token-invalid")
-    return _session_out(auth.accept_invitation(session, **body.model_dump()), response)
+    return _sign_in_out(auth.accept_invitation(session, **body.model_dump()), response)
+
+
+@public.post("/auth/mfa/enrolment", dependencies=_guarded("mfa"), response_model=s.MfaEnrolmentOut)
+def start_mfa_challenge_enrolment(body: s.MfaChallengeToken, request: Request):
+    """Forced enrolment inside a pending sign-in: a new TOTP secret as an otpauth URI (render the QR on the
+    device). Errors: mfa-challenge-invalid, mfa-already-enrolled."""
+    session = _token_session(request, body.mfa_token, "fhm", "mfa-challenge-invalid")
+    secret, uri = auth.start_challenge_enrolment(session, token=body.mfa_token)
+    return {"secret": secret, "otpauth_uri": uri}
+
+
+@public.post("/auth/mfa/verify", dependencies=_guarded("mfa"), **_session_route)
+def verify_mfa_challenge(body: s.MfaChallengeCode, request: Request, response: Response):
+    """Complete a pending sign-in with a TOTP code or a recovery code (consumed); for a forced enrolment, the
+    first code of the new factor, and the response carries the ten recovery codes once. Errors:
+    mfa-challenge-invalid, mfa-code-invalid, mfa-enrolment-not-started, identity-locked, rate-limited."""
+    session = _token_session(request, body.mfa_token, "fhm", "mfa-challenge-invalid")
+    hit("mfa-challenge", body.mfa_token, response, tenant=session.info["tenant_id"])
+    return _session_out(auth.complete_challenge(session, token=body.mfa_token, code=body.code), response)
 
 
 @public.post("/auth/refresh", dependencies=[Depends(rate_limit("refresh"))], **_session_route)
@@ -261,6 +295,48 @@ def change_own_password(body: s.PasswordChange, ctx: Ctx = Depends(current_ctx))
     """Change the caller's password; other sessions are revoked. A first password needs a magic-link session
     from the last 15 minutes. Errors: invalid-credentials, password-too-weak, password-reset-required."""
     auth.change_password(ctx.session, ctx.principal, **body.model_dump())
+
+
+@me.post("/auth/step-up", dependencies=[Depends(rate_limit("step-up"))], **_session_route)
+def step_up(body: s.StepUpRequest, response: Response, ctx: Ctx = Depends(current_ctx)):
+    """Re-authenticate (TOTP or recovery code when enrolled, else password) so `+` permissions work for 10
+    minutes. The session rotates: new cookie and CSRF token (web) or token pair (mobile). Errors:
+    reauthentication-failed, identity-locked, step-up-unavailable, rate-limited."""
+    return _session_out(auth.step_up(ctx.session, ctx.principal, **body.model_dump()), response)
+
+
+@me.get("/me/mfa", response_model=s.MfaStatus)
+def get_own_mfa(ctx: Ctx = Depends(current_ctx)):
+    """Whether two-step verification is on for the caller, and whether their role requires it."""
+    return auth.mfa_status(ctx.session, ctx.principal)
+
+
+@me.post("/me/mfa/totp", response_model=s.MfaEnrolmentOut)
+def start_own_mfa_enrolment(ctx: Ctx = Depends(current_ctx)):
+    """Start TOTP enrolment (needs step-up): the secret as an otpauth URI. Errors: step-up-required,
+    mfa-already-enrolled."""
+    secret, uri = auth.begin_mfa_enrolment(ctx.session, ctx.principal)
+    return {"secret": secret, "otpauth_uri": uri}
+
+
+@me.post("/me/mfa/totp/confirm", response_model=s.MfaRecoveryCodesOut)
+def confirm_own_mfa_enrolment(body: s.MfaCode, ctx: Ctx = Depends(current_ctx)):
+    """Turn TOTP on with the first code; returns ten single-use recovery codes, shown once. Other sessions are
+    signed out. Errors: mfa-code-invalid, mfa-enrolment-not-started."""
+    return {"recovery_codes": auth.confirm_mfa_enrolment(ctx.session, ctx.principal, body.code)}
+
+
+@me.delete("/me/mfa/totp", status_code=204)
+def disable_own_mfa(ctx: Ctx = Depends(current_ctx)) -> None:
+    """Turn two-step verification off (needs step-up; refused when the caller's role requires it). Errors:
+    step-up-required, mfa-required."""
+    auth.disable_mfa(ctx.session, ctx.principal)
+
+
+@me.post("/me/mfa/recovery-codes", response_model=s.MfaRecoveryCodesOut)
+def regenerate_own_recovery_codes(ctx: Ctx = Depends(current_ctx)):
+    """Replace every recovery code with ten new ones (needs step-up), shown once."""
+    return {"recovery_codes": auth.regenerate_recovery_codes(ctx.session, ctx.principal)}
 
 
 @me.get("/me", response_model=s.Me)
