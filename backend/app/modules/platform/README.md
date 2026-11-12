@@ -221,6 +221,11 @@ Evidence and open questions: `docs/status/phase8-s2-mfa.md`. Migrations `1230`, 
 Entitlements only: **no charge, invoice or Stripe call is made for a tenant's plan here**. Billing the tenant
 for its subscription is later work.
 
+**Placeholders:** the plan names (Essentials, Growth, Complete) and their limits (Essentials: 1 location, 500
+clients; Growth: 3 locations, 2,000 clients, 500 app users, API access; Complete: everything, unlimited) are
+invented placeholders, not final packaging or pricing (owner decision relayed 2026-11-11). Change them with a
+new migration.
+
 - **Where the data lives.** The plan catalogue is the global `subscription_plan` table (no RLS; fh_app has
   SELECT; rows come from migration 1250, which upserts `essentials`, `growth` and `complete`). Each plan has
   `features` (feature keys) and `limits` (limit key to count; a missing key is unlimited). The tenant's plan is
