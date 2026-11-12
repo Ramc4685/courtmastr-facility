@@ -73,9 +73,9 @@ Lane detail: `02-resources-scheduling.md`, `02-resources-scheduling-web.md`.
 | RES-04 Schedule groups | P0 | done |  |
 | RES-05 Linked multi-resource reservations | P0 | done |  |
 | RES-06 League venues mapping | P1 | not built | League module (later). |
-| RES-07 Locker rooms | P1 | not built | No API. |
-| RES-08 Locker terms | P1 | not built | No API. |
-| RES-09 Padlock inventory | P2 | not built | No API. |
+| RES-07 Locker rooms | P1 | done | Bulk lockers; lease state merged from rentals; `/lockers` screen. |
+| RES-08 Locker terms | P1 | done | Named, priced date ranges. |
+| RES-09 Padlock inventory | P2 | done | Encrypted combination, audited reveal under its own key. |
 | SCH-01 Calendar views and navigation | P0 | done |  |
 | SCH-02 Reservation types | P0 | done |  |
 | SCH-03 Type online-booking options | P0 | done | Per-type defaults and per-session flags here; the full online policy per type (listing mode, booking window, cut-offs, allowed packages) is programs' booking policy (location default plus type override), linked from the types tab. |
@@ -118,16 +118,16 @@ Lane detail: `03-rentals.md`.
 | RNT-06 Client online rental search and booking | P0 | partial | Backend complete, including hold expiry and the paid-invoice handler. Portal Bookings screen: search by type, date and length, hold, pay by new card (fake processor, or Stripe Elements in Stripe test mode), abandon, cancel. Confirm takes a new card token only, not a stored method. |
 | RNT-07 Buffer times on rentals | P1 | done |  |
 | RNT-08 Remove a rental or recurring rental | P0 | done |  |
-| RNT-09 Rental plans | P1 | partial | Append-only ledger, full-coverage debit under lock, credit back on cancel. Not built: auto-renew and autopay, portal plan purchase, members-only sales (no memberships yet). |
-| RNT-10 Share a rental plan | P1 | not built | Needs client relationships (module 4). Permission `rentals.rental_plan.share` is registered. |
+| RNT-09 Rental plans | P1 | done | Append-only ledger, full-coverage debit under lock, credit back on cancel; auto-renew and autopay through billing (hourly day-roll), members-only sales and member price (reads `memberships.is_member`), portal purchase through `secure_online_checkout`. |
+| RNT-10 Share a rental plan | P1 | done | Shared with live relatives; one balance. |
 | RNT-11 Remove and refund a rental plan | P1 | done |  |
 | RNT-12 Rental Plan Sales report | P1 | partial | No report screen or CSV/PDF/XLSX export (reports, module 15). |
 | RNT-13 Publish a rental on the public league site | P2 | done |  |
 | RNT-14 Rental equipment catalogue | P0 | done | Built as POS-17 (equipment catalogue under Point of sale). |
 | RNT-15 Rent equipment through POS | P0 | done | Built as POS-18 (equipment line on a POS sale). |
 | RNT-16 Return rented equipment | P0 | done | Built as POS-18 (return through the loan, with late and replacement fees). |
-| RNT-17 Locker rental to a client | P1 | not built | No locker tables exist (RES-07/08 not built). Permission key registered. |
-| RNT-18 Clear locker assignments | P1 | not built | As RNT-17. |
+| RNT-17 Locker rental to a client | P1 | done | One open lease per locker; billed per term. |
+| RNT-18 Clear locker assignments | P1 | done | Clear one or every expired lease. |
 
 ## Module 4: Clients and households
 
@@ -166,7 +166,7 @@ Lane detail: `04-clients-households.md`.
 | FAM-03 Act on behalf of a related person | P0 | done |  |
 | FAM-04 Membership sharing | P0 | done | Built as MEM-17 (shares on a membership contract). |
 | FAM-05 Package sharing | P0 | done | Built as PKG-06 (shares on a client package). |
-| FAM-06 Rental plan sharing | P1 | not built | Owned by rentals. |
+| FAM-06 Rental plan sharing | P1 | done | Built in rentals (RNT-10). |
 
 ## Module 5: Memberships and packages
 

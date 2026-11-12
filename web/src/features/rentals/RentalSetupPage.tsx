@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api, fieldErrors, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
@@ -378,6 +378,11 @@ function PlanDialog({ plan, locationId, types, onClose }: { plan: RentalPlan | n
     revenue_category_id: plan?.revenue_category_id ?? types[0]?.revenue_category_id ?? '',
     validity_days: str(plan?.validity_days ?? 180),
     client_description: plan?.client_description ?? '',
+    is_sold_online: plan?.is_sold_online ?? false,
+    is_members_only: plan?.is_members_only ?? false,
+    is_shareable: plan?.is_shareable ?? false,
+    is_auto_renew: plan?.is_auto_renew ?? false,
+    is_autopay_default: plan?.is_autopay_default ?? false,
   })
   const set = (patch: Partial<typeof f>) => setF({ ...f, ...patch })
   const save = useMutation({
@@ -389,6 +394,11 @@ function PlanDialog({ plan, locationId, types, onClose }: { plan: RentalPlan | n
         revenue_category_id: f.revenue_category_id,
         validity_days: num(f.validity_days),
         client_description: f.client_description || null,
+        is_sold_online: f.is_sold_online,
+        is_members_only: f.is_members_only,
+        is_shareable: f.is_shareable,
+        is_auto_renew: f.is_auto_renew,
+        is_autopay_default: f.is_autopay_default,
       }
       return plan
         ? api.patch('/api/v1/rental-plans/{rental_plan_id}', { path: { rental_plan_id: plan.id }, body })
@@ -437,6 +447,11 @@ function PlanDialog({ plan, locationId, types, onClose }: { plan: RentalPlan | n
         <Select label="Revenue category" value={f.revenue_category_id} placeholder="Choose a category" error={e.revenue_category_id} onChange={(ev) => set({ revenue_category_id: ev.target.value })} options={(categories.data?.data ?? []).filter((c) => c.is_active).map((c) => ({ value: c.id, label: c.label }))} />
         <Input label="Valid for (days)" type="number" min={1} value={f.validity_days} hint="Blank for no expiry." error={e.validity_days} onChange={(ev) => set({ validity_days: ev.target.value })} />
         <Input label="Description for clients" value={f.client_description} error={e.client_description} onChange={(ev) => set({ client_description: ev.target.value })} />
+        <Checkbox label="Sold online in the portal" checked={f.is_sold_online} onChange={(ev) => set({ is_sold_online: ev.target.checked })} />
+        <Checkbox label="Members only" hint="Only clients with an active membership can buy it." checked={f.is_members_only} onChange={(ev) => set({ is_members_only: ev.target.checked })} />
+        <Checkbox label="Shareable with related clients" checked={f.is_shareable} onChange={(ev) => set({ is_shareable: ev.target.checked })} />
+        <Checkbox label="Renews automatically" hint="Needs a validity. A new term and charge start when it expires." checked={f.is_auto_renew} onChange={(ev) => set({ is_auto_renew: ev.target.checked })} />
+        <Checkbox label="Collect renewals by autopay" checked={f.is_autopay_default} onChange={(ev) => set({ is_autopay_default: ev.target.checked })} />
       </form>
     </Dialog>
   )
@@ -619,10 +634,70 @@ function RemoveDialog({ purchase, onClose }: { purchase: Purchase; onClose: () =
   )
 }
 
+function ManageDialog({ purchase, name, onClose }: { purchase: Purchase; name: string; onClose: () => void }) {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const { can } = useAuth()
+  const [f, setF] = useState({ is_auto_renew: purchase.is_auto_renew, is_autopay: purchase.is_autopay, shares: purchase.shared_with_client_ids })
+  const related = useQuery({
+    queryKey: ['client-relationships', purchase.client_id],
+    queryFn: () => api.get('/api/v1/clients/{client_id}/relationships', { path: { client_id: purchase.client_id } }),
+  })
+  const save = useMutation({
+    mutationFn: async () => {
+      await api.patch('/api/v1/rental-plan-purchases/{purchase_id}', { path: { purchase_id: purchase.id }, body: { is_auto_renew: f.is_auto_renew, is_autopay: f.is_autopay } })
+      if (can('rentals.rental_plan.share')) await api.put('/api/v1/rental-plan-purchases/{purchase_id}/shares', { path: { purchase_id: purchase.id }, body: { client_ids: f.shares } })
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['rental-plan-purchases'] })
+      toast('success', `${name} updated.`)
+      onClose()
+    },
+  })
+  const live = (related.data ?? []).filter((r) => r.status === 'active' && !r.ended_at)
+  const toggle = (id: string, on: boolean) => setF({ ...f, shares: on ? [...f.shares, id] : f.shares.filter((x) => x !== id) })
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={`Manage ${name}`}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button loading={save.isPending} onClick={() => save.mutate()}>
+            Save
+          </Button>
+        </>
+      }
+    >
+      <div className="grid gap-4">
+        <Alert error={save.error} fields={fieldErrors(save.error)} />
+        <Checkbox label="Renews automatically" checked={f.is_auto_renew} onChange={(ev) => setF({ ...f, is_auto_renew: ev.target.checked })} />
+        <Checkbox label="Collect by autopay" checked={f.is_autopay} onChange={(ev) => setF({ ...f, is_autopay: ev.target.checked })} />
+        {can('rentals.rental_plan.share') && (
+          <fieldset className="grid gap-2">
+            <legend className="mb-1 font-medium">Shared with</legend>
+            {related.isPending ? (
+              <LoadingState />
+            ) : live.length === 0 ? (
+              <p className="text-sm text-muted">The client has no related clients to share with.</p>
+            ) : (
+              live.map((r) => <Checkbox key={r.id} label={`${r.other_client_name} (${r.label})`} checked={f.shares.includes(r.other_client_id)} onChange={(ev) => toggle(r.other_client_id, ev.target.checked)} />)
+            )}
+          </fieldset>
+        )}
+      </div>
+    </Dialog>
+  )
+}
+
 function SalesTab({ locationId, currency }: { locationId: string; currency: string }) {
   const { can } = useAuth()
   const plans = usePlans(locationId)
   const [removing, setRemoving] = useState<Purchase | null>(null)
+  const [managing, setManaging] = useState<Purchase | null>(null)
   const paging = useKeysetQuery(['rental-plan-purchases', 'list', locationId], (cursor) => api.get('/api/v1/rental-plan-purchases', { query: { location_id: locationId, cursor, limit: 50 } }))
   const planName = (id: string) => plans.data?.data.find((p) => p.id === id)?.name ?? 'Plan'
   return (
@@ -636,21 +711,31 @@ function SalesTab({ locationId, currency }: { locationId: string; currency: stri
           { header: 'Plan', cell: (p) => planName(p.rental_plan_id) },
           { header: 'Balance', cell: (p) => (p.balance === null ? 'Unlimited' : `${Number(p.balance)} of ${Number(p.quantity_total)}`) },
           { header: 'Price', cell: (p) => money(p.price_minor, currency) },
-          { header: 'Valid', cell: (p) => `${p.starts_on} to ${p.expires_on ?? 'no expiry'}` },
+          { header: 'Valid', cell: (p) => `${p.starts_on} to ${p.expires_on ?? 'no expiry'}${p.is_auto_renew ? ', renews' : ''}` },
+          { header: 'Shared', cell: (p) => (p.shared_with_client_ids.length ? `${p.shared_with_client_ids.length} related` : '—') },
           { header: 'Status', cell: (p) => <Badge tone={p.status === 'active' ? 'success' : 'neutral'}>{p.status === 'active' ? 'Active' : p.status === 'cancelled' ? 'Removed' : p.status}</Badge> },
           {
             header: 'Actions',
             className: 'text-right',
-            cell: (p) =>
-              can('rentals.rental_plan.remove') && p.status === 'active' ? (
-                <Button size="sm" variant="secondary" aria-label={`Remove ${planName(p.rental_plan_id)} sold ${p.starts_on}`} onClick={() => setRemoving(p)}>
-                  Remove
-                </Button>
-              ) : null,
+            cell: (p) => (
+              <div className="flex justify-end gap-2">
+                {can('rentals.rental_plan.sell') && (p.status === 'active' || p.status === 'pending') && (
+                  <Button size="sm" variant="secondary" aria-label={`Manage ${planName(p.rental_plan_id)} sold ${p.starts_on}`} onClick={() => setManaging(p)}>
+                    Manage
+                  </Button>
+                )}
+                {can('rentals.rental_plan.remove') && p.status === 'active' && (
+                  <Button size="sm" variant="secondary" aria-label={`Remove ${planName(p.rental_plan_id)} sold ${p.starts_on}`} onClick={() => setRemoving(p)}>
+                    Remove
+                  </Button>
+                )}
+              </div>
+            ),
           },
         ]}
       />
       {removing && <RemoveDialog purchase={removing} onClose={() => setRemoving(null)} />}
+      {managing && <ManageDialog purchase={managing} name={planName(managing.rental_plan_id)} onClose={() => setManaging(null)} />}
     </>
   )
 }

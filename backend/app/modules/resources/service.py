@@ -1,4 +1,5 @@
-"""resources service: schedule groups, the resource tree, standing links and availability windows.
+"""resources service: schedule groups, the resource tree, standing links, availability windows, and locker rooms,
+lockers, locker terms and padlocks (RES-07..09).
 
 Staff commands take a principal and authorize it; the functions under "internal" are what scheduling calls.
 Hold rows belong to scheduling (L2), which this context may not import, so tree edits and archiving run the
@@ -11,20 +12,38 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core import audit, events
+from app.core import audit, clock, crypto, events
 from app.core.auth import Principal, authorize, scope_query
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.pagination import ListQuery, paginate
 from app.modules import platform
 from app.modules.resources.events import ResourceArchived, ResourceCreated, ResourceTreeChanged
-from app.modules.resources.models import AvailabilityWindow, Resource, ResourceGroup, ResourceLink
+from app.modules.resources.models import (
+    AvailabilityWindow,
+    Locker,
+    LockerRoom,
+    LockerTerm,
+    Padlock,
+    Resource,
+    ResourceGroup,
+    ResourceLink,
+)
 
 MANAGE = "resources.resource.manage"
 WINDOWS = "resources.availability.manage"
 MAX_DEPTH = 3  # ADR 0004 section 3: bounds hold fan-out
+LOCKERS, PADLOCKS, REVEAL = (
+    "resources.locker.manage",
+    "resources.padlock.manage",
+    "resources.padlock.reveal_combination",
+)
+MAX_BULK_LOCKERS = 500
 # "tree_changed": fn(session, resource) after a node gains or changes its parent;
 # "archiving": fn(session, resource) raises Conflict when the node still has future holds.
-HOOKS: dict[str, list[Callable]] = {"tree_changed": [], "archiving": []}
+# Leases belong to rentals (L3), which this layer may not import:
+# "locker_states": fn(session, locker_ids) -> {locker_id: {state, locker_lease_id, client_id, client_name, ends_on}};
+# "locker_retiring": fn(session, locker) raises Conflict while the locker has an uncleared lease.
+HOOKS: dict[str, list[Callable]] = {"tree_changed": [], "archiving": [], "locker_states": [], "locker_retiring": []}
 
 
 def _location(session: Session, principal: Principal, location_id: UUID, pointer: str = "/location_id"):
@@ -394,3 +413,250 @@ def trainer_group(session: Session, location_id: UUID) -> UUID:
 def get_window(session: Session, window_id: UUID) -> AvailabilityWindow | None:
     """Internal: one availability window by id (scheduling's slot offers sell windows)."""
     return session.get(AvailabilityWindow, window_id)
+
+
+# --- locker rooms, lockers, terms (RES-07, RES-08) ---------------------------------------------------------
+
+
+def list_locker_rooms(session: Session, principal: Principal, query: ListQuery) -> dict:
+    return paginate(
+        session, scope_query(select(LockerRoom), principal, LockerRoom.location_id), query, id_column=LockerRoom.id,
+        sort_fields={"sort_order": LockerRoom.sort_order, "name": LockerRoom.name}, default_sort="sort_order,name",
+        filter_fields={"location_id": LockerRoom.location_id, "is_active": LockerRoom.is_active},
+    )  # fmt: skip
+
+
+def create_locker_room(session: Session, principal: Principal, data: dict) -> LockerRoom:
+    _location(session, principal, data["location_id"])
+    authorize(principal, LOCKERS, location_id=data["location_id"])
+    room = LockerRoom(**data)
+    session.add(room)
+    session.flush()
+    audit.record(session, LOCKERS, room, location_id=room.location_id, changes={"name": [None, room.name]})
+    return room
+
+
+def update_locker_room(session: Session, principal: Principal, room_id: UUID, data: dict) -> LockerRoom:
+    room = _scoped(session, principal, LockerRoom, room_id)
+    authorize(principal, LOCKERS, location_id=room.location_id)
+    for key, value in data.items():
+        setattr(room, key, value)
+    audit.record(session, LOCKERS, room, location_id=room.location_id, changes=audit.diff(room))
+    session.flush()
+    return room
+
+
+def _locker_view(session: Session, rows: list[Locker]) -> list[dict]:
+    states: dict = {}
+    for hook in HOOKS["locker_states"]:
+        states |= hook(session, [row.id for row in rows])
+    rooms = {
+        r.id: r.name
+        for r in session.scalars(select(LockerRoom).where(LockerRoom.id.in_({x.locker_room_id for x in rows})))
+    }
+    locks = {
+        p.id: p.number
+        for p in session.scalars(select(Padlock).where(Padlock.id.in_({x.padlock_id for x in rows if x.padlock_id})))
+    }
+    available = {"state": "available", "locker_lease_id": None, "client_id": None, "client_name": None, "ends_on": None}
+    return [
+        {c.key: getattr(row, c.key) for c in Locker.__table__.columns if c.key != "tenant_id"}
+        | {"locker_room_name": rooms.get(row.locker_room_id), "padlock_number": locks.get(row.padlock_id)}
+        | states.get(row.id, available)
+        for row in rows
+    ]  # fmt: skip
+
+
+def list_lockers(session: Session, principal: Principal, query: ListQuery) -> dict:
+    """Lockers in number order with their lease state, which rentals supplies through HOOKS["locker_states"]."""
+    page = paginate(
+        session, scope_query(select(Locker), principal, Locker.location_id), query, id_column=Locker.id,
+        sort_fields={"number": Locker.number}, default_sort="number",
+        filter_fields={"location_id": Locker.location_id, "locker_room_id": Locker.locker_room_id, "status": Locker.status},
+    )  # fmt: skip
+    return page | {"data": _locker_view(session, page["data"])}
+
+
+def bulk_create_lockers(session: Session, principal: Principal, room_id: UUID, data: dict) -> dict:
+    """RES-07: one locker per number in the range; numbers the room already has are skipped, not renumbered."""
+    room = _scoped(session, principal, LockerRoom, room_id)
+    authorize(principal, LOCKERS, location_id=room.location_id)
+    first, last = data["from_number"], data["to_number"]
+    if last < first:
+        raise ValidationFailed("The range ends before it starts.", pointer="/to_number")
+    if last - first + 1 > MAX_BULK_LOCKERS:
+        raise ValidationFailed(f"At most {MAX_BULK_LOCKERS} lockers at a time.", pointer="/to_number")
+    if not room.is_active:
+        raise Conflict("Reactivate the locker room first.", code="locker-room-inactive")
+    taken = set(session.scalars(select(Locker.number).where(
+        Locker.locker_room_id == room.id, Locker.number.between(first, last)
+    )))  # fmt: skip
+    created = [
+        Locker(location_id=room.location_id, locker_room_id=room.id, number=n, size_label=data.get("size_label"))
+        for n in range(first, last + 1)
+        if n not in taken
+    ]
+    session.add_all(created)
+    session.flush()
+    audit.record(session, LOCKERS, room, location_id=room.location_id,
+                 changes={"lockers_created": len(created), "range": [first, last]})  # fmt: skip
+    return {"created_count": len(created), "skipped_count": len(taken)}
+
+
+def update_locker(session: Session, principal: Principal, locker_id: UUID, data: dict) -> dict:
+    locker = _scoped(session, principal, Locker, locker_id)
+    authorize(principal, LOCKERS, location_id=locker.location_id)
+    if data.get("padlock_id"):
+        padlock = _scoped(session, principal, Padlock, data["padlock_id"])
+        if padlock.location_id != locker.location_id or padlock.deleted_at is not None or padlock.status != "active":
+            raise ValidationFailed("Unknown padlock at this location.", pointer="/padlock_id")
+    if data.get("status") in ("out_of_service", "retired") and locker.status == "active":
+        for hook in HOOKS["locker_retiring"]:
+            hook(session, locker)
+    for key, value in data.items():
+        setattr(locker, key, value)
+    audit.record(session, LOCKERS, locker, location_id=locker.location_id, changes=audit.diff(locker))
+    session.flush()  # uq_locker_padlock: one lock per locker
+    return _locker_view(session, [locker])[0]
+
+
+def list_locker_terms(session: Session, principal: Principal, query: ListQuery) -> dict:
+    return paginate(
+        session, scope_query(select(LockerTerm), principal, LockerTerm.location_id), query, id_column=LockerTerm.id,
+        sort_fields={"sort_order": LockerTerm.sort_order, "starts_on": LockerTerm.starts_on, "name": LockerTerm.name},
+        default_sort="sort_order,starts_on",
+        filter_fields={"location_id": LockerTerm.location_id, "is_active": LockerTerm.is_active},
+    )  # fmt: skip
+
+
+def create_locker_term(session: Session, principal: Principal, data: dict) -> LockerTerm:
+    _location(session, principal, data["location_id"])
+    authorize(principal, LOCKERS, location_id=data["location_id"])
+    term = LockerTerm(**data)
+    _check_term(term)
+    session.add(term)
+    session.flush()
+    audit.record(session, LOCKERS, term, location_id=term.location_id,
+                 changes={"name": [None, term.name], "price_minor": [None, term.price_minor]})  # fmt: skip
+    return term
+
+
+def _check_term(term: LockerTerm) -> None:
+    if term.ends_on < term.starts_on:
+        raise ValidationFailed("The term ends before it starts.", pointer="/ends_on")
+
+
+def update_locker_term(session: Session, principal: Principal, term_id: UUID, data: dict) -> LockerTerm:
+    """Price and dates apply to new leases; leases already made keep theirs."""
+    term = _scoped(session, principal, LockerTerm, term_id)
+    authorize(principal, LOCKERS, location_id=term.location_id)
+    for key, value in data.items():
+        setattr(term, key, value)
+    _check_term(term)
+    audit.record(session, LOCKERS, term, location_id=term.location_id, changes=audit.diff(term))
+    session.flush()
+    return term
+
+
+# --- padlocks (RES-09) -------------------------------------------------------------------------------------
+
+
+def _padlock(session: Session, principal: Principal, padlock_id: UUID, key: str) -> Padlock:
+    padlock = _scoped(session, principal, Padlock, padlock_id)
+    if padlock.deleted_at is not None:
+        raise NotFound()
+    authorize(principal, key, location_id=padlock.location_id)
+    return padlock
+
+
+def list_padlocks(session: Session, principal: Principal, query: ListQuery) -> dict:
+    authorize(principal, PADLOCKS)
+    stmt = scope_query(select(Padlock), principal, Padlock.location_id).where(Padlock.deleted_at.is_(None))
+    return paginate(
+        session, stmt, query, id_column=Padlock.id, sort_fields={"number": Padlock.number}, default_sort="number",
+        filter_fields={"location_id": Padlock.location_id, "status": Padlock.status}, search=(Padlock.number,),
+    )  # fmt: skip
+
+
+def create_padlock(session: Session, principal: Principal, data: dict) -> Padlock:
+    _location(session, principal, data["location_id"])
+    authorize(principal, PADLOCKS, location_id=data["location_id"])
+    combination = data.pop("combination")
+    padlock = Padlock(**data, combination_encrypted=crypto.encrypt(combination, session.info["tenant_id"]))
+    session.add(padlock)
+    session.flush()
+    audit.record(session, PADLOCKS, padlock, location_id=padlock.location_id,
+                 changes={"number": [None, padlock.number], "combination": True})  # fmt: skip
+    return padlock
+
+
+def update_padlock(session: Session, principal: Principal, padlock_id: UUID, data: dict) -> Padlock:
+    padlock = _padlock(session, principal, padlock_id, PADLOCKS)
+    new_combination = data.pop("combination", None)
+    if new_combination is not None:
+        padlock.combination_encrypted = crypto.encrypt(new_combination, padlock.tenant_id)
+    for key, value in data.items():
+        setattr(padlock, key, value)
+    changes = {k: v for k, v in audit.diff(padlock).items() if k != "combination_encrypted"}
+    if new_combination is not None:
+        changes["combination"] = True
+    audit.record(session, PADLOCKS, padlock, location_id=padlock.location_id, changes=changes)
+    session.flush()
+    return padlock
+
+
+def delete_padlock(session: Session, principal: Principal, padlock_id: UUID) -> None:
+    """Soft delete: the lock leaves the inventory and any locker it was on; the row stays for the audit trail."""
+    padlock = _padlock(session, principal, padlock_id, PADLOCKS)
+    for locker in session.scalars(select(Locker).where(Locker.padlock_id == padlock.id)):
+        locker.padlock_id = None
+        audit.record(
+            session, LOCKERS, locker, location_id=locker.location_id, changes={"padlock_id": [str(padlock.id), None]}
+        )
+    padlock.deleted_at = clock.now()
+    audit.record(session, PADLOCKS, padlock, location_id=padlock.location_id, changes={"deleted": True})
+    session.flush()
+
+
+def reveal_combination(session: Session, principal: Principal, padlock_id: UUID) -> dict:
+    """RES-09: the plain combination, under its own key, and an audit event that says who looked (never the value)."""
+    padlock = _padlock(session, principal, padlock_id, REVEAL)
+    audit.record(session, REVEAL, padlock, location_id=padlock.location_id, changes={"combination_revealed": True})
+    session.flush()
+    return {"padlock_id": padlock.id, "number": padlock.number,
+            "combination": crypto.decrypt(padlock.combination_encrypted, padlock.tenant_id)}  # fmt: skip
+
+
+# --- internal: lockers for rentals -------------------------------------------------------------------------
+
+
+def get_locker(session: Session, principal: Principal, locker_id: UUID, *, lock: bool = False) -> Locker:
+    """A locker in the caller's locations (404 outside them). Internal: rentals gates its own command."""
+    stmt = select(Locker).where(Locker.id == locker_id)
+    row = session.execute(stmt.with_for_update() if lock else stmt).scalar_one_or_none()
+    in_scope = row is not None and (principal.kind == "system" or principal.location_ids is None
+                                    or row.location_id in principal.location_ids)  # fmt: skip
+    if not in_scope:
+        raise NotFound()
+    return row
+
+
+def get_locker_term(session: Session, term_id: UUID) -> LockerTerm | None:
+    return session.get(LockerTerm, term_id)
+
+
+def lockers_in_room(session: Session, room_id: UUID) -> list[UUID]:
+    """Internal: the ids of a room's lockers (rentals clears expired leases one room at a time)."""
+    return list(session.scalars(select(Locker.id).where(Locker.locker_room_id == room_id)))
+
+
+def locker_labels(session: Session, locker_ids) -> dict[UUID, dict]:
+    """Internal: locker id -> its number and room name (rentals' lease list)."""
+    ids = list(locker_ids)
+    if not ids:
+        return {}
+    rows = session.execute(
+        select(Locker.id, Locker.number, LockerRoom.name).join(LockerRoom, LockerRoom.id == Locker.locker_room_id)
+        .where(Locker.id.in_(ids))
+    ).all()  # fmt: skip
+    return {row.id: {"locker_number": row.number, "locker_room_name": row.name} for row in rows}

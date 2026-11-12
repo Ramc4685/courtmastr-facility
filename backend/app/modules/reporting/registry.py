@@ -515,10 +515,52 @@ def _time_clock(session: Session, p: TimeClockParams, scope: Scope) -> dict:
     return {"rows": rows, "totals": totals, "details": details}
 
 
+# --- lockers (RPT-35) ----------------------------------------------------------------------------------------
+
+
+class LockerParams(Params):
+    locker_room_ids: list[UUID] | None = None
+
+
+class ExpiringLockerParams(LockerParams):
+    within_days: int = Field(14, ge=0, le=365, description="Leases ending within this many days, plus lapsed ones")
+
+
+_LOCKER_COLS = (
+    Col("locker_room_name", "Locker room"), Col("number", "Locker", "number"), Col("size_label", "Size"),
+    Col("client_name", "Client"), Col("term_kind", "Term"), Col("starts_on", "From", "date"),
+    Col("ends_on", "Until", "date"), Col("state", "State"), Col("fee_minor", "Fee", "money"),
+)  # fmt: skip
+
+
+def _lockers(session: Session, p: LockerParams, scope: Scope, *where) -> dict:
+    k = v.locker.c
+    where = [k.state.in_(("rented", "expired")), *where]
+    if p.locker_room_ids:
+        where.append(k.locker_room_id.in_(p.locker_room_ids))
+    rows = [dict(r._mapping) | {"group_key": _key(r.locker_id)} for r in session.execute(_loc(
+        select(k.locker_id, k.locker_room_name, k.number, k.size_label, k.client_name, k.term_kind, k.starts_on,
+               k.ends_on, k.state, k.fee_minor).where(*where).order_by(k.locker_room_name, k.number, k.locker_id),
+        v.locker, scope,
+    ))]  # fmt: skip
+    totals = {"locker_count": len(rows), "expired_count": sum(r["state"] == "expired" for r in rows)}
+    return {"rows": rows, "totals": totals, "details": []}
+
+
+def _lockers_assigned(session: Session, p: LockerParams, scope: Scope) -> dict:
+    return _lockers(session, p, scope)
+
+
+def _lockers_expiring(session: Session, p: ExpiringLockerParams, scope: Scope) -> dict:
+    k = v.locker.c
+    return _lockers(session, p, scope, k.ends_on <= k.today_on + p.within_days)
+
+
 # --- the registry --------------------------------------------------------------------------------------------
 
 FINANCIAL, MEMBERSHIP, ATTENDANCE = "reporting.financial.run", "reporting.membership.run", "reporting.attendance.run"
 POS, TIME_CLOCK = "reporting.pos.run", "reporting.time_clock.run"
+CLIENT = "reporting.client.run"
 
 _SPECS = (
     ReportSpec(
@@ -798,6 +840,36 @@ _SPECS = (
             Col("is_edited", "Edited", "bool"),
         ),
         ("RPT-37",),
+    ),  # fmt: skip
+    ReportSpec(
+        "assigned_lockers",
+        "Assigned lockers",
+        "Every locker with an uncleared lease: who has it, the term and when it ends. Lapsed leases stay listed "
+        "(as expired) until staff clear them.",
+        "lockers",
+        CLIENT,
+        "none",
+        LockerParams,
+        _LOCKER_COLS,
+        (Col("locker_count", "Lockers", "count"), Col("expired_count", "Expired", "count")),
+        _lockers_assigned,
+        None,
+        ("RPT-35",),
+    ),  # fmt: skip
+    ReportSpec(
+        "expiring_lockers",
+        "Expiring lockers",
+        "Uncleared locker leases that end within the chosen number of days, in each location's today, and those "
+        "already lapsed.",
+        "lockers",
+        CLIENT,
+        "none",
+        ExpiringLockerParams,
+        _LOCKER_COLS,
+        (Col("locker_count", "Lockers", "count"), Col("expired_count", "Expired", "count")),
+        _lockers_expiring,
+        None,
+        ("RPT-35",),
     ),  # fmt: skip
 )
 REGISTRY: dict[str, ReportSpec] = {spec.key: spec for spec in _SPECS}

@@ -46,6 +46,7 @@ import { AccountSecurityPage } from '../features/platform/AccountSecurityPage'
 import { TenantSettingsPage } from '../features/platform/TenantSettingsPage'
 import { RentalSetupPage } from '../features/rentals/RentalSetupPage'
 import { RentalsPage } from '../features/rentals/RentalsPage'
+import { LockersPage } from '../features/lockers/LockersPage'
 import { BasketPage } from '../features/programs/BasketPage'
 import { BookingPolicyPage } from '../features/programs/BookingPolicyPage'
 import { ProgramPage } from '../features/programs/ProgramPage'
@@ -198,6 +199,7 @@ export function AppRoutes() {
         <Route path="scheduling/setup" element={<SetupPage />} />
         <Route path="rentals" element={<RequirePermission permission="scheduling.booking.read"><RentalsPage /></RequirePermission>} />
         <Route path="rentals/setup" element={<RentalSetupPage />} />
+        <Route path="lockers" element={<RequirePermission permission={['rentals.locker_rental.manage', 'resources.locker.manage', 'resources.padlock.reveal_combination']}><LockersPage /></RequirePermission>} />
         <Route path="programs" element={<RequirePermission permission="programs.registration.read"><ProgramsPage /></RequirePermission>} />
         <Route path="programs/register" element={<RequirePermission permission="programs.registration.create"><BasketPage /></RequirePermission>} />
         <Route path="programs/booking-policies" element={<RequirePermission permission="programs.registration_config.manage"><BookingPolicyPage /></RequirePermission>} />

@@ -1,5 +1,5 @@
 """rentals HTTP surface (docs/api/openapi-core.yaml, tag rentals). Not routed: updateRental (P1; move a rental
-on the calendar instead), replaceRentalPlanShares, the portal plan endpoints and locker leases (see README)."""
+on the calendar instead; see README)."""
 
 from datetime import date
 from typing import Annotated
@@ -25,6 +25,9 @@ Read = Depends(require(service.READ))
 Types = Depends(require(service.TYPES))
 Plans = Depends(require(service.PLANS))
 Sell = Depends(require(service.SELL))
+Share = Depends(require(service.SHARE))
+Lockers = Depends(require(service.LOCKER_RENT))
+ActFor = Annotated[UUID | None, Query(alias="client_id")]
 Public = Annotated[Session, Depends(public_session)]
 Client = Annotated[Ctx, Depends(current_ctx)]
 # The parameter must be called idempotency_key: it then merges with the router-level optional header in OpenAPI.
@@ -231,9 +234,82 @@ def list_rental_plan_ledger(purchase_id: UUID, ctx: Ctx = Sell):
     return service.list_ledger(ctx.session, ctx.principal, purchase_id)
 
 
+@staff.patch("/rental-plan-purchases/{purchase_id}", response_model=s.PurchaseOut)
+def update_rental_plan_purchase(purchase_id: UUID, body: s.PurchaseUpdate, ctx: Ctx = Sell):
+    """Auto-renew and autopay of one purchase. Errors: plan-not-valid."""
+    return service.update_purchase(ctx.session, ctx.principal, purchase_id, body.model_dump(exclude_unset=True))
+
+
+@staff.put("/rental-plan-purchases/{purchase_id}/shares", response_model=s.PurchaseOut)
+def replace_rental_plan_shares(purchase_id: UUID, body: s.RentalPlanShares, ctx: Ctx = Share):
+    """Share with related clients; the list replaces the live shares. Errors: plan-not-shareable,
+    client-not-related."""
+    return service.replace_shares(ctx.session, ctx.principal, purchase_id, body.client_ids)
+
+
 @staff.post("/rental-plan-purchases/{purchase_id}/cancel", response_model=s.PurchaseOut)
 def cancel_rental_plan_purchase(purchase_id: UUID, body: s.PurchaseCancel, ctx: Ctx = Depends(require(service.REMOVE))):
     return service.cancel_purchase(ctx.session, ctx.principal, purchase_id, body.model_dump())
+
+
+# --- portal plans (RNT-09, RNT-10) -------------------------------------------------------------------------
+
+
+@staff.get("/portal/rental-plans", response_model=s.Page[s.PortalRentalPlanOut])
+def list_portal_rental_plans(query: Lists, ctx: Client, client_id: ActFor = None):
+    """Plans sold online, priced for the acting client. Filters: location_id, rental_type_id."""
+    query.filters.pop("client_id", None)
+    return service.portal_list_plans(ctx.session, ctx.principal, client_id, query)
+
+
+@staff.get("/portal/rental-plan-purchases", response_model=s.Page[s.PortalRentalPlanPurchaseOut])
+def list_portal_rental_plan_purchases(query: Lists, ctx: Client, client_id: ActFor = None):
+    """Live plans the acting client owns or may draw on through a share."""
+    query.filters.pop("client_id", None)
+    return service.portal_list_purchases(ctx.session, ctx.principal, client_id, query)
+
+
+@staff.post("/portal/rental-plan-purchases", response_model=s.PortalRentalPlanPurchaseOut, status_code=201)
+def buy_portal_rental_plan(body: s.PortalRentalPlanBuy, idempotency_key: RequiredKey, ctx: Client):
+    """Errors: payment-failed (nothing is sold), membership-required."""
+    return service.portal_buy_plan(ctx.session, ctx.principal, body.model_dump(), idempotency_key)
+
+
+@staff.post("/portal/rental-plan-purchases/{purchase_id}/auto-renew-opt-out",
+            response_model=s.PortalRentalPlanPurchaseOut)  # fmt: skip
+def portal_opt_out_rental_plan_auto_renew(purchase_id: UUID, ctx: Client):
+    return service.portal_disable_auto_renew(ctx.session, ctx.principal, purchase_id)
+
+
+# --- locker leases (RNT-17, RNT-18) ------------------------------------------------------------------------
+
+
+@staff.get("/locker-leases", response_model=s.Page[s.LockerLeaseOut])
+def list_locker_leases(query: Lists, ctx: Ctx = Lockers):
+    """Filters: location_id, locker_id, client_id, ends_on ([gte], [lte]), is_open. Sort: ends_on, created_at."""
+    return service.list_locker_leases(ctx.session, ctx.principal, query)
+
+
+@staff.post("/locker-leases", response_model=s.LockerLeaseOut, status_code=201)
+def create_locker_lease(body: s.LockerLeaseCreate, ctx: Ctx = Lockers):
+    """Errors: locker-already-rented, locker-unavailable, term-ended."""
+    return service.create_locker_lease(ctx.session, ctx.principal, body.model_dump(exclude_unset=True))
+
+
+@staff.post("/locker-leases/clear-expired", response_model=s.LockerLeaseClearResult)
+def clear_expired_locker_leases(body: s.LockerLeaseClearExpired, ctx: Ctx = Lockers):
+    return service.clear_expired_locker_leases(ctx.session, ctx.principal, body.model_dump())
+
+
+@staff.post("/locker-leases/{locker_lease_id}/clear", response_model=s.LockerLeaseOut)
+def clear_locker_lease(locker_lease_id: UUID, ctx: Ctx = Lockers):
+    return service.clear_locker_lease(ctx.session, ctx.principal, locker_lease_id)
+
+
+@staff.post("/locker-leases/{locker_lease_id}/renew", response_model=s.LockerLeaseOut, status_code=201)
+def renew_locker_lease(locker_lease_id: UUID, body: s.LockerLeaseRenew, ctx: Ctx = Lockers):
+    """Closes the lease as renewed and starts the next term with its own charge. Errors: lease-cleared."""
+    return service.renew_locker_lease(ctx.session, ctx.principal, locker_lease_id, body.model_dump(exclude_unset=True))
 
 
 router = APIRouter()

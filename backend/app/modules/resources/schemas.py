@@ -117,3 +117,126 @@ class WindowOut(Out):
     end_time: str
     note: str | None
     is_active: bool
+
+
+# --- lockers and padlocks (RES-07..09) ---------------------------------------------------------------------
+
+Designation = Literal["male", "female", "all_gender", "unspecified"]
+SizeLabel = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)]
+LockerNumber = Annotated[int, Field(ge=1, le=99999)]
+SortOrder = Annotated[int, Field(ge=0, le=10_000)]  # bounded: an unbounded int overflows Postgres (500)
+Combination = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)]
+PadlockNumber = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)]
+
+
+class LockerRoomCreate(In):
+    location_id: UUID
+    name: Name
+    designation: Designation = "unspecified"
+    sort_order: SortOrder = 0
+
+
+class LockerRoomUpdate(In):
+    name: Name | None = None
+    designation: Designation | None = None
+    sort_order: SortOrder | None = None
+    is_active: bool | None = None
+
+
+class LockerRoomOut(Out):
+    id: UUID
+    location_id: UUID
+    name: str
+    designation: str
+    sort_order: int
+    is_active: bool
+
+
+class LockerBulkCreate(In):
+    from_number: LockerNumber
+    to_number: LockerNumber
+    size_label: SizeLabel | None = None
+
+
+class LockerBulkResult(Out):
+    created_count: int
+    skipped_count: int
+
+
+class LockerUpdate(In):
+    size_label: SizeLabel | None = None
+    status: Literal["active", "out_of_service", "retired"] | None = None
+    padlock_id: UUID | None = None
+
+
+class LockerOut(Out):
+    id: UUID
+    location_id: UUID
+    locker_room_id: UUID
+    locker_room_name: str | None
+    number: int
+    size_label: str | None
+    status: str
+    padlock_id: UUID | None
+    padlock_number: str | None
+    state: Literal["available", "rented", "expired"]
+    locker_lease_id: UUID | None
+    client_id: UUID | None
+    client_name: str | None
+    ends_on: date | None
+
+
+class LockerTermCreate(In):
+    location_id: UUID
+    name: Name
+    starts_on: date
+    ends_on: date
+    price_minor: Annotated[int, Field(ge=0, le=100_000_000)] = 0
+    sort_order: SortOrder = 0
+
+
+class LockerTermUpdate(In):
+    name: Name | None = None
+    starts_on: date | None = None
+    ends_on: date | None = None
+    price_minor: Annotated[int, Field(ge=0, le=100_000_000)] | None = None
+    sort_order: SortOrder | None = None
+    is_active: bool | None = None
+
+
+class LockerTermOut(Out):
+    id: UUID
+    location_id: UUID
+    name: str
+    starts_on: date
+    ends_on: date
+    price_minor: int
+    sort_order: int
+    is_active: bool
+
+
+class PadlockCreate(In):
+    location_id: UUID
+    number: PadlockNumber
+    combination: Combination
+
+
+class PadlockUpdate(In):
+    number: PadlockNumber | None = None
+    combination: Combination | None = None
+    status: Literal["active", "disabled"] | None = None
+
+
+class PadlockOut(Out):
+    """Never carries the combination: that is `revealPadlockCombination`, under its own key."""
+
+    id: UUID
+    location_id: UUID
+    number: str
+    status: str
+
+
+class PadlockCombinationOut(Out):
+    padlock_id: UUID
+    number: str
+    combination: str

@@ -15,19 +15,21 @@ from decimal import Decimal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session as Db
 
-from app.core import audit, clock, events
+from app.core import audit, clock, dates, events
 from app.core.api import CONSTRAINT_CODES
 from app.core.auth import Principal, authorize, scope_query
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.ids import new_id
+from app.core.jobs import tenant_actor
 from app.core.pagination import ListQuery, paginate
-from app.modules import billing, clients, platform, resources, scheduling
+from app.modules import billing, clients, memberships, platform, resources, scheduling
 from app.modules.rentals import events as ev
 from app.modules.rentals.domain import pricing
 from app.modules.rentals.models import (
+    LockerLease,
     RentalBooking,
     RentalBookingCharge,
     RentalBookingChargeItem,
@@ -35,6 +37,7 @@ from app.modules.rentals.models import (
     RentalPlan,
     RentalPlanLedgerEntry,
     RentalPlanPurchase,
+    RentalPlanShare,
     RentalRate,
     RentalRateRule,
     RentalRateTax,
@@ -54,10 +57,14 @@ TYPES, PLANS, SELL, REMOVE = (
     "rentals.rental_plan.remove",
 )
 PUBLISH = "rentals.public_listing.publish"
+SHARE, LOCKER_RENT = "rentals.rental_plan.share", "rentals.locker_rental.manage"
 SOURCE = ("rentals", "rental_booking")
 CONSTRAINT_CODES["uq_rental_type_name"] = "already-exists"
 CONSTRAINT_CODES["uq_rental_rate_name"] = "already-exists"
 CONSTRAINT_CODES["uq_rental_plan_name"] = "already-exists"
+CONSTRAINT_CODES["uq_locker_lease_open"] = "locker-already-rented"
+CONSTRAINT_CODES["uq_rental_plan_purchase_successor"] = "plan-already-renewed"
+CONSTRAINT_CODES["uq_locker_lease_successor"] = "lease-already-renewed"
 
 
 # --- shared helpers ----------------------------------------------------------------------------------------
@@ -640,7 +647,11 @@ def _purchase_for(session: Db, purchase_id: UUID, client_id: UUID, rtype: Rental
         select(RentalPlanPurchase).where(RentalPlanPurchase.id == purchase_id).with_for_update()
     ).scalar_one_or_none()
     pointer = "/charge/rental_plan_purchase_id"
-    if purchase is None or purchase.client_id != client_id or purchase.location_id != rtype.location_id:
+    if (
+        purchase is None
+        or purchase.location_id != rtype.location_id
+        or (purchase.client_id != client_id and client_id not in _shared_with(session, purchase.id))
+    ):
         raise ValidationFailed("Unknown plan for this client.", pointer=pointer)
     plan = session.get(RentalPlan, purchase.rental_plan_id)
     allowed = set(
@@ -1408,7 +1419,7 @@ _PLAN_FIELDS = (
     "name", "rental_type_id", "model", "quantity", "is_unlimited", "price_minor", "member_price_minor", "is_flat_rate",
     "revenue_category_id", "internal_description", "client_description", "is_members_only", "is_sold_online",
     "start_mode", "fixed_starts_on", "validity_days", "fixed_expires_on", "default_invoice_routing", "is_shareable",
-    "status",
+    "status", "is_auto_renew", "is_autopay_default",
 )  # fmt: skip
 
 
@@ -1434,7 +1445,7 @@ def _check_plan(session: Db, row: RentalPlan) -> None:
 
 
 def create_plan(session: Db, principal: Principal, data: dict) -> RentalPlan:
-    """RNT-09. Auto-renew and autopay are not offered until recurring billing exists (module 8)."""
+    """RNT-09. An auto-renewing plan needs `validity_days` (ck_rental_plan_renew); autopay is billing's."""
     location_id = _location(session, principal, data["location_id"])
     authorize(principal, PLANS, location_id=location_id)
     row = RentalPlan(location_id=location_id)
@@ -1465,50 +1476,81 @@ def archive_plan(session: Db, principal: Principal, plan_id: UUID) -> None:
         audit.record(session, PLANS, row, location_id=row.location_id, changes={"status": ["active", "archived"]})
 
 
+def _shared_with(session: Db, purchase_id: UUID) -> list[UUID]:
+    """Clients a purchase is shared with now (RNT-10): evaluated at use time from live share rows."""
+    return list(session.scalars(
+        select(RentalPlanShare.client_id)
+        .where(RentalPlanShare.rental_plan_purchase_id == purchase_id, RentalPlanShare.revoked_at.is_(None))
+        .order_by(RentalPlanShare.client_id)
+    ))  # fmt: skip
+
+
 def _purchase_view(session: Db, row: RentalPlanPurchase) -> dict:
     invoice_id = None
     if row.charge_id:
         invoice_id = billing.service.charge_states(session, [row.charge_id])[row.charge_id]["invoice_id"]
-    return _columns(row) | {"invoice_id": invoice_id}
+    return _columns(row) | {"invoice_id": invoice_id, "shared_with_client_ids": _shared_with(session, row.id)}
 
 
-def sell_plan(session: Db, principal: Principal, data: dict) -> dict:
-    """Sell a plan (RNT-09): the purchase, its charge (invoiced unless routed to the cart) and the grant."""
-    plan = session.get(RentalPlan, data["rental_plan_id"])
-    if plan is None or plan.status != "active":
-        raise ValidationFailed("Unknown or archived plan.", pointer="/rental_plan_id")
-    authorize(principal, SELL, location_id=plan.location_id)
-    if plan.is_members_only:
-        raise ValidationFailed(
-            "Members-only plans need memberships (build module 5).",
-            pointer="/rental_plan_id",
-            code="membership-required",
-        )
-    clients.service.require_active(session, data["client_id"])
+def _is_member(session: Db, client_id: UUID, on: date) -> bool:
+    """Members-only plans and member prices (RNT-09). A read through memberships' internal `is_member`, which
+    overview section 2 lists in rentals' "May call" column (read-only) and the import contract allows."""
+    return memberships.service.is_member(session, client_id, on)
+
+
+def _sell(
+    session: Db,
+    plan: RentalPlan,
+    client_id: UUID,
+    *,
+    via: str,
+    staff_user_id: UUID | None = None,
+    quantity_total: Decimal | None = None,
+    invoice_routing: str | None = None,
+    is_auto_renew: bool | None = None,
+    is_autopay: bool | None = None,
+    renewed_from: RentalPlanPurchase | None = None,
+    starts_on: date | None = None,
+) -> tuple[RentalPlanPurchase, object]:
+    """The purchase, its charge (invoiced unless routed to the cart) and its grant. Internal: staff sale, portal
+    purchase and auto-renewal share it, so the members-only rule and the price are decided in one place."""
+    clients.service.require_active(session, client_id)
     today = platform.service.location_today(session, plan.location_id)
-    quantity = None if plan.is_unlimited else (data.get("quantity_total") or plan.quantity)
-    price = plan.price_minor if plan.is_flat_rate else pricing.half_up(Decimal(plan.price_minor) * quantity)
-    starts = plan.fixed_starts_on if plan.start_mode == "fixed_date" else today
-    expires = plan.fixed_expires_on or (starts + timedelta(days=plan.validity_days - 1) if plan.validity_days else None)
+    member = _is_member(session, client_id, today)
+    if plan.is_members_only and not member:
+        raise ValidationFailed("This plan is for members only.", pointer="/rental_plan_id", code="membership-required")
+    quantity = None if plan.is_unlimited else (quantity_total or plan.quantity)
+    unit = plan.member_price_minor if member and plan.member_price_minor is not None else plan.price_minor
+    price = unit if plan.is_flat_rate else pricing.half_up(Decimal(unit) * quantity)
+    starts = starts_on or (plan.fixed_starts_on if plan.start_mode == "fixed_date" else today)
+    expires = (None if renewed_from else plan.fixed_expires_on) or (
+        starts + timedelta(days=plan.validity_days - 1) if plan.validity_days else None
+    )
     if expires is not None and expires < today:
         raise ValidationFailed("This plan has already expired.", pointer="/rental_plan_id", code="plan-not-valid")
     row = RentalPlanPurchase(
-        location_id=plan.location_id, rental_plan_id=plan.id, client_id=data["client_id"],
+        location_id=plan.location_id, rental_plan_id=plan.id, client_id=client_id,
         status="pending" if starts > today else "active", model=plan.model, quantity_total=quantity, balance=quantity,
-        price_minor=price, sold_via="staff", sold_by_staff_user_id=principal.staff_user_id, starts_on=starts,
-        expires_on=expires,
+        price_minor=price, sold_via=via, sold_by_staff_user_id=staff_user_id, starts_on=starts, expires_on=expires,
+        is_auto_renew=plan.is_auto_renew if is_auto_renew is None else is_auto_renew and plan.validity_days is not None,
+        is_autopay=plan.is_autopay_default if is_autopay is None else is_autopay,
+        renewed_from_purchase_id=renewed_from and renewed_from.id,
     )  # fmt: skip
     session.add(row)
     session.flush()
+    invoice = None
     if price > 0:
         charge = billing.service.post_charge(
             session, client_id=row.client_id, location_id=row.location_id, description=f"Rental plan: {plan.name}",
             unit_price_minor=price, source_context="rentals", source_type="rental_plan_purchase", source_id=row.id,
-            revenue_category_id=plan.revenue_category_id,
+            revenue_category_id=plan.revenue_category_id, service_starts_on=starts, service_ends_on=expires,
         )  # fmt: skip
         row.charge_id = charge.id
-        if (data.get("invoice_routing") or plan.default_invoice_routing) != "cart":
-            billing.service.create_invoice_for_charges(session, [charge.id], bill_to_client_id=row.client_id)
+        if (invoice_routing or plan.default_invoice_routing) != "cart":
+            invoice = billing.service.create_invoice_for_charges(
+                session, [charge.id], bill_to_client_id=row.client_id, is_autopay=row.is_autopay,
+                origin="system" if renewed_from else ("portal" if via == "portal" else "staff"),
+            )  # fmt: skip
     session.add(
         RentalPlanLedgerEntry(
             rental_plan_purchase_id=row.id,
@@ -1516,18 +1558,29 @@ def sell_plan(session: Db, principal: Principal, data: dict) -> dict:
             quantity=quantity or Decimal(0),
             balance_after=quantity,
             used_by_client_id=row.client_id,
-            note="Sold",
+            note="Renewed" if renewed_from else "Sold",
         )  # fmt: skip
     )
     session.flush()
-    audit.record(
-        session,
-        SELL,
-        row,
-        location_id=row.location_id,
-        changes={"price_minor": [None, price], "rental_plan_id": [None, str(plan.id)]},
-    )
+    audit.record(session, SELL, row, location_id=row.location_id, changes={
+        "price_minor": [None, price], "rental_plan_id": [None, str(plan.id)], "sold_via": [None, via],
+        **({"renewed_from_purchase_id": [None, str(renewed_from.id)]} if renewed_from else {}),
+    })  # fmt: skip
     events.publish(session, ev.RentalPlanSold(rental_plan_purchase_id=row.id, client_id=row.client_id), row.id)
+    return row, invoice
+
+
+def sell_plan(session: Db, principal: Principal, data: dict) -> dict:
+    """Sell a plan at the desk (RNT-09). Members-only plans need a member; a member pays the member price."""
+    plan = session.get(RentalPlan, data["rental_plan_id"])
+    if plan is None or plan.status != "active":
+        raise ValidationFailed("Unknown or archived plan.", pointer="/rental_plan_id")
+    authorize(principal, SELL, location_id=plan.location_id)
+    row, _ = _sell(
+        session, plan, data["client_id"], via="staff", staff_user_id=principal.staff_user_id,
+        quantity_total=data.get("quantity_total"), invoice_routing=data.get("invoice_routing"),
+        is_auto_renew=data.get("is_auto_renew"), is_autopay=data.get("is_autopay"),
+    )  # fmt: skip
     return _purchase_view(session, row)
 
 
@@ -1587,3 +1640,415 @@ def cancel_purchase(session: Db, principal: Principal, purchase_id: UUID, data: 
         changes={"status": [was, "cancelled"], "cancel_mode": [None, data["cancel_mode"]]},
     )  # fmt: skip
     return _purchase_view(session, row)
+
+
+def update_purchase(session: Db, principal: Principal, purchase_id: UUID, data: dict) -> dict:
+    """Turn auto-renew or autopay on or off for one purchase (RNT-09). Auto-renew needs a plan with a validity."""
+    row = _scoped(session, principal, RentalPlanPurchase, purchase_id, SELL, lock=True)
+    if row.status not in ("pending", "active"):
+        raise Conflict("Only a live plan can change.", code="plan-not-valid")
+    if data.get("is_auto_renew") and session.get(RentalPlan, row.rental_plan_id).validity_days is None:
+        raise ValidationFailed("Only a plan with a validity can renew.", pointer="/is_auto_renew")
+    changes = _apply(row, data, ("is_auto_renew", "is_autopay"))
+    session.flush()
+    if changes:
+        audit.record(session, SELL, row, location_id=row.location_id, changes=changes)
+    return _purchase_view(session, row)
+
+
+# --- plan sharing (RNT-10, FAM-06) -------------------------------------------------------------------------
+
+
+def _related_ids(session: Db, client_id: UUID) -> set[UUID]:
+    """The client's live, active relatives (household relationships)."""
+    return {
+        rel.to_client_id if rel.from_client_id == client_id else rel.from_client_id
+        for rel in clients.households.relationships_of(session, client_id, live_only=True)
+        if rel.status == "active"
+    }
+
+
+def replace_shares(session: Db, principal: Principal, purchase_id: UUID, client_ids: list[UUID]) -> dict:
+    """Share a plan's balance with related clients (RNT-10, FAM-06): the list replaces the live shares. Each
+    sharer's bookings debit the one balance, and each debit records who used it."""
+    row = _scoped(session, principal, RentalPlanPurchase, purchase_id, SHARE, lock=True)
+    if client_ids and not session.get(RentalPlan, row.rental_plan_id).is_shareable:
+        raise Conflict("This plan cannot be shared.", code="plan-not-shareable")
+    if client_ids and row.status not in ("pending", "active"):
+        raise Conflict("Only a live plan can be shared.", code="plan-not-valid")
+    related = _related_ids(session, row.client_id)
+    for index, client_id in enumerate(client_ids):
+        if client_id not in related:
+            raise ValidationFailed(
+                "Share only with a related client.", pointer=f"/client_ids/{index}", code="client-not-related"
+            )
+        clients.service.require_active(session, client_id)
+    live = {
+        share.client_id: share
+        for share in session.scalars(select(RentalPlanShare).where(
+            RentalPlanShare.rental_plan_purchase_id == row.id, RentalPlanShare.revoked_at.is_(None)
+        ))
+    }  # fmt: skip
+    for client_id, share in live.items():
+        if client_id not in client_ids:
+            share.revoked_at = clock.now()
+    added = [cid for cid in dict.fromkeys(client_ids) if cid not in live]
+    session.add_all(RentalPlanShare(rental_plan_purchase_id=row.id, client_id=cid) for cid in added)
+    session.flush()
+    removed = [cid for cid in live if cid not in client_ids]
+    if added or removed:
+        audit.record(session, SHARE, row, location_id=row.location_id,
+                     changes={"shares_added": [str(c) for c in added], "shares_revoked": [str(c) for c in removed]})  # fmt: skip
+    return _purchase_view(session, row)
+
+
+# --- plan day-roll: activation, expiry, auto-renew (RNT-09) ------------------------------------------------
+
+
+def _expire_purchase(session: Db, row: RentalPlanPurchase) -> None:
+    if row.balance:
+        session.add(RentalPlanLedgerEntry(
+            rental_plan_purchase_id=row.id, entry_type="expire", quantity=-row.balance, balance_after=Decimal(0),
+            note="Plan expired",
+        ))  # fmt: skip
+        row.balance = Decimal(0)
+    row.status = "expired"
+    audit.record(session, SELL, row, location_id=row.location_id, changes={"status": ["active", "expired"]})
+
+
+def _renew_purchase(session: Db, row: RentalPlanPurchase, today: date) -> RentalPlanPurchase | None:
+    """The successor of an expiring auto-renew purchase: a new term and a new charge, invoiced with the
+    purchase's autopay flag so billing's autopay run collects it. Shares carry over. None when the plan was
+    archived or the client no longer qualifies (members-only); the purchase then simply expires."""
+    plan = session.get(RentalPlan, row.rental_plan_id)
+    if plan.status != "active" or plan.validity_days is None:
+        return None
+    if session.scalar(select(RentalPlanPurchase.id).where(RentalPlanPurchase.renewed_from_purchase_id == row.id)):
+        return None
+    starts = max(row.expires_on + timedelta(days=1), today)
+    try:
+        with session.begin_nested():
+            successor, _ = _sell(
+                session, plan, row.client_id, via=row.sold_via, staff_user_id=row.sold_by_staff_user_id,
+                quantity_total=row.quantity_total, invoice_routing="new_single", is_auto_renew=True,
+                is_autopay=row.is_autopay, renewed_from=row, starts_on=starts,
+            )  # fmt: skip
+    except (ValidationFailed, Conflict, NotFound):
+        return None
+    session.add_all(RentalPlanShare(rental_plan_purchase_id=successor.id, client_id=cid)
+                    for cid in _shared_with(session, row.id))  # fmt: skip
+    session.flush()
+    return successor
+
+
+def run_plan_day(session: Db) -> dict:
+    """Idempotent day-roll per location's today: a pending purchase whose start arrived becomes active; an
+    active one past its expiry expires (the remaining balance with it) and, when it auto-renews, gets its
+    successor. Spending never waits for this run: every debit checks the dates itself."""
+    p = RentalPlanPurchase
+    result, todays = {"activated": 0, "expired": 0, "renewed": 0}, {}
+    for purchase_id in session.scalars(select(p.id).where(p.status.in_(("pending", "active"))).order_by(p.id)).all():
+        row = session.execute(select(p).where(p.id == purchase_id).with_for_update()).scalar_one()
+        today = todays.get(row.location_id) or todays.setdefault(
+            row.location_id, platform.service.location_today(session, row.location_id)
+        )
+        if row.status == "pending" and row.starts_on <= today:
+            row.status = "active"
+            audit.record(session, SELL, row, location_id=row.location_id, changes={"status": ["pending", "active"]})
+            result["activated"] += 1
+        if row.status == "active" and row.expires_on is not None and row.expires_on < today:
+            _expire_purchase(session, row)
+            result["expired"] += 1
+            if row.is_auto_renew and _renew_purchase(session, row, today):
+                result["renewed"] += 1
+        session.flush()
+    return result
+
+
+@tenant_actor
+def run_rental_plan_day(session: Db) -> dict:
+    """The queued form of run_plan_day, one message per tenant per hour (app/scheduler.py)."""
+    return run_plan_day(session)
+
+
+# --- portal plans (RNT-09, RNT-10) -------------------------------------------------------------------------
+
+
+def _portal_subject(session: Db, principal: Principal, client_id: UUID | None, capability: str = "book") -> UUID:
+    """The client a portal call acts for: given and actable, or the identity's own first client."""
+    if principal.kind != "client" or principal.identity_id is None:
+        raise NotFound()
+    if client_id is None:
+        own = clients.service.client_ids_for_identity(session, principal.identity_id)
+        if not own:
+            raise NotFound()
+        client_id = own[0]
+    if clients.households.can_act_for(session, principal.identity_id, client_id, capability) is None:
+        raise NotFound()
+    return client_id
+
+
+def portal_list_plans(session: Db, principal: Principal, client_id: UUID | None, query: ListQuery) -> dict:
+    """Plans sold online, with the price this client would pay and whether they may buy it (members-only)."""
+    subject = _portal_subject(session, principal, client_id, "buy")
+    stmt = select(RentalPlan).where(RentalPlan.status == "active", RentalPlan.is_sold_online)
+    page = paginate(
+        session, stmt, query, id_column=RentalPlan.id, sort_fields={"name": RentalPlan.name}, default_sort="name",
+        filter_fields={"location_id": RentalPlan.location_id, "rental_type_id": RentalPlan.rental_type_id},
+    )  # fmt: skip
+    data = []
+    for plan in page["data"]:
+        member = _is_member(session, subject, platform.service.location_today(session, plan.location_id))
+        price = plan.member_price_minor if member and plan.member_price_minor is not None else plan.price_minor
+        data.append(_columns(plan) | {"price_minor": price, "is_purchasable": member or not plan.is_members_only})
+    return page | {"data": data}
+
+
+def portal_list_purchases(session: Db, principal: Principal, client_id: UUID | None, query: ListQuery) -> dict:
+    """Live plan balances the acting client owns or may draw on through a share."""
+    subject = _portal_subject(session, principal, client_id)
+    p = RentalPlanPurchase
+    shared = select(RentalPlanShare.rental_plan_purchase_id).where(
+        RentalPlanShare.client_id == subject, RentalPlanShare.revoked_at.is_(None)
+    )
+    stmt = select(p).where(or_(p.client_id == subject, p.id.in_(shared)), p.status.in_(("pending", "active")))
+    page = paginate(session, stmt, query, id_column=p.id, sort_fields={"created_at": p.created_at},
+                    default_sort="-created_at")  # fmt: skip
+    names = {r.id: r.name for r in session.scalars(select(RentalPlan).where(
+        RentalPlan.id.in_({row.rental_plan_id for row in page["data"]})))}  # fmt: skip
+    return page | {"data": [
+        _columns(row) | {"rental_plan_name": names.get(row.rental_plan_id), "is_owner": row.client_id == subject}
+        for row in page["data"]
+    ]}  # fmt: skip
+
+
+def portal_buy_plan(session: Db, principal: Principal, data: dict, idempotency_key: str) -> dict:
+    """Buy a plan online for oneself or a client one may buy for (RNT-09). The sale is invoiced at once and
+    ends in billing's secure_online_checkout: when the payment does not go through, nothing is sold."""
+    subject = _portal_subject(session, principal, data.get("client_id"), "buy")
+    plan = session.get(RentalPlan, data["rental_plan_id"])
+    if plan is None or plan.status != "active" or not plan.is_sold_online:
+        raise ValidationFailed("This plan is not sold online.", pointer="/rental_plan_id")
+    row, invoice = _sell(session, plan, subject, via="portal", invoice_routing="new_single")
+    payment = billing.checkout.secure_online_checkout(
+        session, client_id=subject, location_id=row.location_id, total_minor=row.price_minor, invoice=invoice,
+        idempotency_key=f"rental-plan:{idempotency_key}", method_token=data.get("method_token"),
+        payment_method_id=data.get("payment_method_id"), must_pay_now=True,
+    )  # fmt: skip
+    return _columns(row) | {"rental_plan_name": plan.name, "is_owner": True,
+                            "payment_status": payment.status if payment else None}  # fmt: skip
+
+
+def portal_disable_auto_renew(session: Db, principal: Principal, purchase_id: UUID) -> dict:
+    """Click-to-cancel from the portal: the plan runs to its end and does not renew. One way."""
+    row = session.execute(
+        select(RentalPlanPurchase).where(RentalPlanPurchase.id == purchase_id).with_for_update()
+    ).scalar_one_or_none()
+    if row is None:
+        raise NotFound()
+    _portal_subject(session, principal, row.client_id, "edit_profile")
+    if row.is_auto_renew:
+        row.is_auto_renew = False
+        audit.record(session, SELL, row, location_id=row.location_id, changes={"is_auto_renew": [True, False]})
+        session.flush()
+    name = session.get(RentalPlan, row.rental_plan_id).name
+    return _columns(row) | {"rental_plan_name": name, "is_owner": True}
+
+
+# --- locker leases (RNT-17, RNT-18) ------------------------------------------------------------------------
+
+_TERM_UNITS = {"week": "week", "month": "month", "year": "year"}
+
+
+def _today_for(session: Db, cache: dict, location_id: UUID) -> date:
+    if location_id not in cache:
+        cache[location_id] = platform.service.location_today(session, location_id)
+    return cache[location_id]
+
+
+def _lease_state(row: LockerLease, today: date) -> str:
+    if row.cleared_at is not None:
+        return "cleared"
+    return "expired" if row.ends_on < today else "rented"
+
+
+def _lease_views(session: Db, rows: list[LockerLease]) -> list[dict]:
+    labels = resources.service.locker_labels(session, {r.locker_id for r in rows})
+    names = clients.service.display_names(session, list({r.client_id for r in rows})) if rows else {}
+    todays: dict = {}
+    return [
+        _columns(r) | labels.get(r.locker_id, {}) | {
+            "client_name": names.get(r.client_id), "state": _lease_state(r, _today_for(session, todays, r.location_id)),
+        }
+        for r in rows
+    ]  # fmt: skip
+
+
+def _locker_states(session: Db, locker_ids: list[UUID]) -> dict[UUID, dict]:
+    """resources.service.HOOKS["locker_states"]: each locker's uncleared lease, if any."""
+    rows = session.scalars(select(LockerLease).where(
+        LockerLease.locker_id.in_(locker_ids), LockerLease.cleared_at.is_(None)
+    )).all() if locker_ids else []  # fmt: skip
+    return {
+        view["locker_id"]: {key: view[key] for key in ("state", "client_id", "client_name", "ends_on")}
+        | {"locker_lease_id": view["id"]}
+        for view in _lease_views(session, list(rows))
+    }
+
+
+def _locker_retiring(session: Db, locker) -> None:
+    """resources.service.HOOKS["locker_retiring"]: a rented locker stays in service until it is cleared."""
+    if session.scalar(
+        select(LockerLease.id).where(LockerLease.locker_id == locker.id, LockerLease.cleared_at.is_(None))
+    ):
+        raise Conflict("Clear the locker's lease first.", code="locker-leased")
+
+
+resources.service.HOOKS["locker_states"].append(_locker_states)
+resources.service.HOOKS["locker_retiring"].append(_locker_retiring)
+
+
+def list_locker_leases(session: Db, principal: Principal, query: ListQuery) -> dict:
+    """Filters: location_id, locker_id, client_id, ends_on (with [gte]/[lte]), is_open (true: not cleared)."""
+    authorize(principal, LOCKER_RENT)
+    stmt = scope_query(select(LockerLease), principal, LockerLease.location_id)
+    is_open = query.filters.pop("is_open", None)
+    if is_open is not None:
+        stmt = stmt.where(
+            LockerLease.cleared_at.is_(None) if is_open == "true" else LockerLease.cleared_at.is_not(None)
+        )
+    page = paginate(
+        session, stmt, query, id_column=LockerLease.id,
+        sort_fields={"ends_on": LockerLease.ends_on, "created_at": LockerLease.created_at}, default_sort="-created_at",
+        filter_fields={
+            "location_id": LockerLease.location_id, "locker_id": LockerLease.locker_id,
+            "client_id": LockerLease.client_id, "ends_on": LockerLease.ends_on,
+        },
+    )  # fmt: skip
+    return page | {"data": _lease_views(session, page["data"])}
+
+
+def _lease_dates(
+    session: Db, location_id: UUID, data: dict, starts_default: date
+) -> tuple[date, date, int, UUID | None]:
+    """(starts_on, ends_on, predefined fee, term id) for a lease of the given term kind."""
+    kind = data["term_kind"]
+    if kind == "term":
+        term = data.get("locker_term_id") and resources.service.get_locker_term(session, data["locker_term_id"])
+        if not term or term.location_id != location_id or not term.is_active:
+            raise ValidationFailed("Unknown locker term at this location.", pointer="/locker_term_id")
+        if term.ends_on < platform.service.location_today(session, location_id):
+            raise Conflict("This term has already ended.", code="term-ended")
+        return term.starts_on, term.ends_on, term.price_minor, term.id
+    if data.get("locker_term_id"):
+        raise ValidationFailed("A locker term goes with term_kind 'term'.", pointer="/locker_term_id")
+    starts = data.get("starts_on") or starts_default
+    if kind == "custom":
+        if data.get("ends_on") is None or data["ends_on"] < starts:
+            raise ValidationFailed("A custom lease needs an end on or after its start.", pointer="/ends_on")
+        return starts, data["ends_on"], 0, None
+    ends = starts if kind == "day" else dates.add_interval(starts, _TERM_UNITS[kind], 1) - timedelta(days=1)
+    return starts, ends, 0, None
+
+
+def _new_lease(
+    session: Db,
+    principal: Principal,
+    locker,
+    client_id: UUID,
+    data: dict,
+    *,
+    starts_default: date,
+    renewed_from: LockerLease | None = None,
+) -> LockerLease:
+    """One lease and, for a fee, one charge for the whole term (the owner's decision: a term is one charge;
+    renewal is a new lease and a new charge, never a silent extension)."""
+    if locker.status != "active":
+        raise Conflict("This locker is not in service.", code="locker-unavailable")
+    starts, ends, predefined, term_id = _lease_dates(session, locker.location_id, data, starts_default)
+    fee = data.get("fee_minor")
+    if fee is None:
+        fee = predefined
+    elif fee != predefined:  # a keyed fee is a price override (security rules: a price field needs its own key)
+        authorize(principal, OVERRIDE_RATE, location_id=locker.location_id)
+    lease = LockerLease(
+        location_id=locker.location_id, locker_id=locker.id, client_id=client_id, term_kind=data["term_kind"],
+        locker_term_id=term_id, starts_on=starts, ends_on=ends, fee_minor=fee, charge_state="no_charge",
+        renewed_from_lease_id=renewed_from and renewed_from.id,
+    )  # fmt: skip
+    session.add(lease)
+    session.flush()  # uq_locker_lease_open: one uncleared lease per locker (locker-already-rented)
+    if fee > 0:
+        charge = billing.service.post_charge(
+            session, client_id=client_id, location_id=lease.location_id, description=f"Locker {locker.number}",
+            unit_price_minor=fee, source_context="rentals", source_type="locker_lease", source_id=lease.id,
+            revenue_category_id=billing.service.default_revenue_category(session).id,
+            service_starts_on=starts, service_ends_on=ends,
+        )  # fmt: skip
+        lease.charge_id, lease.charge_state = charge.id, "billed"
+        if data.get("invoice_routing", "new_single") != "cart":
+            billing.service.create_invoice_for_charges(session, [charge.id], bill_to_client_id=client_id)
+    audit.record(session, LOCKER_RENT, lease, location_id=lease.location_id, changes={
+        "locker_id": [None, str(locker.id)], "term_kind": [None, lease.term_kind], "ends_on": [None, ends.isoformat()],
+        "fee_minor": [None, fee], **({"renewed_from_lease_id": [None, str(renewed_from.id)]} if renewed_from else {}),
+    })  # fmt: skip
+    session.flush()
+    return lease
+
+
+def create_locker_lease(session: Db, principal: Principal, data: dict) -> dict:
+    """Rent a locker to a client for a term (RNT-17). Errors: locker-already-rented, locker-unavailable,
+    term-ended."""
+    locker = resources.service.get_locker(session, principal, data["locker_id"], lock=True)
+    authorize(principal, LOCKER_RENT, location_id=locker.location_id)
+    clients.service.require_active(session, data["client_id"])
+    today = platform.service.location_today(session, locker.location_id)
+    lease = _new_lease(session, principal, locker, data["client_id"], data, starts_default=today)
+    return _lease_views(session, [lease])[0]
+
+
+def _clear(session: Db, lease: LockerLease, source: str) -> None:
+    lease.cleared_at, lease.clear_source = clock.now(), source
+    audit.record(session, LOCKER_RENT, lease, location_id=lease.location_id, changes={"clear_source": [None, source]})
+
+
+def clear_locker_lease(session: Db, principal: Principal, lease_id: UUID) -> dict:
+    """The locker was handed back (RNT-18). Idempotent; the charge stays as it is."""
+    lease = _scoped(session, principal, LockerLease, lease_id, LOCKER_RENT, lock=True)
+    if lease.cleared_at is None:
+        _clear(session, lease, "staff")
+        session.flush()
+    return _lease_views(session, [lease])[0]
+
+
+def clear_expired_locker_leases(session: Db, principal: Principal, data: dict) -> dict:
+    """Clear every lapsed lease at a location, or in one of its locker rooms (RNT-18). There is no automatic
+    release: an expired locker may still hold someone's belongings, so staff run this when they have checked."""
+    location_id = _location(session, principal, data["location_id"])
+    authorize(principal, LOCKER_RENT, location_id=location_id)
+    today = platform.service.location_today(session, location_id)
+    stmt = select(LockerLease).where(
+        LockerLease.location_id == location_id, LockerLease.cleared_at.is_(None), LockerLease.ends_on < today
+    )
+    if data.get("locker_room_id"):
+        stmt = stmt.where(LockerLease.locker_id.in_(resources.service.lockers_in_room(session, data["locker_room_id"])))
+    leases = session.scalars(stmt.order_by(LockerLease.id).with_for_update()).all()
+    for lease in leases:
+        _clear(session, lease, "bulk_expired")
+    session.flush()
+    return {"cleared_count": len(leases)}
+
+
+def renew_locker_lease(session: Db, principal: Principal, lease_id: UUID, data: dict) -> dict:
+    """Renew into a new term (RES-08): the current lease is closed as renewed and a new one starts the day
+    after it ends (or on the named term's dates), with its own charge."""
+    old = _scoped(session, principal, LockerLease, lease_id, LOCKER_RENT, lock=True)
+    if old.cleared_at is not None:
+        raise Conflict("This lease was already cleared.", code="lease-cleared")
+    locker = resources.service.get_locker(session, principal, old.locker_id, lock=True)
+    clients.service.require_active(session, old.client_id)
+    _clear(session, old, "renewed")
+    session.flush()
+    lease = _new_lease(session, principal, locker, old.client_id, data,
+                       starts_default=old.ends_on + timedelta(days=1), renewed_from=old)  # fmt: skip
+    return _lease_views(session, [lease])[0]

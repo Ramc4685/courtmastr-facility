@@ -279,8 +279,9 @@ def populate(client, tenant) -> SimpleNamespace:
         space["reservation_type_id"],
     )  # fmt: skip
     space |= _populate_rentals(
-        client, headers, post, location["id"], person["id"], space["resource_id"], category_id, tax_id
-    )
+        client, headers, post, location["id"], person["id"], space["resource_id"], category_id, tax_id,
+        people["kid_id"],
+    )  # fmt: skip
     space |= _populate_staff(client, headers, post, location["id"], invited["id"], space["trainer_resource_id"])
     space |= _populate_slots(client, headers, post, location["id"], invited["id"], space)
     space |= _populate_assessments(client, headers, post, location["id"], person["id"])
@@ -860,9 +861,10 @@ def _populate_programs(client, headers, post, location_id, client_id, space, cat
     }  # fmt: skip
 
 
-def _populate_rentals(client, headers, post, location_id, client_id, court_id, category_id, tax_id) -> dict:
+def _populate_rentals(client, headers, post, location_id, client_id, court_id, category_id, tax_id, kid_id) -> dict:
     """Build module 3: a row in every rentals table (type, rate with tax and rule, a billed rental with a
-    party, a plan allowed on the type, its sale and a plan-covered rental)."""
+    party, a shareable plan allowed on the type, its sale shared with the related kid, a plan-covered rental),
+    plus the locker tables: a room with two lockers, a term, a padlock on a locker and a billed lease."""
     rtype = post("/rental-types", {
         "location_id": location_id, "name": "Court hire", "revenue_category_id": category_id, "resource_ids": [court_id],
     })  # fmt: skip
@@ -872,7 +874,7 @@ def _populate_rentals(client, headers, post, location_id, client_id, court_id, c
     })  # fmt: skip
     plan = post("/rental-plans", {
         "location_id": location_id, "name": "Ten hours", "rental_type_id": rtype["id"], "model": "per_hour",
-        "quantity": "10", "price_minor": 30000, "revenue_category_id": category_id,
+        "quantity": "10", "price_minor": 30000, "revenue_category_id": category_id, "is_shareable": True,
     })  # fmt: skip
     put = client.patch(f"/api/v1/rental-types/{rtype['id']}", headers=headers, json={"rental_plan_ids": [plan["id"]]})
     assert put.status_code == 200, put.text
@@ -893,12 +895,36 @@ def _populate_rentals(client, headers, post, location_id, client_id, court_id, c
         "resources": [{"resource_id": court_id}], "starts_at": "2030-03-06T18:00:00Z", "ends_at": "2030-03-06T19:00:00Z",
         "charge": {"decision": "plan", "rental_plan_purchase_id": purchase["id"]},
     }, key=f"populate-covered-{uuid4().hex}")  # fmt: skip
+    shared = client.put(
+        f"/api/v1/rental-plan-purchases/{purchase['id']}/shares", headers=headers, json={"client_ids": [kid_id]}
+    )
+    assert shared.status_code == 200, shared.text
+    room = post("/locker-rooms", {"location_id": location_id, "name": "North", "designation": "all_gender"})
+    post(f"/locker-rooms/{room['id']}/lockers/bulk", {"from_number": 1, "to_number": 2, "size_label": "Full"})
+    lockers = client.get("/api/v1/lockers", headers=headers, params={"locker_room_id": room["id"]}).json()["data"]
+    term = post("/locker-terms", {
+        "location_id": location_id, "name": "Season", "starts_on": "2026-01-01", "ends_on": "2035-12-31",
+        "price_minor": 2500,
+    })  # fmt: skip
+    padlock = post("/padlocks", {"location_id": location_id, "number": "P-1", "combination": "12-34-56"})
+    put = client.patch(f"/api/v1/lockers/{lockers[0]['id']}", headers=headers, json={"padlock_id": padlock["id"]})
+    assert put.status_code == 200, put.text
+    lease = post("/locker-leases", {"locker_id": lockers[0]["id"], "client_id": client_id, "term_kind": "term",
+                                    "locker_term_id": term["id"]})  # fmt: skip
+    post(
+        "/locker-leases", {"locker_id": lockers[1]["id"], "client_id": client_id, "term_kind": "week"}
+    )  # expiring soon
     return {
         "rental_type_id": rtype["id"],
         "rental_rate_id": rate["id"],
         "rental_id": rental["rental"]["id"],
         "rental_plan_id": plan["id"],
         "purchase_id": purchase["id"],
+        "locker_room_id": room["id"],
+        "locker_id": lockers[0]["id"],
+        "locker_term_id": term["id"],
+        "padlock_id": padlock["id"],
+        "locker_lease_id": lease["id"],
     }
 
 

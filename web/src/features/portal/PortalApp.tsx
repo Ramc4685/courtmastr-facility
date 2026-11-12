@@ -16,6 +16,7 @@ import { PackagesPage } from './PackagesPage'
 import { PortalPrograms } from './PortalPrograms'
 import { PortalSessions } from './PortalSessions'
 import { ProfilePage } from './ProfilePage'
+import { RentalPlansPage } from './RentalPlansPage'
 import { StatementPage } from './StatementPage'
 import { displayName, makePortalValue, PortalProvider, usePortal } from './shared'
 
@@ -26,6 +27,7 @@ const NAV = [
   { to: '/portal/sessions', label: 'Book a session' },
   { to: '/portal/memberships', label: 'Memberships' },
   { to: '/portal/packages', label: 'Packages' },
+  { to: '/portal/rental-plans', label: 'Rental plans' },
   { to: '/portal/invoices', label: 'Invoices' },
   { to: '/portal/statement', label: 'Statement' },
   { to: '/portal/inbox', label: 'Inbox' },
@@ -151,6 +153,7 @@ export function PortalApp() {
           <Route path="sessions" element={<PortalSessions />} />
           <Route path="memberships" element={<MembershipsPage />} />
           <Route path="packages" element={<PackagesPage />} />
+          <Route path="rental-plans" element={<RentalPlansPage />} />
           <Route path="invoices" element={<InvoicesPage />} />
           <Route path="statement" element={<StatementPage />} />
           <Route path="inbox" element={<InboxPage />} />

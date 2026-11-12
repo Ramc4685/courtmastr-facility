@@ -112,6 +112,26 @@ class CancelMode(StrEnum):
     KEEP_BILLING = "keep_billing"
 
 
+class LeaseTerm(StrEnum):
+    DAY = "day"
+    WEEK = "week"
+    MONTH = "month"
+    YEAR = "year"
+    TERM = "term"
+    CUSTOM = "custom"
+
+
+class LeaseChargeState(StrEnum):
+    NO_CHARGE = "no_charge"
+    BILLED = "billed"
+
+
+class ClearSource(StrEnum):
+    STAFF = "staff"
+    BULK_EXPIRED = "bulk_expired"
+    RENEWED = "renewed"
+
+
 class EntryType(StrEnum):
     GRANT = "grant"
     DEBIT = "debit"
@@ -486,6 +506,7 @@ class RentalPlanPurchase(TenantOwned, Timestamps, Base):
     starts_on: Mapped[date]
     expires_on: Mapped[date | None]
     is_auto_renew: Mapped[bool] = mapped_column(server_default=text("false"))
+    is_autopay: Mapped[bool] = mapped_column(server_default=text("false"))
     renewed_from_purchase_id: Mapped[UUID | None]
     cancelled_at: Mapped[datetime | None]
     cancel_mode: Mapped[str | None] = enum_column()
@@ -520,3 +541,71 @@ class RentalPlanLedgerEntry(TenantOwned, Base):
     used_by_client_id: Mapped[UUID | None]
     note: Mapped[str | None]
     created_at: Mapped[datetime] = mapped_column(server_default=text("now()"), sort_order=98)
+
+
+class RentalPlanShare(TenantOwned, Timestamps, Base):
+    """A related client who may book against a plan's balance (RNT-10, FAM-06); evaluated at use time."""
+
+    __tablename__ = "rental_plan_share"
+    __table_args__ = tenant_args(
+        *tfk("rental_plan_purchase_id", "rental_plan_purchase", index=False),
+        *tfk("client_id", "client"),
+        Index(
+            "uq_rental_plan_share", "tenant_id", "rental_plan_purchase_id", "client_id", unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
+        ),
+    )  # fmt: skip
+
+    rental_plan_purchase_id: Mapped[UUID]
+    client_id: Mapped[UUID]
+    revoked_at: Mapped[datetime | None]
+
+
+class LockerLease(TenantOwned, Timestamps, Base):
+    """A locker rented to a client for a term (RNT-17). State is derived: uncleared and `ends_on >= today` is
+    rented, uncleared and past is expired, `cleared_at` set is handed back (RNT-18)."""
+
+    __tablename__ = "locker_lease"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location"),
+        *tfk("locker_id", "locker", index=False),
+        *tfk("client_id", "client"),
+        *tfk("locker_term_id", "locker_term"),
+        *tfk("charge_id", "charge"),
+        *tfk("renewed_from_lease_id", "locker_lease", index=False),
+        enum_check("term_kind", LeaseTerm),
+        enum_check("charge_state", LeaseChargeState),
+        enum_check("clear_source", ClearSource),
+        CheckConstraint("ends_on >= starts_on", name="dates"),
+        CheckConstraint("(term_kind = 'term') = (locker_term_id IS NOT NULL)", name="term"),
+        CheckConstraint("(charge_state = 'billed') = (charge_id IS NOT NULL)", name="charge"),
+        CheckConstraint("(cleared_at IS NULL) = (clear_source IS NULL)", name="clear"),
+        CheckConstraint("fee_minor >= 0", name="fee"),
+        Index(
+            "uq_locker_lease_open", "tenant_id", "locker_id", unique=True, postgresql_where=text("cleared_at IS NULL")
+        ),
+        Index(
+            "uq_locker_lease_successor",
+            "tenant_id",
+            "renewed_from_lease_id",
+            unique=True,
+            postgresql_where=text("renewed_from_lease_id IS NOT NULL"),
+        ),
+        Index(
+            "ix_locker_lease_expiry", "tenant_id", "location_id", "ends_on", postgresql_where=text("cleared_at IS NULL")
+        ),
+    )
+
+    location_id: Mapped[UUID]
+    locker_id: Mapped[UUID]
+    client_id: Mapped[UUID]
+    term_kind: Mapped[str] = enum_column()
+    locker_term_id: Mapped[UUID | None]
+    starts_on: Mapped[date]
+    ends_on: Mapped[date] = mapped_column(info={"audit": "value"})
+    fee_minor: Mapped[int] = mapped_column(server_default=text("0"), info={"audit": "value"})
+    charge_state: Mapped[str] = enum_column()
+    charge_id: Mapped[UUID | None]
+    renewed_from_lease_id: Mapped[UUID | None]
+    cleared_at: Mapped[datetime | None]
+    clear_source: Mapped[str | None] = enum_column()

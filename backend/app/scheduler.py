@@ -25,6 +25,7 @@ EVERY_HOUR = (
     "send_client_task_reminders",
     "send_low_stock_digest",
     "renew_catalog_item_sales",  # billing pre-defined items (BIL-14)
+    "run_rental_plan_day",  # rentals: plan activation, expiry and auto-renew (RNT-09)
     "retry_provider_events",  # billing: webhooks stored but never processed (PAY-11)
 )  # fmt: skip
 # Retention keeps running for a suspended tenant (purges, export expiry, file byte deletion): suspension stops
