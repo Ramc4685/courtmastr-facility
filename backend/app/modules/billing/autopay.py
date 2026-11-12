@@ -7,7 +7,7 @@ clear it. Every notice is recorded in `billing_notice` before it is sent, so a r
 """
 
 from calendar import monthrange
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -19,6 +19,7 @@ from app.core import audit, clock, events
 from app.core.auth import Principal, authorize, scope_query, system_principal
 from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.core.ids import new_id
+from app.core.jobs import tenant_actor
 from app.core.pagination import ListQuery, paginate
 from app.core.settings import get_settings
 from app.modules import clients, platform
@@ -53,6 +54,9 @@ for _key, _subject, _body in (
      "\n\nPlease pay here:\n$link"),
     ("method_expiring", "Your saved card ending $last4 is about to expire",
      "The $brand card ending $last4 that we hold for you expires $expires. Please update it here:\n$link"),
+    ("staff_decline_digest", "Billing at $location: $failed_count failed on $day, $due_count autopay due",
+     "Failed payments on $day: $failed_count ($failed_total)\n$failed_lines\n\n"
+     "Autopay to collect on $today: $due_count ($due_total)\n$due_lines"),
 ):  # fmt: skip
     notifications.register_template(f"billing.{_key}", subject=_subject, body=_body + _SIGN_OFF)
 
@@ -549,3 +553,78 @@ def daily(session: Session) -> dict:
             run_location(session, location_id, today)
             summary["runs"] += 1
     return summary
+
+
+# --- the staff daily digest (PAY-08) -----------------------------------------------------------------------
+
+_DIGEST_LINES = 50
+
+
+def _lines(items: list[str]) -> str:
+    if not items:
+        return "  none"
+    more = len(items) - _DIGEST_LINES
+    return "\n".join(f"  {line}" for line in items[:_DIGEST_LINES]) + (f"\n  and {more} more" if more > 0 else "")
+
+
+def digest(session: Session) -> int:
+    """PAY-08 daily digest: at each location whose decline alerts are in `daily_digest` mode, one email to the
+    alert address with the payments that failed there on the previous local day and the autopay invoices the
+    day's run will try. Sent on the first pass of the location's day (the dedupe key is that day), and not at
+    all when there is nothing to report. A payment counts on the day it was received."""
+    now, system = clock.now(), system_principal("billing.digest")
+    currency, sent = platform.service.get_tenant(session).currency, 0
+    owing = (Invoice.is_autopay, Invoice.balance_minor > 0, Invoice.status.in_(("open", "partially_paid")))
+    location_ids = set(session.scalars(
+        select(Payment.location_id).where(Payment.status == "failed", Payment.received_at >= now - timedelta(days=2))
+        .distinct()
+    )) | set(session.scalars(select(Invoice.location_id).where(*owing).distinct()))  # fmt: skip
+    for location_id in sorted(location_ids):
+        cfg = catalogue.settings_for(session, location_id)
+        if cfg.decline_alert_mode != "daily_digest" or not cfg.decline_alert_email:
+            continue
+        location = platform.service.get_location(session, system, location_id)
+        zone = ZoneInfo(location.time_zone)
+        today = now.astimezone(zone).date()
+        day = today - timedelta(days=1)
+        failed = session.scalars(
+            select(Payment).where(
+                Payment.location_id == location_id, Payment.status == "failed",
+                Payment.received_at >= datetime.combine(day, time.min, zone),
+                Payment.received_at < datetime.combine(today, time.min, zone),
+            ).order_by(Payment.received_at, Payment.id)
+        ).all()  # fmt: skip
+        due = preview(session, location_id, today)
+        if not failed and not due:
+            continue
+
+        def name(client_id: UUID | None) -> str:
+            return clients.service.display_name(clients.service.get(session, client_id)) if client_id else "walk-in"
+
+        failed_lines = [
+            f"{name(p.client_id)}: {money(p.amount_minor, p.currency)} ({p.failure_category or 'declined'}), "
+            f"receipt {p.receipt_number}"
+            for p in failed
+        ]  # fmt: skip
+        due_lines = [
+            f"{name(row['bill_to_client_id'])}: {money(row['due_minor'], currency)} on invoice {row['number']}"
+            + ("" if row["has_payment_method"] or row["credit_minor"] >= row["due_minor"] else " (no payment method)")
+            for row in due
+        ]  # fmt: skip
+        sent += notify(
+            session, "staff_decline_digest", "location", location_id, f"digest:{day.isoformat()}",
+            to=cfg.decline_alert_email, location_id=location_id,
+            data={
+                "location": location.name, "day": day.isoformat(), "today": today.isoformat(),
+                "failed_count": len(failed), "failed_total": money(sum(p.amount_minor for p in failed), currency),
+                "failed_lines": _lines(failed_lines), "due_count": len(due),
+                "due_total": money(sum(row["due_minor"] for row in due), currency), "due_lines": _lines(due_lines),
+            },
+        )  # fmt: skip
+    return sent
+
+
+@tenant_actor
+def send_billing_digest(session: Session) -> int:
+    """The hourly job behind the digest; each location sends once a local day (scheduler, PAY-08)."""
+    return digest(session)

@@ -629,6 +629,9 @@ class BillingSettings(TenantOwned, Timestamps, Base):
         CheckConstraint("decline_alert_mode IN ('per_event', 'daily_digest')", name="decline_alert_mode"),
         CheckConstraint("program_description_source IN ('group', 'subgroup')", name="program_description_source"),
         CheckConstraint("package_invoice_sessions IN ('all', 'attended', 'none')", name="package_invoice_sessions"),
+        CheckConstraint(
+            "membership_suspend_after_days BETWEEN 1 AND 365", name="membership_suspend_after_days"
+        ),
     )  # fmt: skip
 
     location_id: Mapped[UUID | None]
@@ -653,6 +656,7 @@ class BillingSettings(TenantOwned, Timestamps, Base):
     program_description_source: Mapped[str] = enum_column(server_default=text("'group'"))
     bill_to_fields: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{name,address}'"))
     package_invoice_sessions: Mapped[str] = enum_column(server_default=text("'all'"))
+    membership_suspend_after_days: Mapped[int | None]  # MEM-14, owner decision Q13: null is off
 
 
 class Coupon(TenantOwned, Timestamps, Base):
@@ -1049,3 +1053,33 @@ class CatalogItemSale(TenantOwned, Timestamps, Base):
     previous_sale_id: Mapped[UUID | None]
     status: Mapped[str] = enum_column(server_default=text("'active'"))
     sold_by_staff_user_id: Mapped[UUID | None]
+
+
+class CollectionsTag(TenantOwned, Timestamps, Base):
+    """A label staff put on a client in collections (BIL-20): "Payment plan", "Sent to agency", and so on."""
+
+    __tablename__ = "collections_tag"
+    __table_args__ = tenant_args(UniqueConstraint("tenant_id", "name", name="uq_collections_tag_name"))
+
+    name: Mapped[str] = mapped_column(CITEXT, info={"audit": "value"})
+    description: Mapped[str | None]
+    is_active: Mapped[bool] = mapped_column(server_default=text("true"))
+
+
+class ClientCollectionsProfile(TenantOwned, Timestamps, Base):
+    """A client's collections profile (BIL-20): at most one per client, with its current tag. Deleting the
+    profile takes the client out of collections."""
+
+    __tablename__ = "client_collections_profile"
+    __table_args__ = tenant_args(
+        *tfk("client_id", "client", index=False),
+        *tfk("collections_tag_id", "collections_tag"),
+        *tfk("updated_by_staff_user_id", "staff_user"),
+        UniqueConstraint("tenant_id", "client_id", name="uq_client_collections_profile_client"),
+    )
+
+    client_id: Mapped[UUID]
+    collections_tag_id: Mapped[UUID]
+    placed_on: Mapped[date]
+    notes: Mapped[str | None]
+    updated_by_staff_user_id: Mapped[UUID | None]

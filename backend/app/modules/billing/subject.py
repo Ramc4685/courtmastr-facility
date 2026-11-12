@@ -18,6 +18,7 @@ from app.modules.billing.models import (
     BillingDocumentDelivery,
     CatalogItemSale,
     Charge,
+    ClientCollectionsProfile,
     CouponRedemption,
     Invoice,
     Payment,
@@ -60,6 +61,11 @@ def _repoint(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
         (CatalogItemSale, CatalogItemSale.client_id),
     ):
         session.execute(update(model).where(column == loser_id).values({column.key: survivor_id}))
+    # One collections profile per client: the survivor's stands; otherwise the merged record's moves over.
+    cp = ClientCollectionsProfile
+    if session.scalar(select(cp.id).where(cp.client_id == survivor_id)) is not None:
+        session.execute(delete(cp).where(cp.client_id == loser_id))
+    session.execute(update(cp).where(cp.client_id == loser_id).values(client_id=survivor_id))
     # One row per client per batch: where both were in a batch the survivor's row stands for the merged client.
     sr = StatementRecipient
     both = select(sr.statement_batch_id).where(sr.client_id == survivor_id)
@@ -143,6 +149,8 @@ def _erase(session: Session, client_id: UUID) -> dict:
     # (the invoices and payments themselves are the retained financial record).
     file_ids = select(d.stored_file_id).where(mine).union(select(sr.stored_file_id).where(sr.client_id == client_id))
     purged = platform.files.purge(session, file_ids)
+    # The collections profile is staff notes about the person: it goes.
+    session.execute(delete(ClientCollectionsProfile).where(ClientCollectionsProfile.client_id == client_id))
     # A sold item has no free text; it stops renewing so nothing new is billed to the erased client.
     sale = CatalogItemSale
     session.execute(update(sale).where(sale.client_id == client_id).values(is_auto_renew=False))
@@ -155,6 +163,7 @@ def _erase(session: Session, client_id: UUID) -> dict:
 _TABLES = (
     "invoice", "charge", "payment", "refund", "ledger_entry", "coupon_redemption", "provider_customer",
     "payment_method", "billing_notice", "billing_document_delivery", "statement_recipient", "catalog_item_sale",
+    "client_collections_profile",
 )  # fmt: skip
 clients.merge.register_merge_handler("billing", tables=_TABLES, repoint=_repoint)
 platform.privacy.register_subject_handler(

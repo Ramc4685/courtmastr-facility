@@ -87,6 +87,9 @@ _BODIES = {
     "cancelCatalogItemSale": {"reason": "Mistake"},
     "createImportJobDryRun": {},
     "updateSavedReport": {"name": "Renamed"},
+    # collections (phase 9 chip D)
+    "updateCollectionsTag": {"name": "Renamed"},
+    "putCollectionsProfile": lambda ids: {"collections_tag_id": ids.collections_tag_id},
     # access rules (phase 10 chip B)
     "setClientAccessMode": {"access_mode": "always_admit", "reason": "Isolation"},
     "updateAccessSchedule": {"name": "Renamed"},
@@ -412,7 +415,7 @@ def test_every_id_route_is_covered():
         "/locations", "/staff-users", "/roles", "/audit-events?limit=200", "/auth/sessions", "/clients", "/charges",
         "/invoices", "/payments", "/revenue-categories", "/ledger-entries",
         "/taxes", "/coupons", "/payment-methods", "/autopay-runs", "/autopay-attempts", "/refunds",
-        "/billing-notices", "/billing-history",
+        "/billing-notices", "/billing-history", "/collections-tags", "/collections-report",
         "/registers", "/products", "/product-categories", "/pos-sales", "/drawer-sessions", "/stock-movements",
         "/equipment-items", "/equipment-loans", "/discount-presets",
         "/client-categories", "/tags",
@@ -428,7 +431,7 @@ def test_api_lists_never_include_the_other_tenant(client, two_tenants, path):
     payload = client.get(f"/api/v1{path}", headers=a.headers).json()
     rows = payload["data"] if isinstance(payload, dict) else payload
     assert rows
-    ids = {row["id"] for row in rows}
+    ids = {row.get("id") or row["client_id"] for row in rows}  # report rows are keyed by client
     assert not ids & {
         b.location_id, b.staff_user_id, b.role_id, b.session_id, b.client_id, b.charge_id, b.invoice_id,
         b.payment_id, b.revenue_category_id, b.client_category_id, b.tag_id, b.note_subject_id, b.task_id,
@@ -439,7 +442,7 @@ def test_api_lists_never_include_the_other_tenant(client, two_tenants, path):
     }  # fmt: skip
     theirs = client.get(f"/api/v1{path}", headers=b.headers).json()
     theirs = theirs["data"] if isinstance(theirs, dict) else theirs
-    assert not ids & {row["id"] for row in theirs}
+    assert not ids & {row.get("id") or row["client_id"] for row in theirs}
 
 
 def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
