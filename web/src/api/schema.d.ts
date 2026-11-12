@@ -5804,6 +5804,26 @@ export interface paths {
         patch: operations["updateOfficial"];
         trace?: never;
     };
+    "/api/v1/operator/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Subscription Plans
+         * @description The plan catalogue (global data, maintained by migrations).
+         */
+        get: operations["listSubscriptionPlans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/operator/tenants": {
         parameters: {
             query?: never;
@@ -5818,6 +5838,64 @@ export interface paths {
          * @description Create a tenant and its first Owner. Guarded by the FH_OPERATOR_TOKEN secret; absent when unset.
          */
         post: operations["onboardTenant"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operator/tenants/{tenant_id}/entitlements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Operator Tenant Entitlements */
+        get: operations["getOperatorTenantEntitlements"];
+        put?: never;
+        /**
+         * Create Operator Tenant Entitlement
+         * @description Add an add-on, a feature flag (PLT-09) or a limit override. Errors: unknown-entitlement, already-exists.
+         */
+        post: operations["createOperatorTenantEntitlement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operator/tenants/{tenant_id}/entitlements/{entitlement_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Operator Tenant Entitlement */
+        delete: operations["deleteOperatorTenantEntitlement"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operator/tenants/{tenant_id}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change Operator Tenant Plan
+         * @description Move the tenant to another plan; audited. Errors: unknown-plan. No charge is made (entitlements only).
+         */
+        put: operations["changeOperatorTenantPlan"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -11240,6 +11318,26 @@ export interface paths {
         head?: never;
         /** Update Tenant */
         patch: operations["updateTenant"];
+        trace?: never;
+    };
+    "/api/v1/tenant/entitlements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Tenant Entitlements
+         * @description Settings, Plan and usage (Owner and Admin): the plan, its features and limits with current use.
+         */
+        get: operations["listTenantEntitlements"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/tender-types": {
@@ -18075,6 +18173,15 @@ export interface components {
             /** Days */
             days: components["schemas"]["FacilityHoursDay"][];
         };
+        /** FeatureState */
+        FeatureState: {
+            /** Included */
+            included: boolean;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+        };
         /** FieldPolicies */
         FieldPolicies: {
             /** Policies */
@@ -19207,6 +19314,20 @@ export interface components {
              */
             reservation_type_id: string;
         };
+        /**
+         * LimitUsage
+         * @description `limit` null = unlimited. `used` is counted for capped limits (all of them on the plan screen).
+         */
+        LimitUsage: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Limit */
+            limit: number | null;
+            /** Used */
+            used: number | null;
+        };
         /** LinkInvoice */
         LinkInvoice: {
             /** Balance Minor */
@@ -19510,11 +19631,7 @@ export interface components {
         };
         /** Me */
         Me: {
-            /**
-             * Entitlements
-             * @default []
-             */
-            entitlements: string[];
+            entitlements: components["schemas"]["MeEntitlements"];
             /** Has All Location Access */
             has_all_location_access?: boolean | null;
             /** Linked Resource Id */
@@ -19528,6 +19645,17 @@ export interface components {
             principal: components["schemas"]["PrincipalOut"];
             role: components["schemas"]["RoleRef"] | null;
             tenant: components["schemas"]["TenantOut"];
+        };
+        /**
+         * MeEntitlements
+         * @description What the tenant's plan includes (PLT-14). `limits` is empty for anyone but staff.
+         */
+        MeEntitlements: {
+            /** Features */
+            features: string[];
+            /** Limits */
+            limits: components["schemas"]["LimitUsage"][];
+            plan: components["schemas"]["PlanRef"];
         };
         /** MemberNumberAssign */
         MemberNumberAssign: {
@@ -22689,6 +22817,13 @@ export interface components {
             /** Addons */
             addons: components["schemas"]["PlanAddonIn"][];
         };
+        /** PlanRef */
+        PlanRef: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+        };
         /** PlanSale */
         PlanSale: {
             /**
@@ -22705,6 +22840,22 @@ export interface components {
              * Format: uuid
              */
             rental_plan_id: string;
+        };
+        /**
+         * PlanUsage
+         * @description Plan, features, every limit with its current use, every known feature with whether the tenant has it, and
+         *     the operator's overrides in date order.
+         */
+        PlanUsage: {
+            /** Feature Catalogue */
+            feature_catalogue: components["schemas"]["FeatureState"][];
+            /** Features */
+            features: string[];
+            /** Limits */
+            limits: components["schemas"]["LimitUsage"][];
+            /** Overrides */
+            overrides: components["schemas"]["TenantEntitlementOut"][];
+            plan: components["schemas"]["PlanRef"];
         };
         /** PortalAcceptanceSubmit */
         PortalAcceptanceSubmit: {
@@ -29599,6 +29750,26 @@ export interface components {
              */
             to_location_id: string;
         };
+        /** SubscriptionPlanOut */
+        SubscriptionPlanOut: {
+            /** Code */
+            code: string;
+            /** Features */
+            features: string[];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Limits */
+            limits: {
+                [key: string]: number;
+            };
+            /** Name */
+            name: string;
+        };
         /** SupplierOut */
         SupplierOut: {
             /** Account Reference */
@@ -29992,6 +30163,58 @@ export interface components {
              */
             name_prefix: string;
         };
+        /**
+         * TenantEntitlementCreate
+         * @description A feature key turns a feature on (is_enabled true: add-on, flag) or off (false); a limit key replaces that
+         *     limit with limit_value (null = unlimited). starts_on defaults to today.
+         */
+        TenantEntitlementCreate: {
+            /** Ends On */
+            ends_on?: string | null;
+            /**
+             * Is Enabled
+             * @default true
+             */
+            is_enabled: boolean;
+            /** Key */
+            key: string;
+            /** Limit Value */
+            limit_value?: number | null;
+            /**
+             * Source
+             * @default manual
+             * @enum {string}
+             */
+            source: "addon" | "promo" | "flag" | "manual";
+            /** Starts On */
+            starts_on?: string | null;
+        };
+        /** TenantEntitlementOut */
+        TenantEntitlementOut: {
+            /** Ends On */
+            ends_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Enabled */
+            is_enabled: boolean;
+            /** Key */
+            key: string;
+            /** Limit Value */
+            limit_value: number | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "addon" | "promo" | "flag" | "manual";
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+        };
         /** TenantOnboard */
         TenantOnboard: {
             /**
@@ -30069,6 +30292,11 @@ export interface components {
             status: string;
             /** Trial Ends On */
             trial_ends_on: string | null;
+        };
+        /** TenantPlanChange */
+        TenantPlanChange: {
+            /** Plan Code */
+            plan_code: string;
         };
         /** TenantUpdate */
         TenantUpdate: {
@@ -45899,6 +46127,37 @@ export interface operations {
             };
         };
     };
+    listSubscriptionPlans: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-operator-token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionPlanOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     onboardTenant: {
         parameters: {
             query?: never;
@@ -45921,6 +46180,145 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TenantOnboarded"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getOperatorTenantEntitlements: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-operator-token"?: string;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanUsage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createOperatorTenantEntitlement: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-operator-token"?: string;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TenantEntitlementCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanUsage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteOperatorTenantEntitlement: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-operator-token"?: string;
+            };
+            path: {
+                tenant_id: string;
+                entitlement_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    changeOperatorTenantPlan: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-operator-token"?: string;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TenantPlanChange"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanUsage"];
                 };
             };
             /** @description Validation Error */
@@ -59899,6 +60297,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listTenantEntitlements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanUsage"];
                 };
             };
         };
