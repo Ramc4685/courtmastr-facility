@@ -148,9 +148,12 @@ bytes of purged rows and logs objects that have no row.
 - **Staff IP allow-list** (PLT-07): `tenant.staff_ip_allowlist` (`cidr[]`), edited at
   `GET/PATCH /security-settings` (`platform.security.manage`, audited under that key) and the Security
   screen (`/settings/security`). Evaluated at every staff sign-in and on every staff request (web and mobile
-  sessions); outside the list is `403 ip-not-allowed` (at sign-in decided before the password is checked, the same for unknown emails, so it is no credential oracle); empty means no restriction; holders of
-  `platform.security.bypass_ip_allowlist` (Owner and Admin by default) are exempt. A list that leaves out the
-  caller's own address is refused (`422 ip-allowlist-excludes-you`), whoever the caller is. CIDR parsing and
+  sessions); outside the list is `403 ip-not-allowed` (at sign-in decided before the password is checked, the same for unknown emails, so it is no credential oracle); empty means no restriction; no role is exempt,
+  Owners included (phase 8 S4 removed the old Owner and Admin bypass key). A list that leaves out the caller's
+  own address is refused (`422 ip-allowlist-excludes-you`), whoever the caller is. **Break-glass:** a tenant
+  that still locks itself out (its address changed) is let back in by the operator from outside the app:
+  `cd backend && uv run python -m app.cli clear-ip-allowlist --tenant <tenant id>` empties the list, prints
+  what it removed and records a `platform.security.manage` audit row by `operator-cli`. CIDR parsing and
   matching live in `core/networks.py`, shared with POS registers and the time clock. Assumption: the brief's
   tenant-wide list replaces, for now, the data model's per-location networks plus `staff_user.ip_policy`
   (`unknowns` "IP restriction scope" says tenant-wide); `ip_policy` is stored but not yet consulted.
@@ -203,8 +206,7 @@ Evidence and open questions: `docs/status/phase8-s2-mfa.md`. Migrations `1230`, 
   unchanged. Idle expiry slides on use, never past the absolute limit. Known limit: `client_kind` is chosen
   by the caller, so a staff client that claims `mobile` gets mobile lifetimes (bearer tokens, refresh). The
   mobile app is the only intended caller; binding it to an attested client is future work.
-- **IP allow-list**: unchanged from S1, including the Owner and Admin bypass (the owner has been asked
-  whether to remove it).
+- **IP allow-list**: the Owner and Admin bypass was removed in phase 8 S4 (see "Sign-in hardening").
 
 ## Plans and entitlements (Phase 8 chip T1: PLT-14, PLT-09, PLT-13)
 

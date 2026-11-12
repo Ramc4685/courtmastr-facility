@@ -47,7 +47,7 @@ function AllowListForm({ settings }: { settings: Schemas['SecuritySettings'] }) 
           />
           <p id={`${id}-hint`} className="text-xs text-muted">
             One address or range per line, for example 203.0.113.0/24. Staff outside these networks cannot sign in or keep working,
-            unless their role may bypass the list (Owner and Admin by default). Leave empty to allow any network. The list must include
+            whatever their role, Owners included. Leave empty to allow any network. The list must include
             the address you are using now.
           </p>
           {error && (
