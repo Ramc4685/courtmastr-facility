@@ -2,7 +2,7 @@
 prefix). No grant change beyond enable_rls.
 
 Revision ID: 1260
-Revises: 1231
+Revises: 1250
 """
 
 import sqlalchemy as sa
