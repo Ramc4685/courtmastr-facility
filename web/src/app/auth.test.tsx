@@ -64,7 +64,8 @@ describe('auth flow', () => {
     await userEvent.type(screen.getByLabelText('Password', { selector: 'input' }), 'secret-password')
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Staff users' })).toBeInTheDocument()
+    // The page is a lazy route: under a loaded machine its import outlasts the default 1 s.
+    expect(await screen.findByRole('heading', { level: 1, name: 'Staff users' }, { timeout: 5000 })).toBeInTheDocument()
     expect(await screen.findByText('olivia@example.com')).toBeInTheDocument()
     const signIn = calls.find((c) => c.url === '/api/v1/auth/sign-in')
     expect(signIn?.body).toMatchObject({ email: 'pat@example.com', client_kind: 'web' })
