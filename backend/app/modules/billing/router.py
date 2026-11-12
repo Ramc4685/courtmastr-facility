@@ -858,7 +858,7 @@ def get_portal_receipt_pdf(payment_id: UUID, ctx: Client):
     return _pdf(portal.receipt_pdf(ctx.session, ctx.principal, payment_id))
 
 
-@router.post("/portal/coupon-quotes", response_model=s.PortalCouponQuote)
+@router.post("/portal/coupon-quotes", response_model=s.PortalCouponQuote, dependencies=[Depends(rate_limit("consume"))])
 def quote_portal_coupon(body: s.PortalCouponQuoteRequest, ctx: Client):
     """Validation only: the portal checkout that sells something redeems the code. Errors: coupon-not-found."""
     return portal.quote_coupon(ctx.session, ctx.principal, body.model_dump())

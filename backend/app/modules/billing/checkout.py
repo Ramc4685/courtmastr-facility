@@ -16,8 +16,9 @@ from sqlalchemy.orm import Session
 from app.core import clock
 from app.core.auth import system_principal
 from app.core.errors import Conflict, DomainError, NotFound, ValidationFailed
+from app.core.events import handles
 from app.modules.billing import catalogue, documents, methods, service
-from app.modules.billing.models import Charge, Invoice, Payment
+from app.modules.billing.models import Charge, CouponRedemption, Invoice, InvoicePayLink, Payment
 
 SECURED = ("succeeded", "processing")
 
@@ -123,16 +124,23 @@ def _covering(session: Session, invoice: Invoice, payment: Payment) -> Payment:
 def apply_coupon(session: Session, invoice: Invoice, code: str, client_id: UUID) -> int:
     """Redeem a portal coupon on the invoice of a sale being made now and take it off its items (after any
     manual discount, before tax: each item is re-priced through service.adjust_charge). Idempotent by
-    invoice. The per-client cap counts the client the sale is for. Returns the discount."""
+    invoice: a replay returns the discount already taken and re-prices nothing. The per-client cap counts the
+    client the sale is for. Returns the discount."""
     session.flush()
     session.refresh(invoice)
+    key = f"billing:checkout:{invoice.id}"
+    taken = session.scalars(
+        select(CouponRedemption).where(CouponRedemption.redemption_key == key, CouponRedemption.released_at.is_(None))
+    ).first()
+    if taken is not None:
+        return taken.discount_minor
     charges = session.scalars(
         select(Charge)
         .where(Charge.invoice_id == invoice.id, Charge.status == "active", Charge.applied_minor == 0)
         .order_by(Charge.bill_on, Charge.id)
     ).all()
     _, parts = catalogue.redeem_coupon(
-        session, code, redemption_key=f"billing:checkout:{invoice.id}", line_nets=[c.net_minor for c in charges],
+        session, code, redemption_key=key, line_nets=[c.net_minor for c in charges],
         redeemer_client_id=client_id, channel="portal", invoice_id=invoice.id,
     )  # fmt: skip
     for charge, part in zip(charges, parts, strict=True):
@@ -148,6 +156,13 @@ def apply_coupon(session: Session, invoice: Invoice, code: str, client_id: UUID)
 def confirm_link_payment(session: Session, token: str, payment_id: UUID) -> Payment:
     """The pay link, back from 3-D Secure: re-read the payment the link started and, once it went through,
     apply it to the invoice and use the link up. Only a payment this link made is accepted (404 otherwise)."""
+    used = session.scalars(
+        select(InvoicePayLink).where(
+            InvoicePayLink.token_hash == documents._hash(token), InvoicePayLink.payment_id == payment_id
+        )
+    ).first()
+    if used is not None and used.used_at is not None:  # a repeat after success: the same answer, nothing moves
+        return service._get(session, Payment, payment_id)
     link, invoice = documents._link(session, token, lock=True)
     payment = session.get(Payment, payment_id)
     if payment is None or not (payment.idempotency_key or "").startswith(f"paylink:{link.id}:"):
@@ -161,3 +176,9 @@ def confirm_link_payment(session: Session, token: str, payment_id: UUID) -> Paym
         link.used_at, link.payment_id = clock.now(), payment.id
         session.flush()
     return payment
+
+
+@handles("billing.invoice.voided")
+def release_checkout_coupon(session: Session, payload: dict) -> None:
+    """A voided invoice gives back the portal coupon its sale redeemed (SSP-11); a no-op for any other."""
+    catalogue.release_coupon(session, f"billing:checkout:{payload['invoice_id']}")

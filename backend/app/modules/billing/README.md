@@ -158,8 +158,8 @@ Assumptions:
 
 `webhooks.process_provider_event` (enqueued by the webhook route), `statements.run_statement_batch` (a batch
 of more than 25 recipients), `webhooks.billing_daily` (per tenant:
-`autopay.daily` then `webhooks.reconcile`). **Nothing schedules `billing_daily` yet**: the kernel has no
-scheduler or per-tenant fan-out. Until it does, autopay runs when staff start a run (`POST /autopay-runs`).
+`autopay.daily` then `webhooks.reconcile`). `app/scheduler.py` runs `billing_daily` hourly for every tenant;
+staff can also start an autopay run (`POST /autopay-runs`).
 
 `webhooks.retry_provider_events` (hourly through `app/scheduler.py`, Phase 9 chip C): per tenant, provider
 events stored but never processed (or failed fewer than `RETRY_ATTEMPTS` = 5 times) and older than a few
@@ -258,10 +258,17 @@ handlers re-read the object from the provider.
   the selected invoices owe (`amount-exceeds-balance`). A guardian or manager may pay a household member's
   invoice (`can_act_for(..., "invoices")`): the payer is then the signed-in person's own record, so only their
   stored methods can be used (`payment-method-not-usable`), and money still only pays related clients' items.
+  Scope, deliberately split: **invoices** (list, read, PDF, pay targets) cover the household members
+  `can_act_for(..., "invoices")` allows; **money** (payments list, receipts, confirm, account credit,
+  statement, billing summary, stored methods) covers only the records the identity holds portal access to.
+  A guardian sees and pays a ward's invoices with their own money, but never sees, spends or removes the
+  ward's payments, credit or methods. Portal confirm accepts only a payment that identity started
+  (`portal:{identity_id}:` key).
 - **Coupons at portal checkout (SSP-11)** go through the one coupon engine (`catalogue.redeem_coupon`, channel
   `portal`, owner decision Q8) inside `secure_online_checkout`: redeemed for the sale's client against the
   unpaid lines of the invoice due now, the discount spread over those lines with `adjust_charge`, before
-  anything is charged. A coupon with nothing invoiced now (a deferred program charge) is refused
+  anything is charged. A replay re-prices nothing; voiding the invoice releases the redemption
+  (`checkout.release_checkout_coupon` on `billing.invoice.voided`). A coupon with nothing invoiced now (a deferred program charge) is refused
   (`coupon-not-applicable`); `POST /portal/coupon-quotes` only previews.
 - **3-D Secure on a portal purchase** (membership, package, program, rental) is refused cleanly: the sale is
   atomic, so a card that asks for the bank check is cancelled and nothing is bought (409). Paying an invoice

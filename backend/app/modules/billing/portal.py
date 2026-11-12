@@ -2,10 +2,13 @@
 the clients they may handle invoices for, and manages their own stored methods.
 
 Ownership is the gate here, not the permission catalogue (security-baseline 17.3): every function resolves
-the caller's client ids first, and anything outside them is 404. Those are the clients the identity holds
-portal access to plus the household members `can_act_for(..., "invoices")` allows (self, manager, guardian;
-never a delegate). Paying a member's invoice spends the payer's own money: the payment is the signed-in
-person's, its allocations go to the member's items (billing.service._require_payer allows a relative's).
+the caller's client ids first, and anything outside them is 404. Two scopes:
+
+- **Invoices** (list, read, PDF, pay targets): the clients the identity holds portal access to plus the
+  household members `can_act_for(..., "invoices")` allows (self, manager, guardian; never a delegate).
+- **Money** (payments, receipts, confirm, credit, statement, summary, stored methods): only the clients the
+  identity holds portal access to. Paying a member's invoice spends the payer's own money; a guardian never
+  sees, spends or removes a ward's payments, credit or methods.
 """
 
 from datetime import date, timedelta
@@ -25,6 +28,14 @@ _PAYABLE = ("open", "partially_paid")
 
 
 def _own(session: Session, principal: Principal) -> list[UUID]:
+    """The clients whose money the caller handles: those the identity holds portal access to."""
+    if principal.kind != "client" or principal.identity_id is None:
+        return []
+    return list(clients.service.client_ids_for_identity(session, principal.identity_id))
+
+
+def _household(session: Session, principal: Principal) -> list[UUID]:
+    """The clients whose invoices the caller may see and pay: their own plus `can_act_for(..., "invoices")`."""
     if principal.kind != "client" or principal.identity_id is None:
         return []
     return [
@@ -37,7 +48,9 @@ def _own(session: Session, principal: Principal) -> list[UUID]:
 def _payer(session: Session, principal: Principal, bill_to: UUID) -> UUID:
     """Whose money pays an invoice: the invoice's client when the caller holds its portal access, otherwise
     (a household member's invoice) the caller's own record."""
-    direct = clients.service.client_ids_for_identity(session, principal.identity_id)
+    direct = _own(session, principal)
+    if not direct:
+        raise NotFound()
     return bill_to if bill_to in direct else direct[0]
 
 
@@ -58,7 +71,8 @@ def _client(session: Session, principal: Principal, client_id: UUID | None) -> U
 def list_invoices(session: Session, principal: Principal, query: ListQuery) -> dict:
     """Filter `is_payable=true` for what can be paid now."""
     stmt = select(Invoice).where(
-        Invoice.bill_to_client_id.in_(_clients(session, principal)), Invoice.status != "voided"
+        Invoice.bill_to_client_id.in_(_household(session, principal) or _clients(session, principal)),
+        Invoice.status != "voided",
     )
     if str(query.filters.pop("is_payable", "")).lower() == "true":
         stmt = stmt.where(Invoice.status.in_(_PAYABLE), Invoice.balance_minor > 0)
@@ -71,7 +85,7 @@ def list_invoices(session: Session, principal: Principal, query: ListQuery) -> d
 
 def _invoice(session: Session, principal: Principal, invoice_id: UUID, *, lock: bool = False) -> Invoice:
     invoice = service._get(session, Invoice, invoice_id, lock=lock)
-    if invoice.bill_to_client_id not in _own(session, principal) or invoice.status == "voided":
+    if invoice.bill_to_client_id not in _household(session, principal) or invoice.status == "voided":
         raise NotFound()
     return invoice
 
@@ -161,8 +175,12 @@ def _payment(session: Session, principal: Principal, payment_id: UUID, *, lock: 
 def confirm(session: Session, principal: Principal, payment_id: UUID, data: dict) -> dict:
     """Back from the processor's authentication (3-D Secure): re-read the payment and, once it went through,
     apply what it has left to the invoices it was for (the caller's own, oldest item first). Safe to repeat;
-    a webhook that settled the payment first leaves the money on account until this applies it."""
+    a webhook that settled the payment first leaves the money on account until this applies it. Only a
+    payment this identity started in the portal (its key carries the identity) on one of the caller's own
+    records: confirm never spends anyone else's money or credit."""
     payment = _payment(session, principal, payment_id, lock=True)
+    if not (payment.idempotency_key or "").startswith(f"portal:{principal.identity_id}:"):
+        raise NotFound()
     payment = service.confirm_payment(session, payment.id)
     if payment.status in ("succeeded", "processing"):
         for invoice_id in sorted(set(data["invoice_ids"])):

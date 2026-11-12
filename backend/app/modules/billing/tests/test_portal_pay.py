@@ -12,11 +12,12 @@ from app.core import clock, inbound_webhooks
 from app.core.db.platform import platform_engine
 from app.core.errors import ValidationFailed
 from app.modules.billing import checkout, documents, webhooks
-from app.modules.billing.models import Coupon, CouponRedemption, InvoicePayLink, Payment
+from app.modules.billing.models import Coupon, CouponRedemption, Invoice, InvoicePayLink, Payment
 from app.modules.billing.tests.test_billing import assert_books_agree, svc, work
 from app.modules.billing.tests.test_checkout import _invoice, _secure
 from app.modules.billing.tests.test_money import ready
 from app.modules.billing.tests.test_surface import item
+from app.modules.memberships.tests.support import package_plan
 from app.ports import payment_provider
 from conftest import new_client
 
@@ -129,7 +130,9 @@ def test_three_d_secure_on_the_pay_link_and_at_the_desk(api, shop, client):
     _authenticate(client, started["client_secret"])
     assert post("payments/confirm", {"token": token, "payment_id": payment_id}).json()["status"] == "succeeded"
     assert api("GET", f"/invoices/{invoice_id}")["status"] == "paid"
-    assert post("payments/confirm", {"token": token, "payment_id": payment_id}).status_code == 404  # used up
+    repeat = post("payments/confirm", {"token": token, "payment_id": payment_id})  # safe to repeat once used up
+    assert repeat.status_code == 200 and (repeat.json()["id"], repeat.json()["status"]) == (payment_id, "succeeded")
+    assert post("payments/confirm", {"token": token, "payment_id": str(other)}).status_code == 404  # still not its
     with work(shop.tenant) as session:
         assert session.scalar(select(InvoicePayLink.payment_id).where(InvoicePayLink.invoice_id == invoice_id))
 
@@ -143,6 +146,75 @@ def test_three_d_secure_on_the_pay_link_and_at_the_desk(api, shop, client):
     assert api("POST", f"/payments/{taken['id']}/confirm")["status"] == "succeeded"
     api("POST", f"/payments/{taken['id']}/allocations", {"invoice_id": desk_invoice["id"]})
     assert api("GET", f"/invoices/{desk_invoice['id']}")["status"] == "paid"
+
+
+def test_a_guardian_never_reaches_a_wards_money(api, shop, member, client):
+    """Regression (chip C review): seeing a ward's invoices must not let a guardian spend, see or remove the
+    ward's payments, credit or methods."""
+    kid = new_client(client, shop.owner, shop.location_id)["id"]
+    types = {t["code"]: t["id"] for t in api("GET", "/relationship-types")}
+    api("POST", f"/clients/{member.id}/relationships",
+        {"other_client_id": kid, "relationship_type_id": types["parent_of"]}, 201)  # fmt: skip
+    cash = api(
+        "POST",
+        "/payments",
+        {"client_id": kid, "location_id": str(shop.location_id), "amount_minor": 700, "tender_kind": "cash"},
+        201,
+    )  # fmt: skip  (the ward's unapplied money)
+    kid_card = api("POST", f"/clients/{kid}/payment-methods", {"method_token": "tok_card_ok"}, 201)
+    mine = _invoice_for(api, shop, member.id)
+    member.api("POST", f"/portal/payments/{cash['id']}/confirm", {"invoice_ids": [mine["id"]]}, 404)
+    member.api("GET", f"/portal/payments/{cash['id']}/receipt", None, 404)
+    assert cash["id"] not in {p["id"] for p in member.api("GET", "/portal/payments")["data"]}
+    member.api("PATCH", f"/portal/payment-methods/{kid_card['id']}", {"is_autopay": True}, 404)
+    member.api("DELETE", f"/portal/payment-methods/{kid_card['id']}", None, 404)
+    assert kid_card["id"] not in {m["id"] for m in member.api("GET", "/portal/payment-methods")}
+    member.api("POST", "/portal/payments", {"invoice_ids": [mine["id"]], "use_account_credit": True,
+                                           "method_token": "tok_card_ok", "amount_minor": 100}, 201)  # fmt: skip
+    assert api("GET", f"/payments/{cash['id']}")["unapplied_minor"] == 700  # the ward's credit is untouched
+    assert api("GET", f"/invoices/{mine['id']}")["balance_minor"] == mine["balance_minor"] - 100
+
+
+def test_partial_pay_with_account_credit_and_confirm_after_the_webhook(api, shop, member, client):
+    invoice = _invoice_for(api, shop, member.id)  # 1083
+    api("POST", "/payments", {"client_id": member.id, "location_id": str(shop.location_id), "amount_minor": 300,
+                             "tender_kind": "cash"}, 201)  # fmt: skip
+    paid = member.api("POST", "/portal/payments", {"invoice_ids": [invoice["id"]], "amount_minor": 500,
+                                                  "use_account_credit": True, "method_token": "tok_card_ok"}, 201)  # fmt: skip
+    assert (paid["credit_applied_minor"], paid["payment"]["amount_minor"]) == (300, 200)
+    assert api("GET", f"/invoices/{invoice['id']}")["balance_minor"] == 583
+
+    started = member.api(
+        "POST", "/portal/payments", {"invoice_ids": [invoice["id"]], "method_token": "tok_card_auth"}, 201
+    )
+    _authenticate(client, started["client_secret"])
+    with work(shop.tenant) as session:  # the processor's webhook settles it before the browser comes back
+        assert svc.confirm_payment(session, started["payment"]["id"]).status == "succeeded"
+    assert api("GET", f"/invoices/{invoice['id']}")["balance_minor"] == 583  # on account, not yet applied
+    done = member.api("POST", f"/portal/payments/{started['payment']['id']}/confirm", {"invoice_ids": [invoice["id"]]})
+    assert done["payment"]["unapplied_minor"] == 0 and api("GET", f"/invoices/{invoice['id']}")["status"] == "paid"
+    with work(shop.tenant) as session:
+        assert_books_agree(session)
+
+
+def test_a_coupon_at_portal_package_checkout_is_redeemed_once_and_released_on_void(api, shop, member, client):
+    ready(shop)
+    with work(shop.tenant) as session:
+        _coupon(session, "PACK10", discount_pct=10)
+    plan = package_plan(client, shop.owner, shop.tenant, online_sale_mode="paid_in_full")
+    sale = member.api("POST", "/portal/client-packages", {"package_plan_id": plan["id"], "location_id": str(shop.location_id),
+                                                         "method_token": "tok_card_ok", "coupon_code": "PACK10"}, 201)  # fmt: skip
+    invoice = api("GET", f"/invoices/{sale['invoice_id']}")
+    assert sale["payment_status"] == "succeeded" and invoice["status"] == "paid"
+    assert invoice["total_minor"] < 10000  # 10% off the 100.00 pack, tax on the net
+    with work(shop.tenant) as session:
+        stored = session.get(Invoice, invoice["id"])
+        redemption = session.scalars(select(CouponRedemption).where(CouponRedemption.invoice_id == stored.id)).one()
+        assert checkout.apply_coupon(session, stored, "PACK10", stored.bill_to_client_id) == redemption.discount_minor
+        assert session.get(Invoice, invoice["id"]).total_minor == invoice["total_minor"]  # a replay re-prices nothing
+    checkout.release_checkout_coupon.fn(str(shop.tenant.id), str(uuid4()), {"invoice_id": invoice["id"]})
+    with work(shop.tenant) as session:
+        assert session.get(CouponRedemption, redemption.id).released_at is not None
 
 
 def _coupon(session, code, **over):
