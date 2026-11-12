@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { api, fieldErrors, type Schemas } from '../../api/client'
+import { api, downloadFile, fieldErrors, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { ConfirmDialog } from '../../components/Dialog'
@@ -15,7 +15,7 @@ import { formatDateTime } from '../../lib/format'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { EditChargeDialog, ReasonDialog, ReverseChargeDialog } from './ChargeDialogs'
 import { CHARGE_STATUS, INVOICE_STATUS, formatMoney, parseMoney, toMoneyInput, today } from './money'
-import { ClientName, Facts, FormDialog, ListTable, Money, StatusBadge, useCurrency, useLocationRef } from './shared'
+import { ClientName, Facts, FormDialog, ListTable, Money, PdfButton, StatusBadge, useCurrency, useLocationRef } from './shared'
 import { TakePaymentDialog } from './TakePaymentDialog'
 
 type Invoice = Schemas['InvoiceDetail']
@@ -338,6 +338,7 @@ export function InvoicePage() {
               <Link to={`/billing/invoices/${inv.id}/document`} className="inline-flex h-10 items-center rounded border border-border bg-surface px-4 text-sm font-medium hover:bg-surface-2">
                 Print view
               </Link>
+              <PdfButton download={() => downloadFile('/api/v1/invoices/{invoice_id}/pdf', { path: { invoice_id: inv.id } }, `invoice-${inv.number}.pdf`)} />
               {can('billing.invoice.update') && (
                 <Button variant="secondary" onClick={() => setDialog({ kind: 'edit' })}>
                   Edit

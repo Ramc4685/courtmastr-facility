@@ -6,6 +6,7 @@ the caller's own client ids first, and anything outside them is 404. `can_act_fo
 with build module 4; until then "own" means direct portal access.
 """
 
+from datetime import date, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
@@ -14,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import Principal
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.pagination import ListQuery, paginate
-from app.modules import clients
+from app.modules import clients, platform
 from app.modules.billing import documents, methods, service
 from app.modules.billing.models import Charge, Invoice, Payment, PaymentMethod
 
@@ -177,3 +178,24 @@ def remove_method(session: Session, principal: Principal, method_id: UUID) -> No
             code="payment-method-required",
         )
     methods.remove_method(session, method.id)
+
+
+def get_invoice_pdf(session: Session, principal: Principal, invoice_id: UUID) -> tuple[str, bytes]:
+    document = documents.invoice_document(session, _invoice(session, principal, invoice_id))
+    return f"invoice-{document['number']}.pdf", documents.invoice_pdf(document, session)
+
+
+def statement(
+    session: Session, principal: Principal, client_id: UUID | None, from_on: date | None, to_on: date | None
+) -> dict:
+    """The caller's own statement (BIL-11). Default period: the 30 days up to today at their home location."""
+    payer = _client(session, principal, client_id)
+    to_on = to_on or platform.service.location_today(session, clients.service.get(session, payer).home_location_id)
+    return documents.statement(session, payer, from_on or to_on - timedelta(days=30), to_on)
+
+
+def statement_pdf(
+    session: Session, principal: Principal, client_id: UUID | None, from_on: date | None, to_on: date | None
+) -> tuple[str, bytes]:
+    document = statement(session, principal, client_id, from_on, to_on)
+    return documents.statement_name(document), documents.statement_pdf(session, document)

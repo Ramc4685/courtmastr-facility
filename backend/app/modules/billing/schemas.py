@@ -720,6 +720,7 @@ class StatementOut(Out):
     from_on: date
     to_on: date
     date_basis: Literal["invoice_date", "due_date"]
+    time_zone: str  # the payer's home location: the period's days are its days
     currency: str
     invoices: list[InvoiceOut]
     payments: list[PaymentOut]
@@ -983,6 +984,94 @@ class PortalPayment(Out):
     credit_applied_minor: int
     payment: PortalPaymentDetail | None
     client_secret: str | None
+
+
+# --- statement batches (BIL-11) ----------------------------------------------------------------------------
+
+
+class StatementBatchCreate(In):
+    location_id: UUID
+    period_from_on: date
+    period_to_on: date
+    date_basis: Literal["invoice_date", "due_date"] = "invoice_date"
+    is_open_only: bool = False
+    client_ids: list[UUID] = Field(default_factory=list, max_length=1000)
+
+
+class StatementBatchResend(In):
+    statement_recipient_ids: list[UUID] = Field(default_factory=list, max_length=1000)
+
+
+class StatementRecipientOut(Out):
+    id: UUID
+    client_id: UUID
+    client_name: str
+    to_email: str | None
+    status: Literal["queued", "sent", "failed", "skipped_no_email"]
+    failure_message: str | None
+    sent_at: datetime | None
+
+
+class StatementBatchOut(Out):
+    id: UUID
+    location_id: UUID
+    period_from_on: date
+    period_to_on: date
+    date_basis: Literal["invoice_date", "due_date"]
+    is_open_only: bool
+    status: Literal["queued", "running", "completed", "failed"]
+    created_at: datetime
+    finished_at: datetime | None
+    recipient_count: int
+    queued_count: int
+    sent_count: int
+    failed_count: int
+    skipped_count: int
+    recipients: list[StatementRecipientOut]
+
+
+# --- portal statement (BIL-11): what the payer receives, no staff fields -----------------------------------
+
+
+class PortalStatementInvoice(Out):
+    id: UUID
+    number: int
+    invoice_on: date
+    due_on: date
+    status: Literal["open", "payment_pending", "partially_paid", "paid", "voided"]
+    total_minor: int
+    balance_minor: int
+
+
+class PortalStatementPayment(Out):
+    id: UUID
+    receipt_number: int
+    tender_kind: TenderKind
+    amount_minor: int
+    received_at: datetime
+
+
+class PortalStatementRefund(Out):
+    id: UUID
+    amount_minor: int
+    refund_on: date
+
+
+class PortalStatementOut(Out):
+    client_id: UUID
+    from_on: date
+    to_on: date
+    date_basis: Literal["invoice_date", "due_date"]
+    time_zone: str
+    currency: str
+    invoices: list[PortalStatementInvoice]
+    payments: list[PortalStatementPayment]
+    refunds: list[PortalStatementRefund]
+    invoiced_minor: int
+    paid_minor: int
+    refunded_minor: int
+    balance_due_minor: int
+    credit_minor: int
 
 
 # --- pre-defined items (BIL-14) ----------------------------------------------------------------------------

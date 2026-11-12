@@ -14,8 +14,9 @@ status, including everything not built: `docs/status/08-billing-payments.md`.
 | `methods.py` | the processor connection and stored payment methods |
 | `autopay.py` | collection runs, dunning, the autopay-error queue, billing notices, the daily pass |
 | `documents.py` | invoice and receipt documents and deliveries, the pay link, statements, billing summary, AR ageing, billing history, bulk invoicing |
+| `statements.py` | statement batches: one stored row per recipient with its status, run in the request or as a job, resend |
 | `webhooks.py` | provider webhook intake, the tenant actor that applies an event, the reconciliation sweep, `billing_daily` |
-| `portal.py` | the client surface (own invoices, payments, stored methods) |
+| `portal.py` | the client surface (own invoices, payments, stored methods, statement, invoice and statement PDFs) |
 | `router.py` | staff, portal, public pay-link and webhook routes |
 
 Ports and adapters: `app/ports/payment_provider.py`; `app/adapters/fake_payments.py` (scripted by token: see
@@ -93,6 +94,19 @@ Rules a caller must know:
 - Events emitted: `billing.charge.created|reversed|voided|adjusted`, `billing.invoice.issued|paid|voided|past_due`,
   `billing.payment.processing|succeeded|failed|refunded|voided|disputed|dispute_closed`, `billing.payment_method.expiring`.
 
+## PDF documents (`app/core/pdf.py`)
+
+Invoice, receipt and statement PDFs are rendered from the same JSON documents the API returns, by the shared
+engine that Phase 12 reports will reuse:
+
+    doc = pdf.Document(title, organization=..., subtitle=None, footer=None)
+    doc.heading(text); doc.text(text, size=10); doc.fields([(label, value)]); doc.table([pdf.Column(title, width_mm, "L|R|C")], rows, empty=...)
+    data: bytes = doc.output()   # plus pdf.money(minor, currency), pdf.local_date(value, zone), pdf.latin(text)
+
+Output is deterministic (uncompressed, fixed creation date), so tests assert text in the bytes. Every emailed
+invoice, receipt and statement also stores its PDF through `platform.files.store` (purpose `billing.invoice`,
+`billing.receipt`, `billing.statement`) and keeps the id on the delivery or recipient row.
+
 ## Pre-defined items (BIL-14, `catalog.py`)
 
 `catalog_item` holds a fee the tenant sells again and again, at one location: one-off (open-ended or with a
@@ -142,7 +156,8 @@ Assumptions:
 
 ## Jobs
 
-`webhooks.process_provider_event` (enqueued by the webhook route), `webhooks.billing_daily` (per tenant:
+`webhooks.process_provider_event` (enqueued by the webhook route), `statements.run_statement_batch` (a batch
+of more than 25 recipients), `webhooks.billing_daily` (per tenant:
 `autopay.daily` then `webhooks.reconcile`). **Nothing schedules `billing_daily` yet**: the kernel has no
 scheduler or per-tenant fan-out. Until it does, autopay runs when staff start a run (`POST /autopay-runs`).
 
@@ -188,9 +203,29 @@ scheduler or per-tenant fan-out. Until it does, autopay runs when staff start a 
   no memo, external reference, failure message, refund reason, void reason or collection state (M-13).
 - **Bulk invoicing runs in the request** (up to 1000 items) and is not stored; there is no
   `billing_bulk_action` table.
-- **Documents are data and plain-text email, not PDF.** `GET /invoices/{id}/document` and
-  `/payments/{id}/receipt` return JSON. A delivery row is `sent` when handed to the notification port.
-- **Day boundaries for statements and the AR "as at" cut are UTC**, not the location's zone.
+- **Documents are JSON, with a PDF beside them.** `GET /invoices/{id}/document` and `/payments/{id}/receipt`
+  return JSON; the PDF is a separate `/pdf` path (`/invoices/{id}/pdf`, `/payments/{id}/receipt/pdf`,
+  `/clients/{id}/statement/pdf`, portal `/portal/invoices/{id}/pdf`, `/portal/statement/pdf`) instead of the
+  contract's content negotiation by `Accept`, so a browser download link works. A delivery row is `sent` when
+  handed to the notification port.
+- **Emails link to the PDF instead of attaching it.** The notification port has no attachments; the email
+  carries a portal link (`/portal/invoices?invoice=`, `/portal/statement?from_on=&to_on=`) where the member
+  downloads it, and the stored file is kept for staff. Swap to `files.download_url` (Phase 8) for a direct
+  signed link once it lands.
+- **Statement periods and the AR "as at" cut use the location's day.** A statement's dates are read in the
+  client's home location's zone; ageing cuts each charge at the end of the "as at" day in its own location's
+  zone (UTC only when a location has no zone). The default "as at" is the earliest local today of the tenant.
+- **A payment's day can differ between statement and receipt.** A statement reads every date in the payer's
+  home location's zone, a receipt in the payment's location's zone; for a tenant whose locations span zones a
+  payment near midnight shows on a different day on each. Revisit if an owner asks.
+- **Erasure purges the sent PDFs.** The client's invoice, receipt and statement PDFs are blanked and marked
+  purged (`platform.files.purge`, empty bytes until the storage port can delete); an emailed delivery's
+  address becomes `erased@erased.invalid` because the row must keep one. Invoices and payments stay.
+- **A statement batch belongs to one location** (`location_id` NOT NULL, where the data model allows null), so
+  the location gate applies; its requester is null when an API key asked. Recipients are the payers of non-void
+  invoices at that location in the period. A recipient row keeps no message id: engagement returns none
+  yet, so a sent row cannot be traced to its message (add the column when it does). Resend is refused while
+  a batch is still sending.
 - **AR ageing ages a charge from its invoice's due date**, not instalment by instalment.
 - **Staff `Idempotency-Key`s are scoped to the caller** before they reach `take_payment` and `refund`.
 - Tender types, the two system revenue categories and (with `payments.provider = fake`) the provider account

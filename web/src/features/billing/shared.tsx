@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useId, type FormEvent, type ReactNode } from 'react'
+import { useId, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { api, fieldErrors } from '../../api/client'
 import { Badge, type Tone } from '../../components/Badge'
@@ -7,6 +7,7 @@ import { Button } from '../../components/Button'
 import { Dialog } from '../../components/Dialog'
 import { Input, Select } from '../../components/Field'
 import type { Column } from '../../components/Table'
+import { useToast } from '../../components/Toast'
 import { useMe } from '../../lib/auth'
 import { fullName } from '../../lib/format'
 import { formatMoney } from './money'
@@ -204,5 +205,27 @@ export function Facts({ items }: { items: [string, ReactNode][] }) {
         </div>
       ))}
     </dl>
+  )
+}
+
+/** Downloads a rendered PDF (invoice, receipt, statement) through the API client; failures show as a toast. */
+export function PdfButton({ download, label = 'Download PDF', size, ariaLabel }: { download: () => Promise<void>; label?: string; size?: 'sm'; ariaLabel?: string }) {
+  const toast = useToast()
+  const [busy, setBusy] = useState(false)
+  return (
+    <Button
+      variant="secondary"
+      size={size}
+      loading={busy}
+      aria-label={ariaLabel}
+      onClick={() => {
+        setBusy(true)
+        download()
+          .catch((e: Error) => toast('error', e.message))
+          .finally(() => setBusy(false))
+      }}
+    >
+      {label}
+    </Button>
   )
 }

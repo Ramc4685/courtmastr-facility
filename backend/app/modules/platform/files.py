@@ -8,9 +8,11 @@ adapter moves this to the presigned upload and scan job of 8.1 without changing 
 import hashlib
 import io
 import re
+from collections.abc import Iterable
 from uuid import UUID
 
 from PIL import Image, UnidentifiedImageError
+from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import NotFound, ValidationFailed
@@ -95,3 +97,14 @@ def read(session: Session, file_id: UUID) -> tuple[StoredFile, bytes]:
     if row is None or row.status != "ready":
         raise NotFound()
     return row, storage.get(session.info["tenant_id"], row.object_key)
+
+
+def purge(session: Session, file_ids: Iterable[UUID] | Select) -> int:
+    """Blank the bytes and mark the rows purged, so they can never be read again (erasure). Returns the count."""
+    # shortcut: overwrites with empty bytes because the storage port has no delete; use files.remove once it lands.
+    count = 0
+    for row in session.scalars(select(StoredFile).where(StoredFile.id.in_(file_ids), StoredFile.status != "purged")):
+        storage.put(session.info["tenant_id"], row.object_key, b"")
+        row.status, row.original_name, row.sha256, row.size_bytes = "purged", None, None, 0
+        count += 1
+    return count

@@ -2813,7 +2813,7 @@ export interface paths {
         };
         /**
          * Get Client Statement
-         * @description Default period: the 30 days up to today.
+         * @description Default period: the 30 days up to today at the client's home location, whose days the dates are.
          */
         get: operations["getClientStatement"];
         put?: never;
@@ -2835,6 +2835,23 @@ export interface paths {
         put?: never;
         /** Send Client Statement */
         post: operations["sendClientStatement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/statement/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Client Statement Pdf */
+        get: operations["getClientStatementPdf"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4404,7 +4421,7 @@ export interface paths {
         };
         /**
          * Get Invoice Document
-         * @description The printable content of the invoice as data (PDF rendering is not built).
+         * @description The printable content of the invoice as data; `/pdf` renders the same content.
          */
         get: operations["getInvoiceDocument"];
         put?: never;
@@ -4467,6 +4484,23 @@ export interface paths {
         put?: never;
         /** Generate Payment Schedule */
         post: operations["generatePaymentSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/{invoice_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Invoice Pdf */
+        get: operations["getInvoicePdf"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6108,6 +6142,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/payments/{payment_id}/receipt/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Receipt Pdf */
+        get: operations["getReceiptPdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payments/{payment_id}/refunds": {
         parameters: {
             query?: never;
@@ -6834,6 +6885,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/invoices/{invoice_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Invoice Pdf */
+        get: operations["getPortalInvoicePdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/membership-contracts": {
         parameters: {
             query?: never;
@@ -7283,6 +7351,43 @@ export interface paths {
          * @description Sessions with whether the acting client may book or queue now, and why not.
          */
         get: operations["listPortalSessionListings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/statement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Portal Statement
+         * @description The caller's own statement; default period the 30 days up to today at their home location.
+         */
+        get: operations["getPortalStatement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/statement/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Statement Pdf */
+        get: operations["getPortalStatementPdf"];
         put?: never;
         post?: never;
         delete?: never;
@@ -10870,6 +10975,88 @@ export interface paths {
         head?: never;
         /** Adjust Standing */
         patch: operations["adjustStanding"];
+        trace?: never;
+    };
+    "/api/v1/statement-batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Statement Batches
+         * @description Newest first, recipients left out (read one batch for them). Filters: location_id, status.
+         */
+        get: operations["listStatementBatches"];
+        put?: never;
+        /**
+         * Create Statement Batch
+         * @description Statements for every payer with an invoice at the location in the period (`is_open_only`: still owing;
+         *     `client_ids` narrows). Up to 25 recipients run in the request, more as a job: follow `status`.
+         */
+        post: operations["createStatementBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/statement-batches/{statement_batch_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Statement Batch */
+        get: operations["getStatementBatch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/statement-batches/{statement_batch_id}/recipients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Statement Recipients
+         * @description Per-recipient outcome: sent, skipped_no_email, failed (with the reason) or still queued.
+         */
+        get: operations["listStatementRecipients"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/statement-batches/{statement_batch_id}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend Statement Batch
+         * @description Send again to the listed recipients, or to every failed and skipped one when none are listed.
+         */
+        post: operations["resendStatementBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/stock-movements": {
@@ -22082,6 +22269,12 @@ export interface components {
             data: components["schemas"]["StaffUserOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[StatementBatchOut] */
+        Page_StatementBatchOut_: {
+            /** Data */
+            data: components["schemas"]["StatementBatchOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[StockMovementOut] */
         Page_StockMovementOut_: {
             /** Data */
@@ -24364,6 +24557,115 @@ export interface components {
             signer_role: "client" | "guardian";
             /** Typed Signature */
             typed_signature?: string | null;
+        };
+        /** PortalStatementInvoice */
+        PortalStatementInvoice: {
+            /** Balance Minor */
+            balance_minor: number;
+            /**
+             * Due On
+             * Format: date
+             */
+            due_on: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Invoice On
+             * Format: date
+             */
+            invoice_on: string;
+            /** Number */
+            number: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "payment_pending" | "partially_paid" | "paid" | "voided";
+            /** Total Minor */
+            total_minor: number;
+        };
+        /** PortalStatementOut */
+        PortalStatementOut: {
+            /** Balance Due Minor */
+            balance_due_minor: number;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Credit Minor */
+            credit_minor: number;
+            /** Currency */
+            currency: string;
+            /**
+             * Date Basis
+             * @enum {string}
+             */
+            date_basis: "invoice_date" | "due_date";
+            /**
+             * From On
+             * Format: date
+             */
+            from_on: string;
+            /** Invoiced Minor */
+            invoiced_minor: number;
+            /** Invoices */
+            invoices: components["schemas"]["PortalStatementInvoice"][];
+            /** Paid Minor */
+            paid_minor: number;
+            /** Payments */
+            payments: components["schemas"]["PortalStatementPayment"][];
+            /** Refunded Minor */
+            refunded_minor: number;
+            /** Refunds */
+            refunds: components["schemas"]["PortalStatementRefund"][];
+            /** Time Zone */
+            time_zone: string;
+            /**
+             * To On
+             * Format: date
+             */
+            to_on: string;
+        };
+        /** PortalStatementPayment */
+        PortalStatementPayment: {
+            /** Amount Minor */
+            amount_minor: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Receipt Number */
+            receipt_number: number;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /**
+             * Tender Kind
+             * @enum {string}
+             */
+            tender_kind: "card" | "bank_debit" | "cash" | "cheque" | "bank_transfer" | "gift_card" | "external" | "other";
+        };
+        /** PortalStatementRefund */
+        PortalStatementRefund: {
+            /** Amount Minor */
+            amount_minor: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Refund On
+             * Format: date
+             */
+            refund_on: string;
         };
         /** PortalTermsOut */
         PortalTermsOut: {
@@ -29527,6 +29829,96 @@ export interface components {
              */
             metric: "GP" | "W" | "L" | "T" | "GF" | "GA" | "PTS" | "GD" | "WP" | "OTL" | "FF" | "BP" | "SPT" | "H2H";
         };
+        /** StatementBatchCreate */
+        StatementBatchCreate: {
+            /** Client Ids */
+            client_ids?: string[];
+            /**
+             * Date Basis
+             * @default invoice_date
+             * @enum {string}
+             */
+            date_basis: "invoice_date" | "due_date";
+            /**
+             * Is Open Only
+             * @default false
+             */
+            is_open_only: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Period From On
+             * Format: date
+             */
+            period_from_on: string;
+            /**
+             * Period To On
+             * Format: date
+             */
+            period_to_on: string;
+        };
+        /** StatementBatchOut */
+        StatementBatchOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Date Basis
+             * @enum {string}
+             */
+            date_basis: "invoice_date" | "due_date";
+            /** Failed Count */
+            failed_count: number;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Open Only */
+            is_open_only: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Period From On
+             * Format: date
+             */
+            period_from_on: string;
+            /**
+             * Period To On
+             * Format: date
+             */
+            period_to_on: string;
+            /** Queued Count */
+            queued_count: number;
+            /** Recipient Count */
+            recipient_count: number;
+            /** Recipients */
+            recipients: components["schemas"]["StatementRecipientOut"][];
+            /** Sent Count */
+            sent_count: number;
+            /** Skipped Count */
+            skipped_count: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "failed";
+        };
+        /** StatementBatchResend */
+        StatementBatchResend: {
+            /** Statement Recipient Ids */
+            statement_recipient_ids?: string[];
+        };
         /** StatementOut */
         StatementOut: {
             /** Balance Due Minor */
@@ -29562,11 +29954,39 @@ export interface components {
             refunded_minor: number;
             /** Refunds */
             refunds: components["schemas"]["RefundOut"][];
+            /** Time Zone */
+            time_zone: string;
             /**
              * To On
              * Format: date
              */
             to_on: string;
+        };
+        /** StatementRecipientOut */
+        StatementRecipientOut: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Name */
+            client_name: string;
+            /** Failure Message */
+            failure_message: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Sent At */
+            sent_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "sent" | "failed" | "skipped_no_email";
+            /** To Email */
+            to_email: string | null;
         };
         /** StatementSend */
         StatementSend: {
@@ -38278,6 +38698,44 @@ export interface operations {
             };
         };
     };
+    getClientStatementPdf: {
+        parameters: {
+            query?: {
+                from_on?: string | null;
+                to_on?: string | null;
+                date_basis?: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF, as an attachment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getClientTimeline: {
         parameters: {
             query?: {
@@ -42662,6 +43120,40 @@ export interface operations {
             };
         };
     };
+    getInvoicePdf: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF, as an attachment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     reassignInvoicePayer: {
         parameters: {
             query?: never;
@@ -46923,6 +47415,40 @@ export interface operations {
             };
         };
     };
+    getReceiptPdf: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF, as an attachment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     createRefund: {
         parameters: {
             query?: never;
@@ -48576,6 +49102,40 @@ export interface operations {
             };
         };
     };
+    getPortalInvoicePdf: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF, as an attachment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPortalMembershipContracts: {
         parameters: {
             query?: {
@@ -49639,6 +50199,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortalSessionListing"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalStatement: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+                from_on?: string | null;
+                to_on?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalStatementOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalStatementPdf: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+                from_on?: string | null;
+                to_on?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF, as an attachment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
                 };
             };
             /** @description Validation Error */
@@ -59044,6 +59676,191 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LeagueStandingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listStatementBatches: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_StatementBatchOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createStatementBatch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatementBatchCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementBatchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getStatementBatch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                statement_batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementBatchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listStatementRecipients: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                statement_batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementRecipientOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resendStatementBatch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                statement_batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatementBatchResend"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementBatchOut"];
                 };
             };
             /** @description Validation Error */

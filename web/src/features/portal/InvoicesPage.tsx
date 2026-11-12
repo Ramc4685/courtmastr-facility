@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { api, type Schemas } from '../../api/client'
+import { api, downloadFile, type Schemas } from '../../api/client'
 import { Button } from '../../components/Button'
 import { Dialog } from '../../components/Dialog'
 import { Checkbox, Select } from '../../components/Field'
@@ -9,7 +9,7 @@ import { Table, useKeysetQuery } from '../../components/Table'
 import { Tabs } from '../../components/Tabs'
 import { formatDate, formatDateTime } from '../../lib/format'
 import { INVOICE_STATUS, PAYMENT_STATUS, TENDER_LABEL } from '../billing/money'
-import { FormError, StatusBadge } from '../billing/shared'
+import { FormError, PdfButton, StatusBadge } from '../billing/shared'
 import { PortalPage } from './PortalApp'
 import { NewCardField, PaymentOutcome, useAttemptKey, usePortal } from './shared'
 
@@ -31,6 +31,7 @@ function InvoiceDialog({ invoice, onClose, onPay }: { invoice: Invoice; onClose:
           <Button variant="secondary" onClick={onClose}>
             Close
           </Button>
+          <PdfButton download={() => downloadFile('/api/v1/portal/invoices/{invoice_id}/pdf', { path: { invoice_id: invoice.id } }, `invoice-${invoice.number}.pdf`)} />
           {payable(invoice) && <Button onClick={onPay}>Pay {money(invoice.balance_minor)}</Button>}
         </>
       }

@@ -8,7 +8,7 @@ strips its free text and stored payment methods, and is blocked while money is s
 
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import case, delete, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.core import clock
@@ -24,8 +24,10 @@ from app.modules.billing.models import (
     PaymentMethod,
     ProviderCustomer,
     Refund,
+    StatementRecipient,
 )
 
+ERASED_EMAIL = "erased@erased.invalid"
 _OPEN_INVOICE = ("open", "payment_pending", "partially_paid")
 _OPEN_PAYMENT = ("initiated", "requires_action", "processing", "unknown")
 
@@ -58,6 +60,11 @@ def _repoint(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
         (CatalogItemSale, CatalogItemSale.client_id),
     ):
         session.execute(update(model).where(column == loser_id).values({column.key: survivor_id}))
+    # One row per client per batch: where both were in a batch the survivor's row stands for the merged client.
+    sr = StatementRecipient
+    both = select(sr.statement_batch_id).where(sr.client_id == survivor_id)
+    session.execute(delete(sr).where(sr.client_id == loser_id, sr.statement_batch_id.in_(both)))
+    session.execute(update(sr).where(sr.client_id == loser_id).values(client_id=survivor_id))
     # A stored method belongs to the processor's customer. Where the survivor already has one at that
     # processor the merged record's methods cannot follow: they are detached. Otherwise customer and methods move.
     m, customer = PaymentMethod, ProviderCustomer
@@ -123,16 +130,31 @@ def _erase(session: Session, client_id: UUID) -> dict:
     session.execute(update(Payment).where(Payment.client_id == client_id).values(memo=None, external_reference=None))
     session.execute(update(Refund).where(Refund.client_id == client_id).values(comments=None))
     d = BillingDocumentDelivery
-    session.execute(update(d).where(d.client_id == client_id).values(to_email=None))
+    mine = or_(
+        d.client_id == client_id,
+        d.invoice_id.in_(select(Invoice.id).where(Invoice.bill_to_client_id == client_id)),
+        d.payment_id.in_(select(Payment.id).where(Payment.client_id == client_id)),
+    )
+    # An emailed delivery must keep an address (check constraint), so the erased one is replaced, not nulled.
+    session.execute(update(d).where(mine).values(to_email=case((d.channel == "email", ERASED_EMAIL), else_=None)))
+    sr = StatementRecipient
+    session.execute(update(sr).where(sr.client_id == client_id).values(to_email=None, failure_message=None))
+    # The PDFs sent to the client carry their name and address: the bytes are blanked and the file purged
+    # (the invoices and payments themselves are the retained financial record).
+    file_ids = select(d.stored_file_id).where(mine).union(select(sr.stored_file_id).where(sr.client_id == client_id))
+    purged = platform.files.purge(session, file_ids)
     # A sold item has no free text; it stops renewing so nothing new is billed to the erased client.
     sale = CatalogItemSale
     session.execute(update(sale).where(sale.client_id == client_id).values(is_auto_renew=False))
-    return {"retained_invoices": kept, "removed_payment_methods": removed, "erased_at": clock.now().isoformat()}
+    return {
+        "retained_invoices": kept, "removed_payment_methods": removed, "purged_documents": purged,
+        "erased_at": clock.now().isoformat(),
+    }  # fmt: skip
 
 
 _TABLES = (
     "invoice", "charge", "payment", "refund", "ledger_entry", "coupon_redemption", "provider_customer",
-    "payment_method", "billing_notice", "billing_document_delivery", "catalog_item_sale",
+    "payment_method", "billing_notice", "billing_document_delivery", "statement_recipient", "catalog_item_sale",
 )  # fmt: skip
 clients.merge.register_merge_handler("billing", tables=_TABLES, repoint=_repoint)
 platform.privacy.register_subject_handler(

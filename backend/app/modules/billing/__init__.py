@@ -8,6 +8,7 @@ package's models or schemas from another context.
 
 from app.modules.billing import models, permissions, service  # noqa: I001  (service before what builds on it)
 from app.modules.billing import catalogue, methods, autopay, checkout, documents, webhooks
+from app.modules.billing import statements  # noqa: E402, F401  (after documents, which it builds on)
 
 __all__ = ["autopay", "catalogue", "checkout", "documents", "methods", "models", "permissions", "service", "webhooks"]
 from app.modules.billing import (
