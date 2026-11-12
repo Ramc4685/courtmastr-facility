@@ -40,7 +40,8 @@ Status per feature: `docs/status/15-reporting.md`.
 - **Row cap.** One snapshot holds at most 50,000 rows (summary plus detail). Queries fetch at most one row past
   the cap in SQL and the run fails with 422 `report-too-large`; narrow the dates or locations.
 - **Retention.** Runs and exports expire after 7 days. Expiry is computed on read (the run shows `expired`,
-  rows and downloads are 404); stored bytes are not purged yet (waits for `platform.files.remove`, Phase 8 K1).
+  rows and downloads are 404). The hourly `jobs.purge_expired_results` then removes the snapshot and CSV bytes
+  through `platform.files.remove` and clears the reference (Phase 8 T2; not audited, like the K2 purges).
 - **Chunked exports.** `jobs.run_export` is a `core.jobs.chunked_actor`: each message renders the next 1,000 rows
   (`service.EXPORT_CHUNK_ROWS`) and re-sends itself. The cursor and counts sit in `export_job.progress`, the CSV
   so far in `export_job.partial` (cleared when the file is stored), so a crash re-renders one chunk at most. While

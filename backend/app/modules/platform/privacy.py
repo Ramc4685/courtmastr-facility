@@ -19,10 +19,41 @@ from app.core.auth import Principal, authorize
 from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
 from app.modules.platform.events import DataSubjectRequestCompleted
-from app.modules.platform.models import DataSubjectRequest
+from app.modules.platform.models import DataSubjectRequest, Tenant
 
 EXPORT_WINDOW = timedelta(days=7)
+RESPONSE_DEADLINE = timedelta(days=30)  # GDPR art. 12(3): answer within one month (30 days, the strict reading)
 _ACTION = {"export": "platform.data_subject_request.export", "erasure": "platform.data_subject_request.erase"}
+
+
+# --- GDPR mode (PLT-16) ---------------------------------------------------------------------------------------
+# One tenant switch for the stricter defaults. What it changes, and where:
+#   - marketing consent must be express: engagement refuses implied opt-ins and ignores old ones at send time
+#     (engagement.service `_apply`, `is_subscribed`), the one consent system; notifications.send is transactional;
+#   - ended sessions and used sign-in links are purged sooner (retention.purge, config `retention.gdpr_*`);
+#   - data-subject requests carry their response deadline and an overdue flag (`view`; computed in every mode,
+#     since a request has the same deadline whether or not the switch is on).
+
+
+def is_gdpr_mode(session: Session) -> bool:
+    """Internal: is the session's tenant in GDPR mode?"""
+    return bool(session.scalar(select(Tenant.is_gdpr_mode).where(Tenant.id == session.info["tenant_id"])))
+
+
+def get_privacy_settings(session: Session, principal: Principal) -> dict:
+    authorize(principal, "platform.security.manage")
+    return {"is_gdpr_mode": is_gdpr_mode(session)}
+
+
+def put_privacy_settings(session: Session, principal: Principal, data: dict) -> dict:
+    """Turn GDPR mode on or off (a privacy policy, so the security-policy key with its step-up)."""
+    authorize(principal, "platform.security.manage")
+    tenant = session.get(Tenant, session.info["tenant_id"])
+    before = tenant.is_gdpr_mode
+    tenant.is_gdpr_mode = data["is_gdpr_mode"]
+    session.flush()
+    audit.record(session, "platform.security.manage", tenant, changes={"is_gdpr_mode": [before, tenant.is_gdpr_mode]})
+    return {"is_gdpr_mode": tenant.is_gdpr_mode}
 
 
 @dataclass(frozen=True)
@@ -51,7 +82,10 @@ def _client(session: Session, client_id: UUID):
 
 
 def view(row: DataSubjectRequest) -> dict:
-    return {c.key: getattr(row, c.key) for c in DataSubjectRequest.__table__.columns}
+    out = {c.key: getattr(row, c.key) for c in DataSubjectRequest.__table__.columns}
+    out["due_at"] = row.created_at + RESPONSE_DEADLINE
+    out["is_overdue"] = row.status in ("requested", "blocked") and clock.now() > out["due_at"]
+    return out
 
 
 def create_request(session: Session, principal: Principal, data: dict) -> DataSubjectRequest:
@@ -87,12 +121,14 @@ def create_request(session: Session, principal: Principal, data: dict) -> DataSu
 
 def list_requests(session: Session, principal: Principal, query: ListQuery) -> dict:
     authorize(principal, "platform.data_subject_request.read")
-    return paginate(
+    page = paginate(
         session, select(DataSubjectRequest), query, id_column=DataSubjectRequest.id,
         sort_fields={"created_at": DataSubjectRequest.created_at}, default_sort="-created_at",
         filter_fields={"client_id": DataSubjectRequest.client_id, "kind": DataSubjectRequest.kind,
                        "status": DataSubjectRequest.status},
     )  # fmt: skip
+    page["data"] = [view(row) for row in page["data"]]
+    return page
 
 
 def get_request(session: Session, principal: Principal, request_id: UUID) -> dict:

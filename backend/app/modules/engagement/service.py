@@ -52,6 +52,7 @@ TOPICS = {
     "push": ("push_announcements", "session_reminders", "league_alerts"),
 }
 MARKETING = frozenset({"email_campaigns", "sms_marketing", "push_announcements"})
+IMPLIED = frozenset({"implied_purchase", "implied_inquiry"})  # not consent for marketing in GDPR mode (PLT-16)
 
 
 def _addresses(session: Session, client) -> dict[str, list[str | None]]:
@@ -84,12 +85,16 @@ def preferences(session: Session, client) -> list[dict]:
 
 def _apply(session: Session, client, changes: list[dict], *, source: str, actor_type: str, actor_id, basis: str, note):
     current = _addresses(session, client)
+    gdpr = privacy.is_gdpr_mode(session)
     for index, change in enumerate(changes):
         channel, topic = change["channel"], change["topic"]
         address = change.get("address")
         address = address.lower() if address and channel == "email" else address
         if topic not in TOPICS[channel]:
             raise ValidationFailed("This topic is not sent on this channel.", pointer=f"/changes/{index}/topic")
+        if gdpr and change["is_subscribed"] and topic in MARKETING and basis in IMPLIED:
+            raise ValidationFailed("GDPR mode needs express consent for marketing.", pointer="/basis",
+                                   code="express-consent-required")  # fmt: skip
         if address not in [a.lower() if a and channel == "email" else a for a in current[channel]]:
             raise ValidationFailed("Not one of the client's addresses.", pointer=f"/changes/{index}/address")
         if (
@@ -185,9 +190,12 @@ def is_subscribed(session: Session, client_id: UUID, channel: str, topic: str, a
             else CommunicationPreference.address == address,
         )  # fmt: skip
     )
-    if row is not None:
-        return row.is_subscribed
-    return topic not in MARKETING
+    if row is None:
+        return topic not in MARKETING
+    if row.is_subscribed and topic in MARKETING and privacy.is_gdpr_mode(session):
+        # An implied opt-in recorded before GDPR mode was switched on does not count (PLT-16).
+        return session.scalar(select(ConsentEvent.basis).where(ConsentEvent.id == row.consent_event_id)) not in IMPLIED
+    return row.is_subscribed
 
 
 # --- merge and erasure handlers ------------------------------------------------------------------------------
@@ -734,13 +742,20 @@ def _send_key(row: Campaign) -> str:
     return "engagement.push.send" if row.channel == "push" else "engagement.campaign.send"
 
 
+def _authorize_send(session: Session, principal: Principal, row: Campaign) -> None:
+    """PLT-06, after the channel's send key: an audience of every client (no filter) also needs send_all."""
+    audience = _audience_of(session, row)
+    if any(s["kind"] == "all_clients" for s in audience["sources"]) and not audience.get("filters"):
+        authorize(principal, "engagement.campaign.send_all", location_id=row.location_id)
+
+
 def send_campaign(session: Session, principal: Principal, campaign_id: UUID) -> Campaign:
     """Send now. Consent, suppression and verification are applied per recipient by _deliver."""
     row = _campaign(session, principal, campaign_id, "engagement.campaign.read", lock=True)
     authorize(principal, _send_key(row), location_id=row.location_id)
     if row.status not in ("draft", "scheduled"):
         raise Conflict("This campaign has already gone out.", code="campaign-not-editable")
-    _audience_of(session, row)
+    _authorize_send(session, principal, row)
     _fan_out(session, row)
     audit.record(session, _send_key(row), row, location_id=row.location_id, changes=audit.diff(row))
     session.flush()
@@ -754,7 +769,7 @@ def schedule_campaign(session: Session, principal: Principal, campaign_id: UUID,
         raise Conflict("This campaign has already gone out.", code="campaign-not-editable")
     if data["scheduled_at"] <= _now():
         raise ValidationFailed("Pick a time in the future.", pointer="/scheduled_at")
-    _audience_of(session, row)
+    _authorize_send(session, principal, row)
     row.status, row.scheduled_at = "scheduled", data["scheduled_at"]
     audit.record(session, _send_key(row), row, location_id=row.location_id, changes=audit.diff(row))
     session.flush()

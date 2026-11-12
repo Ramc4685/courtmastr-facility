@@ -46,9 +46,9 @@ def _matrix_rows(context: str = "platform") -> dict[str, dict]:
 @pytest.mark.parametrize(
     ("context", "count"),
     [
-        ("platform", 28), ("clients", 16), ("billing", 39), ("pos", 15), ("documents", 6), ("memberships", 13),
+        ("platform", 30), ("clients", 16), ("billing", 39), ("pos", 15), ("documents", 6), ("memberships", 13),
         ("packages", 9), ("resources", 5), ("scheduling", 20), ("rentals", 11), ("programs", 12),
-        ("access", 12), ("integrations", 6), ("engagement", 13), ("leagues", 16), ("staff", 10), ("assessments", 5),
+        ("access", 12), ("integrations", 6), ("engagement", 14), ("leagues", 16), ("staff", 10), ("assessments", 5),
         ("reporting", 12),
     ],
 )  # fmt: skip
@@ -80,7 +80,7 @@ def test_system_role_grants_resolve_from_code():
     platform_grants = lambda role: {k for k in system_role_grants(role) if k.startswith("platform.")}  # noqa: E731
     assert platform_grants("manager") == {
         "platform.location.update", "platform.staff_user.read", "platform.role.read", "platform.audit.read",
-        "platform.import_job.read",
+        "platform.import_job.read", "platform.support_request.create",
     }  # fmt: skip
     for role in ("front_desk", "coach", "league_admin", "scorekeeper", "view_only"):
         assert platform_grants(role) == set()
@@ -210,7 +210,7 @@ def test_custom_role_lifecycle(client, tenant, people):
         "Site Lead",
     )
     manager_grants = client.get(f"{API}/roles/{manager_role}", headers=owner).json()["permissions"]
-    assert len([g for g in manager_grants if g["permission_key"].startswith("platform.")]) == 5
+    assert len([g for g in manager_grants if g["permission_key"].startswith("platform.")]) == 6
 
     # System roles are locked; a role in use cannot be deleted.
     for response in (
@@ -232,7 +232,7 @@ def test_custom_role_lifecycle(client, tenant, people):
     # The front-desk user now holds the cloned role's grants, resolved on the next request.
     assert client.get(f"{API}/staff-users", headers=people["front_desk"]).status_code == 200
     catalogue = client.get(f"{API}/permissions?context=platform", headers=owner).json()
-    assert catalogue["page"]["total"] == 28 and catalogue["data"][0]["scope"] in ("tenant", "location")
+    assert catalogue["page"]["total"] == 30 and catalogue["data"][0]["scope"] in ("tenant", "location")
 
 
 def test_overrides_are_sparse_deltas(client, tenant, people):
