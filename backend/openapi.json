@@ -28121,6 +28121,54 @@
         "title": "OidcCallbackRequest",
         "type": "object"
       },
+      "OidcLinkConfirmOut": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "display_name"
+        ],
+        "title": "OidcLinkConfirmOut",
+        "type": "object"
+      },
+      "OidcLinkConfirmRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "token": {
+            "maxLength": 200,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "OidcLinkConfirmRequest",
+        "type": "object"
+      },
+      "OidcLinkPendingOut": {
+        "properties": {
+          "display_name": {
+            "description": "The provider whose sign-in waits for the emailed confirmation.",
+            "title": "Display Name",
+            "type": "string"
+          },
+          "link_pending": {
+            "const": true,
+            "default": true,
+            "title": "Link Pending",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "display_name"
+        ],
+        "title": "OidcLinkPendingOut",
+        "type": "object"
+      },
       "OnboardingLink": {
         "properties": {
           "url": {
@@ -64252,7 +64300,7 @@
     },
     "/api/v1/auth/oidc/callback": {
       "post": {
-        "description": "Finish the round trip with the provider's code and state: a session, 202 with an MFA challenge, or (for a\nstep-up round trip) the rotated session. Errors: oidc-failed, oidc-sign-in-refused, ip-not-allowed,\noidc-reauthentication-stale, step-up-needs-code, csrf-failed, rate-limited.",
+        "description": "Finish the round trip with the provider's code and state: a session, 202 with an MFA challenge, or (for a\nstep-up round trip) the rotated session. A provider account not linked yet answers 202 link_pending,\nwhether or not anyone matched; the matched user gets an email. Errors: oidc-failed, oidc-sign-in-refused,\nip-not-allowed, oidc-reauthentication-stale, step-up-needs-code, csrf-failed, rate-limited.",
         "operationId": "completeOidcSignIn",
         "requestBody": {
           "content": {
@@ -64275,6 +64323,9 @@
                     },
                     {
                       "$ref": "#/components/schemas/MfaChallengeOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/OidcLinkPendingOut"
                     }
                   ],
                   "title": "Response Completeoidcsignin"
@@ -64291,7 +64342,7 @@
                 }
               }
             },
-            "description": "Accepted"
+            "description": "An MFA challenge, or (link_pending) a first sign-in waiting for the emailed confirmation"
           },
           "422": {
             "content": {
@@ -64305,6 +64356,48 @@
           }
         },
         "summary": "Complete Oidc Sign In",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/auth/oidc/link": {
+      "post": {
+        "description": "Redeem the emailed link that connects a provider account to the user's own (a first sign-in), in the\nbrowser that did that sign-in. No session starts. Errors: token-invalid, oidc-link-other-browser, csrf-failed.",
+        "operationId": "confirmOidcLink",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OidcLinkConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OidcLinkConfirmOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Oidc Link",
         "tags": [
           "platform"
         ]
@@ -84319,7 +84412,7 @@
         ]
       },
       "post": {
-        "description": "Add a provider; its discovery document is fetched to check the issuer. Errors: oidc-issuer-invalid,\noidc-discovery-failed, url-not-allowed, already-exists, step-up-required.",
+        "description": "Add a provider; its discovery document is fetched to check the issuer. Errors: oidc-issuer-invalid,\noidc-discovery-failed, url-not-allowed, already-exists, step-up-required. Owner only.",
         "operationId": "createIdentityProvider",
         "parameters": [
           {

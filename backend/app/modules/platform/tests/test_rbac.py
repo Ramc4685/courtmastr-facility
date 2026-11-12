@@ -46,7 +46,7 @@ def _matrix_rows(context: str = "platform") -> dict[str, dict]:
 @pytest.mark.parametrize(
     ("context", "count"),
     [
-        ("platform", 28), ("clients", 16), ("billing", 39), ("pos", 15), ("documents", 6), ("memberships", 13),
+        ("platform", 29), ("clients", 16), ("billing", 39), ("pos", 15), ("documents", 6), ("memberships", 13),
         ("packages", 9), ("resources", 5), ("scheduling", 20), ("rentals", 11), ("programs", 12),
         ("access", 12), ("integrations", 6), ("engagement", 13), ("leagues", 16), ("staff", 10), ("assessments", 5),
         ("reporting", 12),
@@ -232,7 +232,7 @@ def test_custom_role_lifecycle(client, tenant, people):
     # The front-desk user now holds the cloned role's grants, resolved on the next request.
     assert client.get(f"{API}/staff-users", headers=people["front_desk"]).status_code == 200
     catalogue = client.get(f"{API}/permissions?context=platform", headers=owner).json()
-    assert catalogue["page"]["total"] == 28 and catalogue["data"][0]["scope"] in ("tenant", "location")
+    assert catalogue["page"]["total"] == 29 and catalogue["data"][0]["scope"] in ("tenant", "location")
 
 
 def test_overrides_are_sparse_deltas(client, tenant, people):

@@ -80,6 +80,7 @@ export function OidcCallbackPage() {
   const { sessionStarted } = useAuth()
   const [error, setError] = useState<unknown>(null)
   const [challenge, setChallenge] = useState<Challenge | null>(null)
+  const [pending, setPending] = useState<string | null>(null)
   const sent = useRef(false)
 
   useEffect(() => {
@@ -94,14 +95,24 @@ export function OidcCallbackPage() {
       navigate(recall(), { replace: true })
     }
     api.post('/api/v1/auth/oidc/callback', { body: { state, code } }).then(
-      (out) => (isChallenge(out) ? setChallenge(out) : finish(out.csrf_token)),
+      (out) => ('link_pending' in out ? setPending(out.display_name) : isChallenge(out) ? setChallenge(out) : finish(out.csrf_token)),
       setError,
     )
   }, [params, navigate, sessionStarted])
 
   return (
-    <AuthLayout title="Signing you in">
-      {challenge ? (
+    <AuthLayout title={pending ? 'Check your email' : 'Signing you in'}>
+      {pending ? (
+        <div role="status" className="space-y-3">
+          <p>
+            To finish connecting {pending} to your account, open the link we emailed to you in this browser. If no email arrives, sign in another way and
+            ask your administrator to check that your account uses the same email address.
+          </p>
+          <Link to="/sign-in" className="font-medium text-primary underline-offset-2 hover:underline">
+            Back to sign in
+          </Link>
+        </div>
+      ) : challenge ? (
         <MfaStep
           challenge={challenge}
           onSignedIn={async (csrf) => {
@@ -118,6 +129,62 @@ export function OidcCallbackPage() {
         </div>
       ) : (
         <p role="status">One moment…</p>
+      )}
+    </AuthLayout>
+  )
+}
+
+/** The emailed link that connects a provider account to the user's own, after a first "Continue with". The token
+ * rides in the fragment, is removed from the address bar, and is spent only by a deliberate click (mail scanners
+ * prefetch links). It works only in the browser that signed in at the provider. */
+export function OidcLinkPage() {
+  const [token] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get('token') ?? '')
+  useEffect(() => {
+    if (window.location.hash) window.history.replaceState(window.history.state, '', window.location.pathname)
+  }, [])
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<unknown>(null)
+  const [connected, setConnected] = useState<string | null>(null)
+  const confirm = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      setConnected((await api.post('/api/v1/auth/oidc/link', { body: { token } })).display_name)
+    } catch (err) {
+      setError(err)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const back = (
+    <Link to="/sign-in" className="font-medium text-primary underline-offset-2 hover:underline">
+      {connected ? `Sign in with ${connected}` : 'Back to sign in'}
+    </Link>
+  )
+  return (
+    <AuthLayout title="Connect your sign-in provider">
+      {connected ? (
+        <div role="status" className="space-y-3">
+          <p>{connected} is connected to your account. Use it on the sign-in page from now on.</p>
+          {back}
+        </div>
+      ) : !token || (error instanceof ApiError && error.code === 'token-invalid') ? (
+        <div role="alert" className="space-y-3">
+          <p>This link is not valid any more. Links work once and expire after 15 minutes. Sign in with your provider again to get a new one.</p>
+          {back}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {error instanceof Error && (
+            <p role="alert" className="rounded border border-danger/40 bg-danger/10 px-3 py-2 text-danger">
+              {error.message}
+            </p>
+          )}
+          <p>Connect the provider account you just signed in with to your account here. Only continue if you started this yourself.</p>
+          <Button className="w-full" loading={busy} onClick={() => void confirm()}>
+            Connect my account
+          </Button>
+        </div>
       )}
     </AuthLayout>
   )

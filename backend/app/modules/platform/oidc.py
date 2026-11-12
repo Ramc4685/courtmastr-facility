@@ -7,12 +7,14 @@ callback completes once, in the browser that started it, within ten minutes.
 
 The ID token is checked against the issuer's JWKS: signature (RS256, PS256 or ES256 only), `iss`, `aud` (and
 `azp` when there are several audiences), `exp`, `iat` and `nonce`. A sign-in maps to an existing staff identity
-of this tenant: by issuer and subject once linked, else by a verified email, which then stores the link. Staff
-are never created here. Every sign-in goes through auth._second_factor and auth._start_session.
+of this tenant by issuer and subject. An unlinked account signs nobody in: when its verified email names an
+eligible staff identity, that person is emailed a one-time link (purpose `oidc_link`), and redeeming it in the
+same browser stores the link. Staff are never created here. Every sign-in goes through auth._second_factor and
+auth._start_session. Providers are managed only with the Owner-only key `platform.identity_provider.manage`.
 
 Outbound requests (discovery, JWKS, token endpoint) go to https URLs whose every address is globally routable,
-checked at connect time and pinned to the checked address (no DNS rebinding), with a timeout, no redirects and
-a response cap.
+checked at connect time and pinned to the checked address (no DNS rebinding), with one deadline for the whole
+fetch, no redirects, identity encoding only and a response cap.
 """
 
 import base64
@@ -22,7 +24,9 @@ import re
 import secrets
 import socket
 import time
+from collections import OrderedDict
 from collections.abc import Iterator
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 from urllib.parse import urlencode, urlsplit
@@ -31,7 +35,7 @@ from uuid import UUID
 import httpcore
 import httpx
 import jwt
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
 from app.core import audit, clock, crypto, networks
@@ -52,8 +56,11 @@ from app.modules.platform.models import (
 STATE_PREFIX = "fho"
 CALLBACK_PATH = "/auth/oidc/callback"  # the web route; the one redirect URI an owner registers
 _STATE_TTL = timedelta(minutes=10)
+_LINK_TTL = timedelta(minutes=15)
 _CACHE_SEC = 3600
-_TIMEOUT_SEC = 5.0
+_FAILED_CACHE_SEC = 30  # a failed discovery is not retried for this long: no hammering a dead or hostile host
+_CACHE_MAX = 256  # entries (discovery documents and key sets); the oldest goes first
+_TIMEOUT_SEC = 5.0  # for the whole fetch: connect, TLS, request and body together
 _MAX_BYTES = 1 << 20
 _LEEWAY_SEC = 60
 _ALGORITHMS = {"RS256", "PS256", "ES256"}
@@ -109,10 +116,10 @@ def _checked_address(url: str) -> str:
     try:
         addresses = resolve(parts.hostname, parts.port or 443)
     except (OSError, ValueError, UnicodeError):
-        raise UnsafeUrl("the host does not resolve") from None
-    for address in addresses or ["0.0.0.0"]:
-        if reason := networks.blocked_reason(address):
-            raise UnsafeUrl(f"the host resolves to a {reason} address")
+        addresses = []
+    # One answer whether the host does not resolve or resolves somewhere private: no probing of the network.
+    if not addresses or any(networks.blocked_reason(address) for address in addresses):
+        raise UnsafeUrl("address not allowed")
     return addresses[0]
 
 
@@ -124,30 +131,56 @@ class _PinnedBackend(httpcore.SyncBackend):
         return super().connect_tcp(self.address, port, timeout, local_address, socket_options)
 
 
+_HTTPCORE_ERRORS = (
+    httpcore.TimeoutException,
+    httpcore.NetworkError,
+    httpcore.ProtocolError,
+    httpcore.UnsupportedProtocol,
+)
+
+
 class _PinnedTransport(httpx.BaseTransport):
-    """Connects only to the address the guard checked; TLS still verifies the certificate for the URL's host."""
+    """Connects only to the address the guard checked; TLS still verifies the certificate for the URL's host.
+    Every socket wait is capped by what is left of the fetch's deadline, and the body is read raw (identity
+    encoding only), so the size cap counts the bytes that are actually held."""
 
     def __init__(self, address: str) -> None:
         self._pool = httpcore.ConnectionPool(network_backend=_PinnedBackend(address))
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
-        with self._pool.stream(
-            request.method, str(request.url), headers=request.headers.raw, content=request.read(),
-            extensions=request.extensions,
-        ) as response:  # fmt: skip
-            body = b"".join(_capped(response.iter_stream()))
-            return httpx.Response(response.status, headers=response.headers, content=body)
+        deadline = request.extensions.get("fh_deadline", time.monotonic() + _TIMEOUT_SEC)
+        left = _left(deadline)
+        try:
+            with self._pool.stream(
+                request.method, str(request.url), headers=request.headers.raw, content=request.read(),
+                extensions={"timeout": dict.fromkeys(("connect", "read", "write", "pool"), left)},
+            ) as response:  # fmt: skip
+                headers = httpx.Headers(response.headers)
+                if headers.get("content-encoding", "identity").strip().lower() != "identity":
+                    raise ProviderError("encoded response")
+                body = b"".join(_capped(response.iter_stream(), deadline))
+        except _HTTPCORE_ERRORS as exc:
+            raise ProviderError(type(exc).__name__) from None
+        return httpx.Response(response.status, headers=headers, content=body)
 
     def close(self) -> None:
         self._pool.close()
 
 
-def _capped(chunks: Iterator[bytes]) -> Iterator[bytes]:
+def _left(deadline: float) -> float:
+    left = deadline - time.monotonic()
+    if left <= 0:
+        raise ProviderError("deadline")
+    return left
+
+
+def _capped(chunks: Iterator[bytes], deadline: float) -> Iterator[bytes]:
     size = 0
     for chunk in chunks:
         size += len(chunk)
         if size > _MAX_BYTES:
             raise ProviderError("response too large")
+        _left(deadline)  # a trickling body is cut at the deadline, not per read
         yield chunk
 
 
@@ -156,10 +189,17 @@ def _transport(address: str) -> httpx.BaseTransport:
 
 
 def _fetch(method: str, url: str, **kwargs: Any) -> dict:
+    deadline = time.monotonic() + _TIMEOUT_SEC
     address = _checked_address(url)
     try:
         with httpx.Client(transport=_transport(address), timeout=_TIMEOUT_SEC, follow_redirects=False) as client:
-            response = client.request(method, url, headers={"accept": "application/json"}, **kwargs)
+            response = client.request(
+                method, url, headers={"accept": "application/json", "accept-encoding": "identity"},
+                extensions={"fh_deadline": deadline}, **kwargs,
+            )  # fmt: skip
+        if response.headers.get("content-encoding", "identity").strip().lower() != "identity":
+            raise ProviderError("encoded response")
+        _left(deadline)
         data = response.json()
     except (httpx.HTTPError, ValueError) as exc:
         raise ProviderError(type(exc).__name__) from None
@@ -169,21 +209,36 @@ def _fetch(method: str, url: str, **kwargs: Any) -> dict:
 
 
 # shortcut: a per-process cache of discovery documents and key sets; a shared cache (Redis) if workers multiply.
-_cache: dict[str, tuple[float, dict]] = {}
+# A value is the fetched document, or the ProviderError a failed discovery raised (kept _FAILED_CACHE_SEC).
+_cache: OrderedDict[str, tuple[float, dict | ProviderError]] = OrderedDict()
 
 
-def _cached(url: str, *, refresh: bool = False) -> dict:
+def _remember(url: str, ttl: float, value: dict | ProviderError) -> None:
+    _cache.pop(url, None)
+    _cache[url] = (time.monotonic() + ttl, value)
+    while len(_cache) > _CACHE_MAX:
+        _cache.popitem(last=False)
+
+
+def _cached(url: str, *, refresh: bool = False, remember_failure: bool = False) -> dict:
     hit = _cache.get(url)
-    if hit and not refresh and hit[0] > time.monotonic():
+    if hit and hit[0] > time.monotonic() and (not refresh or isinstance(hit[1], ProviderError)):
+        if isinstance(hit[1], ProviderError):
+            raise hit[1]
         return hit[1]
-    data = _fetch("GET", url)
-    _cache[url] = (time.monotonic() + _CACHE_SEC, data)
+    try:
+        data = _fetch("GET", url)
+    except ProviderError as exc:
+        if remember_failure:
+            _remember(url, _FAILED_CACHE_SEC, exc)
+        raise
+    _remember(url, _CACHE_SEC, data)
     return data
 
 
 def discover(issuer: str) -> dict:
     """The issuer's discovery document; its `issuer` must equal the configured one exactly (OIDC Discovery 4.3)."""
-    doc = _cached(issuer.rstrip("/") + "/.well-known/openid-configuration")
+    doc = _cached(issuer.rstrip("/") + "/.well-known/openid-configuration", remember_failure=True)
     if doc.get("issuer") != issuer:
         raise ProviderError("issuer mismatch")
     for key in ("authorization_endpoint", "token_endpoint", "jwks_uri"):
@@ -253,11 +308,10 @@ def verified_email(config: IdentityProviderConfig, claims: dict) -> str | None:
 
 
 def shows_mfa(claims: dict) -> bool:
-    """Whether the token says a second factor was used. A provider that sends neither `amr` nor `acr` (Google,
-    Microsoft by default) leaves it to the tenant's `asserts_mfa` flag; one that sends them must show a factor."""
+    """Whether the token says a second factor was used: `amr` names one or `acr` a multi-factor level. A token
+    with neither (Google; Microsoft by default) shows nothing, so the tenant's `asserts_mfa` flag alone never
+    skips our code step."""
     amr, acr = claims.get("amr"), claims.get("acr")
-    if amr is None and acr is None:
-        return True
     if isinstance(amr, list) and _MFA_AMR & {str(v) for v in amr}:
         return True
     return isinstance(acr, str) and acr in _MFA_ACR
@@ -381,43 +435,74 @@ def _domain_allowed(config: IdentityProviderConfig, email: str | None) -> bool:
     )
 
 
-def _match(session: Session, config: IdentityProviderConfig, claims: dict) -> tuple[Identity, ExternalLogin | None]:
-    """(identity, the new link to store or None). Within this tenant only: RLS scopes every lookup."""
-    email = verified_email(config, claims)
-    if not _domain_allowed(config, email):
-        raise _refused()
+@dataclass
+class LinkPending:
+    """A first sign-in with this provider account: nothing is linked and no session starts until the matched
+    user confirms by email. The browser hears the same answer whether or not anyone matched."""
+
+    display_name: str
+
+
+def _linked(session: Session, config: IdentityProviderConfig, claims: dict) -> Identity | None:
+    """The identity this issuer + subject is linked to (refused when it may not sign in), or None if unlinked.
+    Within this tenant only: RLS scopes every lookup."""
     link = session.scalar(
         select(ExternalLogin).where(ExternalLogin.issuer == config.issuer_url, ExternalLogin.subject == claims["sub"])
     )
-    new_link = None
-    if link is not None:
-        identity = session.get(Identity, link.identity_id)
-    else:
-        staff_with_email = select(Identity).where(
-            Identity.kind == "staff", Identity.email == email, Identity.email_verified_at.is_not(None)
-        )
-        identity = session.scalar(staff_with_email) if email else None
-        linked = identity and session.scalar(
-            select(ExternalLogin.id).where(
-                ExternalLogin.identity_id == identity.id, ExternalLogin.issuer == config.issuer_url
-            )
-        )
-        if not identity or linked:  # linked: a different account at this provider already holds the link
-            raise _refused()
-        link = new_link = ExternalLogin(identity_id=identity.id, issuer=config.issuer_url, subject=claims["sub"])
+    if link is None:
+        return None
+    identity = session.get(Identity, link.identity_id)
+    if not _domain_allowed(config, verified_email(config, claims)):
+        raise _refused()
     if identity is None or identity.kind != "staff" or identity.status != "active":
         raise _refused()
     if auth._principal_for(session, identity) is None:  # deactivated, or staff access expired
         raise _refused()
     link.last_used_at = clock.now()
-    return identity, new_link
+    return identity
+
+
+def _eligible_for_link(session: Session, config: IdentityProviderConfig, claims: dict) -> Identity | None:
+    email = verified_email(config, claims)
+    if email is None or not _domain_allowed(config, email):
+        return None
+    identity = session.scalar(
+        select(Identity).where(
+            Identity.kind == "staff", Identity.email == email, Identity.email_verified_at.is_not(None)
+        )
+    )
+    if identity is None or identity.status != "active" or auth._principal_for(session, identity) is None:
+        return None
+    # One account per provider per user: a second account never replaces the first.
+    held = select(ExternalLogin.id).where(
+        ExternalLogin.identity_id == identity.id, ExternalLogin.issuer == config.issuer_url
+    )
+    return None if session.scalar(held) is not None else identity
+
+
+def _offer_link(session: Session, config: IdentityProviderConfig, claims: dict, row: AuthToken) -> LinkPending:
+    """An unlinked provider account. The issuer's email claim alone never signs anyone in (an Admin could run an
+    issuer that claims the Owner's address): when it names an eligible staff identity, that person is emailed a
+    one-time link, and only redeeming it, in this same browser, stores the link."""
+    identity = _eligible_for_link(session, config, claims)
+    if identity is not None:
+        payload = {
+            "provider_id": str(config.id), "issuer": config.issuer_url, "subject": claims["sub"],
+            "pre_session": row.payload["pre_session"],
+        }  # fmt: skip
+        auth.issue_link(session, identity, TokenPurpose.OIDC_LINK, _LINK_TTL, payload=payload)
+        audit.record(
+            session, "platform.identity.oidc_link_requested", identity, actor=auth._actor(identity),
+            changes={"issuer": config.issuer_url},
+        )  # fmt: skip
+    return LinkPending(display_name=config.display_name)
 
 
 def complete(
     session: Session, *, state: str, code: str, pre_session: str | None, session_token: str | None
-) -> auth.Grant | auth.Challenge:
-    """The callback: check the round trip, exchange the code, verify the ID token, find the identity, then sign
-    in (through the second-factor policy) or finish a step-up."""
+) -> auth.Grant | auth.Challenge | LinkPending:
+    """The callback: check the round trip, exchange the code, verify the ID token, find the linked identity,
+    then sign in (through the second-factor policy), finish a step-up, or offer to link by email."""
     row = _take_state(session, state, pre_session)
     config = _enabled(session, row.payload["provider_id"])
     if config is None:
@@ -426,14 +511,17 @@ def complete(
         claims = _exchange(config, row, code)
     except ProviderError:
         raise _failed() from None
-    identity, new_link = _match(session, config, claims)
+    identity = _linked(session, config, claims)
     mfa_ok = config.asserts_mfa and shows_mfa(claims)
     if row.payload["mode"] == "step_up":
-        return _finish_step_up(session, row, identity, claims, mfa_ok, session_token, new_link)
+        if identity is None:
+            raise _failed()
+        return _finish_step_up(session, row, identity, claims, mfa_ok, session_token)
+    if identity is None:
+        return _offer_link(session, config, claims, row)  # never a session, so its MFA claims never count
     if auth._refused_before_password(session, "staff", identity):
         raise auth._ip_not_allowed()
-    _store_link(session, identity, new_link)
-    if mfa_ok:  # the tenant trusts this provider's MFA and the token does not contradict it
+    if mfa_ok:  # the tenant trusts this provider's MFA and the token shows it
         grant = auth._start_session(session, identity, "web", mfa_verified_at=clock.now())
     elif challenge := auth._second_factor(session, identity, "web", "oidc"):
         return challenge
@@ -443,20 +531,53 @@ def complete(
     return grant
 
 
-def _store_link(session: Session, identity: Identity, link: ExternalLogin | None) -> None:
-    if link is None:
-        return
-    session.add(link)
+def _link_refused() -> Unauthenticated:
+    return Unauthenticated(
+        "This link is not valid or was already used. Sign in with your provider again to get a new one.",
+        code="token-invalid", persist=True,
+    )  # fmt: skip
+
+
+def confirm_link(session: Session, *, token: str, pre_session: str | None) -> IdentityProviderConfig:
+    """Redeem the emailed link: store issuer + subject for the identity it was sent to. No session starts; the
+    next "Continue with" signs in. Only in the browser that did the provider sign-in, so a link forwarded to
+    or phished from the user does not connect someone else's provider account."""
+    row = session.execute(
+        select(AuthToken)
+        .where(AuthToken.token_hash == tokens.digest(token), AuthToken.purpose == TokenPurpose.OIDC_LINK)
+        .with_for_update()
+    ).scalar_one_or_none()
+    if row is None or row.consumed_at is not None or row.identity_id is None or row.expires_at <= clock.now():
+        raise _link_refused()
+    row.consumed_at = clock.now()
+    if not hmac.compare_digest(row.payload["pre_session"], tokens.digest(pre_session or "")):
+        raise Unauthenticated(
+            "Open the link in the browser you used to sign in with your provider, then sign in there again.",
+            code="oidc-link-other-browser", persist=True,
+        )  # fmt: skip
+    identity = session.get(Identity, row.identity_id)
+    config = _enabled(session, row.payload["provider_id"])
+    issuer, subject = row.payload["issuer"], row.payload["subject"]
+    taken = select(ExternalLogin.id).where(
+        ExternalLogin.issuer == issuer,
+        or_(ExternalLogin.subject == subject, ExternalLogin.identity_id == row.identity_id),
+    )
+    if (
+        identity is None or identity.status != "active" or auth._principal_for(session, identity) is None
+        or config is None or config.issuer_url != issuer or session.scalar(taken) is not None
+    ):  # fmt: skip
+        raise _link_refused()
+    session.add(ExternalLogin(identity_id=identity.id, issuer=issuer, subject=subject, last_used_at=clock.now()))
     session.flush()
     audit.record(
-        session, "platform.identity.oidc_link", identity, actor=auth._actor(identity), changes={"issuer": link.issuer}
+        session, "platform.identity.oidc_link", identity, actor=auth._actor(identity), changes={"issuer": issuer}
     )
+    return config
 
 
 def _finish_step_up(
-    session: Session, row: AuthToken, identity: Identity, claims: dict, mfa_ok: bool, session_token: str | None,
-    new_link: ExternalLogin | None,
-) -> auth.Grant:  # fmt: skip
+    session: Session, row: AuthToken, identity: Identity, claims: dict, mfa_ok: bool, session_token: str | None
+) -> auth.Grant:
     """The provider must have re-checked the user just now (`auth_time` after the round trip began), the account
     must be the signed-in user's own, and a user who has (or must have) a second factor needs it asserted."""
     try:
@@ -466,7 +587,7 @@ def _finish_step_up(
     current = session.get(AuthSession, principal.session_id)
     if current is None or str(current.id) != row.payload["session_id"]:
         raise _failed()
-    if principal.identity_id != identity.id or new_link is not None:
+    if principal.identity_id != identity.id:
         raise _failed()
     auth_time = claims.get("auth_time")
     if not isinstance(auth_time, int | float) or auth_time < row.payload["started_at"] - _LEEWAY_SEC:
@@ -527,9 +648,9 @@ def _check_issuer(preset: str, issuer: str) -> None:
         )  # fmt: skip
     try:
         discover(issuer)
-    except UnsafeUrl as exc:
+    except UnsafeUrl:
         raise ValidationFailed(
-            f"That issuer is not allowed: {exc}.", code="url-not-allowed", pointer="/issuer_url"
+            "That issuer is not allowed: use a public https address.", code="url-not-allowed", pointer="/issuer_url"
         ) from None
     except ProviderError:
         raise ValidationFailed(
@@ -566,7 +687,7 @@ def _apply(session: Session, config: IdentityProviderConfig, data: dict) -> None
 
 
 def create_provider(session: Session, principal: Principal, data: dict) -> dict:
-    authorize(principal, "platform.security.manage")
+    authorize(principal, "platform.identity_provider.manage")
     preset = data["preset"]
     issuer = data.get("issuer_url") or (GOOGLE_ISSUER if preset == "google" else "")
     _check_issuer(preset, issuer)
@@ -591,7 +712,7 @@ def _values(config: IdentityProviderConfig) -> dict:
 
 
 def update_provider(session: Session, principal: Principal, provider_id: UUID, data: dict) -> dict:
-    authorize(principal, "platform.security.manage")
+    authorize(principal, "platform.identity_provider.manage")
     config = _load(session, provider_id)
     before = _values(config)
     secret_before = config.client_secret_encrypted
@@ -610,7 +731,7 @@ def update_provider(session: Session, principal: Principal, provider_id: UUID, d
 
 def delete_provider(session: Session, principal: Principal, provider_id: UUID) -> None:
     """Links stay: they are keyed by issuer, so adding the provider back restores them."""
-    authorize(principal, "platform.security.manage")
+    authorize(principal, "platform.identity_provider.manage")
     config = _load(session, provider_id)
     audit.record(session, "platform.identity_provider.delete", config, changes=_values(config))
     session.execute(delete(IdentityProviderConfig).where(IdentityProviderConfig.id == config.id))

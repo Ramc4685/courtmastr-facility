@@ -106,6 +106,53 @@ describe('provider callback', SCREEN, () => {
     expect(sessionStorage.getItem('fh.oidc.next')).toBeNull()
   })
 
+  it('asks the user to check their email on a first sign-in, without signing in', async () => {
+    const calls = mockFetch({
+      'GET /api/v1/auth/session': unauthenticated,
+      'GET /api/v1/me': unauthenticated,
+      'POST /api/v1/auth/refresh': unauthenticated,
+      'GET /api/v1/auth/pre-session': { status: 200, body: { csrf_token: 'pre' } },
+      'POST /api/v1/auth/oidc/callback': { status: 202, body: { link_pending: true, display_name: 'Google' } },
+    })
+    renderApp('/auth/oidc/callback?code=c&state=fho_abc')
+    expect(await screen.findByRole('heading', { name: 'Check your email' }, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('To finish connecting Google to your account, open the link we emailed to you in this browser.')
+    expect(calls.filter((c) => c.url === '/api/v1/auth/oidc/callback')).toHaveLength(1)
+  })
+
+  it('connects the account from the emailed link on a deliberate click', async () => {
+    const calls = mockFetch({
+      'GET /api/v1/auth/session': unauthenticated,
+      'GET /api/v1/me': unauthenticated,
+      'POST /api/v1/auth/refresh': unauthenticated,
+      'GET /api/v1/auth/pre-session': { status: 200, body: { csrf_token: 'pre' } },
+      'POST /api/v1/auth/oidc/link': { status: 200, body: { display_name: 'Google' } },
+    })
+    renderApp('/auth/oidc/link#token=fhl_abc')
+    const connect = await screen.findByRole('button', { name: 'Connect my account' }, { timeout: 5000 })
+    expect(window.location.hash).toBe('') // the token left the address bar
+    expect(calls.some((c) => c.url === '/api/v1/auth/oidc/link')).toBe(false) // nothing spent before the click
+    await userEvent.click(connect)
+    expect(await screen.findByRole('status')).toHaveTextContent('Google is connected to your account.')
+    const sent = calls.find((c) => c.url === '/api/v1/auth/oidc/link')
+    expect(sent?.body).toEqual({ token: 'fhl_abc' })
+    expect(sent?.headers['x-csrf-token']).toBe('pre')
+    expect(screen.getByRole('link', { name: 'Sign in with Google' })).toHaveAttribute('href', '/sign-in')
+  })
+
+  it('explains a link opened in another browser', async () => {
+    mockFetch({
+      'GET /api/v1/auth/session': unauthenticated,
+      'GET /api/v1/me': unauthenticated,
+      'POST /api/v1/auth/refresh': unauthenticated,
+      'GET /api/v1/auth/pre-session': { status: 200, body: { csrf_token: 'pre' } },
+      'POST /api/v1/auth/oidc/link': { status: 401, body: { code: 'oidc-link-other-browser', detail: 'Open the link in the browser you used.' } },
+    })
+    renderApp('/auth/oidc/link#token=fhl_abc')
+    await userEvent.click(await screen.findByRole('button', { name: 'Connect my account' }, { timeout: 5000 }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Open the link in the browser you used.')
+  })
+
   it('asks for a code when the provider did not show a second factor', async () => {
     mockFetch({
       'GET /api/v1/auth/session': unauthenticated,

@@ -8,6 +8,7 @@ import { Checkbox, Input, Select } from '../../components/Field'
 import { Card } from '../../components/PageHeader'
 import { ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
+import { useAuth } from '../../lib/auth'
 
 type Provider = Schemas['IdentityProviderOut']
 type Preset = Schemas['IdentityProviderCreate']['preset']
@@ -135,8 +136,10 @@ function ProviderForm({ provider, redirectUri, onDone }: { provider?: Provider; 
   )
 }
 
-/** Security settings: the tenant's OIDC providers (Owner and Admin; every change asks for a fresh check). */
+/** Security settings: the tenant's OIDC providers. Owner and Admin see them; only the Owner changes them (a
+ * provider decides who can sign in), and every change asks for a fresh check. */
 export function IdentityProvidersCard() {
+  const canChange = useAuth().can('platform.identity_provider.manage')
   const qc = useQueryClient()
   const toast = useToast()
   const query = useQuery({ queryKey: KEY, queryFn: () => api.get('/api/v1/identity-providers') })
@@ -157,7 +160,8 @@ export function IdentityProvidersCard() {
     <Card title="Sign-in providers" className="max-w-2xl">
       <p className="mb-4 text-sm text-muted">
         Let staff sign in with Google, Microsoft or another OpenID Connect provider. Only staff you have invited can sign in, matched by their verified
-        email. Owners can always sign in with a password or an emailed link as well.
+        email. The first time someone uses a provider, we email them a link to confirm it is their account. Owners can always sign in with a password
+        or an emailed link as well.
       </p>
       {query.isPending ? (
         <LoadingState />
@@ -177,17 +181,25 @@ export function IdentityProvidersCard() {
                   </div>
                   {p.asserts_mfa && <Badge tone="info">Checks a second factor</Badge>}
                   <Badge tone={p.is_enabled ? 'success' : 'neutral'}>{p.is_enabled ? 'On' : 'Off'}</Badge>
-                  <Button size="sm" variant="secondary" onClick={() => setEditing(p)} aria-label={`Edit ${p.display_name}`}>
-                    Edit
-                  </Button>
-                  <Button size="sm" variant="secondary" onClick={() => setRemoving(p)} aria-label={`Remove ${p.display_name}`}>
-                    Remove
-                  </Button>
+                  {canChange && (
+                    <>
+                      <Button size="sm" variant="secondary" onClick={() => setEditing(p)} aria-label={`Edit ${p.display_name}`}>
+                        Edit
+                      </Button>
+                      <Button size="sm" variant="secondary" onClick={() => setRemoving(p)} aria-label={`Remove ${p.display_name}`}>
+                        Remove
+                      </Button>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>
           )}
-          <Button onClick={() => setEditing('new')}>Add a sign-in provider</Button>
+          {canChange ? (
+            <Button onClick={() => setEditing('new')}>Add a sign-in provider</Button>
+          ) : (
+            <p className="text-sm text-muted">Only the account owner can add or change sign-in providers.</p>
+          )}
         </div>
       )}
       <ConfirmDialog

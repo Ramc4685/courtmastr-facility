@@ -67,6 +67,7 @@ class TokenPurpose(StrEnum):
     RELATIONSHIP_CONFIRM = "relationship_confirm"
     MFA_CHALLENGE = "mfa_challenge"  # the pending sign-in between the first and second factor (S2)
     OIDC_STATE = "oidc_state"  # an OIDC round trip in flight: state, nonce and PKCE verifier (S3)
+    OIDC_LINK = "oidc_link"  # an emailed confirmation of a first OIDC sign-in: issuer + subject to link (S3)
 
 
 class SessionKind(StrEnum):

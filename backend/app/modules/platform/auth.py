@@ -328,6 +328,13 @@ _LINKS = {
         "Use this link to choose a new password.",
     ),
     TokenPurpose.INVITE: ("/auth/accept-invite", "you have been invited", "Use this link to activate your account."),
+    TokenPurpose.OIDC_LINK: (
+        "/auth/oidc/link",
+        "connect your sign-in provider",
+        "Someone signed in with a sign-in provider using your email address and asked to connect it to your "
+        "account. If that was you, open this link in the same browser to finish. If it was not you, ignore this "
+        "email and tell your administrator.",
+    ),
 }
 
 
@@ -342,7 +349,13 @@ def safe_redirect_path(path: str | None) -> str | None:
 
 
 def issue_link(
-    session: Session, identity: Identity, purpose: TokenPurpose, ttl: timedelta, *, redirect_path: str | None = None
+    session: Session,
+    identity: Identity,
+    purpose: TokenPurpose,
+    ttl: timedelta,
+    *,
+    redirect_path: str | None = None,
+    payload: dict | None = None,
 ) -> str:
     """Mint a single-use link token, supersede older ones of the same purpose and email the link.
 
@@ -357,7 +370,11 @@ def issue_link(
         .values(consumed_at=now)
     )
     raw, hashed = tokens.mint("fhl", identity.tenant_id)
-    session.add(AuthToken(identity_id=identity.id, purpose=purpose, token_hash=hashed, expires_at=now + ttl))
+    session.add(
+        AuthToken(
+            identity_id=identity.id, purpose=purpose, token_hash=hashed, expires_at=now + ttl, payload=payload or {}
+        )
+    )
     path, subject, intro = _LINKS[purpose]
     # The token rides in the URL fragment, which browsers never send to a server or put in a Referer
     # (security-baseline 17.2); the landing page reads it and posts it.

@@ -453,10 +453,32 @@ export interface paths {
         /**
          * Complete Oidc Sign In
          * @description Finish the round trip with the provider's code and state: a session, 202 with an MFA challenge, or (for a
-         *     step-up round trip) the rotated session. Errors: oidc-failed, oidc-sign-in-refused, ip-not-allowed,
-         *     oidc-reauthentication-stale, step-up-needs-code, csrf-failed, rate-limited.
+         *     step-up round trip) the rotated session. A provider account not linked yet answers 202 link_pending,
+         *     whether or not anyone matched; the matched user gets an email. Errors: oidc-failed, oidc-sign-in-refused,
+         *     ip-not-allowed, oidc-reauthentication-stale, step-up-needs-code, csrf-failed, rate-limited.
          */
         post: operations["completeOidcSignIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/oidc/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Oidc Link
+         * @description Redeem the emailed link that connects a provider account to the user's own (a first sign-in), in the
+         *     browser that did that sign-in. No session starts. Errors: token-invalid, oidc-link-other-browser, csrf-failed.
+         */
+        post: operations["confirmOidcLink"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4353,7 +4375,7 @@ export interface paths {
         /**
          * Create Identity Provider
          * @description Add a provider; its discovery document is fetched to check the issuer. Errors: oidc-issuer-invalid,
-         *     oidc-discovery-failed, url-not-allowed, already-exists, step-up-required.
+         *     oidc-discovery-failed, url-not-allowed, already-exists, step-up-required. Owner only.
          */
         post: operations["createIdentityProvider"];
         delete?: never;
@@ -20689,6 +20711,30 @@ export interface components {
             /** State */
             state: string;
         };
+        /** OidcLinkConfirmOut */
+        OidcLinkConfirmOut: {
+            /** Display Name */
+            display_name: string;
+        };
+        /** OidcLinkConfirmRequest */
+        OidcLinkConfirmRequest: {
+            /** Token */
+            token: string;
+        };
+        /** OidcLinkPendingOut */
+        OidcLinkPendingOut: {
+            /**
+             * Display Name
+             * @description The provider whose sign-in waits for the emailed confirmation.
+             */
+            display_name: string;
+            /**
+             * Link Pending
+             * @default true
+             * @constant
+             */
+            link_pending: true;
+        };
         /** OnboardingLink */
         OnboardingLink: {
             /** Url */
@@ -32523,16 +32569,49 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuthSessionOut"] | components["schemas"]["MfaChallengeOut"];
+                    "application/json": components["schemas"]["AuthSessionOut"] | components["schemas"]["MfaChallengeOut"] | components["schemas"]["OidcLinkPendingOut"];
                 };
             };
-            /** @description Accepted */
+            /** @description An MFA challenge, or (link_pending) a first sign-in waiting for the emailed confirmation */
             202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["MfaChallengeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirmOidcLink: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OidcLinkConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OidcLinkConfirmOut"];
                 };
             };
             /** @description Validation Error */

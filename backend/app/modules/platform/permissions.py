@@ -34,6 +34,7 @@ register(
     _p("role.manage", T, "Create and edit custom roles", "A +", _AD),
     _p("security.manage", T, "Manage security policy", "A +", _AD),
     _p("security.bypass_ip_allowlist", T, "Sign in from outside facility networks", "A", _AD),
+    _p("identity_provider.manage", T, "Add, change and remove sign-in providers", "OO +"),
     _p("audit.read", L, "View the activity trail", "", _AD_MG),
     _p("audit.export", T, "Export the activity trail", "X", _AD),
     _p("client_session.impersonate", T, "View the portal as a client", "I +", _AD),

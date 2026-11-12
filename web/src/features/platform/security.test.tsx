@@ -13,7 +13,10 @@ const me = {
   principal: { kind: 'staff', identity_id: 'i1', staff_user_id: 's1', client_ids: [], email: 'olivia@example.com', display_name: 'Olivia Owner' },
   tenant,
   role: { id: 'r1', name: 'Owner', system_key: 'owner' },
-  permissions: [{ key: 'platform.security.manage', reach: 'all', source: 'role' }],
+  permissions: [
+    { key: 'platform.security.manage', reach: 'all', source: 'role' },
+    { key: 'platform.identity_provider.manage', reach: 'all', source: 'role' },
+  ],
   has_all_location_access: true,
   locations: [{ id: 'l1', name: 'Courtside Downtown', slug: 'downtown', time_zone: 'America/Chicago' }],
   primary_location_id: 'l1',
@@ -76,10 +79,10 @@ describe('sign-in providers card', () => {
     client_id: 'client-1', has_client_secret: true, scopes: ['openid', 'email', 'profile'], allowed_email_domains: ['club.example'], asserts_mfa: true,
     is_enabled: true, redirect_uri: 'https://club.example/auth/oidc/callback', created_at: '2026-11-11T00:00:00Z', updated_at: '2026-11-11T00:00:00Z',
   }
-  function renderCard(routes: Parameters<typeof mockFetch>[0]) {
+  function renderCard(routes: Parameters<typeof mockFetch>[0], who = me) {
     const calls = mockFetch({
       'GET /api/v1/auth/session': { status: 200, body: { csrf_token: 'c' } },
-      'GET /api/v1/me': { status: 200, body: me },
+      'GET /api/v1/me': { status: 200, body: who },
       'GET /api/v1/security-settings': { status: 200, body: { staff_ip_allowlist: [], staff_mfa_policy: 'privileged', staff_idle_timeout_min: 30 } },
       ...routes,
     })
@@ -136,6 +139,16 @@ describe('sign-in providers card', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save provider' }))
     expect(await screen.findByText('Sign-in provider saved.')).toBeInTheDocument()
     expect(calls.find((c) => c.method === 'PATCH')?.body).toMatchObject({ display_name: 'Staff login', client_secret: null })
+  })
+
+  it('shows an Admin the providers read-only: only the Owner changes them', async () => {
+    const admin = { ...me, role: { id: 'r2', name: 'Admin', system_key: 'admin' }, permissions: me.permissions.slice(0, 1) }
+    renderCard({ 'GET /api/v1/identity-providers': { status: 200, body: { data: [provider], page: { has_more: false, next_cursor: null } } } }, admin)
+    expect(await screen.findByText('Only the account owner can add or change sign-in providers.', {}, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.getByText('Microsoft')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add a sign-in provider' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit Microsoft' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Remove Microsoft' })).not.toBeInTheDocument()
   })
 
   it('shows a discovery failure on the issuer field', async () => {

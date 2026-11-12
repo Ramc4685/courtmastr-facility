@@ -3,6 +3,9 @@
 The fake speaks discovery, JWKS and the token endpoint through httpx.MockTransport (oidc._transport), and checks
 the client secret, the redirect URI and the PKCE verifier like a real provider. The authorization step (the
 browser at the provider) is `FakeIdP.authorize`, which reads the URL the API built and mints a code.
+
+A provider account signs in only once linked, and a link is stored only when the matched user redeems the
+emailed confirmation in the same browser (`_connect`). The issuer's email claim alone never signs anyone in.
 """
 
 import base64
@@ -24,7 +27,7 @@ from app.core.db.session import tenant_session
 from app.main import app as fastapi_app
 from app.modules.platform import oidc
 from app.modules.platform.models import ExternalLogin, Identity, IdentityProviderConfig, StaffUser, Tenant
-from conftest import PUBLIC_IP, add_staff, login, make_tenant, scalar
+from conftest import PUBLIC_IP, add_staff, link_token, login, make_tenant, scalar
 
 API = "/api/v1"
 SECRET = "fake-client-secret-value-for-the-tests"
@@ -38,7 +41,9 @@ class FakeIdP:
         self.kid, self.key = "k1", rsa.generate_private_key(public_exponent=65537, key_size=2048)
         self.codes: dict[str, dict] = {}
         self.token_requests = 0
+        self.requests: list[httpx.Request] = []
         self.forge = None  # a function nonce -> ID token, standing in for a well-behaved signature
+        self.discovery: httpx.Response | None = None  # an answer to give instead of the discovery document
 
     def jwk(self) -> dict:
         return json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(self.key.public_key())) | {"kid": self.kid, "use": "sig"}
@@ -47,9 +52,10 @@ class FakeIdP:
         self.kid, self.key = "k2", rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
     def handle(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
         path = request.url.path
         if path == "/.well-known/openid-configuration":
-            return httpx.Response(200, json={
+            return self.discovery or httpx.Response(200, json={
                 "issuer": self.issuer, "authorization_endpoint": f"{self.issuer}/authorize",
                 "token_endpoint": f"{self.issuer}/token", "jwks_uri": f"{self.issuer}/jwks",
                 "code_challenge_methods_supported": ["S256"],
@@ -136,6 +142,27 @@ def _sign_in(browser, tenant, idp, provider, **claims):
     return _callback(browser, state, code)
 
 
+def _pending(response) -> dict:
+    assert response.status_code == 202 and response.json() == {"link_pending": True, "display_name": "Club SSO"}
+    return response.json()
+
+
+def _confirm(browser, token):
+    return browser.post(f"{API}/auth/oidc/link", json={"token": token})
+
+
+def _connect(tenant, idp, provider, mailbox, *, browser=None, **claims) -> TestClient:
+    """A first sign-in, then the emailed confirmation redeemed in the same browser: the account is linked."""
+    browser = browser or _browser()
+    mailbox.clear()
+    _pending(_sign_in(browser, tenant, idp, provider, **claims))
+    assert len(mailbox) == 1 and "/auth/oidc/link#token=" in mailbox[0].body
+    confirmed = _confirm(browser, link_token(mailbox[0]))
+    assert confirmed.status_code == 200 and confirmed.json() == {"display_name": "Club SSO"}, confirmed.text
+    mailbox.clear()
+    return browser
+
+
 def _audit(tenant, action):
     return scalar(tenant, select(AuditEvent).where(AuditEvent.action == action).order_by(AuditEvent.id.desc()).limit(1))
 
@@ -149,7 +176,7 @@ def _refused(response):
 # --- the round trip -----------------------------------------------------------------------------------------------
 
 
-def test_happy_path_links_by_verified_email_then_matches_on_subject(client, tenant, idp):
+def test_happy_path_links_by_emailed_confirmation_then_matches_on_subject(client, tenant, idp, mailbox):
     provider = _configure(client, tenant, idp)
     listed = client.get(f"{API}/auth/oidc/providers", headers={"X-Tenant-Slug": tenant.slug}).json()
     assert listed == [{"id": provider["id"], "display_name": "Club SSO", "preset": "generic"}]
@@ -158,20 +185,49 @@ def test_happy_path_links_by_verified_email_then_matches_on_subject(client, tena
     url = _start(browser, tenant, provider["id"])
     assert "prompt" not in url and "code_challenge=" in url
     state, code = idp.authorize(url, email=tenant.owner_email.upper())
-    response = _callback(browser, state, code)
+    _pending(_callback(browser, state, code))  # a first sign-in: no session, nothing linked yet
+    assert browser.get(f"{API}/me").status_code == 401
+    assert scalar(tenant, select(ExternalLogin)) is None
+    assert [m.to for m in mailbox] == [tenant.owner_email]
+    assert _audit(tenant, "platform.identity.oidc_link_requested").changes == {"issuer": idp.issuer}
+
+    assert _confirm(browser, link_token(mailbox[0])).status_code == 200
+    link = scalar(tenant, select(ExternalLogin))
+    assert (link.issuer, link.subject) == (idp.issuer, "subject-1")
+    assert _audit(tenant, "platform.identity.oidc_link").changes == {"issuer": idp.issuer}
+    assert browser.get(f"{API}/me").status_code == 401  # confirming links; it does not sign in
+
+    response = _sign_in(browser, tenant, idp, provider, email=tenant.owner_email)
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["kind"] == "web" and body["principal"]["email"] == tenant.owner_email
     assert body.get("elevated_until_at") is None  # the provider may have answered from its own session
     assert browser.get(f"{API}/me").status_code == 200  # the session cookie works
-    link = scalar(tenant, select(ExternalLogin))
-    assert (link.issuer, link.subject) == (idp.issuer, "subject-1")
     assert _audit(tenant, "platform.identity.sign_in").reason == "oidc"
-    assert _audit(tenant, "platform.identity.oidc_link").changes == {"issuer": idp.issuer}
 
     # Afterwards the subject decides: a changed (even unverified) email at the provider still signs in.
     again = _sign_in(_browser(), tenant, idp, provider, email="renamed@elsewhere.example", email_verified=False)
     assert again.status_code == 200 and again.json()["principal"]["email"] == tenant.owner_email
+
+
+def test_an_issuer_claiming_the_owners_email_never_signs_in_as_the_owner(client, tenant, idp, mailbox):
+    """The review's Admin-to-Owner takeover: whoever runs the issuer controls its claims. A verified email claim
+    (and an MFA claim on a provider trusted for MFA) is not enough; only the Owner's own mailbox can link."""
+    provider = _configure(client, tenant, idp, asserts_mfa=True)
+    attacker = _browser()
+    answer = _sign_in(attacker, tenant, idp, provider, email=tenant.owner_email, sub="attacker", amr=["mfa"])
+    _pending(answer)
+    assert "csrf_token" not in answer.text and "set-cookie" not in {k.lower() for k in answer.headers}
+    assert attacker.get(f"{API}/me").status_code == 401
+    assert scalar(tenant, select(ExternalLogin)) is None
+    # The Owner, who did not ask, may click the link from their own browser: it does not connect the account.
+    owner_browser = _browser()
+    owner_browser.get(f"{API}/auth/pre-session")
+    other = _confirm(owner_browser, link_token(mailbox[-1]))
+    assert other.status_code == 401 and other.json()["code"] == "oidc-link-other-browser"
+    assert _confirm(attacker, link_token(mailbox[-1])).json()["code"] == "token-invalid"  # and it is spent
+    assert scalar(tenant, select(ExternalLogin)) is None
+    _pending(_sign_in(attacker, tenant, idp, provider, email=tenant.owner_email, sub="attacker", amr=["mfa"]))
 
 
 def test_wrong_or_foreign_state_is_refused(client, tenant, idp):
@@ -197,7 +253,7 @@ def test_replayed_code_and_state_are_refused(client, tenant, idp):
     provider = _configure(client, tenant, idp)
     browser = _browser()
     state, code = idp.authorize(_start(browser, tenant, provider["id"]), email=tenant.owner_email)
-    assert _callback(browser, state, code).status_code == 200
+    _pending(_callback(browser, state, code))
     replay = _callback(browser, state, code)
     assert replay.status_code == 401 and replay.json()["code"] == "oidc-failed"
     assert idp.token_requests == 1  # refused before the provider is asked again
@@ -215,11 +271,11 @@ def test_replayed_code_and_state_are_refused(client, tenant, idp):
     ],
     ids=["wrong-nonce", "wrong-audience", "foreign-audiences", "wrong-issuer", "expired", "no-subject"],
 )
-def test_bad_id_tokens_are_refused(client, tenant, idp, claims):
+def test_bad_id_tokens_are_refused(client, tenant, idp, mailbox, claims):
     provider = _configure(client, tenant, idp)
     response = _sign_in(_browser(), tenant, idp, provider, email=tenant.owner_email, **claims)
     assert response.status_code == 401 and response.json()["code"] == "oidc-failed", response.text
-    assert scalar(tenant, select(ExternalLogin)) is None
+    assert scalar(tenant, select(ExternalLogin)) is None and mailbox == []
 
 
 def test_tokens_signed_another_way_are_refused(client, tenant, idp):
@@ -238,38 +294,62 @@ def test_tokens_signed_another_way_are_refused(client, tenant, idp):
     assert scalar(tenant, select(ExternalLogin)) is None
 
 
-def test_rotated_signing_key_is_fetched_once(client, tenant, idp):
+def test_rotated_signing_key_is_fetched_once(client, tenant, idp, mailbox):
     provider = _configure(client, tenant, idp)
-    assert _sign_in(_browser(), tenant, idp, provider, email=tenant.owner_email).status_code == 200
+    _connect(tenant, idp, provider, mailbox, email=tenant.owner_email)
     idp.rotate()  # the cached key set no longer has the token's kid
     assert _sign_in(_browser(), tenant, idp, provider, email=tenant.owner_email).status_code == 200
 
 
-def test_unverified_email_and_unknown_user_get_the_same_refusal(client, tenant, idp):
+def test_first_sign_ins_answer_the_same_whether_or_not_anyone_matched(client, tenant, idp, mailbox):
     provider = _configure(client, tenant, idp)
-    unverified = _refused(_sign_in(_browser(), tenant, idp, provider, email=tenant.owner_email, email_verified=False))
-    unknown = _refused(_sign_in(_browser(), tenant, idp, provider, email=f"nobody@{tenant.slug}.example.com"))
-    no_email = _refused(_sign_in(_browser(), tenant, idp, provider))
-    assert unverified == unknown == no_email
+    unverified = _pending(_sign_in(_browser(), tenant, idp, provider, email=tenant.owner_email, email_verified=False))
+    unknown = _pending(_sign_in(_browser(), tenant, idp, provider, email=f"nobody@{tenant.slug}.example.com"))
+    no_email = _pending(_sign_in(_browser(), tenant, idp, provider))
+    assert mailbox == []  # nobody matched, nobody was emailed
+    matched = _pending(_sign_in(_browser(), tenant, idp, provider, email=tenant.owner_email))
+    assert unverified == unknown == no_email == matched and len(mailbox) == 1
     assert scalar(tenant, select(ExternalLogin)) is None
 
 
-def test_never_links_to_a_member_an_unverified_or_a_disabled_identity(client, tenant, idp):
+def test_never_links_to_a_member_an_unverified_or_a_disabled_identity(client, tenant, idp, mailbox):
     provider = _configure(client, tenant, idp)
     email, staff_user_id = add_staff(tenant, "front_desk", password=None)
     with tenant_session(tenant.id) as session:
         session.execute(update(Identity).where(Identity.email == email).values(email_verified_at=None))
-    _refused(_sign_in(_browser(), tenant, idp, provider, email=email))
+    _pending(_sign_in(_browser(), tenant, idp, provider, email=email))
     with tenant_session(tenant.id) as session:
         session.execute(update(Identity).where(Identity.email == email).values(email_verified_at=Identity.created_at))
+        session.execute(update(StaffUser).where(StaffUser.id == staff_user_id).values(is_active=False))
+    _pending(_sign_in(_browser(), tenant, idp, provider, email=email))
+    assert mailbox == []
+
+
+def test_a_link_confirmed_after_the_user_was_disabled_is_refused(client, tenant, idp, mailbox):
+    provider = _configure(client, tenant, idp)
+    email, staff_user_id = add_staff(tenant, "front_desk", password=None)
+    browser = _browser()
+    _pending(_sign_in(browser, tenant, idp, provider, email=email))
+    with tenant_session(tenant.id) as session:
+        session.execute(update(StaffUser).where(StaffUser.id == staff_user_id).values(is_active=False))
+    assert _confirm(browser, link_token(mailbox[-1])).json()["code"] == "token-invalid"
+    assert scalar(tenant, select(ExternalLogin)) is None
+
+
+def test_a_linked_account_whose_user_was_disabled_is_refused(client, tenant, idp, mailbox):
+    provider = _configure(client, tenant, idp)
+    email, staff_user_id = add_staff(tenant, "front_desk", password=None, all_locations=True)
+    _connect(tenant, idp, provider, mailbox, email=email)
+    with tenant_session(tenant.id) as session:
         session.execute(update(StaffUser).where(StaffUser.id == staff_user_id).values(is_active=False))
     _refused(_sign_in(_browser(), tenant, idp, provider, email=email))
 
 
-def test_allowed_domains_and_disabled_providers(client, tenant, idp):
+def test_allowed_domains_and_disabled_providers(client, tenant, idp, mailbox):
     provider = _configure(client, tenant, idp, allowed_email_domains=["Staff.Example", "@other.example"])
     assert provider["allowed_email_domains"] == ["other.example", "staff.example"]
-    _refused(_sign_in(_browser(), tenant, idp, provider, email=tenant.owner_email))
+    _pending(_sign_in(_browser(), tenant, idp, provider, email=tenant.owner_email))
+    assert mailbox == []  # outside the allowed domains: nobody is emailed
     headers = login(client, tenant)
     patched = client.patch(f"{API}/identity-providers/{provider['id']}", headers=headers, json={"is_enabled": False})
     assert patched.status_code == 200 and patched.json()["is_enabled"] is False
@@ -282,21 +362,24 @@ def test_allowed_domains_and_disabled_providers(client, tenant, idp):
     assert started.status_code == 404
 
 
-def test_a_second_account_at_the_same_provider_cannot_take_over_a_link(client, tenant, idp):
+def test_a_second_account_at_the_same_provider_cannot_take_over_a_link(client, tenant, idp, mailbox):
     provider = _configure(client, tenant, idp)
-    assert _sign_in(_browser(), tenant, idp, provider, email=tenant.owner_email).status_code == 200
-    _refused(_sign_in(_browser(), tenant, idp, provider, email=tenant.owner_email, sub="subject-2"))
+    _connect(tenant, idp, provider, mailbox, email=tenant.owner_email)
+    _pending(_sign_in(_browser(), tenant, idp, provider, email=tenant.owner_email, sub="subject-2"))
+    assert mailbox == []  # the owner already has an account at this provider: no second link is offered
+    assert scalar(tenant, select(ExternalLogin.subject)) == "subject-1"
 
 
-def test_subjects_never_cross_tenants(client, idp):
+def test_subjects_never_cross_tenants(client, idp, mailbox):
     a, b = make_tenant(), make_tenant()
     provider_a, provider_b = _configure(client, a, idp), _configure(client, b, idp)
-    assert _sign_in(_browser(), a, idp, provider_a, email=a.owner_email).status_code == 200
+    _connect(a, idp, provider_a, mailbox, email=a.owner_email)
     # The same provider account at B: A's link is invisible there, and A's owner is not B's staff.
-    _refused(_sign_in(_browser(), b, idp, provider_b, email=a.owner_email))
-    assert scalar(b, select(ExternalLogin)) is None
-    # A state minted for A cannot be completed as B: the tenant comes from the state, and B's link stays B's.
-    signed = _sign_in(_browser(), b, idp, provider_b, email=b.owner_email)
+    _pending(_sign_in(_browser(), b, idp, provider_b, email=a.owner_email))
+    assert mailbox == [] and scalar(b, select(ExternalLogin)) is None
+    # B's owner links their own account at B; the two links stay apart.
+    browser = _connect(b, idp, provider_b, mailbox, email=b.owner_email, sub="subject-b")
+    signed = _sign_in(browser, b, idp, provider_b, email=b.owner_email, sub="subject-b")
     assert signed.status_code == 200 and signed.json()["principal"]["email"] == b.owner_email
     assert scalar(b, select(ExternalLogin.identity_id)) != scalar(a, select(ExternalLogin.identity_id))
 
@@ -304,28 +387,32 @@ def test_subjects_never_cross_tenants(client, idp):
 # --- MFA, IP allow-list ----------------------------------------------------------------------------------------------
 
 
-def test_mfa_challenge_unless_the_provider_asserts_it(client, tenant, idp):
+def test_mfa_challenge_unless_the_provider_asserts_it_and_the_token_shows_it(client, tenant, idp, mailbox):
     provider = _configure(client, tenant, idp)
+    _connect(tenant, idp, provider, mailbox, email=tenant.owner_email)
     with tenant_session(tenant.id) as session:  # the product default: the Owner must use two-step verification
         session.get(Tenant, tenant.id).staff_mfa_policy = "privileged"
 
-    challenge = _sign_in(_browser(), tenant, idp, provider, email=tenant.owner_email)
+    def sign_in(**claims):
+        return _sign_in(_browser(), tenant, idp, provider, email=tenant.owner_email, **claims)
+
+    challenge = sign_in()
     assert challenge.status_code == 202 and challenge.json()["enrolment_required"] is True
     with tenant_session(tenant.id) as session:
         session.get(IdentityProviderConfig, provider["id"]).asserts_mfa = True
-    # Asserted, and the token does not contradict it (no amr): MFA is satisfied by the provider.
-    trusted = _sign_in(_browser(), tenant, idp, provider, email=tenant.owner_email)
+    # Asserted, but the token shows nothing (no amr, no acr): the tenant's flag alone is no evidence.
+    assert "mfa_token" in sign_in().json()
+    assert "mfa_token" in sign_in(amr=["pwd"]).json()  # a password only
+    assert "mfa_token" in sign_in(acr="urn:x:loa1").json()
+    trusted = sign_in(amr=["pwd", "otp"])
     assert trusted.status_code == 200 and trusted.json()["mfa_verified_at"] is not None
-    # Asserted, but the token shows a password only: the normal challenge.
-    password_only = _sign_in(_browser(), tenant, idp, provider, email=tenant.owner_email, amr=["pwd"])
-    assert password_only.status_code == 202
-    assert _sign_in(_browser(), tenant, idp, provider, email=tenant.owner_email, amr=["pwd", "otp"]).status_code == 200
-    assert _sign_in(_browser(), tenant, idp, provider, email=tenant.owner_email, acr="urn:x:loa1").status_code == 202
+    assert sign_in(acr="mfa").status_code == 200
 
 
-def test_ip_allowlist_applies(client, tenant, idp):
+def test_ip_allowlist_applies(client, tenant, idp, mailbox):
     provider = _configure(client, tenant, idp)
     email, _ = add_staff(tenant, "front_desk", all_locations=True)
+    _connect(tenant, idp, provider, mailbox, browser=_browser("203.0.113.5"), email=email)
     with tenant_session(tenant.id) as session:
         session.get(Tenant, tenant.id).staff_ip_allowlist = ["203.0.113.0/24"]
     outside = _sign_in(_browser("198.51.100.7"), tenant, idp, provider, email=email)
@@ -336,18 +423,18 @@ def test_ip_allowlist_applies(client, tenant, idp):
 # --- step-up -----------------------------------------------------------------------------------------------------------
 
 
-def _oidc_admin(client, tenant, idp):
-    """An Admin with no password and no factor, signed in through the provider: (browser, provider, csrf token)."""
+def _oidc_user(client, tenant, idp, mailbox, role="admin", ip="testclient"):
+    """A staff user with no password and no factor, signed in through the provider: (browser, provider, csrf)."""
     provider = _configure(client, tenant, idp)
-    email, _ = add_staff(tenant, "admin", password=None, all_locations=True)
-    browser = _browser()
+    email, _ = add_staff(tenant, role, password=None, all_locations=True)
+    browser = _connect(tenant, idp, provider, mailbox, browser=_browser(ip), email=email, sub="admin-subject")
     signed = _sign_in(browser, tenant, idp, provider, email=email, sub="admin-subject")
     assert signed.status_code == 200, signed.text
     return browser, provider, signed.json()["csrf_token"]
 
 
-def test_step_up_round_trip_for_an_oidc_only_user(client, tenant, idp):
-    browser, _, csrf = _oidc_admin(client, tenant, idp)
+def test_step_up_round_trip_for_an_oidc_only_user(client, tenant, idp, mailbox):
+    browser, _, csrf = _oidc_user(client, tenant, idp, mailbox)
     refused = browser.get(f"{API}/identity-providers")
     assert refused.status_code == 403 and refused.json()["code"] == "step-up-required"
     no_password = browser.post(f"{API}/auth/step-up", json={"password": "guess"}, headers={"X-CSRF-Token": csrf})
@@ -364,8 +451,8 @@ def test_step_up_round_trip_for_an_oidc_only_user(client, tenant, idp):
     assert _audit(tenant, "platform.identity.step_up").reason == "oidc"
 
 
-def test_step_up_needs_a_fresh_login_by_the_same_user(client, tenant, idp):
-    browser, _, csrf = _oidc_admin(client, tenant, idp)
+def test_step_up_needs_a_fresh_login_by_the_same_user(client, tenant, idp, mailbox):
+    browser, _, csrf = _oidc_user(client, tenant, idp, mailbox)
 
     def attempt(**claims):
         started = browser.post(f"{API}/auth/oidc/step-up", headers={"X-CSRF-Token": csrf}).json()
@@ -379,11 +466,11 @@ def test_step_up_needs_a_fresh_login_by_the_same_user(client, tenant, idp):
     assert browser.get(f"{API}/identity-providers").status_code == 403  # still not elevated
 
 
-def test_step_up_needs_the_code_when_the_user_has_a_factor(client, tenant, idp):
+def test_step_up_needs_the_code_when_the_user_has_a_factor(client, tenant, idp, mailbox):
     from app.core import clock
     from app.modules.platform import mfa
 
-    browser, provider, csrf = _oidc_admin(client, tenant, idp)
+    browser, provider, csrf = _oidc_user(client, tenant, idp, mailbox)
     with tenant_session(tenant.id) as session:
         identity = session.scalar(select(Identity).join(ExternalLogin, ExternalLogin.identity_id == Identity.id))
         mfa.start_enrolment(session, identity)
@@ -393,6 +480,20 @@ def test_step_up_needs_the_code_when_the_user_has_a_factor(client, tenant, idp):
         browser, *idp.authorize(started["authorization_url"], sub="admin-subject", auth_time=int(time.time()))
     )
     assert answer.status_code == 403 and answer.json()["code"] == "step-up-needs-code"
+
+
+def test_step_up_round_trip_obeys_the_ip_allowlist(client, tenant, idp, mailbox):
+    """Both legs of the step-up authenticate the session, and that checks the staff IP allow-list."""
+    browser, _, csrf = _oidc_user(client, tenant, idp, mailbox, role="front_desk", ip="203.0.113.5")
+    started = browser.post(f"{API}/auth/oidc/step-up", headers={"X-CSRF-Token": csrf}).json()
+    with tenant_session(tenant.id) as session:
+        session.get(Tenant, tenant.id).staff_ip_allowlist = ["192.0.2.0/24"]
+    finished = _callback(
+        browser, *idp.authorize(started["authorization_url"], sub="admin-subject", auth_time=int(time.time()))
+    )
+    assert finished.status_code == 403 and finished.json()["code"] == "ip-not-allowed"
+    again = browser.post(f"{API}/auth/oidc/step-up", headers={"X-CSRF-Token": csrf})
+    assert again.status_code == 403 and again.json()["code"] == "ip-not-allowed"
 
 
 def test_step_up_unavailable_without_a_link(client, tenant):
@@ -439,6 +540,26 @@ def test_managing_providers_needs_step_up_and_the_key(client, tenant, idp):
     assert client.get(f"{API}/identity-providers", headers=login(client, tenant, email)).status_code == 403
 
 
+def test_only_the_owner_changes_providers_admins_may_read(client, tenant, idp):
+    """A provider decides who can sign in, so changing one is Owner-only (`platform.identity_provider.manage`)."""
+    provider = _configure(client, tenant, idp)
+    email, _ = add_staff(tenant, "admin", all_locations=True)
+    admin = login(client, tenant, email)  # a fresh password sign-in: elevated
+    assert client.get(f"{API}/identity-providers", headers=admin).status_code == 200
+    assert client.get(f"{API}/identity-providers/{provider['id']}", headers=admin).status_code == 200
+    body = {"preset": "generic", "display_name": "Mine", "issuer_url": "https://mine.test", "client_id": "c",
+            "client_secret": "s"}  # fmt: skip
+    attempts = [
+        client.post(f"{API}/identity-providers", headers=admin, json=body),
+        client.patch(f"{API}/identity-providers/{provider['id']}", headers=admin, json={"client_id": "x"}),
+        client.patch(f"{API}/identity-providers/{provider['id']}", headers=admin, json={"display_name": "x"}),
+        client.delete(f"{API}/identity-providers/{provider['id']}", headers=admin),
+    ]
+    for response in attempts:
+        assert response.status_code == 403 and response.json()["code"] != "step-up-required", response.text
+    assert scalar(tenant, select(IdentityProviderConfig.client_id)) == idp.client_id
+
+
 @pytest.mark.parametrize(
     ("preset", "issuer", "addresses", "code"),
     [
@@ -446,6 +567,7 @@ def test_managing_providers_needs_step_up_and_the_key(client, tenant, idp):
         ("generic", "https://idp.test", ["127.0.0.1"], "url-not-allowed"),
         ("generic", "https://idp.test", ["10.0.0.7"], "url-not-allowed"),
         ("generic", "https://idp.test", ["169.254.169.254"], "url-not-allowed"),
+        ("generic", "https://idp.test", [], "url-not-allowed"),  # does not resolve
         ("generic", "https://user:pw@idp.test", [PUBLIC_IP], "url-not-allowed"),
         ("generic", "https://other.test", [PUBLIC_IP], "oidc-discovery-failed"),  # its document names idp.test
         ("google", "https://idp.test", [PUBLIC_IP], "oidc-issuer-invalid"),
@@ -458,6 +580,20 @@ def test_issuer_checks_and_ssrf_refusal(client, tenant, idp, monkeypatch, preset
     response = client.post(f"{API}/identity-providers", headers=login(client, tenant), json=body)
     assert response.status_code == 422, response.text
     assert response.json()["code"] == code
+
+
+def test_the_ssrf_refusal_says_the_same_for_private_and_unresolvable_hosts(client, tenant, idp, monkeypatch):
+    def unresolvable(host, port):
+        raise OSError("no such host")
+
+    details = []
+    for resolver in (unresolvable, lambda host, port: ["10.0.0.7"], lambda host, port: [PUBLIC_IP, "127.0.0.1"]):
+        monkeypatch.setattr(oidc, "resolve", resolver)
+        oidc._cache.clear()
+        body = {"preset": "generic", "display_name": "X", "issuer_url": "https://h.test", "client_id": "c",
+                "client_secret": "s"}  # fmt: skip
+        details.append(client.post(f"{API}/identity-providers", headers=login(client, tenant), json=body).json())
+    assert {d["code"] for d in details} == {"url-not-allowed"} and len({d["detail"] for d in details}) == 1
 
 
 def test_ssrf_guard_without_the_test_resolver():
@@ -474,9 +610,59 @@ def test_microsoft_and_google_email_claims():
     assert oidc.verified_email(microsoft, {"preferred_username": "a@b.example", "xms_edov": True}) is None
     assert oidc.verified_email(google, {"email": "a@b.example", "email_verified": "true"}) == "a@b.example"
     assert oidc.verified_email(google, {"email": "a@b.example", "xms_edov": True}) is None
-    assert oidc.shows_mfa({"amr": ["pwd"]}) is False and oidc.shows_mfa({}) is True
+
+
+def test_mfa_needs_evidence_in_the_token():
+    assert oidc.shows_mfa({}) is False  # neither amr nor acr: no evidence
+    assert oidc.shows_mfa({"amr": ["pwd"]}) is False and oidc.shows_mfa({"amr": "otp"}) is False
+    assert oidc.shows_mfa({"amr": ["pwd", "hwk"]}) is True and oidc.shows_mfa({"acr": "mfa"}) is True
 
 
 def test_google_issuer_variants(monkeypatch):
     config = IdentityProviderConfig(preset="google", issuer_url=oidc.GOOGLE_ISSUER)
     assert oidc._issuers(config) == [oidc.GOOGLE_ISSUER, "accounts.google.com"]
+
+
+# --- outbound fetches ------------------------------------------------------------------------------------------------
+
+
+def test_fetches_ask_for_identity_encoding_and_refuse_encoded_bodies(idp):
+    assert oidc.discover(idp.issuer)["issuer"] == idp.issuer
+    assert idp.requests[-1].headers["accept-encoding"] == "identity"
+    oidc._cache.clear()
+    idp.discovery = httpx.Response(200, headers={"content-encoding": "gzip"}, content=b"\x1f\x8b")
+    with pytest.raises(oidc.ProviderError):
+        oidc.discover(idp.issuer)
+
+
+def test_a_failed_discovery_is_cached_briefly(idp, monkeypatch):
+    idp.discovery = httpx.Response(500)
+    for _ in range(3):
+        with pytest.raises(oidc.ProviderError):
+            oidc.discover(idp.issuer)
+    assert len(idp.requests) == 1  # one fetch, then the remembered failure
+    idp.discovery = None
+    monkeypatch.setattr(oidc.time, "monotonic", lambda: time.monotonic_ns() / 1e9 + oidc._FAILED_CACHE_SEC + 1)
+    assert oidc.discover(idp.issuer)["issuer"] == idp.issuer  # retried once the failure expires
+
+
+def test_the_cache_is_bounded(idp, monkeypatch):
+    monkeypatch.setattr(oidc, "_CACHE_MAX", 2)
+    for name in ("a", "b", "c"):
+        oidc._remember(f"https://{name}.test/x", 60, {"n": name})
+    assert list(oidc._cache) == ["https://b.test/x", "https://c.test/x"]
+
+
+def test_the_deadline_covers_the_whole_body():
+    with pytest.raises(oidc.ProviderError):
+        list(oidc._capped(iter([b"a", b"b"]), time.monotonic() - 1))
+    assert b"".join(oidc._capped(iter([b"a", b"b"]), time.monotonic() + 5)) == b"ab"
+    with pytest.raises(oidc.ProviderError):
+        list(oidc._capped(iter([b"x" * (oidc._MAX_BYTES + 1)]), time.monotonic() + 5))
+
+
+def test_connection_errors_become_provider_errors():
+    """httpcore raises its own exceptions; they must not escape as a 500."""
+    transport = oidc._PinnedTransport("127.0.0.1")  # nothing listens on port 1
+    with pytest.raises(oidc.ProviderError):
+        transport.handle_request(httpx.Request("GET", "https://localhost:1/x"))

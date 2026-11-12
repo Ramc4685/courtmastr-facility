@@ -22,7 +22,8 @@ me = APIRouter(route_class=TxRoute, tags=["platform"], generate_unique_id_functi
 admin = APIRouter(
     route_class=TxRoute, tags=["platform"], generate_unique_id_function=camel_id, dependencies=[Depends(idempotency)]
 )
-Manage = Annotated[Ctx, Depends(require("platform.security.manage"))]
+Manage = Annotated[Ctx, Depends(require("platform.security.manage"))]  # read: Owner and Admin
+OwnerManage = Annotated[Ctx, Depends(require("platform.identity_provider.manage"))]  # change: Owner only
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 Url = Annotated[str, StringConstraints(strip_whitespace=True, min_length=8, max_length=500)]
 Secret = Annotated[str, StringConstraints(min_length=1, max_length=2000)]
@@ -45,6 +46,19 @@ class OidcAuthorizeOut(Out):
 class OidcCallbackRequest(In):
     state: Annotated[str, StringConstraints(max_length=200)]
     code: Annotated[str, StringConstraints(max_length=4000)]
+
+
+class OidcLinkPendingOut(Out):
+    link_pending: Literal[True] = True
+    display_name: str = Field(description="The provider whose sign-in waits for the emailed confirmation.")
+
+
+class OidcLinkConfirmRequest(In):
+    token: Annotated[str, StringConstraints(max_length=200)]
+
+
+class OidcLinkConfirmOut(Out):
+    display_name: str
 
 
 class IdentityProviderOut(Out):
@@ -105,19 +119,34 @@ def start_oidc_sign_in(body: OidcAuthorizeRequest, request: Request, session: Pu
 
 
 @public.post(
-    "/auth/oidc/callback", dependencies=_guarded("oidc"), response_model=AuthSessionOut | MfaChallengeOut,
-    response_model_exclude_none=True, responses={202: {"model": MfaChallengeOut}},
+    "/auth/oidc/callback", dependencies=_guarded("oidc"),
+    response_model=AuthSessionOut | MfaChallengeOut | OidcLinkPendingOut, response_model_exclude_none=True,
+    responses={202: {"model": MfaChallengeOut, "description": "An MFA challenge, or (link_pending) a first sign-in "
+                     "waiting for the emailed confirmation"}},
 )  # fmt: skip
 def complete_oidc_sign_in(body: OidcCallbackRequest, request: Request, response: Response):
     """Finish the round trip with the provider's code and state: a session, 202 with an MFA challenge, or (for a
-    step-up round trip) the rotated session. Errors: oidc-failed, oidc-sign-in-refused, ip-not-allowed,
-    oidc-reauthentication-stale, step-up-needs-code, csrf-failed, rate-limited."""
+    step-up round trip) the rotated session. A provider account not linked yet answers 202 link_pending,
+    whether or not anyone matched; the matched user gets an email. Errors: oidc-failed, oidc-sign-in-refused,
+    ip-not-allowed, oidc-reauthentication-stale, step-up-needs-code, csrf-failed, rate-limited."""
     session = _token_session(request, body.state, oidc.STATE_PREFIX, "oidc-failed")
     result = oidc.complete(
         session, state=body.state, code=body.code, pre_session=request.cookies.get(pre_session_cookie()),
         session_token=cookie_parts(request)[0],
     )  # fmt: skip
+    if isinstance(result, oidc.LinkPending):
+        response.status_code = 202
+        return {"link_pending": True, "display_name": result.display_name}
     return _sign_in_out(result, response)
+
+
+@public.post("/auth/oidc/link", dependencies=_guarded("consume"), response_model=OidcLinkConfirmOut)
+def confirm_oidc_link(body: OidcLinkConfirmRequest, request: Request):
+    """Redeem the emailed link that connects a provider account to the user's own (a first sign-in), in the
+    browser that did that sign-in. No session starts. Errors: token-invalid, oidc-link-other-browser, csrf-failed."""
+    session = _token_session(request, body.token, "fhl", "token-invalid")
+    config = oidc.confirm_link(session, token=body.token, pre_session=request.cookies.get(pre_session_cookie()))
+    return {"display_name": config.display_name}
 
 
 # --- signed in: step-up at the provider -----------------------------------------------------------------------------
@@ -141,9 +170,9 @@ def list_identity_providers(query: Annotated[ListQuery, Depends(list_query)], ct
 
 
 @admin.post("/identity-providers", response_model=IdentityProviderOut, status_code=201)
-def create_identity_provider(body: IdentityProviderCreate, ctx: Manage):
+def create_identity_provider(body: IdentityProviderCreate, ctx: OwnerManage):
     """Add a provider; its discovery document is fetched to check the issuer. Errors: oidc-issuer-invalid,
-    oidc-discovery-failed, url-not-allowed, already-exists, step-up-required."""
+    oidc-discovery-failed, url-not-allowed, already-exists, step-up-required. Owner only."""
     return oidc.create_provider(ctx.session, ctx.principal, body.model_dump())
 
 
@@ -153,12 +182,12 @@ def get_identity_provider(identity_provider_id: UUID, ctx: Manage):
 
 
 @admin.patch("/identity-providers/{identity_provider_id}", response_model=IdentityProviderOut)
-def update_identity_provider(identity_provider_id: UUID, body: IdentityProviderUpdate, ctx: Manage):
+def update_identity_provider(identity_provider_id: UUID, body: IdentityProviderUpdate, ctx: OwnerManage):
     return oidc.update_provider(ctx.session, ctx.principal, identity_provider_id, body.model_dump(exclude_unset=True))
 
 
 @admin.delete("/identity-providers/{identity_provider_id}", status_code=204)
-def delete_identity_provider(identity_provider_id: UUID, ctx: Manage) -> None:
+def delete_identity_provider(identity_provider_id: UUID, ctx: OwnerManage) -> None:
     """Remove a provider. Staff linked to it sign in another way; adding it back restores their links."""
     oidc.delete_provider(ctx.session, ctx.principal, identity_provider_id)
 
