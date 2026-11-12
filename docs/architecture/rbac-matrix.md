@@ -197,6 +197,7 @@ Cells: `Y` granted (reach all), `own` granted with reach own, `-` not granted. O
 | `platform.staff_user.update` | T | A | | Y | - | - | - | - | - | - | PLT-02 |
 | `platform.staff_user.deactivate` | T | A | | Y | - | - | - | - | - | - | PLT-02 |
 | `platform.staff_user.reset_credentials` | T | A | | Y | - | - | - | - | - | - | PLT-03 |
+| `platform.staff_user.reset_mfa` | T | A + | | Y | - | - | - | - | - | - | PLT-03, ADR 0002 s6 |
 | `platform.staff_user.assign_role` | T | A + | | Y | - | - | - | - | - | - | PLT-05 |
 | `platform.staff_user.assign_locations` | T | A | | Y | - | - | - | - | - | - | PLT-13 |
 | `platform.staff_user.override_permissions` | T | A + | | Y | - | - | - | - | - | - | PLT-05, SCH-05 |

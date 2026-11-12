@@ -191,6 +191,14 @@ Evidence and open questions: `docs/status/phase8-s2-mfa.md`. Migrations `1230`, 
   seed and the test tenants use `optional` so password-only sign-ins keep working.
 - **Own factor** (`/me/mfa`, staff screen `/account/security`): status, enrol + confirm (signs out the
   user's other sessions, sends an email), disable, regenerate. Enrol, disable and regenerate need step-up.
+- **Lost authenticator** (phase 8 S4, ADR 0002 section 6): `POST /staff-users/{id}/mfa-reset`
+  (`platform.staff_user.reset_mfa`, `A +`, Admin by default) removes another user's factor and recovery codes,
+  revokes all their sessions (`mfa_change`), records `platform.staff_user.reset_mfa` (actor and target, no
+  secrets) and emails them. Only an Owner resets an Owner; your own account is refused (`self-escalation`; use
+  `/account/security`); another tenant's user is 404; a user with no factor is `409`. If MFA is required for
+  them, the next sign-in walks them through enrolment, which needs an emailed link (as above). Web: "Reset
+  two-step verification" on the staff user's page, behind a confirm dialog. The last Owner who loses their
+  factor and recovery codes still recovers through support (ADR 0002 section 6).
 - **Step-up** (`POST /auth/step-up`, ADR 0002 section 4): the TOTP or recovery code when enrolled, else the
   password (refused with `mfa-enrolment-required` once the policy requires MFA of that user). Rate limited
   per IP (`step-up`) and per identity (`step-up-identity`, 10 in 5 minutes). It revokes the

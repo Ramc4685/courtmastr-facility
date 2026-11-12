@@ -1115,6 +1115,30 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '422': {$ref: '#/components/responses/ValidationFailed'}
         default: {$ref: '#/components/responses/Problem'}
+  /staff-users/{staff_user_id}/mfa-reset:
+    post:
+      operationId: resetStaffMfa
+      tags: [platform]
+      summary: Remove another user's lost authenticator and recovery codes and revoke their sessions
+      description: 'ADR 0002 section 6. Step-up key. Only an Owner resets an Owner; never your own account. The user
+        is emailed and, if MFA is required for them, enrols again at next sign-in through an emailed link.'
+      x-priority: P1
+      x-permission: platform.staff_user.reset_mfa
+      x-features: [PLT-03]
+      parameters:
+      - name: staff_user_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+      responses:
+        '204':
+          description: Reset
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/PermissionDenied'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        default: {$ref: '#/components/responses/Problem'}
+      x-problem-codes: [invalid-state-transition, self-escalation, step-up-required]
   /staff-users/{staff_user_id}/role:
     put:
       operationId: assignStaffRole

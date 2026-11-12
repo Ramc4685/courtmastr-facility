@@ -28,6 +28,7 @@ register(
     _p("staff_user.update", T, "Edit staff users", "A", _AD),
     _p("staff_user.deactivate", T, "Deactivate and reactivate staff users", "A", _AD),
     _p("staff_user.reset_credentials", T, "Send credential reset links", "A", _AD),
+    _p("staff_user.reset_mfa", T, "Reset another user's two-step verification", "A +", _AD),
     _p("staff_user.assign_role", T, "Assign roles", "A +", _AD),
     _p("staff_user.assign_locations", T, "Assign locations to staff", "A", _AD),
     _p("staff_user.override_permissions", T, "Override permissions per user", "A +", _AD),
