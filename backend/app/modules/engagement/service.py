@@ -191,9 +191,43 @@ def is_subscribed(session: Session, client_id: UUID, channel: str, topic: str, a
     if row is None:
         return topic not in MARKETING
     if row.is_subscribed and topic in MARKETING and privacy.is_gdpr_mode(session):
-        # An implied opt-in recorded before GDPR mode was switched on does not count (PLT-16).
-        return session.scalar(select(ConsentEvent.basis).where(ConsentEvent.id == row.consent_event_id)) not in IMPLIED
+        # An implied opt-in recorded before GDPR mode was switched on does not count (PLT-16); nor does one whose
+        # consent proof is missing, since express consent must be shown.
+        basis = session.scalar(select(ConsentEvent.basis).where(ConsentEvent.id == row.consent_event_id))
+        return basis is not None and basis not in IMPLIED
     return row.is_subscribed
+
+
+@privacy.on_gdpr_mode_off
+def _keep_implied_opt_ins_withdrawn(session: Session, principal: Principal) -> int:
+    """PLT-16: switching GDPR mode off does not quietly resume marketing to clients whose implied (or unproven)
+    opt-in it was ignoring. Each one gets an opt-out with its consent proof; the client or staff can opt in again."""
+    rows = session.scalars(
+        select(CommunicationPreference)
+        .outerjoin(ConsentEvent, ConsentEvent.id == CommunicationPreference.consent_event_id)
+        .where(CommunicationPreference.is_subscribed, CommunicationPreference.topic.in_(MARKETING),
+               or_(ConsentEvent.id.is_(None), ConsentEvent.basis.in_(IMPLIED)))
+        .with_for_update(of=CommunicationPreference)
+    ).all()  # fmt: skip
+    staff = principal.kind == "staff"
+    actor_type, actor_id = ("staff", principal.staff_user_id) if staff else ("system", None)
+    now = clock.now()
+    for row in rows:
+        event = ConsentEvent(
+            client_id=row.client_id, channel=row.channel, address=row.address, topic=row.topic, kind="opt_out",
+            basis="express", source="staff", actor_type=actor_type, actor_id=actor_id, occurred_at=now,
+            note="GDPR mode switched off: the implied consent it set aside is not restored.",
+        )  # fmt: skip
+        session.add(event)
+        session.flush()
+        row.is_subscribed, row.consent_event_id, row.changed_at = False, event.id, now
+        row.source, row.changed_by_actor_type, row.changed_by_actor_id = "staff", actor_type, actor_id
+    for client_id in {row.client_id for row in rows}:
+        client = clients.get(session, client_id)
+        audit.record(session, "clients.consent.update", client, location_id=client.home_location_id,
+                     changes={"communication_preferences": True})  # fmt: skip
+    session.flush()
+    return len(rows)
 
 
 # --- merge and erasure handlers ------------------------------------------------------------------------------
@@ -458,6 +492,7 @@ def update_template(session: Session, principal: Principal, template_id: UUID, d
     if row.origin == "system":
         data.pop("name", None)
         data.pop("channel", None)
+        data.pop("category", None)  # a system template's category is what lets an automation skip consent
     for field, value in data.items():
         setattr(row, field, value)
     _check_fields(row.subject, row.body_text)
@@ -745,11 +780,21 @@ def _send_key(row: Campaign) -> str:
     return "engagement.push.send" if row.channel == "push" else "engagement.campaign.send"
 
 
+SEND_ALL = "engagement.campaign.send_all"
+
+
+def _needs_send_all(session: Session, row: Campaign) -> bool:
+    """PLT-06: any all-clients source. Filters never waive it: a negated or catch-all filter (every birth month,
+    members or not) can still match everyone, and no filter here provably narrows the audience."""
+    return any(s["kind"] == "all_clients" for s in _audience_of(session, row)["sources"])
+
+
 def _authorize_send(session: Session, principal: Principal, row: Campaign) -> None:
-    """PLT-06, after the channel's send key: an audience of every client (no filter) also needs send_all."""
-    audience = _audience_of(session, row)
-    if any(s["kind"] == "all_clients" for s in audience["sources"]) and not audience.get("filters"):
-        authorize(principal, "engagement.campaign.send_all", location_id=row.location_id)
+    """After the channel's send key. The grant is recorded so the send job can refuse a scheduled campaign whose
+    segment was widened to everyone after a sender without send_all scheduled it."""
+    if _needs_send_all(session, row):
+        authorize(principal, SEND_ALL, location_id=row.location_id)
+    row.is_send_all_granted, row.hold_reason = principal.has(SEND_ALL), None
 
 
 def send_campaign(session: Session, principal: Principal, campaign_id: UUID) -> Campaign:
@@ -879,6 +924,11 @@ def send_due_campaigns(session: Session) -> int:
         .with_for_update(skip_locked=True)
     ))  # fmt: skip
     for row in due:
+        if _needs_send_all(session, row) and not row.is_send_all_granted:
+            row.status, row.scheduled_at, row.hold_reason = "draft", None, "send-all-required"
+            audit.record(session, _send_key(row), row, location_id=row.location_id,
+                         changes={"status": ["scheduled", "draft"], "hold_reason": row.hold_reason})  # fmt: skip
+            continue
         _fan_out(session, row)
         audit.record(session, _send_key(row), row, location_id=row.location_id, changes={"status": "sent"})
     return len(due)
@@ -1329,13 +1379,18 @@ def _send_one(session: Session, row: ScheduledNotification) -> None:
             row.status = "cancelled"
             return
         template, topic, channel = session.get(MessageTemplate, rule.message_template_id), rule.topic, rule.channel
-        # automations are marketing unless the template says otherwise, so consent and verification apply
-        category = template.category or "marketing"
+        # Automations send as marketing (consent, verification, unsubscribe footer). Any campaign editor can set
+        # a saved template's category, so only a system template (category locked) may send as transactional.
+        trusted = template.origin == "system" and template.category == "transactional"
+        category = "transactional" if trusted else "marketing"
         topic = topic or ("email_campaigns" if category == "marketing" else None)
     data = _merge_data(session, client, row.location_id, title=row.payload.get("title"),
                        starts_at=_local(session, row.location_id, row.subject_starts_at))  # fmt: skip
     subject, body = rules.render(template.subject, data), rules.render(template.body_text, data)
     if channel == "push":
+        if not is_subscribed(session, client.id, "push", topic or "push_announcements"):
+            row.status = "skipped"
+            return
         now = _now()
         session.add(InboxItem(location_id=row.location_id or client.home_location_id, client_id=client.id,
                               title=subject or template.name, body_text=body, published_at=now,

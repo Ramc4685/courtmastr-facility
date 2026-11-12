@@ -166,6 +166,7 @@ class CampaignOut(Out):
     audience: dict | None
     status: str
     scheduled_at: datetime | None
+    hold_reason: str | None = None
     started_at: datetime | None
     sent_at: datetime | None
     recalled_at: datetime | None
