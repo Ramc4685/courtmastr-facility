@@ -116,8 +116,79 @@ Ohio, close to Central Illinois customers).
 - Expect roughly $25–50 a month per 10 facilities of extra infrastructure as you grow, well inside a typical
   subscription price.
 
+If pay per use matters most, Option C on AWS (Lambda plus Aurora Serverless v2) halves the pilot bill for about two
+weeks of rework, and can return to Fargate later without a rewrite.
+
 If minimum cost and setup time matter more than long-term headroom, Fly.io at ~$120–150 is the runner-up. The images
 are portable, so moving later is possible. The database move is the one painful step.
+
+## 5a. Option C: serverless, pay per use (owner asked 2026-11-12)
+
+The aim is to pay only when the app is used. The database sets the floor on every provider, because Postgres must
+be awake whenever a facility is open. Only the compute can truly drop to zero.
+
+### On AWS
+
+| Piece today | Serverless replacement | Change to the code |
+|---|---|---|
+| `api` and `web` containers | Lambda running the **same container image** through the AWS Lambda Web Adapter, with CloudFront in front | small: config and the client-IP header |
+| Dramatiq worker on Redis | Lambda triggered by SQS (swap Dramatiq's broker for SQS; `@tenant_actor` and `chunked_actor` keep their shape) | medium: `core/jobs`, deploy wiring |
+| `relay` (outbox) | a Lambda run every minute by EventBridge Scheduler, or after each commit | small |
+| `scheduler` | EventBridge Scheduler rules invoking the job Lambda | small |
+| ClamAV (3 GB, always on) | GuardDuty Malware Protection for S3, behind a new adapter for the existing scanner port | small to medium |
+| Redis (queue, rate limits) | none: the queue moves to SQS, and rate limits move to Postgres or DynamoDB on-demand | medium: `core/ratelimit` |
+| RDS PostgreSQL | **Aurora Serverless v2 (PostgreSQL 16)** with minimum 0 ACU: it pauses when nothing is connected and wakes on the first connection. About $0.12 per ACU-hour, plus storage. | none: same extensions and RLS |
+
+Rough cost for a one-facility pilot (~300k API requests a month):
+
+| Item | ~ per month |
+|---|---|
+| Lambda and CloudFront | $0–5 (the permanent free tier is 1M requests and 400k GB-seconds a month) |
+| Aurora at 0.5–1 ACU while the facility is open, paused overnight | $30–50 |
+| Outbound internet for Lambdas inside the private network | ~$4 with a NAT instance on a tiny server, or $33 with a managed NAT gateway |
+| SQS, EventBridge, malware scanning, S3, logs, SES | $5–10 |
+| **Total** | **~$40–100** |
+
+That is roughly half the container pilot (~$120–150). After startup credits, the first year is close to free.
+
+Trade-offs:
+
+- **Rework:** about 1.5–2 weeks of build and test before deploying: the jobs broker, rate limits, the scanner adapter
+  and the pipeline.
+- **Cold starts:** the first request after idle waits about 1–3 s for Lambda. If the database was paused, add about
+  15 s while it wakes. Fix this by keeping a 0.5 ACU minimum during opening hours, set on a schedule.
+- **Connections:** each Lambda copy opens its own database connections. Cap Lambda concurrency rather than buying RDS
+  Proxy, which has a high minimum charge.
+- **Limits:**
+  - Lambda runs at most 15 minutes per call. The Phase 8 chunked jobs already fit that.
+  - Lambda request bodies are limited to 6 MB. Large uploads must go straight to S3.
+- **Scale:** once ~20+ facilities use it every day, the database never sleeps and serverless costs about the same as
+  containers or a little more. Because the Lambda uses the same container image, moving back to Fargate is a
+  configuration change, not a rewrite.
+
+### Serverless containers elsewhere (less rework)
+
+These run the existing containers almost unchanged and still scale to zero.
+
+| Provider | Compute | Database | ~ pilot | Notes |
+|---|---|---|---|---|
+| **Azure Container Apps** | API and web scale to zero. The worker scales 0→N on the Redis queue length (KEDA), so Dramatiq stays. Monthly free grant of 180k vCPU-seconds and 2M requests. | Azure Database for PostgreSQL Flexible Server, Burstable B1ms (~$13–20 plus storage). It does not pause by itself. High availability needs a General Purpose tier (~$130+). | **$40–80** | the least rework of all; Postgres HA is expensive; ClamAV could become Defender for Storage malware scanning |
+| **Google Cloud Run** | API and web scale to zero. The worker needs at least one instance running (always on). Cloud Scheduler for the clock. | Cloud SQL for PostgreSQL (~$25 small; HA doubles it). It does not pause. Memorystore Redis has a ~$35 floor (or Upstash, pay per request). | **$60–110** | little rework; no managed malware scanner, so ClamAV stays as a service |
+
+## 5b. Startup credits
+
+Each cloud gives credits only for its own services. Applying to more than one is allowed, but the app runs on one.
+Amounts are for a **self-funded** company. Larger programmes need an accelerator or investor referral. Terms change
+often, so check each official page before applying.
+
+| Program | Self-funded amount | Bigger tier | Notes |
+|---|---|---|---|
+| **AWS Activate Founders** | **$1,000**, select startups up to $5,000 over time; credits usually last up to two years | Portfolio: $100k+ through an accelerator or VC | needs a paid AWS account (not free tier only); new accounts also get up to $200 in free-tier credits |
+| **Microsoft for Startups** (Founders Hub) | about **$1,000**, rising to about $5,000 after verification | up to $150,000 with an Investor Network referral | for privately held, for-profit companies below Series C |
+| **Google for Startups Cloud Program, Start tier** | **$2,000** for one year (covers Cloud and Firebase) | Scale: up to $200k ($350k for AI-first) when funded | pre-funded, recently founded (sources say within 2–5 years), working MVP |
+
+For a self-funded start, the credits are about the same everywhere ($1–5k). That covers 1–2 years of a serverless
+pilot on any of them, so credits shouldn't decide the cloud. The cheapest *ongoing* bill and the least rework should.
 
 ## 6. What the owner needs to do to start (I cannot create accounts)
 
@@ -135,4 +206,8 @@ Sources: [AWS Fargate pricing](https://aws.amazon.com/fargate/pricing/),
 [RDS t4g price summary](https://www.bytebase.com/dbcost/rds/instance/db.t4g.small/),
 [Fly.io pricing](https://docs.fly.io/about/pricing),
 [DigitalOcean managed database pricing](https://www.digitalocean.com/pricing/managed-databases),
-[Render pricing](https://render.com/pricing), [Amazon SES pricing](https://aws.amazon.com/ses/pricing/).
+[Render pricing](https://render.com/pricing), [Amazon SES pricing](https://aws.amazon.com/ses/pricing/),
+[Aurora Serverless v2 auto-pause](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2-auto-pause.html),
+[AWS Activate credits](https://aws.amazon.com/aws-startups/learn/everything-you-need-to-know-about-aws-activate-credits/),
+[Microsoft for Startups Azure benefits](https://learn.microsoft.com/en-gb/microsoft-for-startups/benefits/azure),
+[Google for Startups Cloud Program FAQ](https://cloud.google.com/startup/faq).
