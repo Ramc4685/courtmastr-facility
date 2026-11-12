@@ -15608,6 +15608,8 @@
           },
           "sort_order": {
             "default": 0,
+            "maximum": 10000.0,
+            "minimum": 0.0,
             "title": "Sort Order",
             "type": "integer"
           }
@@ -15719,6 +15721,8 @@
           "sort_order": {
             "anyOf": [
               {
+                "maximum": 10000.0,
+                "minimum": 0.0,
                 "type": "integer"
               },
               {
@@ -16275,6 +16279,8 @@
           },
           "sort_order": {
             "default": 0,
+            "maximum": 10000.0,
+            "minimum": 0.0,
             "title": "Sort Order",
             "type": "integer"
           }
@@ -16397,6 +16403,8 @@
           "sort_order": {
             "anyOf": [
               {
+                "maximum": 10000.0,
+                "minimum": 0.0,
                 "type": "integer"
               },
               {
@@ -18916,6 +18924,8 @@
           },
           "sort_order": {
             "default": 0,
+            "maximum": 10000.0,
+            "minimum": 0.0,
             "title": "Sort Order",
             "type": "integer"
           }
@@ -19010,6 +19020,8 @@
           "sort_order": {
             "anyOf": [
               {
+                "maximum": 10000.0,
+                "minimum": 0.0,
                 "type": "integer"
               },
               {
@@ -19119,6 +19131,8 @@
           },
           "sort_order": {
             "default": 0,
+            "maximum": 10000.0,
+            "minimum": 0.0,
             "title": "Sort Order",
             "type": "integer"
           },
@@ -19413,6 +19427,8 @@
           "sort_order": {
             "anyOf": [
               {
+                "maximum": 10000.0,
+                "minimum": 0.0,
                 "type": "integer"
               },
               {
@@ -24793,6 +24809,8 @@
           },
           "sort_order": {
             "default": 0,
+            "maximum": 10000.0,
+            "minimum": 0.0,
             "title": "Sort Order",
             "type": "integer"
           }
@@ -24867,6 +24885,8 @@
           "sort_order": {
             "anyOf": [
               {
+                "maximum": 10000.0,
+                "minimum": 0.0,
                 "type": "integer"
               },
               {
@@ -25330,6 +25350,8 @@
           },
           "sort_order": {
             "default": 0,
+            "maximum": 10000.0,
+            "minimum": 0.0,
             "title": "Sort Order",
             "type": "integer"
           },
@@ -25898,6 +25920,8 @@
           "sort_order": {
             "anyOf": [
               {
+                "maximum": 10000.0,
+                "minimum": 0.0,
                 "type": "integer"
               },
               {
@@ -26183,6 +26207,8 @@
           },
           "sort_order": {
             "default": 0,
+            "maximum": 10000.0,
+            "minimum": 0.0,
             "title": "Sort Order",
             "type": "integer"
           }
@@ -26271,6 +26297,8 @@
           "sort_order": {
             "anyOf": [
               {
+                "maximum": 10000.0,
+                "minimum": 0.0,
                 "type": "integer"
               },
               {
@@ -42149,6 +42177,8 @@
           },
           "sort_order": {
             "default": 0,
+            "maximum": 10000.0,
+            "minimum": 0.0,
             "title": "Sort Order",
             "type": "integer"
           },
@@ -120263,6 +120293,62 @@
           }
         },
         "summary": "Assign Staff Locations",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/staff-users/{staff_user_id}/mfa-reset": {
+      "post": {
+        "description": "Remove a user's lost authenticator and recovery codes and sign them out everywhere (ADR 0002 section 6).\nErrors: invalid-state-transition when they have none; self-escalation for your own account.",
+        "operationId": "resetStaffMfa",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "staff_user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Staff User Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset Staff Mfa",
         "tags": [
           "platform"
         ]

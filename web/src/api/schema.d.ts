@@ -11098,6 +11098,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/staff-users/{staff_user_id}/mfa-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Staff Mfa
+         * @description Remove a user's lost authenticator and recovery codes and sign them out everywhere (ADR 0002 section 6).
+         *     Errors: invalid-state-transition when they have none; self-escalation for your own account.
+         */
+        post: operations["resetStaffMfa"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/staff-users/{staff_user_id}/permission-overrides": {
         parameters: {
             query?: never;
@@ -59983,6 +60004,38 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["StaffUserOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resetStaffMfa: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                staff_user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
