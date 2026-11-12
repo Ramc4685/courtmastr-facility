@@ -164,3 +164,42 @@ class PortalAssessmentBestOut(Out):
     best_recorded_at: datetime | None
     latest_value: Decimal
     latest_recorded_at: datetime
+
+
+# --- share links (FIT-05) ------------------------------------------------------------------------------------
+
+
+class PortalShareLinkCreate(In):
+    client_id: UUID | None = None  # whose progress; default: the signed-in client
+    label: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)] | None = None
+    expires_in_days: Annotated[int, Field(ge=1, le=90)] = 30
+
+
+class PortalShareLinkOut(Out):
+    id: UUID
+    client_id: UUID
+    label: str | None
+    expires_at: datetime
+    revoked_at: datetime | None
+    created_at: datetime
+    is_active: bool
+
+
+class PortalShareLinkCreated(PortalShareLinkOut):
+    """The token and its link are shown once; only the token's hash is stored."""
+
+    token: str
+    url: str
+
+
+class SharedProgressLookup(In):
+    """The token from the link's URL fragment; it travels in the body, never the URL."""
+
+    token: Annotated[str, StringConstraints(min_length=20, max_length=200)]
+
+
+class SharedProgressOut(Out):
+    first_name: str
+    expires_at: datetime
+    results: list[PortalAssessmentResultOut]
+    bests: list[PortalAssessmentBestOut]

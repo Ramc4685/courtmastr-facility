@@ -94,6 +94,14 @@ Rules a caller must know:
 - Events emitted: `billing.charge.created|reversed|voided|adjusted`, `billing.invoice.issued|paid|voided|past_due`,
   `billing.payment.processing|succeeded|failed|refunded|voided|disputed|dispute_closed`, `billing.payment_method.expiring`.
 
+### Phase 11 B additions
+
+- `checkout.secure_online_checkout(..., amount_minor=)` pays only that part of the invoice now (a rental deposit,
+  a registration deposit); without it the whole balance is due. With no invoice, a given `payment_method_id` is
+  used when it belongs to the client, else 422 `payment-method-not-usable`.
+- `service.get_invoice_row(session, invoice_id)` loads the invoice row for a caller's checkout;
+  `service.equal_instalments(total, start_on, unit, count)` splits an amount the way the schedule generator does.
+
 ## PDF documents (`app/core/pdf.py`)
 
 Invoice, receipt and statement PDFs are rendered from the same JSON documents the API returns, by the shared

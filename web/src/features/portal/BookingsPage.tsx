@@ -4,14 +4,15 @@ import { api, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { ConfirmDialog, Dialog } from '../../components/Dialog'
-import { Input, Select } from '../../components/Field'
+import { Checkbox, Input, Select } from '../../components/Field'
 import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { Table, useKeysetQuery } from '../../components/Table'
 import { useToast } from '../../components/Toast'
 import { addDays, formatDateTime, todayIn } from '../../lib/format'
 import { FormError } from '../billing/shared'
 import { PortalPage } from './PortalApp'
-import { label, NewCardField, PaymentOutcome, RENTAL_TONE, useAttemptKey, usePortal } from './shared'
+import { PaymentChoice, usePaymentChoice } from './PaymentChoice'
+import { label, PaymentOutcome, RENTAL_TONE, useAttemptKey, usePortal } from './shared'
 
 type Rental = Schemas['PortalRentalOut']
 type RentalType = Schemas['PublicRentalType']
@@ -23,14 +24,33 @@ function timeIn(iso: string, timeZone?: string) {
   return new Intl.DateTimeFormat(undefined, { timeStyle: 'short', timeZone }).format(new Date(iso))
 }
 
+const span = (m: number) => (m % 60 ? `${m} minutes` : `${m / 60} hour${m > 60 ? 's' : ''}`)
+
+/** The type's effective online limits (location defaults already applied by the server), as one sentence. */
+function bookingLimits(t: Pick<RentalType, 'min_lead_min' | 'max_length_min' | 'horizon_days'>) {
+  return [
+    t.horizon_days ? `Book up to ${t.horizon_days} day${t.horizon_days > 1 ? 's' : ''} ahead` : 'Book any date ahead',
+    t.min_lead_min > 0 ? `at least ${span(t.min_lead_min)} before the start` : null,
+    t.max_length_min ? `for up to ${span(t.max_length_min)}` : null,
+  ]
+    .filter(Boolean)
+    .join(', ') + '.'
+}
+
 /** Pay the held checkout. The hold is the server's; we only show what it answers. */
 function PayCheckout({ checkout, onDone }: { checkout: Checkout; onDone: (c: Checkout) => void }) {
   const qc = useQueryClient()
   const { money, zoneOf } = usePortal()
-  const [token, setToken] = useState('')
+  const pay = usePaymentChoice(checkout.rental.client_id)
+  const [save, setSave] = useState(false)
   const attempt = useAttemptKey()
   const confirm = useMutation({
-    mutationFn: () => api.post('/api/v1/portal/rentals/{rental_id}/confirm', { path: { rental_id: checkout.rental.id }, body: { provider_payment_token: token }, idempotencyKey: attempt.key }),
+    mutationFn: () =>
+      api.post('/api/v1/portal/rentals/{rental_id}/confirm', {
+        path: { rental_id: checkout.rental.id },
+        body: { provider_payment_token: pay.body.method_token, payment_method_id: pay.body.payment_method_id, save_method: pay.isNew && save },
+        idempotencyKey: attempt.key,
+      }),
     onSuccess: (c) => {
       void qc.invalidateQueries({ queryKey: ['portal'] })
       onDone(c)
@@ -43,7 +63,7 @@ function PayCheckout({ checkout, onDone }: { checkout: Checkout; onDone: (c: Che
       className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault()
-        if (token) confirm.mutate()
+        if (pay.ready) confirm.mutate()
       }}
     >
       <ul className="divide-y divide-border text-sm">
@@ -65,8 +85,10 @@ function PayCheckout({ checkout, onDone }: { checkout: Checkout; onDone: (c: Che
       <p className="font-medium">Due now: {money(checkout.amount_due_minor)}</p>
       {checkout.expires_at && <p className="text-sm text-muted">We are holding this time until {formatDateTime(checkout.expires_at, zoneOf(checkout.rental.location_id))}.</p>}
       <FormError error={confirm.error} />
-      <NewCardField value={token} onChange={setToken} />
-      <Button type="submit" loading={confirm.isPending} disabled={!token}>
+      <PaymentChoice choice={pay}>
+        <Checkbox label="Save this card for future payments" checked={save} onChange={(e) => setSave(e.target.checked)} />
+      </PaymentChoice>
+      <Button type="submit" loading={confirm.isPending} disabled={!pay.ready}>
         Pay {money(checkout.amount_due_minor)}
       </Button>
     </form>
@@ -136,10 +158,11 @@ function BookRentalDialog({ onClose }: { onClose: () => void }) {
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-3">
           <Select label="Rental" value={type.id} onChange={(e) => setTypeId(e.target.value)} options={types.data.map((t) => ({ value: t.id, label: locations.length > 1 ? `${t.name} (${locations.find((l) => l.id === t.location_id)?.public_name ?? ''})` : t.name }))} />
-          <Input label="Date" type="date" value={on} min={todayIn(zone)} onChange={(e) => setOn(e.target.value)} />
-          <Select label="Length" value={String(minutes)} onChange={(e) => setLength(Number(e.target.value))} options={lengths.map((m) => ({ value: String(m), label: m % 60 ? `${m} minutes` : `${m / 60} hour${m > 60 ? 's' : ''}` }))} />
+          <Input label="Date" type="date" value={on} min={todayIn(zone)} max={type.horizon_days ? addDays(todayIn(zone), type.horizon_days) : undefined} onChange={(e) => setOn(e.target.value)} />
+          <Select label="Length" value={String(minutes)} onChange={(e) => setLength(Number(e.target.value))} options={lengths.map((m) => ({ value: String(m), label: span(m) }))} />
         </div>
         {type.online_description && <p className="text-sm text-muted">{type.online_description}</p>}
+        <p className="text-sm text-muted">{bookingLimits(type)}</p>
         {type.cancel_cutoff_hours !== null && (
           <p className="text-sm text-muted">
             Cancel at least {type.cancel_cutoff_hours} hours ahead{type.late_cancel_fee_pct ? `; later cancellations keep ${Number(type.late_cancel_fee_pct)}% as a fee` : ''}.

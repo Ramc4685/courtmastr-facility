@@ -42,3 +42,24 @@ describe('SessionPanel', SCREEN, () => {
     expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ client_id: 'c9', session_id: 'ss1', client_package_id: null, program_fee_ids: [] })
   })
 })
+
+describe('SessionPanel meeting (CLS-08)', SCREEN, () => {
+  it('makes a session virtual and then shows the host and join links to staff', async () => {
+    let virtual = false
+    const meeting = () => ({ status: 200, body: { session_id: 'ss1', is_virtual: virtual, provider: virtual ? 'fake' : null, join_url: virtual ? 'https://meet.example/j/1' : null, host_url: virtual ? 'https://meet.example/h/1' : null, opens_at: '2026-11-20T14:45:00Z', closes_at: '2026-11-20T16:00:00Z' } })
+    const calls = renderAsStaff(<SessionPanel sessionId="ss1" canEdit />, PERMS, {
+      ...routes,
+      'GET /api/v1/sessions/ss1/meeting': meeting,
+      'PUT /api/v1/sessions/ss1/meeting': () => {
+        virtual = true
+        return meeting()
+      },
+    })
+    expect(await screen.findByText('This session takes place in person.')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Make virtual' }))
+    expect(await screen.findByRole('link', { name: 'Start the meeting as host' })).toHaveAttribute('href', 'https://meet.example/h/1')
+    expect(screen.getByRole('link', { name: 'Join link' })).toHaveAttribute('rel', 'noopener noreferrer')
+    expect(screen.getByRole('button', { name: 'Remove meeting' })).toBeInTheDocument()
+    expect(calls.filter((c) => c.method === 'PUT' && c.url.endsWith('/meeting'))).toHaveLength(1)
+  })
+})

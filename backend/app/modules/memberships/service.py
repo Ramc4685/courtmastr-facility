@@ -2031,7 +2031,7 @@ def portal_buy(session: Session, principal: Principal, data: dict, idempotency_k
         session, client_id=contract.owner_client_id, location_id=contract.location_id,
         total_minor=sum(row.amount_minor for row in _rows(session, contract.id)), invoice=invoice,
         idempotency_key=idempotency_key, method_token=token, tender_kind=tender,
-        must_pay_now=False, coupon_code=data.get("coupon_code"),
+        payment_method_id=data.get("payment_method_id"), must_pay_now=False, coupon_code=data.get("coupon_code"),
         save_method=save, save_as_autopay=True if contract.is_autopay else None,
     )  # fmt: skip
     return _sale_view(session, contract, invoice, payment)

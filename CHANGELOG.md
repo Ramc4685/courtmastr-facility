@@ -7,6 +7,12 @@ under `Unreleased` in the same change that makes the behaviour visible.
 ## [Unreleased]
 
 ### Added
+- Online rentals: per-location settings switch them on or off and set a lead time, a longest booking and how far ahead clients can book.
+- The portal pays for rentals, memberships and packages with a card already on file, as well as a new one.
+- Portal sessions show a week and month calendar in the location's time zone, next to the list, and can buy a package and book in one go.
+- Virtual sessions: staff add a video meeting to a session, and enrolled clients get the join link from 15 minutes before the start.
+- Program registration can take a deposit and charge the rest on a date or in instalments, collected by autopay.
+- Clients can see their progress on a portal page and share it through a link they can revoke.
 - Collections: tag clients in collections, keep notes on their billing page, and see a collections report with what each owes.
 - The portal refuses online buying and booking while an account is past due, when the billing setting is on; paying unlocks it.
 - Billing notices and expiring-cards screens, and a staff daily digest of failed and upcoming autopay.
@@ -33,6 +39,7 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Settings > Import data: bring clients and households, memberships, opening balances and products over from a CSV file, with a check that imports nothing, a problem report and progress. Imports send no welcome messages, and in GDPR mode marketing consent is kept only with the date and source of consent.
 
 ### Changed
+- A declined online rental payment now returns the shared `payment-failed` error code.
 - Sign-in is harder to abuse: per-address and per-account rate limits, escalating lockouts, a common-password check, and a sign-in token that expires with the page.
 - Staff can only sign in from the networks the owner lists, when a list is set; this now applies to owners and admins too.
 - Staff are signed out after 30 minutes without activity (the owner can set 15 to 60) and after 12 hours in any case.

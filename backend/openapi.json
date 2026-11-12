@@ -40255,6 +40255,11 @@
             ],
             "title": "Completed At"
           },
+          "due_now_minor": {
+            "default": 0,
+            "title": "Due Now Minor",
+            "type": "integer"
+          },
           "expires_at": {
             "format": "date-time",
             "title": "Expires At",
@@ -40264,6 +40269,14 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "instalments": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PortalInstalment"
+            },
+            "title": "Instalments",
+            "type": "array"
           },
           "invoice_id": {
             "anyOf": [
@@ -40973,6 +40986,18 @@
               }
             ],
             "title": "Method Token"
+          },
+          "payment_method_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method Id"
           },
           "proration_tail": {
             "anyOf": [
@@ -41904,6 +41929,25 @@
         "title": "PortalInboxItem",
         "type": "object"
       },
+      "PortalInstalment": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "due_on": {
+            "format": "date",
+            "title": "Due On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "due_on",
+          "amount_minor"
+        ],
+        "title": "PortalInstalment",
+        "type": "object"
+      },
       "PortalInvite": {
         "additionalProperties": false,
         "properties": {
@@ -42048,6 +42092,38 @@
         "title": "PortalInvoiceOut",
         "type": "object"
       },
+      "PortalJoinLinkOut": {
+        "description": "SSP-18: the join link of a virtual session, for an enrolled client or someone acting for one.",
+        "properties": {
+          "closes_at": {
+            "format": "date-time",
+            "title": "Closes At",
+            "type": "string"
+          },
+          "join_url": {
+            "title": "Join Url",
+            "type": "string"
+          },
+          "opens_at": {
+            "format": "date-time",
+            "title": "Opens At",
+            "type": "string"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "join_url",
+          "opens_at",
+          "closes_at"
+        ],
+        "title": "PortalJoinLinkOut",
+        "type": "object"
+      },
       "PortalMissingDocument": {
         "properties": {
           "client_id": {
@@ -42130,6 +42206,18 @@
             "format": "uuid",
             "title": "Package Plan Id",
             "type": "string"
+          },
+          "payment_method_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method Id"
           },
           "quantity": {
             "anyOf": [
@@ -43601,18 +43689,39 @@
       },
       "PortalRentalConfirm": {
         "additionalProperties": false,
-        "description": "A PaymentProvider client token; never raw card data. Stored methods arrive with build module 8.",
+        "description": "A PaymentProvider client token (never raw card data) or one of the client's stored payment methods.",
         "properties": {
+          "payment_method_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Method Id"
+          },
           "provider_payment_token": {
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Provider Payment Token",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Payment Token"
+          },
+          "save_method": {
+            "default": false,
+            "title": "Save Method",
+            "type": "boolean"
           }
         },
-        "required": [
-          "provider_payment_token"
-        ],
         "title": "PortalRentalConfirm",
         "type": "object"
       },
@@ -43831,6 +43940,11 @@
             "title": "Is Bookable",
             "type": "boolean"
           },
+          "is_virtual": {
+            "default": false,
+            "title": "Is Virtual",
+            "type": "boolean"
+          },
           "location_id": {
             "format": "uuid",
             "title": "Location Id",
@@ -43846,6 +43960,18 @@
               }
             ],
             "title": "Reason"
+          },
+          "reservation_type_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reservation Type Id"
           },
           "session_id": {
             "format": "uuid",
@@ -44054,6 +44180,180 @@
           }
         },
         "title": "PortalSettingsUpdate",
+        "type": "object"
+      },
+      "PortalShareLinkCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "expires_in_days": {
+            "default": 30,
+            "maximum": 90.0,
+            "minimum": 1.0,
+            "title": "Expires In Days",
+            "type": "integer"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "title": "PortalShareLinkCreate",
+        "type": "object"
+      },
+      "PortalShareLinkCreated": {
+        "description": "The token and its link are shown once; only the token's hash is stored.",
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "label",
+          "expires_at",
+          "revoked_at",
+          "created_at",
+          "is_active",
+          "token",
+          "url"
+        ],
+        "title": "PortalShareLinkCreated",
+        "type": "object"
+      },
+      "PortalShareLinkOut": {
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "label",
+          "expires_at",
+          "revoked_at",
+          "created_at",
+          "is_active"
+        ],
+        "title": "PortalShareLinkOut",
         "type": "object"
       },
       "PortalSigner": {
@@ -49320,6 +49620,17 @@
             "title": "Amount Minor",
             "type": "integer"
           },
+          "deposit_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Minor"
+          },
           "description": {
             "title": "Description",
             "type": "string"
@@ -49864,6 +50175,18 @@
       },
       "PublicProgramGroup": {
         "properties": {
+          "balance_due_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance Due On"
+          },
           "children": {
             "items": {
               "$ref": "#/components/schemas/PublicProgramGroup"
@@ -49928,6 +50251,28 @@
             "title": "Id",
             "type": "string"
           },
+          "instalment_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instalment Count"
+          },
+          "instalment_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instalment Unit"
+          },
           "location_id": {
             "format": "uuid",
             "title": "Location Id",
@@ -49935,6 +50280,11 @@
           },
           "name": {
             "title": "Name",
+            "type": "string"
+          },
+          "payment_plan": {
+            "default": "pay_in_full",
+            "title": "Payment Plan",
             "type": "string"
           },
           "payment_requirement": {
@@ -50036,6 +50386,17 @@
           "from_price_minor": {
             "title": "From Price Minor",
             "type": "integer"
+          },
+          "horizon_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horizon Days"
           },
           "id": {
             "format": "uuid",
@@ -51693,6 +52054,18 @@
       },
       "RegistrationConfigOut": {
         "properties": {
+          "balance_due_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance Due On"
+          },
           "closed_message": {
             "anyOf": [
               {
@@ -51731,6 +52104,28 @@
             "title": "Displays Openings",
             "type": "boolean"
           },
+          "instalment_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instalment Count"
+          },
+          "instalment_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instalment Unit"
+          },
           "is_enabled": {
             "title": "Is Enabled",
             "type": "boolean"
@@ -51761,6 +52156,10 @@
               }
             ],
             "title": "Opens On"
+          },
+          "payment_plan": {
+            "title": "Payment Plan",
+            "type": "string"
           },
           "payment_requirement": {
             "title": "Payment Requirement",
@@ -51819,7 +52218,11 @@
           "public_slug",
           "is_portal_visible",
           "portal_publish_name",
-          "portal_published_at"
+          "portal_published_at",
+          "payment_plan",
+          "balance_due_on",
+          "instalment_count",
+          "instalment_unit"
         ],
         "title": "RegistrationConfigOut",
         "type": "object"
@@ -51827,6 +52230,18 @@
       "RegistrationConfigPut": {
         "additionalProperties": false,
         "properties": {
+          "balance_due_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Balance Due On"
+          },
           "closed_message": {
             "anyOf": [
               {
@@ -51874,6 +52289,35 @@
             ],
             "title": "Displays Openings"
           },
+          "instalment_count": {
+            "anyOf": [
+              {
+                "maximum": 24.0,
+                "minimum": 2.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instalment Count"
+          },
+          "instalment_unit": {
+            "anyOf": [
+              {
+                "enum": [
+                  "week",
+                  "half_month",
+                  "month"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instalment Unit"
+          },
           "is_enabled": {
             "anyOf": [
               {
@@ -51908,6 +52352,22 @@
               }
             ],
             "title": "Opens On"
+          },
+          "payment_plan": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pay_in_full",
+                  "deposit",
+                  "instalments"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Plan"
           },
           "payment_requirement": {
             "anyOf": [
@@ -53746,6 +54206,113 @@
         "title": "RentalPlanUpdate",
         "type": "object"
       },
+      "RentalPortalSettings": {
+        "additionalProperties": false,
+        "description": "Per-location online rental defaults (SSP-04). A limit tightens every self-service type here.",
+        "properties": {
+          "horizon_days": {
+            "anyOf": [
+              {
+                "maximum": 730.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horizon Days"
+          },
+          "is_online_enabled": {
+            "default": true,
+            "title": "Is Online Enabled",
+            "type": "boolean"
+          },
+          "max_length_min": {
+            "anyOf": [
+              {
+                "maximum": 10080.0,
+                "minimum": 5.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Length Min"
+          },
+          "min_lead_min": {
+            "anyOf": [
+              {
+                "maximum": 525600.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Lead Min"
+          }
+        },
+        "title": "RentalPortalSettings",
+        "type": "object"
+      },
+      "RentalPortalSettingsOut": {
+        "properties": {
+          "horizon_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horizon Days"
+          },
+          "is_online_enabled": {
+            "title": "Is Online Enabled",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "max_length_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Length Min"
+          },
+          "min_lead_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Lead Min"
+          }
+        },
+        "required": [
+          "location_id",
+          "is_online_enabled",
+          "min_lead_min",
+          "max_length_min",
+          "horizon_days"
+        ],
+        "title": "RentalPortalSettingsOut",
+        "type": "object"
+      },
       "RentalPreview": {
         "properties": {
           "conflict_count": {
@@ -54465,6 +55032,17 @@
           "eligibility": {
             "title": "Eligibility",
             "type": "string"
+          },
+          "horizon_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horizon Days"
           },
           "id": {
             "format": "uuid",
@@ -59105,6 +59683,11 @@
           "is_self_bookable": {
             "title": "Is Self Bookable",
             "type": "boolean"
+          },
+          "is_virtual": {
+            "default": false,
+            "title": "Is Virtual",
+            "type": "boolean"
           }
         },
         "required": [
@@ -59202,6 +59785,74 @@
         "title": "SessionInstructorOut",
         "type": "object"
       },
+      "SessionMeetingOut": {
+        "description": "A virtual session's meeting (CLS-08). Staff only: the links are credentials.",
+        "properties": {
+          "closes_at": {
+            "format": "date-time",
+            "title": "Closes At",
+            "type": "string"
+          },
+          "host_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host Url"
+          },
+          "is_virtual": {
+            "title": "Is Virtual",
+            "type": "boolean"
+          },
+          "join_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Join Url"
+          },
+          "opens_at": {
+            "format": "date-time",
+            "title": "Opens At",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "is_virtual",
+          "provider",
+          "join_url",
+          "host_url",
+          "opens_at",
+          "closes_at"
+        ],
+        "title": "SessionMeetingOut",
+        "type": "object"
+      },
       "SessionOut": {
         "properties": {
           "allows_free_booking": {
@@ -59254,6 +59905,11 @@
           },
           "is_self_bookable": {
             "title": "Is Self Bookable",
+            "type": "boolean"
+          },
+          "is_virtual": {
+            "default": false,
+            "title": "Is Virtual",
             "type": "boolean"
           },
           "location_id": {
@@ -59575,6 +60231,58 @@
           "client_id"
         ],
         "title": "ShareIn",
+        "type": "object"
+      },
+      "SharedProgressLookup": {
+        "additionalProperties": false,
+        "description": "The token from the link's URL fragment; it travels in the body, never the URL.",
+        "properties": {
+          "token": {
+            "maxLength": 200,
+            "minLength": 20,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "SharedProgressLookup",
+        "type": "object"
+      },
+      "SharedProgressOut": {
+        "properties": {
+          "bests": {
+            "items": {
+              "$ref": "#/components/schemas/PortalAssessmentBestOut"
+            },
+            "title": "Bests",
+            "type": "array"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "first_name": {
+            "title": "First Name",
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/PortalAssessmentResultOut"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "first_name",
+          "expires_at",
+          "results",
+          "bests"
+        ],
+        "title": "SharedProgressOut",
         "type": "object"
       },
       "ShiftCopy": {
@@ -97970,6 +98678,139 @@
         ]
       }
     },
+    "/api/v1/locations/{location_id}/rental-portal-settings": {
+      "get": {
+        "operationId": "getRentalPortalSettings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalPortalSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Rental Portal Settings",
+        "tags": [
+          "rentals"
+        ]
+      },
+      "put": {
+        "description": "SSP-04: whether the portal books rentals at this location, and limits for every self-service type.",
+        "operationId": "putRentalPortalSettings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RentalPortalSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RentalPortalSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Rental Portal Settings",
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
     "/api/v1/locations/{location_id}/session-booking-policy": {
       "put": {
         "operationId": "putDefaultSessionBookingPolicy",
@@ -110797,6 +111638,196 @@
         ]
       }
     },
+    "/api/v1/portal/progress-share-links": {
+      "get": {
+        "description": "FIT-05: the acted-for client's share links, live and revoked. 404 while sharing is off.",
+        "operationId": "listPortalProgressShareLinks",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PortalShareLinkOut"
+                  },
+                  "title": "Response Listportalprogresssharelinks",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Portal Progress Share Links",
+        "tags": [
+          "assessments"
+        ]
+      },
+      "post": {
+        "description": "A revocable read-only link; the token is in the URL fragment and shown once.",
+        "operationId": "createPortalProgressShareLink",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalShareLinkCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalShareLinkCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Portal Progress Share Link",
+        "tags": [
+          "assessments"
+        ]
+      }
+    },
+    "/api/v1/portal/progress-share-links/{progress_share_link_id}/revoke": {
+      "post": {
+        "operationId": "revokePortalProgressShareLink",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "progress_share_link_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Progress Share Link Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Portal Progress Share Link",
+        "tags": [
+          "assessments"
+        ]
+      }
+    },
     "/api/v1/portal/registration-checkouts": {
       "post": {
         "operationId": "createPortalRegistrationCheckout",
@@ -111743,7 +112774,7 @@
     },
     "/api/v1/portal/rentals/{rental_id}/confirm": {
       "post": {
-        "description": "Errors: hold-expired, payment-declined.",
+        "description": "Pays through secure_online_checkout. Errors: hold-expired, payment-failed, payment-method-required,\npayment-method-not-usable, provider-unavailable (503, retry with the same key).",
         "operationId": "confirmPortalRental",
         "parameters": [
           {
@@ -111963,6 +112994,69 @@
           }
         },
         "summary": "List Portal Session Listings",
+        "tags": [
+          "programs"
+        ]
+      }
+    },
+    "/api/v1/portal/sessions/{schedule_session_id}/join-link": {
+      "get": {
+        "description": "SSP-18: for an enrolled client (or someone acting for one), from 15 minutes before the start to the end.\nErrors: join-not-open (409, with opens_at and closes_at).",
+        "operationId": "getPortalSessionJoinLink",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalJoinLinkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portal Session Join Link",
         "tags": [
           "programs"
         ]
@@ -118880,6 +119974,48 @@
         "summary": "Get Public Program Group",
         "tags": [
           "programs"
+        ]
+      }
+    },
+    "/api/v1/public/progress-shares/lookup": {
+      "post": {
+        "description": "FIT-05: what a live share link shows. The token travels in the body, never the URL. Errors: 404.",
+        "operationId": "getSharedProgress",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedProgressLookup"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedProgressOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Shared Progress",
+        "tags": [
+          "assessments"
         ]
       }
     },
@@ -129196,6 +130332,183 @@
         "summary": "Assign Session Instructor",
         "tags": [
           "staff"
+        ]
+      }
+    },
+    "/api/v1/sessions/{schedule_session_id}/meeting": {
+      "delete": {
+        "operationId": "deleteSessionMeeting",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Session Meeting",
+        "tags": [
+          "scheduling"
+        ]
+      },
+      "get": {
+        "description": "CLS-08: the meeting links of a virtual session (staff only).",
+        "operationId": "getSessionMeeting",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionMeetingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Session Meeting",
+        "tags": [
+          "scheduling"
+        ]
+      },
+      "put": {
+        "description": "Make the session virtual (a meeting through the video port). Idempotent.",
+        "operationId": "createSessionMeeting",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionMeetingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Session Meeting",
+        "tags": [
+          "scheduling"
         ]
       }
     },

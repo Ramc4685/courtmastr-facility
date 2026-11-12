@@ -26,6 +26,11 @@ export const PAYMENT_REQUIREMENT: Record<string, string> = {
   card_required_charge_optional: 'Card on file required, charge later',
   card_required_no_charge: 'Card on file required, no charge',
 }
+export const PAYMENT_PLAN: Record<string, string> = {
+  pay_in_full: 'Pay in full',
+  deposit: 'Deposit now, balance on a date',
+  instalments: 'Instalments',
+}
 export const REGISTRATION_STATE: Record<string, { label: string; tone: Tone }> = {
   open: { label: 'Open', tone: 'success' },
   not_yet_open: { label: 'Opens soon', tone: 'info' },
@@ -46,6 +51,10 @@ const ERROR_TEXT: Record<string, string> = {
   'session-has-space': 'There is room again, so you can register instead of joining the waitlist.',
   'checkout-closed': 'This basket is closed. Start a new one.',
   'checkout-expired': 'The held places have expired. Start a new basket.',
+  'coupon-not-applicable': 'A coupon cannot be used with a payment plan.',
+  'payment-method-required': 'Choose a card to pay with.',
+  'payment-plan-invalid': 'A deposit or instalment plan needs “Card payment at registration” as the payment setting.',
+  'entitlement-not-eligible': 'This session is paid for with a package.',
 }
 
 /** The sentence to show for a failed call: our wording for the known problem codes, the server's detail otherwise. */

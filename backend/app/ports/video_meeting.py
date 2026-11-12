@@ -22,3 +22,17 @@ class VideoMeeting(Protocol):
     def update_meeting(self, external_meeting_id: str, *, starts_at: datetime, minutes: int) -> None: ...
 
     def delete_meeting(self, external_meeting_id: str) -> None: ...
+
+
+_adapter: VideoMeeting | None = None
+
+
+def configure(adapter: VideoMeeting) -> None:
+    global _adapter
+    _adapter = adapter
+
+
+def get() -> VideoMeeting:
+    if _adapter is None:
+        raise RuntimeError("video meeting adapter not configured; call bootstrap()")
+    return _adapter

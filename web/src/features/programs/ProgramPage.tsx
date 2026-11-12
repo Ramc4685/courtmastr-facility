@@ -17,7 +17,7 @@ import { fromMinor } from '../rentals/queries'
 import { useWorkingLocation } from '../scheduling/location'
 import { NewProgramDialog } from './ProgramsPage'
 import { RosterTab, WaitlistTab } from './RosterTab'
-import { dateRange, KIND_LABEL, KINDS, PAYMENT_REQUIREMENT, programError, seats, STATUS_TONE, useGroup, useGroupFees, WAITLIST_LABEL, type ProgramFee, type ProgramGroup, type RegistrationConfig } from './queries'
+import { dateRange, KIND_LABEL, KINDS, PAYMENT_PLAN, PAYMENT_REQUIREMENT, programError, seats, STATUS_TONE, useGroup, useGroupFees, WAITLIST_LABEL, type ProgramFee, type ProgramGroup, type RegistrationConfig } from './queries'
 
 const int = (v: string) => (v.trim() === '' ? null : Number(v))
 const refreshGroup = (qc: ReturnType<typeof useQueryClient>) => {
@@ -430,6 +430,10 @@ function ConfigForm({ group, config, canConfig }: { group: ProgramGroup; config:
     closed_message: config.closed_message ?? '',
     public_slug: config.public_slug ?? '',
     portal_publish_name: config.portal_publish_name ?? '',
+    payment_plan: config.payment_plan,
+    balance_due_on: config.balance_due_on ?? '',
+    instalment_count: config.instalment_count === null ? '' : String(config.instalment_count),
+    instalment_unit: config.instalment_unit ?? 'month',
   })
   const set = (patch: Partial<typeof f>) => setF({ ...f, ...patch })
   const done = () => void qc.invalidateQueries({ queryKey: ['program-group', group.id, 'config'] })
@@ -448,6 +452,10 @@ function ConfigForm({ group, config, canConfig }: { group: ProgramGroup; config:
           closed_message: f.closed_message || null,
           public_slug: f.public_slug || null,
           portal_publish_name: f.portal_publish_name || null,
+          payment_plan: f.payment_plan as 'pay_in_full',
+          balance_due_on: f.payment_plan === 'pay_in_full' ? null : f.balance_due_on || null,
+          instalment_count: f.payment_plan === 'instalments' && f.instalment_count ? Number(f.instalment_count) : null,
+          instalment_unit: f.payment_plan === 'instalments' ? (f.instalment_unit as 'month') : null,
         },
       }),
     onSuccess: () => {
@@ -503,6 +511,30 @@ function ConfigForm({ group, config, canConfig }: { group: ProgramGroup; config:
         <fieldset disabled={!canConfig} className="contents">
           <Checkbox className="sm:col-span-2" label="Take registrations online" checked={f.is_enabled} onChange={(ev) => set({ is_enabled: ev.target.checked })} />
           <Select label="Payment" value={f.payment_requirement} onChange={(ev) => set({ payment_requirement: ev.target.value })} options={Object.entries(PAYMENT_REQUIREMENT).map(([value, label]) => ({ value, label }))} />
+          <Select
+            label="Payment plan"
+            value={f.payment_plan}
+            hint="A deposit or instalments needs card payment at registration; the card is kept for the later charges."
+            error={e.payment_plan}
+            onChange={(ev) => set({ payment_plan: ev.target.value })}
+            options={Object.entries(PAYMENT_PLAN).map(([value, label]) => ({ value, label }))}
+          />
+          {f.payment_plan !== 'pay_in_full' && (
+            <Input
+              label={f.payment_plan === 'deposit' ? 'Balance due on' : 'First instalment due on'}
+              type="date"
+              value={f.balance_due_on}
+              hint="Each fee's deposit, taken at registration, is set on the fee."
+              error={e.balance_due_on}
+              onChange={(ev) => set({ balance_due_on: ev.target.value })}
+            />
+          )}
+          {f.payment_plan === 'instalments' && (
+            <>
+              <Input label="Number of instalments" type="number" min={2} max={24} value={f.instalment_count} hint="From 2 to 24, the first at registration." error={e.instalment_count} onChange={(ev) => set({ instalment_count: ev.target.value })} />
+              <Select label="One instalment each" value={f.instalment_unit} error={e.instalment_unit} onChange={(ev) => set({ instalment_unit: ev.target.value })} options={[{ value: 'week', label: 'Week' }, { value: 'half_month', label: 'Half month' }, { value: 'month', label: 'Month' }]} />
+            </>
+          )}
           <Input label="Public link name" value={f.public_slug} hint="Lowercase letters, numbers and dashes." error={e.public_slug} onChange={(ev) => set({ public_slug: ev.target.value })} />
           <Input label="Opens on" type="date" value={f.opens_on} error={e.opens_on} onChange={(ev) => set({ opens_on: ev.target.value })} />
           <Input label="Closes on" type="date" value={f.closes_on} error={e.closes_on} onChange={(ev) => set({ closes_on: ev.target.value })} />

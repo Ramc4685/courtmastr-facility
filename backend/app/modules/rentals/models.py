@@ -185,6 +185,26 @@ class RentalType(TenantOwned, Timestamps, Base):
     is_active: Mapped[bool] = mapped_column(server_default=text("true"))
 
 
+class RentalPortalSetting(TenantOwned, Timestamps, Base):
+    """Per-location online rental defaults (SSP-04, RNT-06): whether the portal books rentals here at all, and
+    limits that tighten every self-service type of the location (the stricter of type and location wins)."""
+
+    __tablename__ = "rental_portal_setting"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", ondelete="CASCADE", index=False),
+        UniqueConstraint("tenant_id", "location_id", name="uq_rental_portal_setting_location"),
+        CheckConstraint("min_lead_min IS NULL OR min_lead_min BETWEEN 0 AND 525600", name="min_lead_min"),
+        CheckConstraint("max_length_min IS NULL OR max_length_min BETWEEN 5 AND 10080", name="max_length_min"),
+        CheckConstraint("horizon_days IS NULL OR horizon_days BETWEEN 1 AND 730", name="horizon_days"),
+    )
+
+    location_id: Mapped[UUID]
+    is_online_enabled: Mapped[bool] = mapped_column(server_default=text("true"))
+    min_lead_min: Mapped[int | None]
+    max_length_min: Mapped[int | None]
+    horizon_days: Mapped[int | None] = mapped_column(SmallInteger)
+
+
 class RentalTypeResource(TenantOwned, Timestamps, Base):
     """Resources a type may be booked on; online search offers exactly these rows."""
 

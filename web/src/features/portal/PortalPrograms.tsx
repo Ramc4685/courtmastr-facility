@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { api, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
@@ -10,12 +10,24 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { formatDate, formatDateTime, formatMoney } from '../../lib/format'
 import { programError, REGISTRATION_STATE } from '../programs/queries'
-import { clientName, CouponField, usePortalClients } from './shared'
+import { PaymentChoice, usePaymentChoice } from './PaymentChoice'
+import { clientName, CouponField, useAttemptKey, usePortal, usePortalClients } from './shared'
 
 type Program = Schemas['PublicProgramGroup']
 type Basket = Schemas['PortalCheckoutOut']
 
 const flatten = (p: Program): Program[] => [p, ...p.children.flatMap(flatten)]
+const UNIT: Record<string, string> = { week: 'week', half_month: 'half month', month: 'month' }
+
+/** REG-10: how a group's price is split, as one line for its card. */
+function planText(p: Program) {
+  const deposits = p.fees.filter((f) => f.deposit_minor).map((f) => `${f.description} ${formatMoney(f.deposit_minor)}`)
+  const today = deposits.length ? `Pay a deposit today (${deposits.join(', ')}), then the balance` : 'Pay'
+  const from = p.balance_due_on ? ` from ${formatDate(p.balance_due_on)}` : ''
+  if (p.payment_plan === 'deposit') return `${deposits.length ? `Pay a deposit today (${deposits.join(', ')}); the` : 'The'} balance is due ${p.balance_due_on ? formatDate(p.balance_due_on) : 'later'}, charged to your card on file.`
+  if (p.payment_plan === 'instalments' && p.instalment_count) return `${today} in ${p.instalment_count} instalments, one each ${UNIT[p.instalment_unit ?? ''] ?? p.instalment_unit}${from}, charged to your card on file.`
+  return null
+}
 
 function RegisterDialog({ program, locationId, basket, onClose, onAdded }: { program: Program; locationId: string; basket: Basket | null; onClose: () => void; onAdded: (b: Basket) => void }) {
   const clients = usePortalClients()
@@ -64,10 +76,14 @@ function RegisterDialog({ program, locationId, basket, onClose, onAdded }: { pro
 function BasketPanel({ basket, onChange, onDone }: { basket: Basket; onChange: (b: Basket | null) => void; onDone: (b: Basket) => void }) {
   const toast = useToast()
   const qc = useQueryClient()
-  const methods = useQuery({ queryKey: ['portal', 'payment-methods'], queryFn: () => api.get('/api/v1/portal/payment-methods') })
-  const [pay, setPay] = useState('later')
+  const { actingFor, money } = usePortal()
+  const choice = usePaymentChoice(actingFor.id)
+  // A deposit or instalment plan: part is due now and the rest is charged later to a card kept on file.
+  const planned = basket.instalments.length > 0 || basket.due_now_minor < basket.total_minor
+  const [mode, setMode] = useState<'later' | 'now'>('later')
+  const payLater = mode === 'later' && !planned
   const [coupon, setCoupon] = useState('')
-  const key = useRef(crypto.randomUUID()) // one key per attempt; a failed attempt gets a new one
+  const attempt = useAttemptKey()
   const remove = useMutation({
     mutationFn: (itemId: string) => api.delete('/api/v1/portal/registration-checkouts/{checkout_id}/items/{item_id}', { path: { checkout_id: basket.id, item_id: itemId } }),
     onSuccess: onChange,
@@ -77,23 +93,20 @@ function BasketPanel({ basket, onChange, onDone }: { basket: Basket; onChange: (
     mutationFn: () =>
       api.post('/api/v1/portal/registration-checkouts/{checkout_id}/confirm', {
         path: { checkout_id: basket.id },
-        idempotencyKey: key.current,
-        body: { pay_later: pay === 'later', payment_method_id: pay === 'later' ? null : pay, coupon_code: pay === 'later' ? null : coupon || null },
+        idempotencyKey: attempt.key,
+        body: payLater ? { pay_later: true } : { pay_later: false, ...choice.body, coupon_code: planned ? null : coupon || null },
       }),
     onSuccess: (b) => {
       void qc.invalidateQueries({ queryKey: ['portal'] })
       onDone(b)
     },
-    onError: () => {
-      key.current = crypto.randomUUID()
-    },
+    onError: attempt.settle,
   })
   const abandon = useMutation({
     mutationFn: () => api.post('/api/v1/portal/registration-checkouts/{checkout_id}/abandon', { path: { checkout_id: basket.id } }),
     onSuccess: () => onChange(null),
     onError: (e) => toast('error', programError(e)),
   })
-  const cards = (methods.data ?? []).filter((m) => m.status === 'active')
   return (
     <Card title="Your basket" className="mb-6">
       <div className="space-y-4">
@@ -120,24 +133,48 @@ function BasketPanel({ basket, onChange, onDone }: { basket: Basket; onChange: (
           <span>Total</span>
           <span className="tabular">{formatMoney(basket.total_minor)}</span>
         </p>
+        {planned && (
+          <section aria-label="Payment plan" className="space-y-2 rounded border border-border p-3">
+            <p className="flex justify-between font-semibold">
+              <span>Due today</span>
+              <span className="tabular">{money(basket.due_now_minor)}</span>
+            </p>
+            {basket.instalments.length > 0 && (
+              <ul className="divide-y divide-border text-sm" aria-label="Later payments">
+                {basket.instalments.map((i) => (
+                  <li key={i.due_on} className="flex justify-between py-1">
+                    <span>{formatDate(i.due_on)}</span>
+                    <span className="tabular">{money(i.amount_minor)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
         <p className="text-sm text-muted">We hold these places until {formatDateTime(basket.expires_at)}.</p>
         {basket.missing_documents.length > 0 && (
           <p role="status" className="rounded border border-warning/40 bg-warning/10 p-3 text-sm">
             A required document still needs to be signed before you can confirm. Sign it from your documents, then come back.
           </p>
         )}
-        {basket.items.length > 0 && (
-          <Select label="Payment" value={pay} onChange={(e) => setPay(e.target.value)} options={[{ value: 'later', label: 'Pay later' }, ...cards.map((m) => ({ value: m.id, label: `${m.brand ?? 'Card'} ending ${m.last4}` }))]} />
+        {basket.items.length > 0 && !planned && (
+          <Select label="Payment" value={mode} onChange={(e) => setMode(e.target.value as 'later' | 'now')} options={[{ value: 'later', label: 'Pay later' }, { value: 'now', label: 'Pay now' }]} />
         )}
-        {basket.items.length > 0 && pay !== 'later' && basket.total_minor > 0 && <CouponField subtotalMinor={basket.total_minor} onChange={setCoupon} />}
+        {basket.items.length > 0 && !payLater && (
+          <PaymentChoice choice={choice}>
+            {planned && <p className="text-sm text-muted">We keep this card on file and charge the later payments to it automatically.</p>}
+          </PaymentChoice>
+        )}
+        {basket.items.length > 0 && planned && !choice.isNew && <p className="text-sm text-muted">The later payments are charged to this card automatically.</p>}
+        {basket.items.length > 0 && !payLater && !planned && basket.total_minor > 0 && <CouponField subtotalMinor={basket.total_minor} onChange={setCoupon} />}
         {confirm.error && (
           <p role="alert" className="text-danger">
             {programError(confirm.error)}
           </p>
         )}
         <div className="flex flex-wrap gap-2">
-          <Button disabled={basket.items.length === 0} loading={confirm.isPending} onClick={() => confirm.mutate()}>
-            Confirm registration
+          <Button disabled={basket.items.length === 0 || (!payLater && !choice.ready)} loading={confirm.isPending} onClick={() => confirm.mutate()}>
+            {!payLater && basket.due_now_minor > 0 ? `Pay ${money(basket.due_now_minor)} and confirm` : 'Confirm registration'}
           </Button>
           <Button variant="secondary" loading={abandon.isPending} onClick={() => abandon.mutate()}>
             Empty basket
@@ -209,6 +246,7 @@ export function PortalPrograms() {
                     {p.fees.map((f) => `${f.description} ${formatMoney(f.amount_minor)}`).join(' · ')}
                   </p>
                 )}
+                {planText(p) && <p className="mt-1 text-sm">{planText(p)}</p>}
                 {!open && p.closed_message && p.registration_state === 'closed' && <p className="mt-2 text-sm">{p.closed_message}</p>}
                 <div className="mt-3 flex flex-wrap items-center gap-3">
                   {open && (

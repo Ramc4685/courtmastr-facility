@@ -6,9 +6,10 @@ from app.adapters.fake_payments import FakeProvider
 from app.adapters.local_storage import LocalStorage
 from app.adapters.notifications import EmailNotifier, NoopNotifier
 from app.adapters.scanner import ClamdScanner, NoopScanner
+from app.adapters.video import FakeVideo
 from app.core.auth import deps
 from app.core.settings import REPO_ROOT, get_settings
-from app.ports import email, notifications, payment_provider, scanner, storage
+from app.ports import email, notifications, payment_provider, scanner, storage, video_meeting
 
 _done = False
 
@@ -28,6 +29,7 @@ def bootstrap() -> None:
         storage.configure(S3Storage(**settings.storage.s3.model_dump()))
     cfg = settings.storage
     scanner.configure(ClamdScanner(cfg.clamd_host, cfg.clamd_port) if cfg.scanner == "clamd" else NoopScanner())
+    video_meeting.configure(FakeVideo())  # CLS-08: simulated only until Phase 16's Zoom adapter
     if settings.payments.provider == "fake":
         payment_provider.register(FakeProvider())
     elif settings.payments.provider == "stripe":

@@ -175,7 +175,7 @@ def list_listings(session: Db, principal: Principal, client_id: UUID | None, fil
                 "ends_at": seat["ends_at"], "spots_left": max(seat["capacity"] - seat["booked_count"], 0),
                 "is_bookable": reason is None,
                 "can_join_waitlist": reason == "full" and policy["waitlist_mode"] != "disabled",
-                "reason": reason,
+                "reason": reason, "reservation_type_id": seat["reservation_type_id"], "is_virtual": seat["is_virtual"],
             }
         )  # fmt: skip
     return out
@@ -254,6 +254,25 @@ def portal_list_enrollments(session: Db, principal: Principal, query: ListQuery)
         sort_fields={"created_at": e.created_at}, default_sort="-created_at",
         filter_fields={"status": e.status, "target_kind": e.target_kind, "client_id": e.client_id},
     )  # fmt: skip
+
+
+def portal_join_link(session: Db, principal: Principal, session_id: UUID) -> dict:
+    """SSP-18: the join link of a virtual session, only for the identity's own enrolment or one it acts for, from
+    15 minutes before the start to the end. Not virtual, not enrolled or cancelled: 404; outside the window: 409."""
+    actable = clients.households.actable_client_ids(session, _identity(principal))
+    enrolled = session.scalar(
+        select(func.count()).select_from(Enrollment).where(
+            Enrollment.session_id == session_id, Enrollment.status == "enrolled", Enrollment.client_id.in_(actable)
+        )
+    )  # fmt: skip
+    meeting = scheduling.service.meeting_for(session, session_id) if enrolled else None
+    if meeting is None or meeting["status"] != "confirmed":
+        raise NotFound()
+    now = clock.now()
+    if not meeting["opens_at"] <= now < meeting["closes_at"]:
+        raise Conflict("The meeting is not open yet, or has ended.", code="join-not-open",
+                       opens_at=meeting["opens_at"].isoformat(), closes_at=meeting["closes_at"].isoformat())  # fmt: skip
+    return {k: meeting[k] for k in ("session_id", "join_url", "opens_at", "closes_at")}
 
 
 # --- portal: waitlist ------------------------------------------------------------------------------------------

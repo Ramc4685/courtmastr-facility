@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api, fieldErrors, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
@@ -655,8 +655,64 @@ function SalesTab({ locationId, currency }: { locationId: string; currency: stri
   )
 }
 
+// ---------------------------------------------------------------- online booking defaults (SSP-04)
+
+function OnlineForm({ locationId, settings, canManage }: { locationId: string; settings: Schemas['RentalPortalSettingsOut']; canManage: boolean }) {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const [f, setF] = useState({ is_online_enabled: settings.is_online_enabled, min_lead_min: str(settings.min_lead_min), max_length_min: str(settings.max_length_min), horizon_days: str(settings.horizon_days) })
+  const save = useMutation({
+    mutationFn: () =>
+      api.put('/api/v1/locations/{location_id}/rental-portal-settings', {
+        path: { location_id: locationId },
+        body: { is_online_enabled: f.is_online_enabled, min_lead_min: num(f.min_lead_min), max_length_min: num(f.max_length_min), horizon_days: num(f.horizon_days) },
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['rental-portal-settings', locationId] })
+      toast('success', 'Online booking saved.')
+    },
+  })
+  const e = fieldErrors(save.error)
+  return (
+    <Card title="Online booking at this location">
+      <form
+        className="grid max-w-2xl gap-4 sm:grid-cols-3"
+        noValidate
+        onSubmit={(ev) => {
+          ev.preventDefault()
+          save.mutate()
+        }}
+      >
+        <Alert error={save.error} fields={e} />
+        <fieldset disabled={!canManage} className="contents">
+          <Checkbox className="sm:col-span-3" label="Members can book rentals online here" hint="Off hides every rental type at this location from the member portal." checked={f.is_online_enabled} onChange={(ev) => setF({ ...f, is_online_enabled: ev.target.checked })} />
+          <Input label="Book at least (minutes ahead)" type="number" min={0} value={f.min_lead_min} hint="Blank uses each type's own." error={e.min_lead_min} onChange={(ev) => setF({ ...f, min_lead_min: ev.target.value })} />
+          <Input label="Longest booking (minutes)" type="number" min={1} value={f.max_length_min} hint="Blank uses each type's own." error={e.max_length_min} onChange={(ev) => setF({ ...f, max_length_min: ev.target.value })} />
+          <Input label="Book up to (days ahead)" type="number" min={1} value={f.horizon_days} hint="Blank means no limit." error={e.horizon_days} onChange={(ev) => setF({ ...f, horizon_days: ev.target.value })} />
+        </fieldset>
+        {canManage && (
+          <div className="sm:col-span-3">
+            <Button type="submit" loading={save.isPending}>
+              Save online booking
+            </Button>
+          </div>
+        )}
+      </form>
+    </Card>
+  )
+}
+
+function OnlineTab({ locationId }: { locationId: string }) {
+  const { can } = useAuth()
+  const settings = useQuery({ queryKey: ['rental-portal-settings', locationId], queryFn: () => api.get('/api/v1/locations/{location_id}/rental-portal-settings', { path: { location_id: locationId } }) })
+  if (settings.isPending) return <LoadingState />
+  if (settings.isError) return <ErrorState error={settings.error} onRetry={() => void settings.refetch()} />
+  return <OnlineForm key={settings.dataUpdatedAt} locationId={locationId} settings={settings.data} canManage={can('rentals.portal_setting.manage')} />
+}
+
 export function RentalSetupPage() {
   const me = useMe()
+  const { can } = useAuth()
   const { location } = useWorkingLocation()
   if (!location) return <EmptyState title="No location">You need access to a location to set up rentals.</EmptyState>
   const props = { locationId: location.id, currency: me.tenant.currency }
@@ -669,6 +725,7 @@ export function RentalSetupPage() {
           { id: 'types', label: 'Types and rates', content: <TypesTab {...props} /> },
           { id: 'plans', label: 'Rental plans', content: <PlansTab {...props} /> },
           { id: 'sales', label: 'Plans sold', content: <SalesTab {...props} /> },
+          ...(can('rentals.portal_setting.manage') ? [{ id: 'online', label: 'Online booking', content: <OnlineTab locationId={location.id} /> }] : []),
         ]}
       />
     </>

@@ -5765,6 +5765,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/locations/{location_id}/rental-portal-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Rental Portal Settings */
+        get: operations["getRentalPortalSettings"];
+        /**
+         * Put Rental Portal Settings
+         * @description SSP-04: whether the portal books rentals at this location, and limits for every self-service type.
+         */
+        put: operations["putRentalPortalSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/locations/{location_id}/session-booking-policy": {
         parameters: {
             query?: never;
@@ -8324,6 +8345,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/progress-share-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Progress Share Links
+         * @description FIT-05: the acted-for client's share links, live and revoked. 404 while sharing is off.
+         */
+        get: operations["listPortalProgressShareLinks"];
+        put?: never;
+        /**
+         * Create Portal Progress Share Link
+         * @description A revocable read-only link; the token is in the URL fragment and shown once.
+         */
+        post: operations["createPortalProgressShareLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/progress-share-links/{progress_share_link_id}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke Portal Progress Share Link */
+        post: operations["revokePortalProgressShareLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/registration-checkouts": {
         parameters: {
             query?: never;
@@ -8554,7 +8616,8 @@ export interface paths {
         put?: never;
         /**
          * Confirm Portal Rental
-         * @description Errors: hold-expired, payment-declined.
+         * @description Pays through secure_online_checkout. Errors: hold-expired, payment-failed, payment-method-required,
+         *     payment-method-not-usable, provider-unavailable (503, retry with the same key).
          */
         post: operations["confirmPortalRental"];
         delete?: never;
@@ -8575,6 +8638,27 @@ export interface paths {
          * @description Sessions with whether the acting client may book or queue now, and why not.
          */
         get: operations["listPortalSessionListings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/sessions/{schedule_session_id}/join-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Portal Session Join Link
+         * @description SSP-18: for an enrolled client (or someone acting for one), from 15 minutes before the start to the end.
+         *     Errors: join-not-open (409, with opens_at and closes_at).
+         */
+        get: operations["getPortalSessionJoinLink"];
         put?: never;
         post?: never;
         delete?: never;
@@ -10095,6 +10179,26 @@ export interface paths {
         get: operations["getPublicProgramGroup"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/progress-shares/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get Shared Progress
+         * @description FIT-05: what a live share link shows. The token travels in the body, never the URL. Errors: 404.
+         */
+        post: operations["getSharedProgress"];
         delete?: never;
         options?: never;
         head?: never;
@@ -11813,6 +11917,31 @@ export interface paths {
         put: operations["assignSessionInstructor"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{schedule_session_id}/meeting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Session Meeting
+         * @description CLS-08: the meeting links of a virtual session (staff only).
+         */
+        get: operations["getSessionMeeting"];
+        /**
+         * Create Session Meeting
+         * @description Make the session virtual (a meeting through the video port). Idempotent.
+         */
+        put: operations["createSessionMeeting"];
+        post?: never;
+        /** Delete Session Meeting */
+        delete: operations["deleteSessionMeeting"];
         options?: never;
         head?: never;
         patch?: never;
@@ -26196,6 +26325,11 @@ export interface components {
             /** Completed At */
             completed_at: string | null;
             /**
+             * Due Now Minor
+             * @default 0
+             */
+            due_now_minor: number;
+            /**
              * Expires At
              * Format: date-time
              */
@@ -26205,6 +26339,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Instalments
+             * @default []
+             */
+            instalments: components["schemas"]["PortalInstalment"][];
             /** Invoice Id */
             invoice_id: string | null;
             /** Items */
@@ -26407,6 +26546,8 @@ export interface components {
             membership_plan_id: string;
             /** Method Token */
             method_token?: string | null;
+            /** Payment Method Id */
+            payment_method_id?: string | null;
             /** Proration Tail */
             proration_tail?: ("extend_last" | "drop_last" | "prorate_last") | null;
             /** Save Method */
@@ -26750,6 +26891,16 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** PortalInstalment */
+        PortalInstalment: {
+            /** Amount Minor */
+            amount_minor: number;
+            /**
+             * Due On
+             * Format: date
+             */
+            due_on: string;
+        };
         /** PortalInvite */
         PortalInvite: {
             /**
@@ -26809,6 +26960,29 @@ export interface components {
             /** Total Minor */
             total_minor: number;
         };
+        /**
+         * PortalJoinLinkOut
+         * @description SSP-18: the join link of a virtual session, for an enrolled client or someone acting for one.
+         */
+        PortalJoinLinkOut: {
+            /**
+             * Closes At
+             * Format: date-time
+             */
+            closes_at: string;
+            /** Join Url */
+            join_url: string;
+            /**
+             * Opens At
+             * Format: date-time
+             */
+            opens_at: string;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+        };
         /** PortalMissingDocument */
         PortalMissingDocument: {
             /**
@@ -26842,6 +27016,8 @@ export interface components {
              * Format: uuid
              */
             package_plan_id: string;
+            /** Payment Method Id */
+            payment_method_id?: string | null;
             /** Quantity */
             quantity?: number | null;
             /**
@@ -27358,11 +27534,18 @@ export interface components {
         };
         /**
          * PortalRentalConfirm
-         * @description A PaymentProvider client token; never raw card data. Stored methods arrive with build module 8.
+         * @description A PaymentProvider client token (never raw card data) or one of the client's stored payment methods.
          */
         PortalRentalConfirm: {
+            /** Payment Method Id */
+            payment_method_id?: string | null;
             /** Provider Payment Token */
-            provider_payment_token: string;
+            provider_payment_token?: string | null;
+            /**
+             * Save Method
+             * @default false
+             */
+            save_method: boolean;
         };
         /** PortalRentalCreate */
         PortalRentalCreate: {
@@ -27475,12 +27658,19 @@ export interface components {
             /** Is Bookable */
             is_bookable: boolean;
             /**
+             * Is Virtual
+             * @default false
+             */
+            is_virtual: boolean;
+            /**
              * Location Id
              * Format: uuid
              */
             location_id: string;
             /** Reason */
             reason: string | null;
+            /** Reservation Type Id */
+            reservation_type_id?: string | null;
             /**
              * Session Id
              * Format: uuid
@@ -27536,6 +27726,83 @@ export interface components {
             terms_text?: string | null;
             /** Welcome Text */
             welcome_text?: string | null;
+        };
+        /** PortalShareLinkCreate */
+        PortalShareLinkCreate: {
+            /** Client Id */
+            client_id?: string | null;
+            /**
+             * Expires In Days
+             * @default 30
+             */
+            expires_in_days: number;
+            /** Label */
+            label?: string | null;
+        };
+        /**
+         * PortalShareLinkCreated
+         * @description The token and its link are shown once; only the token's hash is stored.
+         */
+        PortalShareLinkCreated: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Label */
+            label: string | null;
+            /** Revoked At */
+            revoked_at: string | null;
+            /** Token */
+            token: string;
+            /** Url */
+            url: string;
+        };
+        /** PortalShareLinkOut */
+        PortalShareLinkOut: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Label */
+            label: string | null;
+            /** Revoked At */
+            revoked_at: string | null;
         };
         /** PortalSigner */
         PortalSigner: {
@@ -29125,6 +29392,8 @@ export interface components {
         PublicFee: {
             /** Amount Minor */
             amount_minor: number;
+            /** Deposit Minor */
+            deposit_minor?: number | null;
             /** Description */
             description: string;
             /** Fee Kind */
@@ -29292,6 +29561,8 @@ export interface components {
         };
         /** PublicProgramGroup */
         PublicProgramGroup: {
+            /** Balance Due On */
+            balance_due_on?: string | null;
             /** Children */
             children: components["schemas"]["PublicProgramGroup"][];
             /** Closed Message */
@@ -29309,6 +29580,10 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Instalment Count */
+            instalment_count?: number | null;
+            /** Instalment Unit */
+            instalment_unit?: string | null;
             /**
              * Location Id
              * Format: uuid
@@ -29316,6 +29591,11 @@ export interface components {
             location_id: string;
             /** Name */
             name: string;
+            /**
+             * Payment Plan
+             * @default pay_in_full
+             */
+            payment_plan: string;
             /** Payment Requirement */
             payment_requirement: string;
             /**
@@ -29340,6 +29620,8 @@ export interface components {
             eligibility: string;
             /** From Price Minor */
             from_price_minor: number;
+            /** Horizon Days */
+            horizon_days?: number | null;
             /**
              * Id
              * Format: uuid
@@ -29850,6 +30132,8 @@ export interface components {
         };
         /** RegistrationConfigOut */
         RegistrationConfigOut: {
+            /** Balance Due On */
+            balance_due_on: string | null;
             /** Closed Message */
             closed_message: string | null;
             /** Closes On */
@@ -29858,6 +30142,10 @@ export interface components {
             confirmation_message: string | null;
             /** Displays Openings */
             displays_openings: boolean;
+            /** Instalment Count */
+            instalment_count: number | null;
+            /** Instalment Unit */
+            instalment_unit: string | null;
             /** Is Enabled */
             is_enabled: boolean;
             /** Is Portal Visible */
@@ -29866,6 +30154,8 @@ export interface components {
             online_description: string | null;
             /** Opens On */
             opens_on: string | null;
+            /** Payment Plan */
+            payment_plan: string;
             /** Payment Requirement */
             payment_requirement: string;
             /** Portal Publish Name */
@@ -29882,6 +30172,8 @@ export interface components {
         };
         /** RegistrationConfigPut */
         RegistrationConfigPut: {
+            /** Balance Due On */
+            balance_due_on?: string | null;
             /** Closed Message */
             closed_message?: string | null;
             /** Closes On */
@@ -29890,12 +30182,18 @@ export interface components {
             confirmation_message?: string | null;
             /** Displays Openings */
             displays_openings?: boolean | null;
+            /** Instalment Count */
+            instalment_count?: number | null;
+            /** Instalment Unit */
+            instalment_unit?: ("week" | "half_month" | "month") | null;
             /** Is Enabled */
             is_enabled?: boolean | null;
             /** Online Description */
             online_description?: string | null;
             /** Opens On */
             opens_on?: string | null;
+            /** Payment Plan */
+            payment_plan?: ("pay_in_full" | "deposit" | "instalments") | null;
             /** Payment Requirement */
             payment_requirement?: ("pay_later_allowed" | "immediate_card_payment" | "card_required_charge_optional" | "card_required_no_charge") | null;
             /** Portal Publish Name */
@@ -30502,6 +30800,39 @@ export interface components {
             /** Validity Days */
             validity_days?: number | null;
         };
+        /**
+         * RentalPortalSettings
+         * @description Per-location online rental defaults (SSP-04). A limit tightens every self-service type here.
+         */
+        RentalPortalSettings: {
+            /** Horizon Days */
+            horizon_days?: number | null;
+            /**
+             * Is Online Enabled
+             * @default true
+             */
+            is_online_enabled: boolean;
+            /** Max Length Min */
+            max_length_min?: number | null;
+            /** Min Lead Min */
+            min_lead_min?: number | null;
+        };
+        /** RentalPortalSettingsOut */
+        RentalPortalSettingsOut: {
+            /** Horizon Days */
+            horizon_days: number | null;
+            /** Is Online Enabled */
+            is_online_enabled: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Max Length Min */
+            max_length_min: number | null;
+            /** Min Lead Min */
+            min_lead_min: number | null;
+        };
         /** RentalPreview */
         RentalPreview: {
             /** Conflict Count */
@@ -30688,6 +31019,8 @@ export interface components {
             deposit_pct: string | null;
             /** Eligibility */
             eligibility: string;
+            /** Horizon Days */
+            horizon_days?: number | null;
             /**
              * Id
              * Format: uuid
@@ -32168,6 +32501,11 @@ export interface components {
             id: string;
             /** Is Self Bookable */
             is_self_bookable: boolean;
+            /**
+             * Is Virtual
+             * @default false
+             */
+            is_virtual: boolean;
         };
         /** SessionInput */
         SessionInput: {
@@ -32194,6 +32532,35 @@ export interface components {
             session_id: string;
             /** Staff Payee Id */
             staff_payee_id: string | null;
+        };
+        /**
+         * SessionMeetingOut
+         * @description A virtual session's meeting (CLS-08). Staff only: the links are credentials.
+         */
+        SessionMeetingOut: {
+            /**
+             * Closes At
+             * Format: date-time
+             */
+            closes_at: string;
+            /** Host Url */
+            host_url: string | null;
+            /** Is Virtual */
+            is_virtual: boolean;
+            /** Join Url */
+            join_url: string | null;
+            /**
+             * Opens At
+             * Format: date-time
+             */
+            opens_at: string;
+            /** Provider */
+            provider: string | null;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
         };
         /** SessionOut */
         SessionOut: {
@@ -32227,6 +32594,11 @@ export interface components {
             id: string;
             /** Is Self Bookable */
             is_self_bookable: boolean;
+            /**
+             * Is Virtual
+             * @default false
+             */
+            is_virtual: boolean;
             /**
              * Location Id
              * Format: uuid
@@ -32316,6 +32688,28 @@ export interface components {
              * Format: uuid
              */
             client_id: string;
+        };
+        /**
+         * SharedProgressLookup
+         * @description The token from the link's URL fragment; it travels in the body, never the URL.
+         */
+        SharedProgressLookup: {
+            /** Token */
+            token: string;
+        };
+        /** SharedProgressOut */
+        SharedProgressOut: {
+            /** Bests */
+            bests: components["schemas"]["PortalAssessmentBestOut"][];
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** First Name */
+            first_name: string;
+            /** Results */
+            results: components["schemas"]["PortalAssessmentResultOut"][];
         };
         /** ShiftCopy */
         ShiftCopy: {
@@ -49929,6 +50323,78 @@ export interface operations {
             };
         };
     };
+    getRentalPortalSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                location_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RentalPortalSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putRentalPortalSettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                location_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RentalPortalSettings"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RentalPortalSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     putDefaultSessionBookingPolicy: {
         parameters: {
             query?: never;
@@ -56088,6 +56554,108 @@ export interface operations {
             };
         };
     };
+    listPortalProgressShareLinks: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalShareLinkOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createPortalProgressShareLink: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalShareLinkCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalShareLinkCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revokePortalProgressShareLink: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                progress_share_link_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     createPortalRegistrationCheckout: {
         parameters: {
             query?: never;
@@ -56646,6 +57214,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortalSessionListing"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalSessionJoinLink: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalJoinLinkOut"];
                 };
             };
             /** @description Validation Error */
@@ -60108,6 +60710,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicProgramGroup"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getSharedProgress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SharedProgressLookup"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedProgressOut"];
                 };
             };
             /** @description Validation Error */
@@ -65028,6 +65663,106 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SessionInstructorOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getSessionMeeting: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionMeetingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createSessionMeeting: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionMeetingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteSessionMeeting: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

@@ -219,6 +219,7 @@ class PortalPackageBuy(In):
     quantity: Count | None = None
     tender_kind: Literal["card", "bank_debit"] = "card"
     method_token: Annotated[str, StringConstraints(max_length=200)] | None = None
+    payment_method_id: UUID | None = None  # one of the payer's stored methods, instead of a new token
     coupon_code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)] | None = (
         None  # SSP-11
     )
