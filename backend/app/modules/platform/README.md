@@ -157,29 +157,40 @@ bytes of purged rows and logs objects that have no row.
 
 ## MFA, step-up and session lifetimes (Phase 8 chip S2)
 
-Evidence and open questions: `docs/status/phase8-s2-mfa.md`. Migration `1230`.
+Evidence and open questions: `docs/status/phase8-s2-mfa.md`. Migrations `1230`, `1231` (code lockout).
 
 - **TOTP** (`mfa.py`, pyotp): RFC 6238, 30 s, 6 digits, one step of drift either way, no replay
   (`mfa_factor.last_used_step`; the row is locked while a code is checked). The secret is sealed with
   `core.crypto` under the tenant id, never logged or audited (`audit: never`), and leaves the server once, as
   the otpauth URI at enrolment; the web draws the QR code locally as SVG. Ten recovery codes `xxxxx-xxxxx`,
-  stored as SHA-256 (`mfa_recovery_code`), shown once, single use, replaced as a set by regenerate.
+  stored as a keyed HMAC bound to the identity (`core.crypto.mac`, `mfa_recovery_code`), shown once, single
+  use, replaced as a set by regenerate.
 - **Pending sign-in.** A right password, magic link, reset or invitation for an identity that has a factor
   or is required to have one returns `202 {mfa_token, expires_at, enrolment_required}` instead of a session:
   an `fhm_` `auth_token` (purpose `mfa_challenge`, 5 minutes, a newer one supersedes it) that authenticates
   nothing else. `POST /auth/mfa/verify` takes a TOTP or recovery code (a recovery code is spent);
   `POST /auth/mfa/enrolment` first when `enrolment_required`. Both rate limited (`mfa`, and `mfa-challenge`
-  per token). The same applies to mobile bearer sign-in. A wrong code counts against the password lockout,
-  and neither the password stage nor a redeemed link clears the count while a code is still due.
-- **Policy** (`tenant.staff_mfa_policy`, on `/security-settings`): `privileged` (product default: Owner and
-  Admin system roles), `all` staff, or `optional`. Members may enrol but are never required. A required user
+  per token). The same applies to mobile bearer sign-in.
+- **Two lockouts.** Wrong passwords count on the identity and lock password sign-in only (`identity-locked`);
+  a right password or a redeemed link clears that count. Wrong codes (sign-in, step-up, enrolment) count on
+  the `mfa_factor` row, locked before counting: 10 in 15 minutes lock every code check (`mfa-locked`) for 15
+  minutes, doubling to 4 hours, and mail the owner once. Only a right code clears it; no link does. So someone
+  guessing passwords cannot lock the owner out of their second factor.
+- **Forced enrolment needs an emailed link.** A password alone may have leaked, so `POST /auth/mfa/enrolment`
+  (and the enrolment branch of `/auth/mfa/verify`) refuses a pending sign-in that began with a password
+  (`403 mfa-enrolment-needs-email-link`) and emails one sign-in link per pending sign-in; enrolment then
+  proceeds from that link, a reset or an invitation. Confirming it signs out the user's other sessions.
+- **Policy** (`tenant.staff_mfa_policy`, on `/security-settings`): `privileged` (product default: the Owner
+  and Admin system roles, and anyone whose effective permissions include a `+` step-up key, ADR 0002 section
+  6), `all` staff, or `optional`. Members may enrol but are never required. A required user
   without a factor is walked through enrolment at next sign-in and cannot turn MFA off (`mfa-required`).
   Relaxing the policy is Owner-only (`owner-only`); every change is audited with old and new values. The demo
   seed and the test tenants use `optional` so password-only sign-ins keep working.
 - **Own factor** (`/me/mfa`, staff screen `/account/security`): status, enrol + confirm (signs out the
   user's other sessions, sends an email), disable, regenerate. Enrol, disable and regenerate need step-up.
 - **Step-up** (`POST /auth/step-up`, ADR 0002 section 4): the TOTP or recovery code when enrolled, else the
-  password (refused with `mfa-enrolment-required` once the policy requires MFA of that user). It revokes the
+  password (refused with `mfa-enrolment-required` once the policy requires MFA of that user). Rate limited
+  per IP (`step-up`) and per identity (`step-up-identity`, 10 in 5 minutes). It revokes the
   current session (`step_up`) and starts a new one through `_start_session` (new id and CSRF token) that keeps
   the old absolute limit and is elevated for 10 minutes (`auth_session.elevated_until_at`). A fresh password
   sign-in, or one completed with MFA, is elevated too; a magic-link sign-in without MFA is not. Enforced in one
@@ -189,7 +200,9 @@ Evidence and open questions: `docs/status/phase8-s2-mfa.md`. Migration `1230`.
   the refusal generically (`StepUpDialog`, prompt once, retry once with the same Idempotency-Key).
 - **Session lifetimes** (`config/app.yaml` `auth.session_lifetimes`): staff web idle 30 min (tenant setting
   `staff_idle_timeout_min`, 15 to 60) and absolute 12 h; member web idle 30 days and absolute 90 days; mobile
-  unchanged. Idle expiry slides on use, never past the absolute limit.
+  unchanged. Idle expiry slides on use, never past the absolute limit. Known limit: `client_kind` is chosen
+  by the caller, so a staff client that claims `mobile` gets mobile lifetimes (bearer tokens, refresh). The
+  mobile app is the only intended caller; binding it to an attested client is future work.
 - **IP allow-list**: unchanged from S1, including the Owner and Admin bypass (the owner has been asked
   whether to remove it).
 
