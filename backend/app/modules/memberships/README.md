@@ -35,7 +35,7 @@ no scheduler): enqueue it daily per tenant after each location's `membership_ren
 - Non-payment suspension (billing emits `billing.invoice.past_due`; nothing here subscribes), account credit
   auto-applied at sale, the card-save modes at sale. Since integration an invoice billed for an autopay
   contract is an autopay invoice, and billing's autopay run collects it from the client's stored method.
-- Pre-defined billing items as add-ons (`catalog_item`), coupons on a contract.
+- Coupons on a contract.
 - `POST /plan-changes` (deferred by ADR 0005's reconciliation): upgrade and downgrade are "renew into another
   plan" (`renews_as_plan_id` on the contract or on a manual renew) or cancel with a reason and sell anew.
 - Backdated freezes and suspensions (they start today or later); freeze limits and freeze fees (not in the
@@ -69,7 +69,8 @@ no scheduler): enqueue it daily per tenant after each location's `membership_ren
 - **Refund on cancel** returns the released money per payment: record-only tenders as an external refund,
   processed ones to the original method (needs an Idempotency-Key). The portal opt-out refunds only processed
   payments of the cancelled successor; other money stays account credit.
-- **Renewal** never copies add-ons to the successor (the bundled package renews itself, MEM-04). A successor
+- **Renewal** never copies package add-ons to the successor (the bundled package renews itself, MEM-04); it
+  carries pre-defined item add-ons that recur, billed with the successor's dues, and drops one-off ones. A successor
   that would overlap another membership of the owner is not created; the job reports it in `failed`.
 - **Visits.** The daily rule is per client per contract per local day. `depleted` is reported, not enforced
   (`access` decides).

@@ -17,7 +17,7 @@ invoicing, `axe` the WCAG sweep (all in `web/e2e/billing.spec.ts`). `TPD` is
 
 | Priority | Total | Done | Partial | Not built |
 |---|---|---|---|---|
-| P0 | 27 | 12 | 14 | 1 (BIL-14) |
+| P0 | 27 | 13 | 14 | 0 |
 | P1 | 12 | 1 | 5 | 6 |
 | P2 | 2 | 0 | 0 | 2 |
 | v2-adapter | 2 | 0 | 0 | 2 |
@@ -39,7 +39,7 @@ invoicing, `axe` the WCAG sweep (all in `web/e2e/billing.spec.ts`). `TPD` is
 | BIL-11 Billing statements | P1 | partial | Client billing > Statement (date range, by invoice or due date, email it) | axe | No statement batches or PDF (backend gap). |
 | BIL-12 Taxes | P0 | done | Set-up > Taxes: tax dialog with dated rates you can add and delete | axe | A rate that has been used is frozen: the server refuses to change it and the dialog shows that error. |
 | BIL-13 Revenue categories | P0 | done | Set-up > Revenue categories (parent, default taxes, active) | axe | |
-| BIL-14 Pre-defined items | P0 | not built | none | none | No backend. The largest P0 gap. |
+| BIL-14 Pre-defined items | P0 | done | Billing > Pre-defined items (list, new, edit); Client billing > Items: Sell pre-defined item (price override behind its key), Pre-defined items sold with Cancel | `CatalogPage.test` (3), e2e `catalog.spec` (create, sell, cancel, axe) | Fixed-date start is not offered on the sell dialog (it starts on the chosen date). |
 | BIL-15 Coupons | P0 | done | Coupons page: create and edit (amount or percent, window in the browser's zone, caps), redemptions, delete with confirm; coupon code on Add item | axe | |
 | BIL-16 Billing preferences | P0 | done | Preferences page: every setting, tenant row or a location override (reset to tenant), period lock | axe; backend `test_closing_the_books...` (now with GET) | Added `GET /billing-settings/period-lock` so the screen can show the current lock. |
 | BIL-17 Autopay defaults and per-invoice flag | P0 | partial | Autopay checkbox on Edit invoice and bulk invoicing; autopay method toggle on Payment methods & autopay | backend only | Default resolution at sale is not built (backend gap). |
