@@ -7,7 +7,7 @@ verified (double opt-in, CLI-02). The send gate other contexts call is `is_subsc
 """
 
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -52,7 +52,8 @@ TOPICS = {
     "push": ("push_announcements", "session_reminders", "league_alerts"),
 }
 MARKETING = frozenset({"email_campaigns", "sms_marketing", "push_announcements"})
-IMPLIED = frozenset({"implied_purchase", "implied_inquiry"})  # not consent for marketing in GDPR mode (PLT-16)
+# Not consent for marketing in GDPR mode (PLT-16). `import`: carried over outside GDPR mode without proof (I1).
+IMPLIED = frozenset({"implied_purchase", "implied_inquiry", "import"})
 
 
 def _addresses(session: Session, client) -> dict[str, list[str | None]]:
@@ -85,7 +86,7 @@ def preferences(session: Session, client) -> list[dict]:
 
 def _apply(
     session: Session, client, changes: list[dict], *, source: str, actor_type: str, actor_id, basis: str, note,
-    verified_only: bool = True,
+    verified_only: bool = True, occurred_at=None,
 ):  # fmt: skip
     current = _addresses(session, client)
     gdpr = privacy.is_gdpr_mode(session)
@@ -115,7 +116,7 @@ def _apply(
         event = ConsentEvent(
             client_id=client.id, channel=channel, address=address, topic=topic,
             kind="opt_in" if change["is_subscribed"] else "opt_out", basis=basis, source=source,
-            actor_type=actor_type, actor_id=actor_id, note=note, occurred_at=now,
+            actor_type=actor_type, actor_id=actor_id, note=note, occurred_at=occurred_at or now,
         )  # fmt: skip
         session.add(event)
         session.flush()
@@ -141,22 +142,34 @@ def _apply(
 
 
 def import_consent(
-    session: Session, client_id: UUID, *, email_marketing: bool | None, sms_marketing: bool | None, note: str
-) -> None:
+    session: Session, client_id: UUID, *, email_marketing: bool | None, sms_marketing: bool | None, note: str,
+    given_at: datetime | None = None, given_how: str | None = None,
+) -> list[str]:  # fmt: skip
     """Internal (imports): marketing consent carried over from a spreadsheet, source `import`, actor system. The
     double opt-in rule for email is not applied: the tenant attests the consent was given before (owner decision
-    in the imports README). A choice for a channel the client has no address on is ignored."""
+    in the imports README). A choice for a channel the client has no address on is ignored.
+
+    GDPR mode (PLT-16): an opt-in is express only with its evidence (`given_at` and `given_how`, recorded on the
+    consent event); without both it is not recorded and the channel is returned, so the importer warns. Outside
+    GDPR mode the basis is `import` (which GDPR mode later ignores). Opt-outs are always recorded."""
     client = clients.get(session, client_id)
-    changes = []
-    if email_marketing is not None and client.primary_email:
-        changes.append({"channel": "email", "address": client.primary_email, "topic": "email_campaigns",
-                        "is_subscribed": email_marketing})  # fmt: skip
-    if sms_marketing is not None and client.phone_mobile:
-        changes.append({"channel": "sms", "address": client.phone_mobile, "topic": "sms_marketing",
-                        "is_subscribed": sms_marketing})  # fmt: skip
+    proven = given_at is not None and bool(given_how)
+    gdpr = privacy.is_gdpr_mode(session)
+    changes, withheld = [], []
+    wanted = (("email", client.primary_email, "email_campaigns", email_marketing),
+              ("sms", client.phone_mobile, "sms_marketing", sms_marketing))  # fmt: skip
+    for channel, address, topic, subscribed in wanted:
+        if subscribed is None or not address:
+            continue
+        if subscribed and gdpr and not proven:
+            withheld.append(channel)
+            continue
+        changes.append({"channel": channel, "address": address, "topic": topic, "is_subscribed": subscribed})
     if changes:
-        _apply(session, client, changes, source="import", actor_type="system", actor_id=None, basis="express",
-               note=note, verified_only=False)  # fmt: skip
+        _apply(session, client, changes, source="import", actor_type="system", actor_id=None,
+               basis="express" if gdpr else "import", note=f"{note}: {given_how}" if given_how else note,
+               verified_only=False, occurred_at=given_at)  # fmt: skip
+    return withheld
 
 
 def get_client_preferences(session: Session, principal: Principal, client_id: UUID) -> list[dict]:
