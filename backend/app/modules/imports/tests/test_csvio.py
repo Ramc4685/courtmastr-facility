@@ -68,3 +68,9 @@ def test_written_cells_never_run_as_formulas():
         "'=1+1", "'+1", "'-1", "'@SUM(A1)", "'\tx", "plain", "", "3"]  # fmt: skip
     out = csvio.write([["Row", "Problem"], [2, '=HYPERLINK("x")']])
     assert out.startswith("﻿".encode()) and b"'=HYPERLINK" in out and out.endswith(b"\r\n")
+
+
+def test_read_cells_undo_our_neutralising_apostrophe_and_compose_accents():
+    assert csvio.cell(csvio.safe("+13095550101")) == "+13095550101"  # the template round trip
+    assert csvio.cell(" 'plain ") == "'plain" and csvio.cell("'") == "'"  # only our own apostrophe goes
+    assert csvio.cell("José") == "José"
