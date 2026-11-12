@@ -12,6 +12,7 @@ from app.core.schemas import In, Out, Page  # noqa: F401  (Page is used by the r
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 Note = Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]
 Minor = Annotated[int, Field(ge=0, le=10**12)]
+Order = Annotated[int, Field(ge=0, le=10_000)]  # sort_order: bounded so it never overflows the INTEGER column
 Pct = Annotated[Decimal, Field(ge=0, le=100, decimal_places=2)]
 Count = Annotated[int, Field(ge=1, le=1000)]
 Unit = Literal["day", "week", "month", "year"]
@@ -23,14 +24,14 @@ Status = Literal["upcoming", "active", "frozen", "suspended", "expired", "cancel
 class MembershipTypeCreate(In):
     name: Name
     revenue_category_id: UUID
-    sort_order: int = 0
+    sort_order: Order = 0
     is_active: bool = True
 
 
 class MembershipTypeUpdate(In):
     name: Name | None = None
     revenue_category_id: UUID | None = None
-    sort_order: int | None = None
+    sort_order: Order | None = None
     is_active: bool | None = None
 
 
@@ -79,7 +80,7 @@ class _PlanFields(In):
     is_sold_online: bool = False
     proration_mode: Literal["none", "to_month_start", "seller_choice"] = "none"
     proration_tail: Tail | None = None
-    sort_order: int = 0
+    sort_order: Order = 0
     is_active: bool = True
 
 
@@ -114,7 +115,7 @@ class MembershipPlanUpdate(In):
     is_sold_online: bool | None = None
     proration_mode: Literal["none", "to_month_start", "seller_choice"] | None = None
     proration_tail: Tail | None = None
-    sort_order: int | None = None
+    sort_order: Order | None = None
     is_active: bool | None = None
 
 
