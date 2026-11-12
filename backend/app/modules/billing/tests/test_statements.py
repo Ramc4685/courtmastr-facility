@@ -283,9 +283,10 @@ def test_resend_waits_for_the_batch_and_a_failed_job_marks_it_failed(api, shop, 
         raise RuntimeError("worker died")
 
     monkeypatch.setattr(statements, "run_batch", crash)
-    with pytest.raises(Exception):  # noqa: B017, PT011 (the test broker re-raises the job's error)
-        drain()
+    with pytest.raises(RuntimeError):  # the job body itself, not through the shared test broker
+        statements.run_statement_batch.fn(str(shop.tenant.id), queued["id"])
     assert api("GET", f"/statement-batches/{queued['id']}")["status"] == "failed"
     monkeypatch.undo()
-    retried = api("POST", f"/statement-batches/{queued['id']}/resend", {}, 200)
-    assert retried["status"] in ("queued", "completed")
+    drain()  # the real job, enqueued when the batch was created, finishes the rows still queued
+    assert api("GET", f"/statement-batches/{queued['id']}")["status"] == "completed"
+    assert api("POST", f"/statement-batches/{queued['id']}/resend", {}, 200)["status"] == "completed"

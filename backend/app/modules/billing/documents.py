@@ -614,8 +614,10 @@ def receivables_ageing(
     """
     authorize(principal, "billing.invoice.read")
     if as_of is None:
-        as_of = (platform.service.location_today(session, location_id) if location_id
-                 else platform.service.earliest_today(session))  # fmt: skip
+        known = location_id and platform.service.location_exists(session, location_id)
+        as_of = (
+            platform.service.location_today(session, location_id) if known else platform.service.earliest_today(session)
+        )
     # The day ends at midnight on each charge's location's wall clock.
     locations = session.scalars(select(Charge.location_id).distinct()).all()
     cut = case(
