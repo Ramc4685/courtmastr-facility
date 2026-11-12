@@ -269,7 +269,16 @@ def populate(client, tenant) -> SimpleNamespace:
         **integration, **reporting,
         **_populate_files(tenant),
         **_populate_mfa(tenant),
+        **_populate_entitlements(tenant),
     )  # fmt: skip
+
+
+def _populate_entitlements(tenant) -> dict:
+    """An add-on row that changes nothing (the default plan already has the feature) (Phase 8 T1)."""
+    from app.modules.platform import entitlements
+
+    detail = entitlements.add_entitlement(tenant.id, {"key": "branded_app", "source": "addon"})
+    return {"entitlement_id": detail["overrides"][0].id}
 
 
 def _populate_mfa(tenant) -> dict:

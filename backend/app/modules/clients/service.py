@@ -765,6 +765,7 @@ def _create(
     custom = data.pop("custom_values", None) or {}
     for key in [k for k, v in data.items() if v is None]:
         data.pop(key)
+    platform.entitlements.enforce_limit(session, "clients")  # every create path (staff, portal, import) meets here
     _check_refs(session, data)
     check_capture(session, context, _policy_values(data, emails or [], custom))
     settings = settings_row(session)
@@ -793,6 +794,11 @@ def _create(
     )  # fmt: skip
     events.publish(session, ClientCreated(client_id=client.id), client.id)
     return client
+
+
+def count_active_clients(session: Session) -> int:
+    """Internal: the PLT-14 metered count (merged clients are disabled, so they are not counted)."""
+    return session.execute(select(func.count()).where(Client.status == "active")).scalar_one()
 
 
 def create_client(session: Session, principal: Principal, data: dict) -> Client:
@@ -889,6 +895,7 @@ def enable_client(session: Session, principal: Principal, client_id: UUID) -> Cl
     _require_live(client)
     if client.status == "active":
         raise Conflict("This client is already active.")
+    platform.entitlements.enforce_limit(session, "clients")
     disabled_at = client.disabled_at
     client.status, client.disabled_at, client.disabled_by_staff_user_id = "active", None, None
     changes = audit.diff(client)

@@ -16,3 +16,4 @@ from app.modules import platform as _platform  # noqa: E402
 
 _platform.auth.ACTIVATION_HOOKS.append(service.activate_access_for_identity)
 _platform.service.register_client_ids_resolver(households.actable_client_ids)
+_platform.entitlements.register_usage_counter("clients", service.count_active_clients)  # PLT-14 client limit

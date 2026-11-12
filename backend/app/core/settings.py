@@ -153,6 +153,10 @@ class Storage(BaseModel):
     clamd_port: int = 53310
 
 
+class Entitlements(BaseModel):
+    default_plan: str = "complete"  # subscription_plan.code for new tenants and tenants without a plan (PLT-14)
+
+
 class Settings(BaseModel):
     env: str
     app: AppInfo
@@ -169,6 +173,7 @@ class Settings(BaseModel):
     integrations: Integrations = Integrations()
     storage: Storage = Storage()
     retention: Retention = Retention()
+    entitlements: Entitlements = Entitlements()
 
     def db_url(self, role: str) -> str:
         """role is owner, app or platform; the password comes from FH_DB_<ROLE>_PASSWORD."""

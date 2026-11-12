@@ -12,12 +12,13 @@ scope, the audit trail read API and tenant onboarding. Calls no other context.
 | `rbac.py` | effective-permission resolution (system roles from code, custom roles from rows, overrides win) |
 | `permissions.py` | the 28 `platform.*` catalogue entries; a test diffs them against `rbac-matrix.md` 6.1 |
 | `retention.py` | hourly retention purges (`purge_expired`) and the dead-letter commands (`resolve_failed_job`) |
+| `entitlements.py`, `entitlements_router.py` | plans, feature and limit checks, `Me.entitlements`, the plan screen and operator plan routes (Phase 8 T1) |
 | `files.py`, `files_router.py` | stored files (security-baseline 8): checks, scan, store, read, load, remove, signed downloads, `purge_files` |
 
 Other contexts use `service`, `auth` and `staff` only, never the models.
 
 Not built yet (stubs in `docs/api/openapi-core.yaml`): OIDC, per-location networks
-(`/locations/{id}/networks`), entitlements and subscription, brand assets, imports, support access, audit
+(`/locations/{id}/networks`), subscription billing (`/tenant/subscription`), brand assets, imports, support access, audit
 export. API keys live in `integrations`, kiosk devices in `access`.
 
 ## Known gaps against the specs (acceptance pass, 2026-11-10)
@@ -28,7 +29,7 @@ Later modules must not assume these exist.
   5.1; deferred, see `docs/status/phase8-s1-signin.md`). No staff reset of another user's lost factor. Closed by
   S1: cookies and CSRF, per-identity and per-address rate limits, lockout, the common-password list and the staff
   IP allow-list. Closed by S2: TOTP MFA, step-up and baseline session lifetimes (sections below).
-- **Permissions:** subject-scoped grants are stored but not applied; `Me.entitlements` is always empty.
+- **Permissions:** subject-scoped grants are stored but not applied. `Me.entitlements` is filled since T1.
 - **Kernel:** no `import-linter` boundary contracts, no mypy. Scheduler, purges and dead
   letters: see "Jobs and retention" below. No `job_run` table yet (the once-per-local-day guard has no caller).
 - **Contract tests:** the committed snapshot and the generated web types are checked; Schemathesis is not in
@@ -205,6 +206,41 @@ Evidence and open questions: `docs/status/phase8-s2-mfa.md`. Migrations `1230`, 
   mobile app is the only intended caller; binding it to an attested client is future work.
 - **IP allow-list**: unchanged from S1, including the Owner and Admin bypass (the owner has been asked
   whether to remove it).
+
+## Plans and entitlements (Phase 8 chip T1: PLT-14, PLT-09, PLT-13)
+
+Entitlements only: **no charge, invoice or Stripe call is made for a tenant's plan here**. Billing the tenant
+for its subscription is later work.
+
+- **Where the data lives.** The plan catalogue is the global `subscription_plan` table (no RLS; fh_app has
+  SELECT; rows come from migration 1250, which upserts `essentials`, `growth` and `complete`). Each plan has
+  `features` (feature keys) and `limits` (limit key to count; a missing key is unlimited). The tenant's plan is
+  `tenant.subscription_plan_id`; its overrides are `tenant_entitlement` rows (tenant data, forced RLS):
+  a feature on or off (`is_enabled`), or a limit replaced (`limit_value`, null = unlimited), with `source`
+  (`addon`, `promo`, `flag`, `manual`) and `starts_on`/`ends_on` (inclusive, against `earliest_today`).
+- **Resolution** (`entitlements.resolve`, cached on the session): features = plan + rows turning one on - rows
+  turning one off (off wins); a limit = the most generous in-force row, else the plan. A tenant with no plan
+  resolves to `entitlements.default_plan` (`config/app.yaml`, default `complete`: everything, unlimited), which
+  is also what onboarding stores. The demo seed always puts the demo tenant on `complete`.
+- **Catalogues are code** (`FEATURES`, `LIMITS`): only keys something actually checks. Features: `api_access`
+  (API key creation, rotation and every API-key request), `branded_app` (member sign-in and refresh on the
+  mobile client). Limits: `locations` (active), `staff_users` (active, support users excluded), `clients`
+  (active; counter registered by `clients`), `app_users` (members with a live mobile session).
+- **Calls for other contexts:** `has_feature`, `require_feature` (403 `feature-not-in-plan`), `limit`,
+  `check_limit(session, key, current)` (409 `plan-limit-reached`, with `limit_key` and `limit`) and
+  `enforce_limit(session, key)`, which counts only when the key is capped. Internal (no principal).
+- **Enforced at:** `create_location`; `invite_staff_user` and `reactivate_staff_user`; `clients._create` (staff,
+  portal dependant and import all meet there) and `enable_client`; mobile sign-in for members
+  (`auth._admit_app_user`: feature, then the `app_users` cap, a member already signed in on another device is
+  not counted twice). Known limit: concurrent creates can overshoot a cap by one each (no lock).
+- **Feature flags (PLT-09)** are the same rows with `source = flag`; there is no second mechanism.
+- **Operator routes** (`X-Operator-Token`, 404 when unset or wrong, like `POST /operator/tenants`):
+  `GET /operator/plans`, `GET /operator/tenants/{id}/entitlements`, `PUT .../plan`, `POST .../entitlements`,
+  `DELETE .../entitlements/{id}`. Each runs in that tenant's session as the system actor `platform.operator`
+  and records `platform.tenant.manage_subscription` in its audit trail.
+- **Tenant read:** `GET /tenant/entitlements` under `platform.tenant.update` (Owner and Admin), web
+  Settings > Plan and usage. `Me.entitlements` (plan, features, limits) lets the web hide what the plan lacks
+  (the API keys tab today); members and kiosks see the features only, never usage counts.
 
 ## Security hardening (wave 1, S-07)
 
