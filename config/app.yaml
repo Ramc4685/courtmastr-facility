@@ -61,6 +61,7 @@ rate_limit:                           # security-baseline 6; fixed windows. clos
     reset-request:    {limit: 5,  window_sec: 900,  closed: true}   # per IP
     link-address:     {limit: 3,  window_sec: 3600, closed: true}   # per target address, link and reset
     consume:          {limit: 20, window_sec: 900,  closed: true}   # token confirm, per IP
+    guest-checkout:   {limit: 20, window_sec: 900,  closed: true}   # REG-12 guest create, confirm, abandon, per IP
     document-link:    {limit: 20, window_sec: 900,  closed: true}   # token confirm (DOC-04), per IP
     mfa:              {limit: 10, window_sec: 60,   closed: true}   # second-factor code, per IP
     mfa-challenge:    {limit: 5,  window_sec: 300,  closed: true}   # codes per pending sign-in

@@ -7,6 +7,12 @@ under `Unreleased` in the same change that makes the behaviour visible.
 ## [Unreleased]
 
 ### Added
+- Public facility page at /f/your-address with locations, programs, social links and sign-in.
+- People can create their own portal account online after confirming their email (a portal setting, off by default).
+- Guest checkout: pay for a program by card without an account (a program setting, off by default).
+- Portal menu: hide or rename portal tabs per location; add social links and an after-registration page.
+- Portal colours from the account settings, used only where they stay readable.
+- Online purchases record the terms and conditions the buyer agreed to, and ask again when the text changed.
 - Collections: tag clients in collections, keep notes on their billing page, and see a collections report with what each owes.
 - The portal refuses online buying and booking while an account is past due, when the billing setting is on; paying unlocks it.
 - Billing notices and expiring-cards screens, and a staff daily digest of failed and upcoming autopay.

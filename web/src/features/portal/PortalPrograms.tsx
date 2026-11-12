@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTermsGate } from '../entry/FacilityApp'
 import { useRef, useState } from 'react'
 import { api, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
@@ -68,6 +69,7 @@ function BasketPanel({ basket, onChange, onDone }: { basket: Basket; onChange: (
   const [pay, setPay] = useState('later')
   const [coupon, setCoupon] = useState('')
   const key = useRef(crypto.randomUUID()) // one key per attempt; a failed attempt gets a new one
+  const gate = useTermsGate()
   const remove = useMutation({
     mutationFn: (itemId: string) => api.delete('/api/v1/portal/registration-checkouts/{checkout_id}/items/{item_id}', { path: { checkout_id: basket.id, item_id: itemId } }),
     onSuccess: onChange,
@@ -78,14 +80,15 @@ function BasketPanel({ basket, onChange, onDone }: { basket: Basket; onChange: (
       api.post('/api/v1/portal/registration-checkouts/{checkout_id}/confirm', {
         path: { checkout_id: basket.id },
         idempotencyKey: key.current,
-        body: { pay_later: pay === 'later', payment_method_id: pay === 'later' ? null : pay, coupon_code: pay === 'later' ? null : coupon || null },
+        body: { pay_later: pay === 'later', payment_method_id: pay === 'later' ? null : pay, coupon_code: pay === 'later' ? null : coupon || null, terms_version_id: gate.versionId },
       }),
     onSuccess: (b) => {
       void qc.invalidateQueries({ queryKey: ['portal'] })
       onDone(b)
     },
-    onError: () => {
+    onError: (error) => {
       key.current = crypto.randomUUID()
+      gate.onError(error)
     },
   })
   const abandon = useMutation({
@@ -135,8 +138,9 @@ function BasketPanel({ basket, onChange, onDone }: { basket: Basket; onChange: (
             {programError(confirm.error)}
           </p>
         )}
+        {gate.box}
         <div className="flex flex-wrap gap-2">
-          <Button disabled={basket.items.length === 0} loading={confirm.isPending} onClick={() => confirm.mutate()}>
+          <Button disabled={basket.items.length === 0 || !gate.ready} loading={confirm.isPending} onClick={() => confirm.mutate()}>
             Confirm registration
           </Button>
           <Button variant="secondary" loading={abandon.isPending} onClick={() => abandon.mutate()}>

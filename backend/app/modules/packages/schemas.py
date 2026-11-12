@@ -217,6 +217,7 @@ class PortalPackageBuy(In):
     location_id: UUID
     client_id: UUID | None = None  # who the package is for; default: the signed-in client
     quantity: Count | None = None
+    terms_version_id: Annotated[str, StringConstraints(max_length=64)] | None = None  # the portal terms shown (SSP-14)
     tender_kind: Literal["card", "bank_debit"] = "card"
     method_token: Annotated[str, StringConstraints(max_length=200)] | None = None
     coupon_code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)] | None = (

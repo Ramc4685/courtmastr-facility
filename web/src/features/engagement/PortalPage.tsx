@@ -11,9 +11,11 @@ import { Table, useKeysetQuery } from '../../components/Table'
 import { useToast } from '../../components/Toast'
 import { useAuth, useMe } from '../../lib/auth'
 import { FormDialog, FormError, LocationSelect, TextArea } from '../billing/shared'
+import { PORTAL_MENU_KEYS } from '../portal/PortalApp'
 
 type Settings = Schemas['PortalSettingsOut']
 type Video = Schemas['VideoOut']
+const SOCIAL = [['facebook', 'Facebook'], ['instagram', 'Instagram'], ['x', 'X'], ['youtube', 'YouTube'], ['tiktok', 'TikTok'], ['linkedin', 'LinkedIn']] as const
 
 function SettingsForm({ settings }: { settings: Settings }) {
   const qc = useQueryClient()
@@ -21,10 +23,26 @@ function SettingsForm({ settings }: { settings: Settings }) {
   const [form, setForm] = useState({
     is_enabled: settings.is_enabled, is_public: settings.is_public, slug: settings.slug, welcome_text: settings.welcome_text ?? '', terms_text: settings.terms_text ?? '',
     allows_online_rentals: settings.allows_online_rentals, allows_online_purchases: settings.allows_online_purchases,
+    allows_self_signup: settings.allows_self_signup, redirect_url: settings.redirect_url ?? '', redirect_domains: settings.redirect_domains.join(', '),
+    social_links: { ...settings.social_links } as Record<string, string>,
+    menu: PORTAL_MENU_KEYS.map((k) => {
+      const saved = settings.menu.find((m) => m.key === k.key)
+      return { key: k.key, label: saved?.label ?? '', is_visible: saved?.is_visible ?? true, builtIn: k.label }
+    }),
   })
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }))
   const save = useMutation({
-    mutationFn: () => api.put('/api/v1/locations/{location_id}/portal-settings', { path: { location_id: settings.location_id }, body: form }),
+    mutationFn: () =>
+      api.put('/api/v1/locations/{location_id}/portal-settings', {
+        path: { location_id: settings.location_id },
+        body: {
+          ...form,
+          redirect_url: form.redirect_url.trim() || null,
+          redirect_domains: form.redirect_domains.split(',').map((d) => d.trim()).filter(Boolean),
+          social_links: Object.fromEntries(Object.entries(form.social_links).filter(([, url]) => url.trim())),
+          menu: form.menu.map(({ key, label, is_visible }) => ({ key, label: label.trim() || null, is_visible })),
+        },
+      }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['engagement', 'portal-settings'] })
       toast('success', 'Portal settings saved.')
@@ -45,6 +63,29 @@ function SettingsForm({ settings }: { settings: Settings }) {
       <TextArea label="Terms and conditions" hint={`Changing this text raises the terms version (now ${settings.terms_version ?? 1}).`} value={form.terms_text} error={errors.terms_text} onChange={(v) => set({ terms_text: v })} />
       <Checkbox label="Allow online rentals" checked={form.allows_online_rentals} onChange={(e) => set({ allows_online_rentals: e.target.checked })} />
       <Checkbox label="Allow online purchases" checked={form.allows_online_purchases} onChange={(e) => set({ allows_online_purchases: e.target.checked })} />
+      <Checkbox label="Let people create their own account online" hint="They confirm their email before the account exists. Off by default." checked={form.allows_self_signup} onChange={(e) => set({ allows_self_signup: e.target.checked })} />
+      <fieldset className="space-y-2">
+        <legend className="font-semibold">Portal menu</legend>
+        <p className="text-sm text-muted">Hide tabs members do not need, or rename them. Home and Profile always show.</p>
+        {form.menu.map((m, i) => (
+          <div key={m.key} className="grid items-end gap-2 sm:grid-cols-[10rem_1fr]">
+            <Checkbox label={m.builtIn} checked={m.is_visible} onChange={(e) => set({ menu: form.menu.map((x, j) => (j === i ? { ...x, is_visible: e.target.checked } : x)) })} />
+            <Input label={`Label for ${m.builtIn}`} placeholder={m.builtIn} value={m.label} onChange={(e) => set({ menu: form.menu.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} />
+          </div>
+        ))}
+      </fieldset>
+      <fieldset className="space-y-2">
+        <legend className="font-semibold">Social links</legend>
+        {SOCIAL.map(([network, name]) => (
+          <Input key={network} label={name} type="url" placeholder="https://" value={form.social_links[network] ?? ''} error={errors[`social_links.${network}`]}
+            onChange={(e) => set({ social_links: { ...form.social_links, [network]: e.target.value } })} />
+        ))}
+      </fieldset>
+      <fieldset className="space-y-2">
+        <legend className="font-semibold">After registration</legend>
+        <Input label="Send people to this page" hint="An https address on your own domain or one listed below." type="url" placeholder="https://" value={form.redirect_url} error={errors.redirect_url} onChange={(e) => set({ redirect_url: e.target.value })} />
+        <Input label="Allowed domains" hint="Separate with commas, for example club.example.com." value={form.redirect_domains} error={errors.redirect_domains} onChange={(e) => set({ redirect_domains: e.target.value })} />
+      </fieldset>
       <Button type="submit" loading={save.isPending}>Save portal settings</Button>
     </form>
   )

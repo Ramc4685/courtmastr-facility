@@ -29,7 +29,7 @@ an axe scan).
 | REG-07 Staff registration | done | `POST /enrollments` with group target, fees, payer, one invoice | `test_fees_are_billed_*` | Payment is taken against the invoice in billing. |
 | REG-09 Group waitlist and promotion | done | manual and auto-promote; demote to waitlist; billing on promotion | `test_group_waitlist_*`, `test_admin_edits_*` | |
 | REG-10 Online registration config | partial | `/registration-config`, publish, fees with `is_online`, four payment requirements | `test_portal_pays_*` | Deposits are stored but not charged separately; there are no instalment plans. |
-| REG-12 Registrant online checkout | partial | `/portal/registration-checkouts`, multi-participant and multi-program, documents step, `secure_online_checkout`, holds expire | `test_checkout.py` | No guest checkout and no coupons. |
+| REG-12 Registrant online checkout | done | `/portal/registration-checkouts`; guest `POST /public/guest-checkouts` (+ `/confirm`, `/abandon`); web `/f/:slug/programs/:id/guest` | `test_checkout.py`, `test_guest_checkout.py` | Guests: off by default per group (`allows_guest_checkout`), new card only, always new clients, the guest token (hash kept) is the only key; a program with a blocking document refuses guests (409 `guest-documents-required`); no 3-D Secure for guests. No coupons in the portal basket. |
 
 **P0 total: 15. Done: 13. Partial: 2.**
 

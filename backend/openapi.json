@@ -23951,6 +23951,368 @@
         "title": "GroupRoster",
         "type": "object"
       },
+      "GuestCheckoutConfirm": {
+        "additionalProperties": false,
+        "description": "A guest pays in full by a new card: no stored methods, no account credit, no instalments.",
+        "properties": {
+          "coupon_code": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coupon Code"
+          },
+          "guest_token": {
+            "maxLength": 200,
+            "minLength": 10,
+            "title": "Guest Token",
+            "type": "string"
+          },
+          "method_token": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Method Token",
+            "type": "string"
+          },
+          "terms_version_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terms Version Id"
+          }
+        },
+        "required": [
+          "guest_token",
+          "method_token"
+        ],
+        "title": "GuestCheckoutConfirm",
+        "type": "object"
+      },
+      "GuestCheckoutCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GuestItem"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Items",
+            "type": "array"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "participants": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/GuestParticipant"
+            },
+            "maxItems": 6,
+            "title": "Participants",
+            "type": "array"
+          },
+          "payer": {
+            "$ref": "#/components/schemas/GuestPayer"
+          }
+        },
+        "required": [
+          "location_id",
+          "payer",
+          "items"
+        ],
+        "title": "GuestCheckoutCreate",
+        "type": "object"
+      },
+      "GuestCheckoutItem": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "client_name": {
+            "title": "Client Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "program_group_id": {
+            "format": "uuid",
+            "title": "Program Group Id",
+            "type": "string"
+          },
+          "program_group_name": {
+            "title": "Program Group Name",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "client_name",
+          "program_group_id",
+          "program_group_name",
+          "amount_minor",
+          "status"
+        ],
+        "title": "GuestCheckoutItem",
+        "type": "object"
+      },
+      "GuestCheckoutOut": {
+        "properties": {
+          "account_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Ref"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "guest_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guest Token"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GuestCheckoutItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "publishable_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publishable Key"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "total_minor": {
+            "title": "Total Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "status",
+          "total_minor",
+          "expires_at",
+          "completed_at",
+          "items"
+        ],
+        "title": "GuestCheckoutOut",
+        "type": "object"
+      },
+      "GuestCheckoutToken": {
+        "additionalProperties": false,
+        "properties": {
+          "guest_token": {
+            "maxLength": 200,
+            "minLength": 10,
+            "title": "Guest Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "guest_token"
+        ],
+        "title": "GuestCheckoutToken",
+        "type": "object"
+      },
+      "GuestItem": {
+        "additionalProperties": false,
+        "properties": {
+          "participant": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participant"
+          },
+          "program_fee_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Program Fee Id"
+          },
+          "program_group_id": {
+            "format": "uuid",
+            "title": "Program Group Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "program_group_id"
+        ],
+        "title": "GuestItem",
+        "type": "object"
+      },
+      "GuestParticipant": {
+        "additionalProperties": false,
+        "properties": {
+          "birth_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birth On"
+          },
+          "first_name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "First Name",
+            "type": "string"
+          },
+          "last_name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Last Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "first_name",
+          "last_name"
+        ],
+        "title": "GuestParticipant",
+        "type": "object"
+      },
+      "GuestPayer": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "maxLength": 254,
+            "minLength": 3,
+            "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+            "title": "Email",
+            "type": "string"
+          },
+          "first_name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "First Name",
+            "type": "string"
+          },
+          "last_name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Last Name",
+            "type": "string"
+          },
+          "phone_mobile": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone Mobile"
+          }
+        },
+        "required": [
+          "first_name",
+          "last_name",
+          "email"
+        ],
+        "title": "GuestPayer",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -40105,6 +40467,18 @@
               }
             ],
             "title": "Payment Method Id"
+          },
+          "terms_version_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terms Version Id"
           }
         },
         "title": "PortalCheckoutConfirm",
@@ -41021,6 +41395,18 @@
             ],
             "title": "Tender Kind",
             "type": "string"
+          },
+          "terms_version_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terms Version Id"
           }
         },
         "required": [
@@ -42048,6 +42434,70 @@
         "title": "PortalInvoiceOut",
         "type": "object"
       },
+      "PortalMenuItem": {
+        "additionalProperties": false,
+        "description": "One portal section (SSP-13): shown or hidden, in list order, optionally renamed.",
+        "properties": {
+          "is_visible": {
+            "default": true,
+            "title": "Is Visible",
+            "type": "boolean"
+          },
+          "key": {
+            "pattern": "^[a-z_]{1,30}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "title": "PortalMenuItem",
+        "type": "object"
+      },
+      "PortalMenuItemOut": {
+        "properties": {
+          "is_visible": {
+            "title": "Is Visible",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "is_visible"
+        ],
+        "title": "PortalMenuItemOut",
+        "type": "object"
+      },
       "PortalMissingDocument": {
         "properties": {
           "client_id": {
@@ -42152,6 +42602,18 @@
             ],
             "title": "Tender Kind",
             "type": "string"
+          },
+          "terms_version_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terms Version Id"
           }
         },
         "required": [
@@ -43608,6 +44070,18 @@
             "minLength": 1,
             "title": "Provider Payment Token",
             "type": "string"
+          },
+          "terms_version_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terms Version Id"
           }
         },
         "required": [
@@ -43904,6 +44378,17 @@
             "title": "Allows Online Rentals",
             "type": "boolean"
           },
+          "allows_self_signup": {
+            "title": "Allows Self Signup",
+            "type": "boolean"
+          },
+          "group_redirect_urls": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Group Redirect Urls",
+            "type": "object"
+          },
           "is_enabled": {
             "title": "Is Enabled",
             "type": "boolean"
@@ -43917,9 +44402,41 @@
             "title": "Location Id",
             "type": "string"
           },
+          "menu": {
+            "items": {
+              "$ref": "#/components/schemas/PortalMenuItemOut"
+            },
+            "title": "Menu",
+            "type": "array"
+          },
+          "redirect_domains": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Redirect Domains",
+            "type": "array"
+          },
+          "redirect_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Url"
+          },
           "slug": {
             "title": "Slug",
             "type": "string"
+          },
+          "social_links": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Social Links",
+            "type": "object"
           },
           "terms_text": {
             "anyOf": [
@@ -43964,7 +44481,13 @@
           "terms_text",
           "terms_version",
           "allows_online_rentals",
-          "allows_online_purchases"
+          "allows_online_purchases",
+          "allows_self_signup",
+          "menu",
+          "social_links",
+          "redirect_url",
+          "group_redirect_urls",
+          "redirect_domains"
         ],
         "title": "PortalSettingsOut",
         "type": "object"
@@ -43994,6 +44517,37 @@
             ],
             "title": "Allows Online Rentals"
           },
+          "allows_self_signup": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allows Self Signup"
+          },
+          "group_redirect_urls": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "maxLength": 500,
+                  "pattern": "^https://[^\\s]+$",
+                  "type": "string"
+                },
+                "maxProperties": 200,
+                "propertyNames": {
+                  "format": "uuid"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Redirect Urls"
+          },
           "is_enabled": {
             "anyOf": [
               {
@@ -44016,6 +44570,51 @@
             ],
             "title": "Is Public"
           },
+          "menu": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PortalMenuItem"
+                },
+                "maxItems": 30,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Menu"
+          },
+          "redirect_domains": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 253,
+                  "pattern": "^[a-z0-9.-]+\\.[a-z]{2,}$",
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Domains"
+          },
+          "redirect_url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "pattern": "^https://[^\\s]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Url"
+          },
           "slug": {
             "anyOf": [
               {
@@ -44027,6 +44626,32 @@
               }
             ],
             "title": "Slug"
+          },
+          "social_links": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "maxLength": 500,
+                  "pattern": "^https://[^\\s]+$",
+                  "type": "string"
+                },
+                "propertyNames": {
+                  "enum": [
+                    "facebook",
+                    "instagram",
+                    "x",
+                    "youtube",
+                    "tiktok",
+                    "linkedin"
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Social Links"
           },
           "terms_text": {
             "anyOf": [
@@ -44134,6 +44759,167 @@
           "method"
         ],
         "title": "PortalSigner",
+        "type": "object"
+      },
+      "PortalSignupConfirmIn": {
+        "additionalProperties": false,
+        "properties": {
+          "client_kind": {
+            "default": "web",
+            "enum": [
+              "web",
+              "mobile"
+            ],
+            "title": "Client Kind",
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 200,
+            "minLength": 10,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "PortalSignupConfirmIn",
+        "type": "object"
+      },
+      "PortalSignupIn": {
+        "additionalProperties": false,
+        "description": "Public self-registration (SSP-05). The answer is the same whether or not the address is known.",
+        "properties": {
+          "birth_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birth On"
+          },
+          "email": {
+            "maxLength": 254,
+            "minLength": 3,
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "title": "Email",
+            "type": "string"
+          },
+          "first_name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "First Name",
+            "type": "string"
+          },
+          "last_name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Last Name",
+            "type": "string"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "phone_mobile": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone Mobile"
+          }
+        },
+        "required": [
+          "location_id",
+          "email",
+          "first_name",
+          "last_name"
+        ],
+        "title": "PortalSignupIn",
+        "type": "object"
+      },
+      "PortalSignupSession": {
+        "description": "The confirm answer, in the portal's own shape: `signed_in` (web: the session cookie is set and the CSRF\ntoken is here; mobile: the tokens are here) or `mfa_required` (202, finish with the MFA verify route).",
+        "properties": {
+          "access_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Token"
+          },
+          "csrf_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Csrf Token"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "mfa_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mfa Token"
+          },
+          "refresh_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refresh Token"
+          },
+          "status": {
+            "enum": [
+              "signed_in",
+              "mfa_required"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "PortalSignupSession",
         "type": "object"
       },
       "PortalStatementInvoice": {
@@ -44359,6 +45145,10 @@
             "title": "Body Html",
             "type": "string"
           },
+          "terms_version_id": {
+            "title": "Terms Version Id",
+            "type": "string"
+          },
           "title": {
             "title": "Title",
             "type": "string"
@@ -44366,7 +45156,8 @@
         },
         "required": [
           "title",
-          "body_html"
+          "body_html",
+          "terms_version_id"
         ],
         "title": "PortalTermsOut",
         "type": "object"
@@ -49029,12 +49820,34 @@
       },
       "PublicBranding": {
         "properties": {
+          "accent_color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accent Color"
+          },
           "locations": {
             "items": {
               "$ref": "#/components/schemas/PublicLocationLogo"
             },
             "title": "Locations",
             "type": "array"
+          },
+          "primary_color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Color"
           },
           "tenant_logo_url": {
             "anyOf": [
@@ -49050,6 +49863,8 @@
         },
         "required": [
           "tenant_logo_url",
+          "primary_color",
+          "accent_color",
           "locations"
         ],
         "title": "PublicBranding",
@@ -49575,6 +50390,37 @@
         "title": "PublicLocationLogo",
         "type": "object"
       },
+      "PublicMenuItem": {
+        "description": "The same item on the public side: portal routes never share a staff model (test_portal_schemas).",
+        "properties": {
+          "is_visible": {
+            "title": "Is Visible",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "is_visible"
+        ],
+        "title": "PublicMenuItem",
+        "type": "object"
+      },
       "PublicPlanOut": {
         "properties": {
           "billing_interval_count": {
@@ -49703,10 +50549,15 @@
             },
             "title": "Locations",
             "type": "array"
+          },
+          "tenant_slug": {
+            "title": "Tenant Slug",
+            "type": "string"
           }
         },
         "required": [
           "facility_name",
+          "tenant_slug",
           "locations"
         ],
         "title": "PublicPortalConfig",
@@ -49722,18 +50573,54 @@
             "title": "Allows Online Rentals",
             "type": "boolean"
           },
+          "allows_self_signup": {
+            "title": "Allows Self Signup",
+            "type": "boolean"
+          },
+          "group_redirect_urls": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Group Redirect Urls",
+            "type": "object"
+          },
           "location_id": {
             "format": "uuid",
             "title": "Location Id",
             "type": "string"
           },
+          "menu": {
+            "items": {
+              "$ref": "#/components/schemas/PublicMenuItem"
+            },
+            "title": "Menu",
+            "type": "array"
+          },
           "name": {
             "title": "Name",
             "type": "string"
           },
+          "redirect_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Url"
+          },
           "slug": {
             "title": "Slug",
             "type": "string"
+          },
+          "social_links": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Social Links",
+            "type": "object"
           },
           "terms_text": {
             "anyOf": [
@@ -49770,7 +50657,12 @@
           "terms_text",
           "terms_version",
           "allows_online_rentals",
-          "allows_online_purchases"
+          "allows_online_purchases",
+          "allows_self_signup",
+          "menu",
+          "social_links",
+          "redirect_url",
+          "group_redirect_urls"
         ],
         "title": "PublicPortalLocation",
         "type": "object"
@@ -49864,6 +50756,10 @@
       },
       "PublicProgramGroup": {
         "properties": {
+          "allows_guest_checkout": {
+            "title": "Allows Guest Checkout",
+            "type": "boolean"
+          },
           "children": {
             "items": {
               "$ref": "#/components/schemas/PublicProgramGroup"
@@ -49988,6 +50884,7 @@
           "payment_requirement",
           "confirmation_message",
           "closed_message",
+          "allows_guest_checkout",
           "fees",
           "children"
         ],
@@ -51693,6 +52590,10 @@
       },
       "RegistrationConfigOut": {
         "properties": {
+          "allows_guest_checkout": {
+            "title": "Allows Guest Checkout",
+            "type": "boolean"
+          },
           "closed_message": {
             "anyOf": [
               {
@@ -51819,7 +52720,8 @@
           "public_slug",
           "is_portal_visible",
           "portal_publish_name",
-          "portal_published_at"
+          "portal_published_at",
+          "allows_guest_checkout"
         ],
         "title": "RegistrationConfigOut",
         "type": "object"
@@ -51827,6 +52729,17 @@
       "RegistrationConfigPut": {
         "additionalProperties": false,
         "properties": {
+          "allows_guest_checkout": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allows Guest Checkout"
+          },
           "closed_message": {
             "anyOf": [
               {
@@ -65009,6 +65922,28 @@
       },
       "TenantOut": {
         "properties": {
+          "brand_accent_color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand Accent Color"
+          },
+          "brand_primary_color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand Primary Color"
+          },
           "currency": {
             "title": "Currency",
             "type": "string"
@@ -65070,7 +66005,9 @@
           "locale",
           "staff_mfa_policy",
           "trial_ends_on",
-          "settings"
+          "settings",
+          "brand_primary_color",
+          "brand_accent_color"
         ],
         "title": "TenantOut",
         "type": "object"
@@ -65094,6 +66031,30 @@
       "TenantUpdate": {
         "additionalProperties": false,
         "properties": {
+          "brand_accent_color": {
+            "anyOf": [
+              {
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand Accent Color"
+          },
+          "brand_primary_color": {
+            "anyOf": [
+              {
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand Primary Color"
+          },
           "currency": {
             "anyOf": [
               {
@@ -118188,6 +119149,169 @@
         ]
       }
     },
+    "/api/v1/public/guest-checkouts": {
+      "post": {
+        "description": "Hold places for a guest (no account) in programs that allow it. The answer carries the guest token, the\nonly key to confirm or abandon. Errors: capacity-full, registration-closed, guest-documents-required.",
+        "operationId": "createGuestCheckout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestCheckoutCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestCheckoutOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Guest Checkout",
+        "tags": [
+          "programs"
+        ]
+      }
+    },
+    "/api/v1/public/guest-checkouts/{checkout_id}/abandon": {
+      "post": {
+        "operationId": "abandonGuestCheckout",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "checkout_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Checkout Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestCheckoutToken"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestCheckoutOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Abandon Guest Checkout",
+        "tags": [
+          "programs"
+        ]
+      }
+    },
+    "/api/v1/public/guest-checkouts/{checkout_id}/confirm": {
+      "post": {
+        "description": "Pay in full by a new card and register. Errors: payment-failed, checkout-expired, terms-changed.",
+        "operationId": "confirmGuestCheckout",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "checkout_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Checkout Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "description": "Required; keys live 24 hours.",
+              "maxLength": 255,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestCheckoutConfirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestCheckoutOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Guest Checkout",
+        "tags": [
+          "programs"
+        ]
+      }
+    },
     "/api/v1/public/invoice-links/lookup": {
       "post": {
         "description": "What the emailed link pays. The token travels in the body, never the URL. Errors: link-invalid.",
@@ -118759,6 +119883,98 @@
           }
         },
         "summary": "Get Public Portal Config",
+        "tags": [
+          "engagement"
+        ]
+      }
+    },
+    "/api/v1/public/portal-signups": {
+      "post": {
+        "description": "Email a verification link to finish signing up. 202 whether or not the address is known. Errors:\nsignup-disabled (the location does not take online sign-ups), field-required, rate-limited.",
+        "operationId": "createPortalSignup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalSignupIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Portal Signup",
+        "tags": [
+          "engagement"
+        ]
+      }
+    },
+    "/api/v1/public/portal-signups/confirm": {
+      "post": {
+        "description": "Create the client and the portal login and sign in. Errors: token-invalid, token-expired.",
+        "operationId": "confirmPortalSignup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalSignupConfirmIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalSignupSession"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalSignupSession"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Portal Signup",
         "tags": [
           "engagement"
         ]

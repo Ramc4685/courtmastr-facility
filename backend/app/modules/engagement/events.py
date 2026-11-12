@@ -26,3 +26,12 @@ class ConsentChanged(Event):
     type: Literal["engagement.consent.changed"] = "engagement.consent.changed"
     client_id: UUID
     source: str
+
+
+class PortalSignupConfirmed(Event):
+    """SSP-05: a public sign-up verified its email; a new client and portal login exist."""
+
+    aggregate_type: ClassVar[str] = "portal_signup"
+    type: Literal["engagement.portal_signup.confirmed"] = "engagement.portal_signup.confirmed"
+    client_id: UUID
+    location_id: UUID

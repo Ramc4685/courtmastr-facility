@@ -18,7 +18,7 @@ isolation and audit, and has a staff screen. **Partial** names what is missing. 
 | **All** | 204 | 109 | 56 | 39 |
 Module 1 (platform core) is done, with OIDC, MFA and step-up since Phase 8; its Wave 7 rows and the Phase 8
 cross-cutting items are in "Module 1 and Wave 7" below (`backend/app/modules/platform/README.md`).
-Module 14 (engagement) is built to P0 (5 done, 9 partial: `14-engagement.md`). Modules 16 and 17 are partial (`16-integrations.md`, `17-mobile.md`).
+Module 14 (engagement) is built to P0 (8 done, 7 partial, plus SSP-07, 13, 15 done: `14-engagement.md`). Modules 16 and 17 are partial (`16-integrations.md`, `17-mobile.md`).
 Modules 12 (staff time and pay), 13 (assessments) and 15 (reporting) are built to P0 (`12-staff.md`, `13-assessments.md`,
 `15-reporting.md`). Modules 10 and 11 (check-in,
 leagues) and the rest of module 6 are reported by their own lanes or not started. The three P0 features not built are CLS-02, CLS-09, CLS-10

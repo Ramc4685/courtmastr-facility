@@ -7,6 +7,7 @@ Portal baskets belong to the signed-in identity: the payer is its own client rec
 must be someone it may buy for (`can_act_for(..., "buy")`). Anything else is 404, never 403.
 """
 
+import hmac
 from datetime import timedelta
 from uuid import UUID
 
@@ -14,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as Db
 
 from app.core import audit, clock
-from app.core.auth import Principal, authorize
+from app.core.auth import Principal, authorize, tokens
 from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.modules import billing, clients, documents
 from app.modules.programs import groups
@@ -110,7 +111,7 @@ def _add(
         raise ValidationFailed("The program is at another location.", pointer="/program_group_id")
     fees = groups.chosen_fees(session, group, [fee_id] if fee_id else [], online=online, pointer="/program_fee_id")
     row = groups.enroll(
-        session, group, client_id, channel=checkout.channel if checkout.channel != "public_link" else "public_link",
+        session, group, client_id, channel="public_link" if checkout.channel == "guest" else checkout.channel,
         fees=fees, payer_client_id=checkout.payer_client_id, status="pending", checkout_id=checkout.id,
         hold_minutes=HOLD_MINUTES, comment=comment,
     )  # fmt: skip
@@ -146,6 +147,12 @@ def _require_documents(session: Db, checkout: RegistrationCheckout, items: list[
             persist=True, document_id=pending[0], document_ids=pending,
         )  # fmt: skip
     return accepted
+
+
+def _acknowledge_terms(session: Db, checkout: RegistrationCheckout, items: list[Enrollment], data: dict) -> None:
+    """SSP-14: the portal terms the payer was shown, recorded once per online checkout before payment."""
+    clients.terms.acknowledge(session, client_id=checkout.payer_client_id, terms_version_id=data.get("terms_version_id"),
+                              sale_kind="program", subject_id=items[0].program_group_id)  # fmt: skip
 
 
 def _bill(session: Db, checkout: RegistrationCheckout, items: list[Enrollment]):
@@ -336,6 +343,7 @@ def portal_confirm(session: Db, principal: Principal, checkout_id: UUID, data: d
     items = _items(session, checkout)
     if not items:
         raise Conflict("The basket is empty.", code="checkout-empty")
+    _acknowledge_terms(session, checkout, items, data)
     accepted = _require_documents(session, checkout, items)
     requirement = _requirement(session, items)
     pay_later = bool(data.get("pay_later"))
@@ -374,6 +382,118 @@ def portal_abandon(session: Db, principal: Principal, checkout_id: UUID) -> dict
             location_id=checkout.location_id,
             changes={"status": ["open", "abandoned"]},
         )
+    return view(session, checkout)
+
+
+# --- guest (REG-12, phase-11 Q6) -------------------------------------------------------------------------------
+# Per group and off by default (registration_config.allows_guest_checkout). No login: the token handed back on
+# create (only its digest is kept) is the guest's key to confirm or abandon. Every participant and the payer are
+# new clients (never matched by email; staff merge duplicates). Pays in full by a new card only.
+
+GUEST_TOKEN_PREFIX = "fhg"
+
+
+def _guest(session: Db, checkout_id: UUID, token: str) -> RegistrationCheckout:
+    checkout = session.scalar(
+        select(RegistrationCheckout).where(RegistrationCheckout.id == checkout_id).with_for_update()
+    )
+    if (
+        checkout is None or checkout.channel != "guest" or checkout.guest_token_hash is None
+        or not hmac.compare_digest(checkout.guest_token_hash, tokens.digest(token))
+    ):  # fmt: skip
+        raise NotFound()
+    return checkout
+
+
+def _guest_group(session: Db, item: dict, location_id: UUID) -> ProgramGroup:
+    group, config = groups.published_group(session, item["program_group_id"])
+    if not config.allows_guest_checkout:
+        raise NotFound()  # off for this group: indistinguishable from an unpublished one
+    if group.location_id != location_id:
+        raise ValidationFailed("The program is at another location.", pointer="/items")
+    state = groups.registration_state(session, group, config)
+    if state != "open":
+        code = "capacity-full" if state.startswith("full") else "registration-closed"
+        raise Conflict("Registration for this program is not open.", code=code, registration_state=state)
+    return group
+
+
+def guest_create(session: Db, data: dict) -> dict:
+    """Hold the places for a guest. A program with a blocking online document needs a signed-in account
+    (documents are signed in the portal and links go only to verified addresses): 409 guest-documents-required."""
+    location_id, payer_data = data["location_id"], data["payer"]
+    chosen = [_guest_group(session, item, location_id) for item in data["items"]]
+    if any(
+        item.get("participant") is not None and item["participant"] >= len(data["participants"])
+        for item in data["items"]
+    ):
+        raise ValidationFailed("Each item names one of the participants.", pointer="/items")
+    payer = clients.service.create_self_service(
+        session, {"first_name": payer_data["first_name"], "last_name": payer_data["last_name"],
+                  "home_location_id": location_id, "primary_email": payer_data["email"],
+                  "phone_mobile": payer_data.get("phone_mobile")}, created_via="registration",
+    )  # fmt: skip
+    people = [
+        clients.service.create_self_service(
+            session, {"first_name": p["first_name"], "last_name": p["last_name"], "birth_on": p.get("birth_on"),
+                      "home_location_id": location_id}, created_via="registration",
+        ).id
+        for p in data["participants"]
+    ]  # fmt: skip
+    raw, hashed = tokens.mint(GUEST_TOKEN_PREFIX, session.info["tenant_id"])
+    checkout = RegistrationCheckout(
+        location_id=location_id,
+        channel="guest",
+        payer_client_id=payer.id,
+        guest_token_hash=hashed,
+        expires_at=_expiry(),
+    )
+    session.add(checkout)
+    session.flush()
+    for item, group in zip(data["items"], chosen, strict=True):
+        participant = payer.id if item.get("participant") is None else people[item["participant"]]
+        for need in documents.service.requirements_for(session, "program_group", group.id, participant, online=True):
+            if need["is_blocking"] and not need["is_satisfied"]:
+                raise Conflict("This program needs documents signed in the member portal. Sign in to register.",
+                               code="guest-documents-required", program_group_id=str(group.id))  # fmt: skip
+        row = _add(session, checkout, group, participant, item.get("program_fee_id"), online=True, comment=None)
+        audit.record(session, groups.ENROLL, row, location_id=row.location_id, changes={"status": [None, "pending"]})
+    audit.record(session, groups.ENROLL, checkout, location_id=location_id, changes={"status": [None, "open"],
+                 "channel": "guest"})  # fmt: skip
+    return view(session, checkout) | {"guest_token": raw} | billing.documents.browser_processor(session)
+
+
+def guest_confirm(session: Db, checkout_id: UUID, data: dict, idempotency_key: str) -> dict:
+    """Bill the basket to the guest payer and take the whole amount now on the new card, through the same
+    secure_online_checkout every portal sale ends in. A payment that does not go through rolls it all back."""
+    checkout = _guest(session, checkout_id, data["guest_token"])
+    if checkout.status == "completed":  # a retry after the answer was lost: no generic replay on public routes
+        return view(session, checkout)
+    items = _items(session, _open(checkout))
+    if not items:
+        raise Conflict("The basket is empty.", code="checkout-empty")
+    _acknowledge_terms(session, checkout, items, data)
+    accepted = _require_documents(session, checkout, items)
+    found = _bill(session, checkout, items)
+    checkout.invoice_id = found.id if found is not None else None
+    billing.checkout.secure_online_checkout(
+        session, client_id=checkout.payer_client_id, location_id=checkout.location_id,
+        total_minor=found.total_minor if found is not None else 0, invoice=found, idempotency_key=idempotency_key,
+        method_token=data["method_token"], must_pay_now=True, coupon_code=data.get("coupon_code"),
+    )  # fmt: skip
+    _complete(session, checkout, items, accepted)
+    audit.record(
+        session, groups.ENROLL, checkout, location_id=checkout.location_id, changes={"status": ["open", "completed"]}
+    )
+    return view(session, checkout)
+
+
+def guest_abandon(session: Db, checkout_id: UUID, token: str) -> dict:
+    checkout = _guest(session, checkout_id, token)
+    if checkout.status == "open":
+        _abandon(session, checkout, status="abandoned", actor="client")
+        audit.record(session, groups.ENROLL, checkout, location_id=checkout.location_id,
+                     changes={"status": ["open", "abandoned"]})  # fmt: skip
     return view(session, checkout)
 
 

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTermsGate } from '../entry/FacilityApp'
 import { useState } from 'react'
 import { api, fieldErrors, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
@@ -28,12 +29,16 @@ function BuyDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
   const [coupon, setCoupon] = useState('')
   const [saveCard, setSaveCard] = useState(false)
   const attempt = useAttemptKey()
+  const gate = useTermsGate()
   const terms = { client_id: actingFor.id, membership_plan_id: plan.id, location_id: locationId, start_on: startOn || null, is_auto_renew: autoRenew, tender_kind: 'card' as const }
   const quote = useQuery({ queryKey: ['portal', 'membership-quote', terms], queryFn: () => api.post('/api/v1/portal/membership-contracts/quote', { body: terms }), retry: false })
   const buy = useMutation({
-    mutationFn: () => api.post('/api/v1/portal/membership-contracts', { body: { ...terms, method_token: token || null, coupon_code: coupon || null, save_method: saveCard }, idempotencyKey: attempt.key }),
+    mutationFn: () => api.post('/api/v1/portal/membership-contracts', { body: { ...terms, method_token: token || null, coupon_code: coupon || null, save_method: saveCard, terms_version_id: gate.versionId }, idempotencyKey: attempt.key }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['portal'] }),
-    onError: attempt.settle,
+    onError: (error) => {
+      attempt.settle(error)
+      gate.onError(error)
+    },
   })
   const sale = buy.data
   const q = quote.data
@@ -55,7 +60,7 @@ function BuyDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
             <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
-            <Button loading={buy.isPending} disabled={!q || (needsCard && !token)} onClick={() => buy.mutate()}>
+            <Button loading={buy.isPending} disabled={!q || (needsCard && !token) || !gate.ready} onClick={() => buy.mutate()}>
               {q && q.due_now_minor > 0 ? `Pay ${money(q.due_now_minor)} and buy` : 'Buy'}
             </Button>
           </>
@@ -74,6 +79,7 @@ function BuyDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
             <Input label="Start date" type="date" value={startOn} min={todayIn(zoneOf(locationId))} onChange={(e) => setStartOn(e.target.value)} error={errors.start_on} />
           </div>
           <Checkbox label="Renew automatically at the end of the term" hint="You can switch this off here at any time." checked={autoRenew} onChange={(e) => setAutoRenew(e.target.checked)} />
+          {gate.box}
           {quote.isPending ? (
             <LoadingState label="Working out the price" />
           ) : quote.isError ? (

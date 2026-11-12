@@ -68,6 +68,7 @@ import { StatementsPage } from '../features/billing/StatementsPage'
 import { SetupPage as BillingSetupPage } from '../features/billing/SetupPage'
 import { WorkbenchPage } from '../features/billing/WorkbenchPage'
 import { RUN_KEYS } from '../features/reporting/queries'
+import { FacilityApp } from '../features/entry/FacilityApp'
 import { ReportRunRoute } from '../features/reporting/ReportRunPage'
 import { ReportsPage } from '../features/reporting/ReportsPage'
 import { DrawersPage, EquipmentPage, PosReportsPage } from '../features/pos/OperationsPages'
@@ -119,6 +120,7 @@ export function AppRoutes() {
       <Route path="/unsubscribe" element={<UnsubscribePage />} />
       <Route path="/leagues/public" element={<PublicLeaguesPage />} />
       <Route path="/leagues/public/:id" element={<PublicLeaguesPage />} />
+      <Route path="/f/:slug/*" element={<FacilityApp />} />
       <Route path="/portal/*" element={<RequireClient><PortalApp /></RequireClient>} />
       <Route path="/kiosk" element={<KioskPage />} />
       <Route path="/billing/invoices/:id/document" element={<RequireStaff><RequirePermission permission="billing.invoice.read"><InvoiceDocumentPage /></RequirePermission></RequireStaff>} />

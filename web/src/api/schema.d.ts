@@ -9883,6 +9883,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/guest-checkouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Guest Checkout
+         * @description Hold places for a guest (no account) in programs that allow it. The answer carries the guest token, the
+         *     only key to confirm or abandon. Errors: capacity-full, registration-closed, guest-documents-required.
+         */
+        post: operations["createGuestCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/guest-checkouts/{checkout_id}/abandon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Abandon Guest Checkout */
+        post: operations["abandonGuestCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/guest-checkouts/{checkout_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Guest Checkout
+         * @description Pay in full by a new card and register. Errors: payment-failed, checkout-expired, terms-changed.
+         */
+        post: operations["confirmGuestCheckout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/invoice-links/lookup": {
         parameters: {
             query?: never;
@@ -10041,6 +10099,47 @@ export interface paths {
         get: operations["getPublicPortalConfig"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/portal-signups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Portal Signup
+         * @description Email a verification link to finish signing up. 202 whether or not the address is known. Errors:
+         *     signup-disabled (the location does not take online sign-ups), field-required, rate-limited.
+         */
+        post: operations["createPortalSignup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/portal-signups/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Portal Signup
+         * @description Create the client and the portal login and sign in. Errors: token-invalid, token-expired.
+         */
+        post: operations["confirmPortalSignup"];
         delete?: never;
         options?: never;
         head?: never;
@@ -21065,6 +21164,128 @@ export interface components {
             /** Waiting Count */
             waiting_count: number;
         };
+        /**
+         * GuestCheckoutConfirm
+         * @description A guest pays in full by a new card: no stored methods, no account credit, no instalments.
+         */
+        GuestCheckoutConfirm: {
+            /** Coupon Code */
+            coupon_code?: string | null;
+            /** Guest Token */
+            guest_token: string;
+            /** Method Token */
+            method_token: string;
+            /** Terms Version Id */
+            terms_version_id?: string | null;
+        };
+        /** GuestCheckoutCreate */
+        GuestCheckoutCreate: {
+            /** Items */
+            items: components["schemas"]["GuestItem"][];
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Participants
+             * @default []
+             */
+            participants: components["schemas"]["GuestParticipant"][];
+            payer: components["schemas"]["GuestPayer"];
+        };
+        /** GuestCheckoutItem */
+        GuestCheckoutItem: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Client Name */
+            client_name: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
+            /** Program Group Name */
+            program_group_name: string;
+            /** Status */
+            status: string;
+        };
+        /** GuestCheckoutOut */
+        GuestCheckoutOut: {
+            /** Account Ref */
+            account_ref?: string | null;
+            /** Completed At */
+            completed_at: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Guest Token */
+            guest_token?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Items */
+            items: components["schemas"]["GuestCheckoutItem"][];
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Provider */
+            provider?: string | null;
+            /** Publishable Key */
+            publishable_key?: string | null;
+            /** Status */
+            status: string;
+            /** Total Minor */
+            total_minor: number;
+        };
+        /** GuestCheckoutToken */
+        GuestCheckoutToken: {
+            /** Guest Token */
+            guest_token: string;
+        };
+        /** GuestItem */
+        GuestItem: {
+            /** Participant */
+            participant?: number | null;
+            /** Program Fee Id */
+            program_fee_id?: string | null;
+            /**
+             * Program Group Id
+             * Format: uuid
+             */
+            program_group_id: string;
+        };
+        /** GuestParticipant */
+        GuestParticipant: {
+            /** Birth On */
+            birth_on?: string | null;
+            /** First Name */
+            first_name: string;
+            /** Last Name */
+            last_name: string;
+        };
+        /** GuestPayer */
+        GuestPayer: {
+            /** Email */
+            email: string;
+            /** First Name */
+            first_name: string;
+            /** Last Name */
+            last_name: string;
+            /** Phone Mobile */
+            phone_mobile?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -26135,6 +26356,8 @@ export interface components {
             pay_later: boolean;
             /** Payment Method Id */
             payment_method_id?: string | null;
+            /** Terms Version Id */
+            terms_version_id?: string | null;
         };
         /** PortalCheckoutCreate */
         PortalCheckoutCreate: {
@@ -26419,6 +26642,8 @@ export interface components {
              * @enum {string}
              */
             tender_kind: "card" | "bank_debit";
+            /** Terms Version Id */
+            terms_version_id?: string | null;
         };
         /**
          * PortalContractOut
@@ -26809,6 +27034,30 @@ export interface components {
             /** Total Minor */
             total_minor: number;
         };
+        /**
+         * PortalMenuItem
+         * @description One portal section (SSP-13): shown or hidden, in list order, optionally renamed.
+         */
+        PortalMenuItem: {
+            /**
+             * Is Visible
+             * @default true
+             */
+            is_visible: boolean;
+            /** Key */
+            key: string;
+            /** Label */
+            label?: string | null;
+        };
+        /** PortalMenuItemOut */
+        PortalMenuItemOut: {
+            /** Is Visible */
+            is_visible: boolean;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string | null;
+        };
         /** PortalMissingDocument */
         PortalMissingDocument: {
             /**
@@ -26850,6 +27099,8 @@ export interface components {
              * @enum {string}
              */
             tender_kind: "card" | "bank_debit";
+            /** Terms Version Id */
+            terms_version_id?: string | null;
         };
         /**
          * PortalPackageOut
@@ -27363,6 +27614,8 @@ export interface components {
         PortalRentalConfirm: {
             /** Provider Payment Token */
             provider_payment_token: string;
+            /** Terms Version Id */
+            terms_version_id?: string | null;
         };
         /** PortalRentalCreate */
         PortalRentalCreate: {
@@ -27502,6 +27755,12 @@ export interface components {
             allows_online_purchases: boolean;
             /** Allows Online Rentals */
             allows_online_rentals: boolean;
+            /** Allows Self Signup */
+            allows_self_signup: boolean;
+            /** Group Redirect Urls */
+            group_redirect_urls: {
+                [key: string]: string;
+            };
             /** Is Enabled */
             is_enabled: boolean;
             /** Is Public */
@@ -27511,8 +27770,18 @@ export interface components {
              * Format: uuid
              */
             location_id: string;
+            /** Menu */
+            menu: components["schemas"]["PortalMenuItemOut"][];
+            /** Redirect Domains */
+            redirect_domains: string[];
+            /** Redirect Url */
+            redirect_url: string | null;
             /** Slug */
             slug: string;
+            /** Social Links */
+            social_links: {
+                [key: string]: string;
+            };
             /** Terms Text */
             terms_text: string | null;
             /** Terms Version */
@@ -27526,12 +27795,28 @@ export interface components {
             allows_online_purchases?: boolean | null;
             /** Allows Online Rentals */
             allows_online_rentals?: boolean | null;
+            /** Allows Self Signup */
+            allows_self_signup?: boolean | null;
+            /** Group Redirect Urls */
+            group_redirect_urls?: {
+                [key: string]: string;
+            } | null;
             /** Is Enabled */
             is_enabled?: boolean | null;
             /** Is Public */
             is_public?: boolean | null;
+            /** Menu */
+            menu?: components["schemas"]["PortalMenuItem"][] | null;
+            /** Redirect Domains */
+            redirect_domains?: string[] | null;
+            /** Redirect Url */
+            redirect_url?: string | null;
             /** Slug */
             slug?: string | null;
+            /** Social Links */
+            social_links?: {
+                [key: string]: string;
+            } | null;
             /** Terms Text */
             terms_text?: string | null;
             /** Welcome Text */
@@ -27562,6 +27847,60 @@ export interface components {
             signer_role: "client" | "guardian";
             /** Typed Signature */
             typed_signature?: string | null;
+        };
+        /** PortalSignupConfirmIn */
+        PortalSignupConfirmIn: {
+            /**
+             * Client Kind
+             * @default web
+             * @enum {string}
+             */
+            client_kind: "web" | "mobile";
+            /** Token */
+            token: string;
+        };
+        /**
+         * PortalSignupIn
+         * @description Public self-registration (SSP-05). The answer is the same whether or not the address is known.
+         */
+        PortalSignupIn: {
+            /** Birth On */
+            birth_on?: string | null;
+            /** Email */
+            email: string;
+            /** First Name */
+            first_name: string;
+            /** Last Name */
+            last_name: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Phone Mobile */
+            phone_mobile?: string | null;
+        };
+        /**
+         * PortalSignupSession
+         * @description The confirm answer, in the portal's own shape: `signed_in` (web: the session cookie is set and the CSRF
+         *     token is here; mobile: the tokens are here) or `mfa_required` (202, finish with the MFA verify route).
+         */
+        PortalSignupSession: {
+            /** Access Token */
+            access_token?: string | null;
+            /** Csrf Token */
+            csrf_token?: string | null;
+            /** Expires At */
+            expires_at?: string | null;
+            /** Mfa Token */
+            mfa_token?: string | null;
+            /** Refresh Token */
+            refresh_token?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "signed_in" | "mfa_required";
         };
         /** PortalStatementInvoice */
         PortalStatementInvoice: {
@@ -27676,6 +28015,8 @@ export interface components {
         PortalTermsOut: {
             /** Body Html */
             body_html: string;
+            /** Terms Version Id */
+            terms_version_id: string;
             /** Title */
             title: string;
         };
@@ -29028,8 +29369,12 @@ export interface components {
         };
         /** PublicBranding */
         PublicBranding: {
+            /** Accent Color */
+            accent_color: string | null;
             /** Locations */
             locations: components["schemas"]["PublicLocationLogo"][];
+            /** Primary Color */
+            primary_color: string | null;
             /** Tenant Logo Url */
             tenant_logo_url: string | null;
         };
@@ -29197,6 +29542,18 @@ export interface components {
             /** Logo Url */
             logo_url: string;
         };
+        /**
+         * PublicMenuItem
+         * @description The same item on the public side: portal routes never share a staff model (test_portal_schemas).
+         */
+        PublicMenuItem: {
+            /** Is Visible */
+            is_visible: boolean;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string | null;
+        };
         /** PublicPlanOut */
         PublicPlanOut: {
             /** Billing Interval Count */
@@ -29240,6 +29597,8 @@ export interface components {
             facility_name: string;
             /** Locations */
             locations: components["schemas"]["PublicPortalLocation"][];
+            /** Tenant Slug */
+            tenant_slug: string;
         };
         /** PublicPortalLocation */
         PublicPortalLocation: {
@@ -29247,15 +29606,29 @@ export interface components {
             allows_online_purchases: boolean;
             /** Allows Online Rentals */
             allows_online_rentals: boolean;
+            /** Allows Self Signup */
+            allows_self_signup: boolean;
+            /** Group Redirect Urls */
+            group_redirect_urls: {
+                [key: string]: string;
+            };
             /**
              * Location Id
              * Format: uuid
              */
             location_id: string;
+            /** Menu */
+            menu: components["schemas"]["PublicMenuItem"][];
             /** Name */
             name: string;
+            /** Redirect Url */
+            redirect_url: string | null;
             /** Slug */
             slug: string;
+            /** Social Links */
+            social_links: {
+                [key: string]: string;
+            };
             /** Terms Text */
             terms_text: string | null;
             /** Terms Version */
@@ -29292,6 +29665,8 @@ export interface components {
         };
         /** PublicProgramGroup */
         PublicProgramGroup: {
+            /** Allows Guest Checkout */
+            allows_guest_checkout: boolean;
             /** Children */
             children: components["schemas"]["PublicProgramGroup"][];
             /** Closed Message */
@@ -29850,6 +30225,8 @@ export interface components {
         };
         /** RegistrationConfigOut */
         RegistrationConfigOut: {
+            /** Allows Guest Checkout */
+            allows_guest_checkout: boolean;
             /** Closed Message */
             closed_message: string | null;
             /** Closes On */
@@ -29882,6 +30259,8 @@ export interface components {
         };
         /** RegistrationConfigPut */
         RegistrationConfigPut: {
+            /** Allows Guest Checkout */
+            allows_guest_checkout?: boolean | null;
             /** Closed Message */
             closed_message?: string | null;
             /** Closes On */
@@ -34163,6 +34542,10 @@ export interface components {
         };
         /** TenantOut */
         TenantOut: {
+            /** Brand Accent Color */
+            brand_accent_color: string | null;
+            /** Brand Primary Color */
+            brand_primary_color: string | null;
             /** Currency */
             currency: string;
             /** Default Time Zone */
@@ -34196,6 +34579,10 @@ export interface components {
         };
         /** TenantUpdate */
         TenantUpdate: {
+            /** Brand Accent Color */
+            brand_accent_color?: string | null;
+            /** Brand Primary Color */
+            brand_primary_color?: string | null;
             /** Currency */
             currency?: string | null;
             /** Default Time Zone */
@@ -59765,6 +60152,112 @@ export interface operations {
             };
         };
     };
+    createGuestCheckout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuestCheckoutCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestCheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    abandonGuestCheckout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                checkout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuestCheckoutToken"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestCheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirmGuestCheckout: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path: {
+                checkout_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuestCheckoutConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestCheckoutOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getInvoiceByLink: {
         parameters: {
             query?: never;
@@ -60035,6 +60528,81 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicPortalConfig"];
+                };
+            };
+        };
+    };
+    createPortalSignup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalSignupIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirmPortalSignup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalSignupConfirmIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalSignupSession"];
+                };
+            };
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalSignupSession"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

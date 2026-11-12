@@ -299,6 +299,7 @@ class PublicDocumentView(Out):
 class PortalTermsOut(Out):
     title: str
     body_html: str
+    terms_version_id: str  # send back on every portal sale (SSP-14)
 
 
 # --- indicator and settings ------------------------------------------------------------------------------------

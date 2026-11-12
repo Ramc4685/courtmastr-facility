@@ -434,6 +434,7 @@ class PortalRentalConfirm(In):
     """A PaymentProvider client token; never raw card data. Stored methods arrive with build module 8."""
 
     provider_payment_token: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    terms_version_id: Annotated[str, StringConstraints(max_length=64)] | None = None  # the portal terms shown (SSP-14)
 
 
 class PortalRentalCheckout(Out):

@@ -4,6 +4,7 @@ import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
 import { api } from '../../api/client'
 import { Button } from '../../components/Button'
 import { TenantLogo } from '../platform/branding'
+import { BrandTheme, SocialLinks, usePortalConfig } from '../entry/FacilityApp'
 import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { useAuth, useMe } from '../../lib/auth'
 import { APP_NAME } from '../../lib/format'
@@ -20,17 +21,34 @@ import { StatementPage } from './StatementPage'
 import { displayName, makePortalValue, PortalProvider, usePortal } from './shared'
 
 const NAV = [
-  { to: '/portal', label: 'Home', end: true },
-  { to: '/portal/bookings', label: 'Bookings' },
-  { to: '/portal/programs', label: 'Programs' },
-  { to: '/portal/sessions', label: 'Book a session' },
-  { to: '/portal/memberships', label: 'Memberships' },
-  { to: '/portal/packages', label: 'Packages' },
-  { to: '/portal/invoices', label: 'Invoices' },
-  { to: '/portal/statement', label: 'Statement' },
-  { to: '/portal/inbox', label: 'Inbox' },
-  { to: '/portal/profile', label: 'Profile' },
+  { key: 'home', to: '/portal', label: 'Home', end: true },
+  { key: 'bookings', to: '/portal/bookings', label: 'Bookings' },
+  { key: 'programs', to: '/portal/programs', label: 'Programs' },
+  { key: 'sessions', to: '/portal/sessions', label: 'Book a session' },
+  { key: 'memberships', to: '/portal/memberships', label: 'Memberships' },
+  { key: 'packages', to: '/portal/packages', label: 'Packages' },
+  { key: 'invoices', to: '/portal/invoices', label: 'Invoices' },
+  { key: 'statement', to: '/portal/statement', label: 'Statement' },
+  { key: 'inbox', to: '/portal/inbox', label: 'Inbox' },
+  { key: 'profile', to: '/portal/profile', label: 'Profile' },
 ]
+export const PORTAL_MENU_KEYS = NAV.map((n) => ({ key: n.key, label: n.label }))
+
+type MenuItem = { key: string; label?: string | null; is_visible: boolean }
+
+/** The staff's menu configuration (SSP-13) over the built-in tabs: configured items first in their order, with
+ * their labels, hidden ones dropped; tabs it does not name keep their place after. Home and Profile always show. */
+export function applyMenu<T extends { key: string; label: string }>(nav: T[], menu: MenuItem[] | undefined): T[] {
+  if (!menu?.length) return nav
+  const byKey = new Map(nav.map((n) => [n.key, n]))
+  const named = menu.flatMap((m) => {
+    const n = byKey.get(m.key)
+    if (!n || (!m.is_visible && n.key !== 'home' && n.key !== 'profile')) return []
+    return [{ ...n, label: m.label || n.label }]
+  })
+  const listed = new Set(menu.map((m) => m.key))
+  return [...named, ...nav.filter((n) => !listed.has(n.key))]
+}
 
 /** Page heading and tab title for portal screens. */
 export function PortalPage({ title, description, actions, children }: { title: string; description?: ReactNode; actions?: ReactNode; children: ReactNode }) {
@@ -75,8 +93,12 @@ function ActingFor() {
 function Shell({ children }: { children: ReactNode }) {
   const me = useMe()
   const { signOut } = useAuth()
+  const config = usePortalConfig()
+  const location = config.data?.locations.find((l) => l.menu.length) ?? config.data?.locations[0]
+  const nav = applyMenu(NAV, location?.menu)
   return (
-    <div className="min-h-screen bg-bg">
+    <div className="tenant-theme min-h-screen bg-bg">
+      <BrandTheme />
       <a href="#portal-main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-surface focus:px-3 focus:py-2">
         Skip to content
       </a>
@@ -99,7 +121,7 @@ function Shell({ children }: { children: ReactNode }) {
         </div>
         <nav aria-label="Portal" className="mx-auto max-w-6xl overflow-x-auto px-4">
           <ul className="flex gap-1">
-            {NAV.map((n) => (
+            {nav.map((n) => (
               <li key={n.to}>
                 <NavLink
                   to={n.to}
@@ -117,6 +139,9 @@ function Shell({ children }: { children: ReactNode }) {
       <main id="portal-main" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-8">
         {children}
       </main>
+      <footer className="mx-auto max-w-6xl border-t border-border px-4 py-6">
+        <SocialLinks links={location?.social_links} />
+      </footer>
     </div>
   )
 }
