@@ -3,6 +3,8 @@ import { PLATFORM_NAV, UPCOMING_NAV } from '../../app/nav'
 import { Icon } from '../../components/Icon'
 import { Card, PageHeader } from '../../components/PageHeader'
 import { useAuth, useCurrentLocation, useMe } from '../../lib/auth'
+import { DashboardTiles } from '../reporting/DashboardTiles'
+import { DASHBOARD_KEY } from '../reporting/queries'
 import { SetupChecklist } from './SetupChecklist'
 
 export function DashboardPage() {
@@ -17,6 +19,7 @@ export function DashboardPage() {
     <>
       <PageHeader title={`Welcome, ${firstName}`} description={`${me.tenant.name} · ${location ? location.name : 'All locations'}`} />
       <SetupChecklist />
+      {can(DASHBOARD_KEY) && <DashboardTiles />}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {shortcuts.map((item) => (
           <Link

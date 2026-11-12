@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { page, renderAsStaff, SCREEN } from '../scheduling/testing'
 import { formatCell } from './queries'
 import { ReportRunPage } from './ReportRunPage'
+import { DashboardTiles } from './DashboardTiles'
 import { ReportsPage } from './ReportsPage'
 
 const PERIOD = { anyOf: [{ enum: ['today', 'this_month', 'last_30_days'], type: 'string' }, { type: 'null' }], title: 'Period' }
@@ -84,9 +85,66 @@ describe('report centre', SCREEN, () => {
     })
     await user.click(await screen.findByRole('button', { name: 'Run report' }))
     await user.click(await screen.findByLabelText('Include detail rows'))
-    await user.click(screen.getByRole('button', { name: 'Export CSV' }))
-    expect(calls.find((c) => c.url.endsWith('/export-jobs'))?.body).toEqual({ source_kind: 'report_run', report_run_id: 'run1', format: 'csv', includes_details: true })
+    await user.selectOptions(screen.getByLabelText('Format'), 'pdf')
+    await user.selectOptions(screen.getByLabelText('Page size'), 'a4')
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    expect(calls.find((c) => c.url.endsWith('/export-jobs'))?.body).toEqual({
+      source_kind: 'report_run', report_run_id: 'run1', format: 'pdf', includes_details: true, page_size: 'a4', orientation: null,
+    })
     expect(await screen.findByRole('button', { name: 'Download deposits-2026-11-11.csv' })).toBeInTheDocument()
+  })
+})
+
+describe('report centre, wave 4', SCREEN, () => {
+  const revenue = {
+    ...deposits, key: 'revenue_summary', name: 'Revenue summary', supports_detail: false,
+    params_schema: { properties: { revenue_category_ids: { anyOf: [{ type: 'array', items: { type: 'string', format: 'uuid' } }, { type: 'null' }], title: 'Revenue categories' } } },
+    columns: [{ key: 'revenue_category', label: 'Revenue category', type: 'text' }, { key: 'net_minor', label: 'Net revenue', type: 'money' }],
+    total_columns: [{ key: 'net_minor', label: 'Net revenue', type: 'money' }],
+  }
+
+  it('filters by revenue category and charts net revenue against the goal', async () => {
+    const user = userEvent.setup()
+    const calls = renderAsStaff(<ReportRunPage reportKey="revenue_summary" />, ['reporting.financial.run'], {
+      'GET /api/v1/report-definitions': page([revenue]),
+      'GET /api/v1/revenue-categories': page([{ id: 'rc1', label: 'Court rentals', code: 'CR', is_active: true, parent_id: null, system_key: null }]),
+      'POST /api/v1/report-runs': { status: 200, body: { ...run, report_key: 'revenue_summary', totals: { net_minor: 9000, goal_minor: 12000, goal_pct: 75 } } },
+      'GET /api/v1/report-runs/run1/rows': rows([{ revenue_category: 'Court rentals', net_minor: 9000, group_key: 'rc1' }], revenue.columns),
+    })
+    await user.click(await screen.findByLabelText('Court rentals'))
+    await user.click(screen.getByRole('button', { name: 'Run report' }))
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ report_key: 'revenue_summary', params: { revenue_category_ids: ['rc1'] } })
+    expect(await screen.findByRole('img', { name: 'Net revenue $90.00 against a goal of $120.00 (75.0%)' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Print' })).toBeInTheDocument()
+  })
+
+  it('schedules a saved report for chosen recipients', async () => {
+    const user = userEvent.setup()
+    const saved = { id: 'sv1', report_key: 'deposits', name: 'Weekly deposits', params: {}, columns: null, is_shared: false, owner_staff_user_id: 's1', last_run_at: null, created_at: '', updated_at: '' }
+    const calls = renderAsStaff(<ReportRunPage reportKey="deposits" savedId="sv1" />, FINANCIAL, {
+      'GET /api/v1/report-definitions': page([deposits]),
+      'GET /api/v1/saved-reports/sv1': { status: 200, body: saved },
+      'GET /api/v1/report-definitions/deposits/recipients': page([{ id: 's1', display_name: 'Pat Example' }, { id: 's2', display_name: 'Sam Manager' }]),
+      'POST /api/v1/report-schedules': { status: 201, body: { id: 'rs1' } },
+    })
+    await user.click(await screen.findByRole('button', { name: 'Schedule…' }))
+    await user.click(await screen.findByLabelText('Sam Manager'))
+    await user.click(screen.getByRole('button', { name: 'Schedule' }))
+    await waitFor(() => expect(calls.find((c) => c.url.endsWith('/report-schedules'))?.body).toEqual({
+      location_id: 'l1', frequency: 'weekly', weekday: 0, month_day: null, send_time: '07:00', format: 'pdf', includes_details: false,
+      recipient_staff_user_ids: ['s2'], saved_report_id: 'sv1', is_active: true,
+    }))
+  })
+
+  it('shows the dashboard tiles with links to the full reports', async () => {
+    renderAsStaff(<DashboardTiles />, ['reporting.dashboard.read', 'reporting.financial.run'], {
+      'GET /api/v1/dashboard': { status: 200, body: { location_id: null, generated_at: '', tiles: [
+        { key: 'revenue_summary', name: 'Revenue summary', period: 'this_month', totals: [{ key: 'net_minor', label: 'Net revenue', type: 'money', value: 9000 }] },
+      ] } },
+    })
+    expect(await screen.findByRole('link', { name: 'Revenue summary' })).toHaveAttribute('href', '/reports/revenue_summary')
+    expect(screen.getByText('$90.00')).toBeInTheDocument()
+    expect(screen.getByText('This month')).toBeInTheDocument()
   })
 })
 

@@ -10,6 +10,7 @@ import { useToast } from '../../components/Toast'
 import { useAuth, useMe } from '../../lib/auth'
 import { formatDateTime, toMinor } from '../../lib/format'
 import { FormDialog, FormError, LocationSelect, useCurrency } from '../billing/shared'
+import { ScheduleDialog } from './schedules'
 import { EXPORT_KEY, FORMATS, ID_SOURCES, formatCell, isNumeric, useDefinitions, type Column, type Definition, type ExportJob, type Params, type Row, type Run } from './queries'
 
 // --- the parameter form, generated from the report's JSON Schema ----------------------------------------------
@@ -303,6 +304,7 @@ export function ReportRunPage({ reportKey, savedId }: { reportKey: string; saved
   const [edited, setEdited] = useState<Params | null>(null)
   const [run, setRun] = useState<Run | null>(null)
   const [saving, setSaving] = useState(false)
+  const [scheduling, setScheduling] = useState(false)
   const params: Params = edited ?? (saved.data?.params as Params | undefined) ?? {}
   const go = useMutation({
     mutationFn: () => api.post('/api/v1/report-runs', { body: { report_key: reportKey, params, saved_report_id: savedId && !edited ? savedId : undefined } }),
@@ -336,6 +338,7 @@ export function ReportRunPage({ reportKey, savedId }: { reportKey: string; saved
             <div className="flex flex-wrap gap-2">
               <Button type="submit" loading={go.isPending}>Run report</Button>
               <Button variant="secondary" onClick={() => setSaving(true)}>Save as…</Button>
+              {saved.data && can(EXPORT_KEY) && <Button variant="secondary" onClick={() => setScheduling(true)}>Schedule…</Button>}
             </div>
           </form>
         </Card>
@@ -343,6 +346,7 @@ export function ReportRunPage({ reportKey, savedId }: { reportKey: string; saved
         {run && can(EXPORT_KEY) && <ExportPanel key={`x-${run.id}`} run={run} def={def} />}
       </div>
       {saving && <SaveDialog def={def} params={params} onClose={() => setSaving(false)} />}
+      {scheduling && saved.data && <ScheduleDialog saved={saved.data} def={def} onClose={() => setScheduling(false)} />}
     </>
   )
 }

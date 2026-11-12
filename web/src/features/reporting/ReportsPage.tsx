@@ -8,6 +8,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { useAuth } from '../../lib/auth'
 import { formatDateTime } from '../../lib/format'
 import { FormError, ListTable } from '../billing/shared'
+import { Schedules } from './schedules'
 import { CATEGORY_LABEL, EXPORT_KEY, useDefinitions, type Definition, type ExportJob, type Saved } from './queries'
 
 function Catalogue({ defs }: { defs: Definition[] }) {
@@ -77,7 +78,7 @@ function Exports({ defs }: { defs: Definition[] }) {
     refetchInterval: (q) => (q.state.data?.data.some((j) => ['queued', 'running'].includes(j.status)) ? 3000 : false),
   })
   const get = useMutation({
-    mutationFn: (j: ExportJob) => downloadFile('/api/v1/export-jobs/{export_job_id}/download', { path: { export_job_id: j.id } }, `${j.source_key}.csv`),
+    mutationFn: (j: ExportJob) => downloadFile('/api/v1/export-jobs/{export_job_id}/download', { path: { export_job_id: j.id } }, j.file_name ?? `${j.source_key}.${j.format}`),
   })
   if (jobs.isPending) return <LoadingState />
   if (jobs.isError) return <ErrorState error={jobs.error} onRetry={() => jobs.refetch()} />
@@ -108,12 +109,17 @@ function Exports({ defs }: { defs: Definition[] }) {
   )
 }
 
+function SchedulesSection() {
+  const saved = useQuery({ queryKey: ['reporting', 'saved', 'list'], queryFn: () => api.get('/api/v1/saved-reports', { query: { limit: 100 } }) })
+  return <Schedules saved={saved.data?.data ?? []} />
+}
+
 export function ReportsPage() {
   const { can } = useAuth()
   const defs = useDefinitions()
   return (
     <>
-      <PageHeader title="Reports" description="Run a report for any period and location you can see, save the settings you use often, and export to CSV." />
+      <PageHeader title="Reports" description="Run a report for any period and location you can see, save the settings you use often, export to CSV, Excel or PDF, and schedule saved reports by email." />
       {defs.isPending ? <LoadingState /> : defs.isError ? <ErrorState error={defs.error} onRetry={() => defs.refetch()} /> : (
         <div className="space-y-6">
           <Catalogue defs={defs.data.data} />
@@ -125,6 +131,12 @@ export function ReportsPage() {
             <section aria-labelledby="exports-heading" className="space-y-2">
               <h2 id="exports-heading" className="text-base font-semibold">Recent exports</h2>
               <Exports defs={defs.data.data} />
+            </section>
+          )}
+          {can(EXPORT_KEY) && (
+            <section aria-labelledby="schedules-heading" className="space-y-2">
+              <h2 id="schedules-heading" className="text-base font-semibold">Scheduled deliveries</h2>
+              <SchedulesSection />
             </section>
           )}
         </div>

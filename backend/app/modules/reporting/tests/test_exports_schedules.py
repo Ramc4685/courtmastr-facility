@@ -4,7 +4,6 @@ New York), plus the pure rules of the XLSX engine, the PDF detail cap and the sc
 
 import io
 from datetime import UTC, date, datetime
-from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
@@ -17,10 +16,11 @@ from app.modules.reporting import dashboard, schedules
 from app.modules.reporting.catalogue import REGISTRY
 from app.modules.reporting.domain import report_files
 from app.modules.reporting.models import ExportJob, ReportSchedule
-from app.modules.reporting.tests.test_reporting import (  # noqa: F401 (fixtures)
-    API, code, drain, ok, ran, same_day_everywhere, world,
-)  # fmt: skip
+from app.modules.reporting.tests import test_reporting as base
+from app.modules.reporting.tests.test_reporting import API, code, drain, ok, ran
 from conftest import add_staff, login
+
+world, same_day_everywhere = base.world, base.same_day_everywhere  # shared fixtures
 
 
 def _export(client, headers, run_id, fmt, **extra) -> tuple[dict, bytes]:
@@ -72,7 +72,7 @@ def test_xlsx_cells_are_typed_and_text_never_becomes_a_formula(monkeypatch):
     page = book["A B C"]
     assert page["A2"].data_type == "s" and page["A2"].value == "=HYPERLINK(1)"
     assert book["Cover"]["B1"].data_type == "s"
-    assert page["B2"].value == Decimal("123.45") and page["C2"].value.date() == date(2026, 1, 5)
+    assert page["B2"].value == 123.45 and page["C2"].value.date() == date(2026, 1, 5)
     assert page["D2"].value == "yes"
     monkeypatch.setattr(xlsx, "MAX_ROWS", 2)
     with pytest.raises(xlsx.TooLarge):
@@ -185,14 +185,14 @@ def _schedule(**fields) -> ReportSchedule:
 
 
 @pytest.mark.parametrize(("fields", "local", "due"), [
-    ({}, datetime(2026, 1, 5, 6, 59), False),
-    ({}, datetime(2026, 1, 5, 7, 0), True),
-    ({"last_run_on": date(2026, 1, 5)}, datetime(2026, 1, 5, 23, 0), False),
-    ({"last_run_on": date(2026, 1, 4)}, datetime(2026, 1, 5, 9, 0), True),
-    ({"frequency": "weekly", "weekday": 0}, datetime(2026, 1, 5, 9, 0), True),  # a Monday
-    ({"frequency": "weekly", "weekday": 1}, datetime(2026, 1, 5, 9, 0), False),
-    ({"frequency": "monthly", "month_day": 5}, datetime(2026, 1, 5, 9, 0), True),
-    ({"frequency": "monthly", "month_day": 6}, datetime(2026, 1, 5, 9, 0), False),
+    ({}, datetime(2026, 1, 5, 6, 59, tzinfo=UTC), False),
+    ({}, datetime(2026, 1, 5, 7, 0, tzinfo=UTC), True),
+    ({"last_run_on": date(2026, 1, 5)}, datetime(2026, 1, 5, 23, 0, tzinfo=UTC), False),
+    ({"last_run_on": date(2026, 1, 4)}, datetime(2026, 1, 5, 9, 0, tzinfo=UTC), True),
+    ({"frequency": "weekly", "weekday": 0}, datetime(2026, 1, 5, 9, 0, tzinfo=UTC), True),  # a Monday
+    ({"frequency": "weekly", "weekday": 1}, datetime(2026, 1, 5, 9, 0, tzinfo=UTC), False),
+    ({"frequency": "monthly", "month_day": 5}, datetime(2026, 1, 5, 9, 0, tzinfo=UTC), True),
+    ({"frequency": "monthly", "month_day": 6}, datetime(2026, 1, 5, 9, 0, tzinfo=UTC), False),
 ])  # fmt: skip
 def test_schedules_fall_due_once_a_local_day_after_the_send_time(fields, local, due):
     assert schedules.is_due(_schedule(**fields), local.replace(tzinfo=UTC)) is due

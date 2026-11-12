@@ -186,7 +186,9 @@ def _deliver(session: Session, schedule: ReportSchedule, today: date) -> int:
             sent += 1
         except DomainError as error:  # outside the recipient's locations now, too many rows, and the like
             log.info("report schedule %s skipped a recipient: %s", schedule.id, error.detail)
-    audit.record(session, "reporting.report_schedule.run", schedule, changes={"last_run_on": today, "sent": sent})
+    audit.record(
+        session, "reporting.report_schedule.run", schedule, changes={"last_run_on": today.isoformat(), "sent": sent}
+    )
     return sent
 
 
