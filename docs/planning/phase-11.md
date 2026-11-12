@@ -249,4 +249,4 @@ at hand-back (Phase 14's `14xx` or Phase 12's `16xx` may land first).
 | Date | Chip | Event | Commit |
 |---|---|---|---|
 | 2026-11-12 | plan | written | aa41743 |
-| 2026-11-12 | A, B, C1 | proposed as session cards (batch 1); C2 waits for C1 | |
+| 2026-11-12 | A, B, C1 | started (A local_a1caa3ba, B local_918e482f, C1 local_3c9b20c3), each fast-forwards onto e974f35; C2 waits for C1 | |
