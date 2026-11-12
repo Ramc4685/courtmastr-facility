@@ -233,12 +233,12 @@ for its subscription is later work.
   is also what onboarding stores. The demo seed always puts the demo tenant on `complete`.
 - **Catalogues are code** (`FEATURES`, `LIMITS`): only keys something actually checks. Features: `api_access`
   (API key creation, rotation and every API-key request), `branded_app` (member sign-in and refresh on the
-  mobile client). Limits: `locations` (active), `staff_users` (active, support users excluded), `clients`
-  (active; counter registered by `clients`), `app_users` (members with a live mobile session).
+  mobile client). Limits: `locations` (active), `clients` (active; counter registered by `clients`),
+  `app_users` (members with a live mobile session). Staff users are not metered (see "Deferred" below).
 - **Calls for other contexts:** `has_feature`, `require_feature` (403 `feature-not-in-plan`), `limit`,
   `check_limit(session, key, current)` (409 `plan-limit-reached`, with `limit_key` and `limit`) and
   `enforce_limit(session, key)`, which counts only when the key is capped. Internal (no principal).
-- **Enforced at:** `create_location`; `invite_staff_user` and `reactivate_staff_user`; `clients._create` (staff,
+- **Enforced at:** `create_location`; `clients._create` (staff,
   portal dependant and import all meet there) and `enable_client`; mobile sign-in for members
   (`auth._admit_app_user`: feature, then the `app_users` cap, a member already signed in on another device is
   not counted twice). Known limit: concurrent creates can overshoot a cap by one each (no lock).
@@ -250,6 +250,17 @@ for its subscription is later work.
 - **Tenant read:** `GET /tenant/entitlements` under `platform.tenant.update` (Owner and Admin), web
   Settings > Plan and usage. `Me.entitlements` (plan, features, limits) lets the web hide what the plan lacks
   (the API keys tab today); members and kiosks see the features only, never usage counts.
+
+### Deferred
+
+- **Staff-seat metering** (owner decision, phase 8 S4: staff users are not metered for now). The `staff_users`
+  limit key, its counter and its row on the plan screen and in `Me.entitlements` are gone, and migration 1280
+  dropped it from the plans (`essentials` had 5, `growth` 15; its downgrade restores them). The hook is a
+  one-line `# hook: staff-seat metering` comment in `staff.py` at `invite_staff_user` and
+  `reactivate_staff_user`, where `entitlements.enforce_limit(session, "staff_users")` goes. Turning it on: add
+  the key to `LIMITS`, register its counter (active staff users, support users excluded), replace the two
+  comments with the call, and give the plans their numbers. Operator override rows with the key were kept;
+  they come back into force then.
 
 ## Privacy, branding and onboarding (Phase 8 chip T2)
 

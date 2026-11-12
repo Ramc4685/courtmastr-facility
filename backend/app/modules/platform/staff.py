@@ -12,7 +12,7 @@ from app.core.auth import CATALOGUE, Principal, authorize
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.pagination import ListQuery, paginate
 from app.core.settings import get_settings
-from app.modules.platform import auth, entitlements, mfa, rbac
+from app.modules.platform import auth, mfa, rbac
 from app.modules.platform.events import StaffUserDeactivated, StaffUserInvited
 from app.modules.platform.models import (
     Identity,
@@ -192,7 +192,7 @@ def _set_locations(
 def invite_staff_user(session: Session, principal: Principal, data: dict) -> StaffUser:
     """Create the identity (invited) and staff user, and email a 7-day invite link. No admin-typed password."""
     authorize(principal, "platform.staff_user.invite")
-    entitlements.enforce_limit(session, "staff_users")
+    # hook: staff-seat metering, off by owner decision (platform README "Deferred"); enforce_limit "staff_users"
     role = _load_role(session, data["role_id"], pointer="/role_id")
     _check_assignable_role(session, principal, role)
     identity = Identity(kind="staff", email=data["email"], status="invited")
@@ -260,7 +260,7 @@ def reactivate_staff_user(session: Session, principal: Principal, staff_user_id:
     staff_user = get_staff_user(session, principal, staff_user_id, permission="platform.staff_user.deactivate")
     _check_owner_protection(principal, staff_user)
     if not staff_user.is_active:
-        entitlements.enforce_limit(session, "staff_users")
+        # hook: staff-seat metering, off by owner decision (platform README "Deferred"); enforce_limit "staff_users"
         staff_user.is_active = True
         audit.record(session, "platform.staff_user.reactivate", staff_user, changes={"is_active": [False, True]})
     return _refresh(session, staff_user)
