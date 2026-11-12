@@ -13,7 +13,7 @@ charge catalogue, coupons beyond the till, statements and the AR cut on the loca
 
 The coordinator plans, briefs, reviews and merges; it does not build. Each chip is its own session (Opus) in
 its own worktree cut from this branch, **at most two at a time** (the machine rebooted under load today and
-Phases 8 and 10 run too). A chip is done when its lane passes `make lint test web-check web-test` and the e2e
+Phases 8 and 10 run too). A chip is done when its lane passes `make lint typecheck boundaries test web-check web-test` and the e2e
 specs for screens it touched, every new table is in `populate()`, every new route passes `test_security.py`,
 the three generated guards stay green without allow-list edits, the billing README and both `08-billing-*`
 status docs (and the owning module's docs) are updated, and the work is Conventional Commits. An independent
@@ -100,9 +100,10 @@ BIL-23 public API (wave 8). The XLSX engine is Phase 12's; B builds PDF only.
 | 2026-11-11 | C | started by Phase 0 from 74dd753 (local_656a3a7b, lane p9c, 1320s on 1310); D waits for the owner | |
 | 2026-11-11 | C | Fable review: 1 blocking (a guardian could spend a ward's credit and remove a ward's card), fixed with 8 smaller items in 9c38427; merged; no migrations | e863420 |
 | 2026-11-12 | gate | C merged tree: lint, web-check, web-test (162), test 4255 passed + 2 reporting failures (earliest-local-today flake 05:00-06:00 UTC, test pinned in 8e81bfb, file re-run green); lane p9c removed | 8e81bfb |
+| 2026-11-12 | main | Phase 8 (4533c0d) merged in; 1301 now revises 1272, head 1310; lane rebuilt; new gates typecheck (4 billing files on the debt list, 3 small fixes) and boundaries pass; purge deletes bytes via `files.remove`; test 5038 passed + 3 imports failures (chip A `_draft` now returns `addons`, Phase 8 `import_contract` passed it to the model), fixed and imports + memberships re-run green; web-test 207 | e6975b7 |
 
 Follow-ups noted: a test asserting `catalog.list_sales` is client-following (no location scope, like `list_charges`);
 the clients privacy sentinel test is order-dependent (an email-verification message without client_id keeps the
 address after erasure), owner clients or engagement; chip C left a 3-D Secure payment abandoned by the browser and
 settled by webhook as unapplied credit with the invoice still open (documented in the billing README; fix by
-recording the intended invoices on the payment and allocating in `apply_event`), a candidate for chip E.
+recording the intended invoices on the payment and allocating in `apply_event`), a candidate for chip E. From Phase 8 (for the reporting phase, not this one): three reporting tests fail between 23:00 and 24:00 Chicago, because `last_30_days` drops the first hour of an eastern location's day, likely a real behaviour bug, not a test problem.

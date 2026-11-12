@@ -1,5 +1,7 @@
 # Phase 9 chip briefs, batch 1 (start each as its own session, Opus, own worktree cut from claude/phase9-wave1-711cdd)
 
+**Since Phase 8 merged (2026-11-12, `e6975b7`):** the chain is `1081 → 12xx → 1272 → 1301 … 1310` (head 1310); rebuild lane databases from scratch, never upgrade old ones. Two new gates, `make typecheck` (mypy; a new file that only fails on Optional narrowing may join the per-file debt list in `backend/pyproject.toml`, anything else is fixed) and `make boundaries` (import-linter). Any test that builds a staging or production config needs the `deploy_secrets` fixture (`billing/tests/test_stripe.py`). Use `platform.files.load/remove/download_url` and `core.jobs.chunked_actor` as shipped; `+` keys return `403 step-up-required` for un-elevated sessions.
+
 Shared background for both: FacilityHub (display name Courtmastr Facility): clean-room multi-tenant sports-facility SaaS, FastAPI + SQLAlchemy 2 sync + Postgres 16 with forced RLS, Dramatiq, React 18 + TS + Tailwind. Phase 9 = backlog wave 1 "money ready for real customers", coordinated from the Phase 9 coordinator session on branch `claude/phase9-wave1-711cdd`; plan `docs/planning/phase9-plan.md` (owner decisions, file ownership, migration block 13xx, Phase 8 handover). Owner pre-approved everything; do not push. Chips A and B run at the same time and both append to `billing/models.py` and `billing/router.py`: keep additions as new lines next to existing ones, change nothing else there. Phases 8 and 10 run elsewhere; the machine rebooted under load today, so keep test runs focused and run the full suite once at the end in the background. First step for both: make sure the branch contains `claude/phase9-wave1-711cdd` (`git merge --ff-only claude/phase9-wave1-711cdd` if cut from main). Report back to the Phase 9 coordinator session (the one on that branch), not to Phase 0.
 
 ---
@@ -14,7 +16,7 @@ Lane: `.env` = main checkout's `.env` plus `FH_DB_NAME=facilityhub_p9a`, `FH_TES
 
 Build: models appended to `billing/models.py`; new `billing/catalog.py` (staff commands with both gates; internal functions other contexts call without a principal); migrations 1301 to 1309, first `down_revision` = head you find (`alembic heads`, expect `0953`), `enable_rls`, `tfk`; selling an item goes through `service.post_charge` (idempotent origin) and `create_invoice_for_charges`; recurrence expansion as pure domain logic with tests, plus an idempotent `@tenant_actor` renewal job added as one line to `app/scheduler.py`; audit once per aggregate; events via `events.publish`; keyset lists via `paginate()`; dates local to the location (`platform.service.location_today`). MEM-04: plan add-ons can reference catalogue items (billed with each dues period or once at sale, per the data model), and a sale can add or drop add-ons under the right key. Extend `populate()` in `backend/conftest.py`, `_BODIES` in `tests/test_isolation.py`, keys in `billing/permissions.py` from the RBAC matrix, seed demo items, `make openapi web-api`, staff screens under `web/src/features/billing/` (catalogue list and edit, sell to client from client billing) with Vitest tests and a Playwright spec with axe. Colours from CSS variables only.
 
-Done: `make lint test web-check web-test` green in the lane, e2e spec green, `test_isolation`/`test_location_scope`/`test_portal_schemas` green without allow-list edits, billing README (interface plus assumptions), both 08 status docs, 05 status docs and the CLAUDE.md status row updated, Conventional Commits, no push. Report: branch, commit range, migration numbers, scheduler line added, anything partial with its reason.
+Done: `make lint typecheck boundaries test web-check web-test` green in the lane, e2e spec green, `test_isolation`/`test_location_scope`/`test_portal_schemas` green without allow-list edits, billing README (interface plus assumptions), both 08 status docs, 05 status docs and the CLAUDE.md status row updated, Conventional Commits, no push. Report: branch, commit range, migration numbers, scheduler line added, anything partial with its reason.
 
 ---
 
@@ -73,7 +75,7 @@ checkout; Phase 10 reuses it at the check-in window, so keep its props small and
 partial pay never pays more than is owed and never another household's invoice. Both gates, audit, events, `populate()`,
 `_BODIES`, `make openapi web-api`, Vitest, and Playwright specs with axe for portal pay and the 3DS path (fake adapter).
 
-Done: `make lint test web-check web-test` green in the lane, e2e specs green, the three generated guards green without
+Done: `make lint typecheck boundaries test web-check web-test` green in the lane, e2e specs green, the three generated guards green without
 allow-list edits, billing README and both 08 status docs and the CLAUDE.md row updated, Conventional Commits, no push. Report to
 the Phase 9 coordinator: branch, commit range, migration numbers, the scheduler line, `PaymentMethodField` props, anything
 partial with its reason.
