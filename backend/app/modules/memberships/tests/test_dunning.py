@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import select
 
-from app.core.errors import ValidationFailed
+from app.core.errors import DomainError, ValidationFailed
 from app.modules import billing
 from app.modules.billing.models import PaymentMethod
 from app.modules.memberships import service
@@ -158,7 +158,7 @@ def _stored(tenant, client_id: str) -> list[PaymentMethod]:
     [
         ("always", None, False, True), ("ask", None, False, False), ("ask", True, False, True),
         ("when_nothing_due", True, False, False),
-        ("ask", None, True, False),  # not forced for autopay (README: timeout recovery needs the token path)
+        ("ask", None, True, True), ("when_nothing_due", None, True, True),  # autopay needs the card later
     ],
 )  # fmt: skip
 def test_the_card_that_pays_online_is_kept_by_the_save_mode(w, client, owner, mode, save, autopay, kept):
@@ -173,6 +173,30 @@ def test_the_card_that_pays_online_is_kept_by_the_save_mode(w, client, owner, mo
     assert bought["payment_status"] == "succeeded" and bought["is_autopay"] is autopay
     cards = [c.kind for c in _stored(w.tenant, person["id"])]
     assert cards == (["card"] if kept else [])
+
+
+def test_a_saved_card_whose_charge_times_out_is_recovered_on_retry_and_kept_once(w, client, owner):
+    """Save during payment: the card is saved with the charge, not attached first, so billing's pre-provider row
+    commits and a retry after a processor timeout finds the charge instead of charging again."""
+    run(w.tenant, JAN1, service.update_settings, {"online_card_save_mode": "always"})
+    with tx(w.tenant) as session:  # committed tender rows and processor account, as in a live tenant
+        billing.service.ensure_defaults(session)
+        billing.service._provider_account(session)
+    online = membership_plan(client, owner, w.tenant, is_sold_online=True, is_autopay_default=True)
+    person = new_client(client, owner, w.location_id)
+    member = _member(w.tenant, person["id"])
+    buy = {"membership_plan_id": UUID(online["id"]), "location_id": UUID(w.location_id),
+           "method_token": "tok_card_unknown"}  # fmt: skip
+    key = f"k-{uuid4().hex}"
+    with pytest.raises(DomainError) as timeout, tx(w.tenant) as session:
+        session.info["actor"] = member
+        service.portal_buy(session, member, buy, key)
+    assert timeout.value.code == "provider-unavailable" and _stored(w.tenant, person["id"]) == []
+    with tx(w.tenant) as session:
+        session.info["actor"] = member
+        bought = service.portal_buy(session, member, buy, key)
+    assert bought["payment_status"] == "succeeded"
+    assert [(c.kind, c.is_autopay) for c in _stored(w.tenant, person["id"])] == [("card", True)]
 
 
 def test_an_open_plan_default_follows_the_channel_setting(w, client, owner):

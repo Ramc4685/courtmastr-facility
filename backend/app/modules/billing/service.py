@@ -652,6 +652,7 @@ def take_payment(
     method_token: str | None = None,
     payment_method_id: UUID | None = None,
     off_session: bool = False,
+    save_method: bool = False,
     tender_type_id: UUID | None = None,
     origin: str = "staff",
     invoice_id: UUID | None = None,
@@ -666,7 +667,9 @@ def take_payment(
     Record-only tenders (cash, cheque, bank transfer, gift card...) are `succeeded` at once. Processed tenders
     (card, bank_debit) call the payment provider and need `idempotency_key` plus either `method_token` (an
     opaque one-time provider reference, never card data) or `payment_method_id` (a stored method of this
-    payer). `off_session` is for charges with the payer absent (autopay).
+    payer). `off_session` is for charges with the payer absent (autopay). `save_method` asks the processor to
+    keep a `method_token`'s method on the payer's provider customer with this charge (the caller ensures the
+    customer exists; `methods.save_from_payment` records it once the payment is secured).
 
     Replay safety: a payment is found again by its `idempotency_key`, whatever the tender, so the same key
     always resolves to the same row and the same provider payment. For a processed tender the row is
@@ -730,6 +733,12 @@ def take_payment(
                     ProviderCustomer.client_id == client_id, ProviderCustomer.provider_account_id == account.id
                 )
             )
+        if save_method and payment_method_id is None:
+            customer_ref = session.scalar(
+                select(ProviderCustomer.provider_customer_ref).where(
+                    ProviderCustomer.client_id == client_id, ProviderCustomer.provider_account_id == account.id
+                )
+            )
         if not method_token or not idempotency_key:
             raise ValidationFailed(
                 "A processed payment needs a payment method and an Idempotency-Key.", pointer="/method_token"
@@ -742,7 +751,7 @@ def take_payment(
         state = payment_provider.get(account.provider).create_payment(
             account_ref=account.provider_account_ref, amount_minor=amount_minor, currency=tenant.currency,
             method_token=method_token, idempotency_key=_provider_key(session, payment),
-            customer_ref=customer_ref, off_session=off_session,
+            customer_ref=customer_ref, off_session=off_session, save_method=save_method and customer_ref is not None,
         )  # fmt: skip
         payment.provider_payment_ref = state.provider_payment_ref or None  # none yet when the call timed out
     else:
@@ -1581,14 +1590,18 @@ def _sync_schedule(session: Session, invoice: Invoice, total: int, applied: int,
             overdue += row.amount_minor - amount
     open_rows = [row for row in rows if row.covered_minor < row.amount_minor]
     invoice.due_on = max((open_rows[0] if open_rows else rows[-1]).due_on, invoice.invoice_on)
-    if overdue > provisional:  # a pending bank debit that covers it keeps the invoice out of past due
+    if overdue > provisional:
         if invoice.past_due_since_on is None:
             invoice.past_due_since_on = today
             events.publish(
                 session, InvoicePastDue(invoice_id=invoice.id, bill_to_client_id=invoice.bill_to_client_id), invoice.id
             )
-    else:
+    elif overdue <= 0:
         invoice.past_due_since_on = None
+    # else a pending bank debit covers what is overdue: the dunning clock pauses, it does not restart (the usual
+    # practice in Stripe Billing and Chargebee). The invoice is `payment_pending`, so reminders, the portal
+    # lockout and non-payment suspension skip it meanwhile; if the debit fails they resume from the first
+    # overdue day instead of a fresh one, so a debit that keeps failing cannot hold off dunning forever.
     session.flush()
 
 
