@@ -13,6 +13,7 @@ import { TokenLinkPage } from '../features/auth/TokenLinkPage'
 import { OidcCallbackPage, OidcLinkPage } from '../features/auth/oidc'
 import { IntegrationsPage } from '../features/integrations/IntegrationsPage'
 import { PayLinkPage } from '../features/billing/PayLinkPage'
+import { AppConfigPage } from '../features/engagement/AppConfigPage'
 import { AutomationsPage, RemindersPage } from '../features/engagement/AutomationPages'
 import { CampaignDetailPage } from '../features/engagement/CampaignDetailPage'
 import { CampaignsPage } from '../features/engagement/CampaignsPage'
@@ -190,6 +191,7 @@ export function AppRoutes() {
           <Route path="automations" element={<RequirePermission permission="engagement.automation.manage"><AutomationsPage /></RequirePermission>} />
           <Route path="reminders" element={<RequirePermission permission="engagement.notification_rule.manage"><RemindersPage /></RequirePermission>} />
           <Route path="portal" element={<PortalSettingsPage />} />
+          <Route path="app" element={<RequirePermission permission="engagement.app_content.manage"><AppConfigPage /></RequirePermission>} />
         </Route>
         <Route path="clients" element={<RequirePermission permission="clients.client.read"><ClientsPage /></RequirePermission>} />
         <Route path="clients/merge" element={<RequirePermission permission="clients.client.merge"><MergePage /></RequirePermission>} />

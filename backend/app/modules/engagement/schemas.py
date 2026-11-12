@@ -484,3 +484,98 @@ class PublicPreferencesOut(Out):
 class PublicPreferencesReplace(In):
     token: Annotated[str, StringConstraints(min_length=10, max_length=200)]
     changes: Annotated[list[PreferenceChange], Field(min_length=1, max_length=20)]
+
+
+# --- member app configuration (APP-01, APP-02, APP-04, APP-05, APP-18) ----------------------------------------
+
+
+class AppTheme(In):
+    primary: Annotated[str, StringConstraints(pattern=r"^#[0-9A-Fa-f]{6}$")] | None = None
+    accent: Annotated[str, StringConstraints(pattern=r"^#[0-9A-Fa-f]{6}$")] | None = None
+
+
+class AppTile(In):
+    type: Annotated[str, StringConstraints(max_length=32)]
+    caption: Annotated[str, StringConstraints(max_length=40)] | None = None
+    style: Literal["large", "small"] = "small"
+
+
+class AppDesign(In):
+    columns: Literal[1, 2] = 2
+    corners: Literal["rounded", "square"] = "rounded"
+
+
+class AppHomeScreen(In):
+    """APP-04: ordered tiles from the tile catalogue (`tile_types`) and the global design."""
+
+    tiles: Annotated[list[AppTile], Field(max_length=12)] = []
+    design: AppDesign = AppDesign()
+
+
+class AppSchedule(In):
+    """APP-18: narrows each session booking policy in the member listing; never loosens it."""
+
+    shows_spots_left: bool = True
+    shows_full_sessions: bool = True
+    days_ahead: Annotated[int, Field(ge=1, le=365)] | None = None
+
+
+class AppFeatures(In):
+    booking: bool = True
+    purchases: bool = True
+    membership_card: bool = True
+    wallet_pass: bool = True
+
+
+class AppConfigReplace(In):
+    """PUT replaces: an omitted field returns to its default."""
+
+    mode: Literal["shared", "branded"] = "shared"
+    is_enabled: bool = False
+    app_name: Annotated[str, StringConstraints(max_length=60)] | None = None
+    is_listed_in_directory: bool = False
+    directory_name: Annotated[str, StringConstraints(max_length=80)] | None = None
+    card_number_mode: Literal["auto_generate", "manual_entry"] = "auto_generate"
+    theme: AppTheme = AppTheme()
+    features: AppFeatures = AppFeatures()
+    home_screen: AppHomeScreen | None = None
+    schedule: AppSchedule = AppSchedule()
+
+
+class AppConfigOut(Out):
+    mode: str
+    is_enabled: bool
+    app_name: str | None
+    is_listed_in_directory: bool
+    directory_name: str | None
+    card_number_mode: str
+    theme: AppTheme
+    features: AppFeatures
+    home_screen: AppHomeScreen | None
+    schedule: AppSchedule
+    tile_types: list[str]
+    updated_at: datetime | None
+
+
+class PublicAppConfig(Out):
+    tenant_id: UUID
+    app_name: str
+    theme: AppTheme
+    icon_url: str | None
+    features: AppFeatures
+    home_screen: AppHomeScreen | None
+    schedule: AppSchedule
+    portal: PublicPortalConfig
+
+
+class AppDirectoryEntry(Out):
+    tenant_id: UUID
+    slug: str
+    name: str
+    city: str | None
+    icon_url: str | None
+    host: str
+
+
+class AppDirectoryPage(Out):
+    data: list[AppDirectoryEntry]

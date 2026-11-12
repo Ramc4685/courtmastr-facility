@@ -10,6 +10,7 @@ const LINKS: { to: string; label: string; permission: string; or?: string; end?:
   { to: '/engagement/automations', label: 'Automations', permission: 'engagement.automation.manage' },
   { to: '/engagement/reminders', label: 'Reminders & alerts', permission: 'engagement.notification_rule.manage' },
   { to: '/engagement/portal', label: 'Portal & videos', permission: 'engagement.portal_settings.manage', or: 'engagement.app_content.manage' },
+  { to: '/engagement/app', label: 'Member app', permission: 'engagement.app_content.manage' },
 ]
 
 /** One sidebar entry for engagement; its screens share this second-level navigation. */

@@ -8,6 +8,7 @@ import { ToastProvider } from '../../components/Toast'
 import { mockFetch } from '../../test/fetchMock'
 import { InboxPage } from '../portal/InboxPage'
 import { makePortalValue, PortalProvider, type PortalClient } from '../portal/shared'
+import { AppConfigPage } from './AppConfigPage'
 import { CampaignsPage } from './CampaignsPage'
 import { SegmentsPage } from './LibraryPages'
 import { UnsubscribePage } from './UnsubscribePage'
@@ -37,6 +38,32 @@ describe('engagement', () => {
     vi.unstubAllGlobals()
     auth.allowed.clear()
     window.history.replaceState(null, '', '/')
+  })
+
+  it('edits the member app home with a live preview and saves the whole config', async () => {
+    const config = {
+      mode: 'shared', is_enabled: false, app_name: null, is_listed_in_directory: false, directory_name: null, card_number_mode: 'auto_generate',
+      theme: {}, features: { booking: true, purchases: true, membership_card: true, wallet_pass: true }, home_screen: null,
+      schedule: { shows_spots_left: true, shows_full_sessions: true, days_ahead: null }, tile_types: ['book', 'card', 'memberships', 'invoices', 'notifications', 'facility'], updated_at: null,
+    }
+    const calls = mockFetch({ 'GET /api/v1/app-config': { status: 200, body: config }, 'PUT /api/v1/app-config': (c) => ({ status: 200, body: { ...config, ...(c.body as object) } }) })
+    const user = userEvent.setup()
+    wrap(<AppConfigPage />)
+    const preview = within(await screen.findByRole('list', { name: 'Home tiles' }))
+    expect(preview.getAllByRole('listitem')).toHaveLength(6) // the built-in layout until a custom one is chosen
+    expect(screen.getByText('Club')).toBeVisible()
+    await user.type(screen.getByLabelText('App name'), 'Club App')
+    expect(screen.getByText('Club App')).toBeVisible()
+    await user.click(screen.getByLabelText('Use a custom home layout'))
+    await user.click(screen.getByRole('button', { name: 'Remove tile 6' }))
+    await user.type(screen.getByLabelText('Tile 1 caption'), 'Book a court')
+    await user.click(screen.getByRole('button', { name: 'Move tile 2 up' }))
+    expect(preview.getAllByRole('listitem').map((li) => li.textContent)).toEqual(['My card', 'Book a court', 'Memberships', 'Invoices', 'Notifications'])
+    await user.click(screen.getByRole('button', { name: 'Save app settings' }))
+    const put = calls.find((c) => c.method === 'PUT')!.body as { app_name: string; home_screen: { tiles: { type: string; caption: string | null }[] } }
+    expect(put.app_name).toBe('Club App')
+    expect(put.home_screen.tiles.map((t) => t.type)).toEqual(['card', 'book', 'memberships', 'invoices', 'notifications'])
+    expect(put.home_screen.tiles[1]!.caption).toBe('Book a court')
   })
 
   it('lists campaigns and offers Send only with the permission for the channel', async () => {

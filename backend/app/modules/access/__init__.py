@@ -6,4 +6,4 @@ Public interface: `service`. Never import this package's models or schemas from 
 from app.modules.access import models, permissions, service  # isort: skip
 
 __all__ = ["models", "permissions", "service"]
-from app.modules.access import subject  # noqa: E402, F401  (registers the merge and data-subject handlers)
+from app.modules.access import handlers, subject  # noqa: E402, F401  (event, merge and data-subject handlers)
