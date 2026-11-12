@@ -87,6 +87,7 @@ _BODIES = {
     "cancelCatalogItemSale": {"reason": "Mistake"},
     "createImportJobDryRun": {},
     "updateSavedReport": {"name": "Renamed"},
+    "updateReportSchedule": {"is_active": False},
     # collections (phase 9 chip D)
     "updateCollectionsTag": {"name": "Renamed"},
     "putCollectionsProfile": lambda ids: {"collections_tag_id": ids.collections_tag_id},
@@ -469,6 +470,8 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
                 "acceptance_method": "checkbox"}  # fmt: skip
     membership = {"client_id": a.kid_id, "location_id": a.location_id, "membership_plan_id": a.membership_plan_id}
     package = {"client_id": a.client_id, "location_id": a.location_id, "package_plan_id": a.package_plan_id}
+    schedule = {"saved_report_id": a.saved_report_id, "location_id": a.location_id, "frequency": "daily",
+                "send_time": "07:00", "recipient_staff_user_ids": [str(a.tenant.owner_id)]}  # fmt: skip
     for index, (path, body) in enumerate((
         ("/clients", person | {"home_location_id": b.location_id}),
         ("/charges", charge | {"client_id": b.client_id}),
@@ -525,6 +528,9 @@ def test_api_write_with_foreign_reference_is_rejected(client, two_tenants):
         }),
         ("/report-runs", {"report_key": "deposits", "saved_report_id": b.saved_report_id}),
         ("/export-jobs", {"report_run_id": b.report_run_id}),
+        ("/report-schedules", schedule | {"saved_report_id": b.saved_report_id}),
+        ("/report-schedules", schedule | {"location_id": b.location_id}),
+        ("/report-schedules", schedule | {"recipient_staff_user_ids": [b.staff_user_id]}),
     )):  # fmt: skip
         response = post(path, body, index)
         assert (response.status_code, response.json()["code"]) == (422, "validation-failed"), (

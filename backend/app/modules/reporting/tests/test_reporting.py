@@ -307,9 +307,6 @@ def test_saved_reports_are_personal_unless_shared_and_grant_nothing(client, tena
 def test_csv_exports_render_in_a_job_from_the_snapshot(client, tenant, owner, world):
     done = ran(client, owner, "revenue_summary", period="last_30_days")
     url = f"{API}/export-jobs"
-    assert code(client.post(url, headers=owner, json={"report_run_id": done["id"], "format": "xlsx"}), 422) == (
-        "not-supported"
-    )
     job = ok(client.post(url, headers=owner, json={"report_run_id": done["id"], "includes_details": True}), 202)
     assert job["status"] == "queued"
     assert code(client.get(f"{url}/{job['id']}/download", headers=owner), 409) == "invalid-state-transition"

@@ -11,8 +11,8 @@ from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, require
 from app.core.idempotency import idempotency
 from app.core.pagination import ListQuery, list_query
+from app.modules.reporting import dashboard, schedules, service
 from app.modules.reporting import schemas as s
-from app.modules.reporting import service
 
 router = APIRouter(
     route_class=TxRoute, tags=["reporting"], generate_unique_id_function=camel_id, dependencies=[Depends(idempotency)]
@@ -20,6 +20,7 @@ router = APIRouter(
 Lists = Annotated[ListQuery, Depends(list_query)]
 Run = Annotated[Ctx, Depends(require(*service.RUN_KEYS))]
 Export = Annotated[Ctx, Depends(require(service.EXPORT))]
+Dashboard = Annotated[Ctx, Depends(require(dashboard.KEY))]
 
 
 @router.get("/report-definitions", response_model=s.Page[s.ReportDefinitionOut])
@@ -107,3 +108,39 @@ def get_export_job_file(export_job_id: UUID, ctx: Export):
         headers={"Content-Disposition": f'attachment; filename="{name}"', "X-Content-Type-Options": "nosniff",
                  "Cache-Control": "private, no-store"},
     )  # fmt: skip
+
+
+@router.get("/report-definitions/{report_key}/recipients", response_model=s.Page[s.ReportRecipientOut])
+def list_report_recipients(report_key: str, ctx: Export):
+    return schedules.recipients(ctx.session, ctx.principal, report_key)
+
+
+@router.get("/report-schedules", response_model=s.Page[s.ReportScheduleOut])
+def list_report_schedules(query: Lists, ctx: Export):
+    return schedules.list_mine(ctx.session, ctx.principal, query)
+
+
+@router.post("/report-schedules", response_model=s.ReportScheduleOut, status_code=201)
+def create_report_schedule(body: s.ReportScheduleCreate, ctx: Export):
+    return schedules.create(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.get("/report-schedules/{report_schedule_id}", response_model=s.ReportScheduleOut)
+def get_report_schedule(report_schedule_id: UUID, ctx: Export):
+    return schedules.get(ctx.session, ctx.principal, report_schedule_id)
+
+
+@router.patch("/report-schedules/{report_schedule_id}", response_model=s.ReportScheduleOut)
+def update_report_schedule(report_schedule_id: UUID, body: s.ReportScheduleUpdate, ctx: Export):
+    return schedules.update(ctx.session, ctx.principal, report_schedule_id, body.model_dump(exclude_unset=True))
+
+
+@router.delete("/report-schedules/{report_schedule_id}", status_code=204)
+def delete_report_schedule(report_schedule_id: UUID, ctx: Export):
+    schedules.delete(ctx.session, ctx.principal, report_schedule_id)
+    return Response(status_code=204)
+
+
+@router.get("/dashboard", response_model=s.DashboardOut)
+def get_dashboard(ctx: Dashboard, location_id: UUID | None = None):
+    return dashboard.get_dashboard(ctx.session, ctx.principal, location_id)

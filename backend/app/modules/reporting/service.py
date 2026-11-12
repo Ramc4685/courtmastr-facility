@@ -13,17 +13,19 @@ from pydantic import ValidationError
 from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session
 
-from app.core import audit, clock, events
+from app.core import audit, clock, events, xlsx
 from app.core.api import CONSTRAINT_CODES
 from app.core.auth import Principal, authorize
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.pagination import ListQuery, paginate
+from app.core.settings import get_settings
 from app.modules import platform
 from app.modules.reporting.catalogue import REGISTRY
-from app.modules.reporting.domain import csv_file, periods
+from app.modules.reporting.domain import csv_file, periods, report_files
 from app.modules.reporting.events import ExportCompleted
-from app.modules.reporting.models import ExportJob, ReportRun, RunStatus, SavedReport
+from app.modules.reporting.models import ExportJob, ReportRun, ReportSchedule, RunStatus, SavedReport
 from app.modules.reporting.registry import MAX_ROWS, ReportSpec, Scope, too_large
+from app.ports import notifications
 
 RUN_KEYS = tuple(sorted({spec.permission for spec in REGISTRY.values()}))
 EXPORT = "reporting.report.export"
@@ -31,6 +33,16 @@ RETENTION = timedelta(days=7)
 ROWS_LIMIT = 1000
 
 CONSTRAINT_CODES["uq_saved_report_owner_name"] = "already-exists"
+FORMATS = ("csv", "xlsx", "pdf")  # every spec gets all three: they render from the frozen snapshot
+_CONTENT_TYPES = {"csv": "text/csv; charset=utf-8", "pdf": "application/pdf",
+                  "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}  # fmt: skip
+
+notifications.register_template(
+    "reporting.export_ready",
+    subject="$app: $report is ready",
+    body='Hello,\n\nYour scheduled report "$report" ($format) is ready. Sign in to download it:\n\n$link\n\n'
+    "The file is kept until $expires. It is built with your own permissions and locations.\n",
+)
 
 
 def _staff(principal: Principal) -> UUID:
@@ -66,7 +78,7 @@ def definition_view(spec: ReportSpec) -> dict:
         "params_schema": spec.params.model_json_schema(), "columns": [c.out() for c in spec.columns],
         "total_columns": [c.out() for c in spec.totals],
         "detail_columns": [c.out() for c in spec.detail_columns] if spec.detail_columns else None,
-        "supports_detail": spec.detail_columns is not None, "export_formats": ["csv"], "is_stub": False,
+        "supports_detail": spec.detail_columns is not None, "export_formats": list(FORMATS), "is_stub": False,
         "features": list(spec.features),
     }  # fmt: skip
 
@@ -352,6 +364,10 @@ def update_saved(session: Session, principal: Principal, saved_id: UUID, data: d
 
 def delete_saved(session: Session, principal: Principal, saved_id: UUID) -> None:
     saved = _load_saved(session, principal, saved_id, owner=True)
+    for schedule in session.scalars(select(ReportSchedule).where(ReportSchedule.saved_report_id == saved.id)):
+        audit.record(session, "reporting.report_schedule.delete", schedule)  # the schedules go with it
+        session.delete(schedule)
+    session.flush()
     session.execute(update(ReportRun).where(ReportRun.saved_report_id == saved.id).values(saved_report_id=None))
     audit.record(session, "reporting.saved_report.delete", saved)
     session.delete(saved)
@@ -390,8 +406,6 @@ def create_export(session: Session, principal: Principal, data: dict) -> dict:
     staff_user_id = _staff(principal)
     if data.get("source_kind", "report_run") != "report_run":
         raise ValidationFailed("Only report runs can be exported yet", pointer="/source_kind", code="not-supported")
-    if data.get("format", "csv") != "csv":
-        raise ValidationFailed("Only CSV exports are available yet", pointer="/format", code="not-supported")
     if not data.get("report_run_id"):
         raise ValidationFailed("A report run is required", pointer="/report_run_id")
     try:
@@ -401,7 +415,8 @@ def create_export(session: Session, principal: Principal, data: dict) -> dict:
     if run.status != RunStatus.SUCCEEDED or _expired(run.expires_at):
         raise Conflict("The run has no result to export; run the report again")
     job = ExportJob(
-        source_kind="report_run", report_run_id=run.id, source_key=run.report_key, params=run.params, format="csv",
+        source_kind="report_run", report_run_id=run.id, source_key=run.report_key, params=run.params,
+        format=data.get("format", "csv"), notify_on_complete=data.get("notify_on_complete", False),
         includes_details=data.get("includes_details", False), page_size=data.get("page_size"),
         orientation=data.get("orientation"), status=RunStatus.QUEUED, requested_by_staff_user_id=staff_user_id,
         expires_at=run.expires_at,
@@ -483,6 +498,17 @@ def render_export_chunk(session: Session, job_id: UUID) -> bool:
     if job.status == RunStatus.QUEUED:
         job.status, job.started_at, job.partial = RunStatus.RUNNING, clock.now(), b""
     currency = platform.service.get_tenant(session).currency
+    if job.format != "csv":
+        # shortcut: XLSX and PDF cannot be appended to across messages, so they render in this one message. The
+        # 50,000-row snapshot cap bounds it; split it into sheet or page chunks if that cap is ever raised.
+        try:
+            data = _render_document(session, job, run, snapshot, currency)
+        except xlsx.TooLarge as error:
+            job.status, job.error, job.finished_at, job.partial = RunStatus.FAILED, str(error), clock.now(), None
+            audit.record(session, "reporting.export_job.fail", job, changes={"status": job.status})
+            return False
+        job.progress = {"next": len(snapshot["rows"]), "total": len(snapshot["rows"])}
+        return _store_export(session, job, run, snapshot, data)
     # One row sequence over two sections: the rows, then after a blank line the detail rows, each with its header.
     sections = [(snapshot["columns"], snapshot["rows"], csv_file.BOM)]
     if job.includes_details and snapshot["details"]:
@@ -498,10 +524,43 @@ def render_export_chunk(session: Session, job_id: UUID) -> bool:
     job.progress = {"next": min(end, offset), "total": offset}
     if end < offset:
         return True
+    return _store_export(session, job, run, snapshot, job.partial)
+
+
+def _cover(session: Session, spec: ReportSpec, run: ReportRun) -> list[tuple[str, object]]:
+    """Parameters and date basis for the XLSX cover sheet and the PDF header (ADR 0010 section 5)."""
+    p = run.params
+    ids = p.get("location_ids")
+    places = ", ".join(platform.service.location_name(session, UUID(i)) for i in ids) if ids else "All locations"
+    lines: list[tuple[str, object]] = [("Report", spec.name), ("Date basis", spec.date_basis.replace("_", " "))]
+    lines += [(label, p[key]) for key, label in (("from_on", "From"), ("to_on", "To"), ("as_of_on", "As of"))
+              if p.get(key)]  # fmt: skip
+    lines.append(("Locations", places))
+    for key, value in p.items():
+        if key not in ("location_ids", "scope", "from_on", "to_on", "as_of_on") and value not in (None, [], ""):
+            shown = ", ".join(map(str, value)) if isinstance(value, list) else str(value)
+            lines.append((key.removesuffix("_minor").replace("_", " ").capitalize(), shown))
+    lines.append(("Run at", run.finished_at.isoformat(timespec="minutes") if run.finished_at else "-"))
+    return lines
+
+
+def _render_document(session: Session, job: ExportJob, run: ReportRun, snapshot: dict, currency: str) -> bytes:
+    spec = REGISTRY[run.report_key]
+    cover = _cover(session, spec, run)
+    totals = [(c.label, c.type, (run.totals or {}).get(c.key)) for c in spec.totals]
+    if job.format == "xlsx":
+        return report_files.to_xlsx(snapshot, cover, totals, details=job.includes_details, currency=currency)
+    return report_files.to_pdf(
+        snapshot, cover, totals, title=spec.name, organization=platform.service.get_tenant(session).name,
+        details=job.includes_details, currency=currency, page_size=job.page_size, orientation=job.orientation,
+    )  # fmt: skip
+
+
+def _store_export(session: Session, job: ExportJob, run: ReportRun, snapshot: dict, data: bytes) -> bool:
+    name = f"{run.report_key}-{run.finished_at.date().isoformat()}.{job.format}"
     stored = platform.files.store(
-        session, job.partial, purpose="report_export", content_type="text/csv; charset=utf-8",
-        uploaded_by=("system", None), original_name=f"{run.report_key}-{run.finished_at.date().isoformat()}.csv",
-        generated=True,
+        session, data, purpose="report_export", content_type=_CONTENT_TYPES[job.format],
+        uploaded_by=("system", None), original_name=name, generated=True,
     )  # fmt: skip
     job.file_id, job.row_count, job.status = stored.id, len(snapshot["rows"]), RunStatus.SUCCEEDED
     job.finished_at, job.partial = clock.now(), None
@@ -510,4 +569,21 @@ def render_export_chunk(session: Session, job_id: UUID) -> bool:
     audit.record(session, "reporting.export_job.complete", job, changes=audit.diff(job))
     event = ExportCompleted(export_job_id=job.id, requested_by_staff_user_id=job.requested_by_staff_user_id)
     events.publish(session, event, job.id)
+    if job.notify_on_complete:
+        _send_link(session, job, REGISTRY[run.report_key])
     return False
+
+
+def _send_link(session: Session, job: ExportJob, spec: ReportSpec) -> None:
+    """The scheduled-delivery email: a link to the export page, where the recipient signs in and the download
+    re-checks their permission and locations. No file and no token: the id alone grants nothing."""
+    email = platform.service.active_staff_emails(session, [job.requested_by_staff_user_id]).get(
+        job.requested_by_staff_user_id
+    )
+    if email is None:
+        return  # deactivated since the schedule ran
+    settings = get_settings().app
+    notifications.send(session, "reporting.export_ready", email, {
+        "app": settings.display_name, "report": spec.name, "format": job.format.upper(),
+        "link": f"{settings.web_base_url}/reports/exports/{job.id}", "expires": job.expires_at.date().isoformat(),
+    })  # fmt: skip

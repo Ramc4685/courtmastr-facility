@@ -291,7 +291,7 @@ def populate(client, tenant) -> SimpleNamespace:
     space |= _populate_engagement(client, tenant, post, location["id"], person["id"], identity_id)
     leagues = _populate_leagues(client, headers, post, location["id"], person["id"], space["resource_id"], category_id)
     integration = _populate_integrations(client, headers, tenant, post, location, person)
-    reporting = _populate_reporting(post, location["id"])
+    reporting = _populate_reporting(post, location["id"], tenant.owner_id)
     reporting |= _populate_imports(client, headers, tenant, location["id"])
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
@@ -394,13 +394,19 @@ def _populate_imports(client, headers, tenant, location_id) -> dict:
     return {"import_job_id": job_id}
 
 
-def _populate_reporting(post, location_id) -> dict:
-    """Build module 15: a saved report, one run of it, and a (queued) CSV export of that run."""
+def _populate_reporting(post, location_id, owner_id) -> dict:
+    """Build module 15: a saved report, one run of it, a (queued) CSV export of that run, and a daily delivery
+    schedule on the saved report (phase 12 chip A)."""
     params = {"location_ids": [location_id], "from_on": "2020-01-01", "to_on": "2020-12-31"}
     saved = post("/saved-reports", {"report_key": "deposits", "name": "Deposits 2020", "params": params})
     run = post("/report-runs", {"report_key": "deposits", "saved_report_id": saved["id"]})
     export = post("/export-jobs", {"report_run_id": run["id"], "format": "csv"})
-    return {"saved_report_id": saved["id"], "report_run_id": run["id"], "export_job_id": export["id"]}
+    schedule = post("/report-schedules", {
+        "saved_report_id": saved["id"], "location_id": location_id, "frequency": "daily", "send_time": "07:00",
+        "format": "xlsx", "recipient_staff_user_ids": [str(owner_id)],
+    })  # fmt: skip
+    return {"saved_report_id": saved["id"], "report_run_id": run["id"], "export_job_id": export["id"],
+            "report_schedule_id": schedule["id"]}  # fmt: skip
 
 
 def _populate_assessments(client, headers, post, location_id, client_id) -> dict:

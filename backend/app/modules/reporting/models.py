@@ -2,14 +2,16 @@
 save and what runs and exports produce, never business facts: those are read through the `rpt_*` views in
 `views.py`. The report catalogue is code (`registry.py`), not a table."""
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 from uuid import UUID
 
 from sqlalchemy import CheckConstraint, Index, LargeBinary, func, text
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.db import Base, TenantOwned, Timestamps, enum_check, enum_column, tenant_args, tfk
+from app.core.db import Base, TenantOwned, Timestamps, WallTime, enum_check, enum_column, tenant_args, tfk
 
 
 class RunStatus(StrEnum):
@@ -30,6 +32,12 @@ class ExportFormat(StrEnum):
     CSV = "csv"
     XLSX = "xlsx"
     PDF = "pdf"
+
+
+class Frequency(StrEnum):
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
 
 
 class SavedReport(TenantOwned, Timestamps, Base):
@@ -116,3 +124,38 @@ class ExportJob(TenantOwned, Timestamps, Base):
     # when the file is stored. Deviation from data-model-programs 4.4 (README).
     progress: Mapped[dict] = mapped_column(server_default=text("'{}'"))
     partial: Mapped[bytes | None] = mapped_column(LargeBinary, info={"audit": "never"})
+    # A scheduled delivery: when the file is stored, the requester gets an email with a sign-in link to it.
+    notify_on_complete: Mapped[bool] = mapped_column(server_default=text("false"))
+
+
+class ReportSchedule(TenantOwned, Timestamps, Base):
+    """Scheduled delivery of a saved report (RPT-01; ADR 0010 section 7 as amended). At `send_time` in the
+    location's zone on each due day, every recipient gets their own run and export, built with their own
+    permissions and locations, and an email linking to it (never the file)."""
+
+    __tablename__ = "report_schedule"
+    __table_args__ = tenant_args(
+        *tfk("saved_report_id", "saved_report"),
+        *tfk("location_id", "location", index=False),
+        *tfk("owner_staff_user_id", "staff_user", index=False),
+        enum_check("frequency", Frequency),
+        enum_check("format", ExportFormat),
+        CheckConstraint("(frequency = 'weekly') = (weekday IS NOT NULL)", name="weekday"),
+        CheckConstraint("(frequency = 'monthly') = (month_day IS NOT NULL)", name="month_day"),
+        CheckConstraint("weekday BETWEEN 0 AND 6", name="weekday_range"),
+        CheckConstraint("month_day BETWEEN 1 AND 28", name="month_day_range"),
+        CheckConstraint("cardinality(recipient_staff_user_ids) BETWEEN 1 AND 20", name="recipients"),
+    )
+
+    saved_report_id: Mapped[UUID]
+    location_id: Mapped[UUID]  # whose time zone sets the send time and the day
+    owner_staff_user_id: Mapped[UUID]
+    frequency: Mapped[str] = enum_column()
+    weekday: Mapped[int | None] = mapped_column(info={"audit": "value"})  # 0 Monday to 6 Sunday
+    month_day: Mapped[int | None] = mapped_column(info={"audit": "value"})
+    send_time: Mapped[str] = mapped_column(WallTime, info={"audit": "value"})
+    format: Mapped[str] = enum_column(server_default=text("'csv'"))
+    includes_details: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
+    recipient_staff_user_ids: Mapped[list[UUID]] = mapped_column(ARRAY(PgUUID(as_uuid=True)))
+    is_active: Mapped[bool] = mapped_column(server_default=text("true"), info={"audit": "value"})
+    last_run_on: Mapped[date | None]  # the location-local day of the last delivery; at most one a day

@@ -59,10 +59,14 @@ class Column:
 
 
 class Document:
-    """One Letter-size document: a header with the organisation and title on page one, a footer with the
-    organisation and page number on every page, then whatever blocks the caller adds in order."""
+    """One document, Letter portrait unless `page_size` ("A4") or `orientation` ("landscape") say otherwise: a
+    header with the organisation and title on page one, a footer with the organisation and page number on every
+    page, then whatever blocks the caller adds in order."""
 
-    def __init__(self, title: str, *, organization: str, subtitle: str | None = None, footer: str | None = None):
+    def __init__(
+        self, title: str, *, organization: str, subtitle: str | None = None, footer: str | None = None,
+        page_size: str = "Letter", orientation: str = "portrait",
+    ):  # fmt: skip
         self._footer = latin(footer) if footer else None
         org = latin(organization)
 
@@ -72,7 +76,7 @@ class Document:
                 page.set_font("Helvetica", "", 8)
                 page.cell(0, 5, f"{org} - page {page.page_no()}", align="C")
 
-        pdf = _Page(format="Letter")
+        pdf = _Page(orientation=orientation[0].upper(), format=page_size)
         pdf.set_compression(False)
         pdf.set_creation_date(_EPOCH)
         pdf.set_title(latin(title))
