@@ -120,6 +120,9 @@ The script copies the main checkout's `.env`, renames the databases to `facility
 `facilityhub_<suffix>_test`, sets the ports, drops every `FH_PAYMENTS_PROVIDER` and `FH_STRIPE_*` line, and
 refuses to leave a `.env` that names `facilityhub` or `facilityhub_test`. The session guard blocks agents from
 reading `.env`, so the owner runs the script once per lane; `make lane-db` the chip runs itself.
+Since main 3353e92 (merged at 23f82e7), new lanes use `make lane-env LANE=p12d API_PORT=8604 WEB_PORT=5604`
+instead of the script (same rules, plus `make lane-drop LANE=<name>` to delete a merged lane's databases). A, B and
+C keep their existing `.env`.
 
 ## Shared files
 
