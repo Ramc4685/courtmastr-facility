@@ -96,6 +96,7 @@ BIL-23 public API (wave 8). The XLSX engine is Phase 12's; B builds PDF only.
 | 2026-11-11 | B | review fixes 9e696f6, 4526ae1; merged; migration 1310 revises 1302, single head | (this merge) |
 | 2026-11-11 | D | start requested from Phase 0 after B merged | |
 | 2026-11-11 | gate | A+B merged tree: lint, web-check, web-test (138), test 3956 passed, 93% coverage; lanes p9a, p9b removed | 46f3da8 |
+| 2026-11-11 | main | Phase 10 (f38e826) merged in; 1301 now revises 1081; gate green: test 4229 passed, web-test 158 | bd1e71d |
 
 Follow-ups noted: a test asserting `catalog.list_sales` is client-following (no location scope, like `list_charges`);
 the clients privacy sentinel test is order-dependent (an email-verification message without client_id keeps the
