@@ -23,8 +23,11 @@ them is AWS-specific.
 
 ## Things that must be true before a go-live
 
-1. Client IP: behind an Application Load Balancer the API sees the balancer and then Caddy. Decide the chain, then set
-   `api.trusted_proxies` so `core/api.py::_ip` returns the real address. **Untested.**
+1. Client IP: behind an Application Load Balancer the proxy's socket peer is the balancer, so by default every client would
+   share one address and S1's per-address sign-in limits would become one shared bucket. Set the proxy's `EDGE_CIDRS` to the
+   load balancer's subnets (it forwards the client in `X-Forwarded-For`, the default `EDGE_IP_HEADER`), then confirm that
+   `core/api.py::_ip` returns the real client. The mechanism is tested locally with a stand-in edge (`infra/docker/smoke.sh`);
+   on AWS it is **untested**.
 2. The migrate and deploy steps in the workflow are placeholders: fill them for ECS (OIDC role, `register-task-definition`,
    `update-service`, `run-task`).
 3. Overlay values: `app.web_base_url`, `db.host`, `redis.url`, `email` relay (SES is the natural one), bucket name.

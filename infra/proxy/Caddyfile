@@ -6,11 +6,18 @@
 #                 for a platform edge (Fly, an AWS load balancer) that terminates TLS in front of this proxy.
 #   HTTP_PORT, HTTPS_PORT  listen ports; default 8080 and 8443 so the container needs no root or capabilities.
 #   API_UPSTREAM  default api:8100
+#   EDGE_CIDRS    space-separated CIDRs of a load balancer or CDN in FRONT of this proxy whose forwarded client address
+#                 is believed. Default: a documentation-only address, i.e. trust nothing but the socket peer.
+#   EDGE_IP_HEADER  header that carries the client address from that edge; default X-Forwarded-For (Fly: Fly-Client-IP).
 {
 	admin off
 	http_port {$HTTP_PORT:8080}
 	https_port {$HTTPS_PORT:8443}
 	servers {
+		# Who may tell us the client address. With no edge in front, nobody: {client_ip} is the socket peer.
+		trusted_proxies static {$EDGE_CIDRS:192.0.2.255/32}
+		trusted_proxies_strict   # read the forwarded header right to left: only the hop a trusted edge appended is believed
+		client_ip_headers {$EDGE_IP_HEADER:X-Forwarded-For}
 		# Slow-client limits (security-baseline 6): header 10 s, body 60 s (a 20 MiB upload on a slow line),
 		# write 60 s, idle keep-alive 2 min.
 		timeouts {
@@ -26,8 +33,6 @@
 	encode zstd gzip
 
 	header {
-		# HSTS also comes from the API once cookies are Secure; set here too so static pages carry it.
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
 		Referrer-Policy "no-referrer"
@@ -36,9 +41,22 @@
 		-Server
 	}
 
+	# HSTS for static pages. Not on localhost: a browser applies it to every port of that host and every subdomain, which
+	# would break other local dev servers. (The API still sends its own HSTS header whenever cookies are Secure.)
+	@public not host localhost *.localhost
+	header @public Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
 	# The API sends its own deny-all CSP and no-store; everything else is the SPA (security-baseline 9.6).
 	@spa not path /api/*
 	header @spa Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+
+	# Never public: the interactive docs load CDN scripts on the app origin, the OpenAPI document maps every route, and the
+	# operator routes (tenant onboarding) are for the platform operator, who reaches the API around the proxy
+	# (docs/ops/runbook.md "Operator access").
+	@internal path /api/v1/docs /api/v1/docs/* /api/v1/openapi.json /api/v1/operator /api/v1/operator/*
+	handle @internal {
+		respond "Not found" 404
+	}
 
 	handle /api/* {
 		# Upload exception, mirrored from core/api.py BodyLimitMiddleware.UPLOAD_PATHS: file bytes up to 20 MiB
@@ -49,7 +67,7 @@
 				max_size 21MiB
 			}
 			reverse_proxy {$API_UPSTREAM:api:8100} {
-				header_up X-Forwarded-For {remote_host}
+				header_up X-Forwarded-For {client_ip}
 				transport http {
 					dial_timeout 5s
 					response_header_timeout 120s
@@ -61,9 +79,10 @@
 				max_size 1MiB
 			}
 			reverse_proxy {$API_UPSTREAM:api:8100} {
-				# One hop, set by us from the socket peer. The app trusts this proxy's address only
-				# (api.trusted_proxies) and reads the right-most hop, so a client-sent value is never believed.
-				header_up X-Forwarded-For {remote_host}
+				# One hop, set by us: the real client (the socket peer, or the address a trusted edge forwarded). The app
+				# trusts this proxy's address only (api.trusted_proxies) and reads the right-most hop, so a client-sent
+				# value is never believed.
+				header_up X-Forwarded-For {client_ip}
 				health_uri /api/v1/health/live
 				health_interval 10s
 				transport http {

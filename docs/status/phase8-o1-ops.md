@@ -110,3 +110,24 @@ signed, so anyone holding the passphrase can forge one; the passphrase is as sen
 4. Stripe live keys when payments go live (production refuses the fake processor).
 5. Where backups are written, who holds `FH_BACKUP_PASSPHRASE` and `FH_DATA_KEY`, and the alert destination (email, SMS or chat).
 6. Whether to accept the Caddy scan exception until a patched release ships.
+
+## Follow-up after the independent review (after the merge of K3 and S2)
+
+Each finding was checked against the code before changing it; all were real.
+
+| # | Finding | Fix and proof |
+|---|---|---|
+| 1 | `backup.sh` left its REPEATABLE READ snapshot holder running after a failed or killed backup (the loop watched a file the exit trap had already deleted with the directory) | The exit trap now signals the holder, waits for its psql to end, then removes the directory; the loop also ends if the directory vanishes; INT and TERM exit through the trap. Proof: a backup killed mid-run showed 2 idle-in-transaction sessions while running, exit status 130, and 0 sessions afterwards |
+| 2 | `restore.sh` role filter needed a space after the role name, but `pg_dumpall` writes `CREATE ROLE fh_app;`, so roles were never created on a fresh cluster (the drill passed only because the roles existed); and it let `ALTER ROLE ... SUPERUSER BYPASSRLS` through | Filter matches `fh_x[ ;]`. A role line granting SUPERUSER, CREATEROLE, CREATEDB or REPLICATION is refused, and BYPASSRLS only for roles `infra/postgres/init/01-roles.sh` creates with it. New `infra/backup/drill-fresh.sh` (`make backup-drill-fresh`) runs the drill against a throwaway cluster with 0 `fh_*` roles: PASS. Two forged archives (SUPERUSER, BYPASSRLS on `fh_app`) were refused and created nothing |
+| 3 | The proxy set `X-Forwarded-For` to the socket peer, so behind a load balancer every client shared the edge's address | `servers { trusted_proxies static {$EDGE_CIDRS} ; trusted_proxies_strict ; client_ip_headers {$EDGE_IP_HEADER} }` and `header_up X-Forwarded-For {client_ip}`. Default trusts nothing beyond the socket peer. `trusted_proxies_strict` (from a later automated review) reads the header right to left. Smoke test: with no edge a spoofed header is not believed; with `EDGE_CIDRS` set to the stand-in edge, `X-Forwarded-For: 6.6.6.6, 203.0.113.9` yields 203.0.113.9. Fly and AWS docs corrected; both stay untested on the real edge |
+| 4 | `/api/v1/docs`, `/openapi.json` and `/operator/*` reachable through the proxy | The Caddyfile answers 404 for them; the smoke test checks four paths; the runbook has an "Operator access" section (CLI, or a tunnel around the proxy) |
+| 5 | Actions pinned by tag; `production` environment not a gate | Actions pinned by commit SHA (and the Trivy action's tag `0.28.0` I had used does not exist; now v0.36.0, inputs checked); the workflow header says the environment needs required reviewers before it gates anything. The free-form `ref` input and cache writes were removed earlier |
+| 6 | `--drop-existing` could leave no database; `FH_BACKUP_KEEP=0` | Restore goes into `<db>_restoring` and is renamed on success (checked: restore, refuse, `--drop-existing` replace, no leftovers); `FH_BACKUP_KEEP` must be at least 1 |
+| 7 | `:latest` images; HSTS `includeSubDomains` on localhost; broad `fs.allow` | RustFS, Mailpit and ClamAV pinned by digest. The proxy sends no HSTS on `localhost` (the API still sends its own whenever cookies are Secure: that header lives in `core/api.py`, outside this chip). `fs.allow` is the web root plus `CHANGELOG.md`: the dev server serves the changelog and refuses `config/app.yaml` and `backend/openapi.json` (403) |
+
+The smoke test now has 37 checks and passes; after S2 it sets the new tenant's MFA policy to `optional` (superuser, test setup)
+because the default policy forces an owner through enrolment, which S2's own tests cover. Both drills pass on head 1230.
+The stack, images and volumes were torn down again; disk stayed above 64 GB.
+
+Still open: the strict CSP was not loaded in a real browser; Caddy's CVE exception stands; client-IP handling on a real Fly or
+AWS edge is untested.

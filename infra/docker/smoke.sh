@@ -38,14 +38,21 @@ has "hashed asset is cached immutably" 'immutable' "$(curl -ksI "$BASE$asset")"
 echo "== security headers"
 page=$(curl -ksI "$BASE/"); api=$(curl -ks -D - -o /dev/null "$BASE/api/v1/health/live")
 echo "--- GET / ---"; echo "$page"; echo "--- GET /api/v1/health/live ---"; echo "$api"
-for h in 'strict-transport-security: max-age=31536000' 'x-content-type-options: nosniff' 'x-frame-options: DENY' 'referrer-policy: no-referrer' 'cross-origin-opener-policy: same-origin'; do
+for h in 'x-content-type-options: nosniff' 'x-frame-options: DENY' 'referrer-policy: no-referrer' 'cross-origin-opener-policy: same-origin'; do
   has "page: $h" "$h" "$page"; has "api: $h" "$h" "$api"
 done
+has "api: strict-transport-security: max-age=31536000" 'strict-transport-security: max-age=31536000' "$api"
+if grep -qi '^strict-transport-security' <<<"$page"; then bad "page sends HSTS on localhost"; else ok "page sends no HSTS on localhost (it would pin every local dev server)"; fi
 has "page CSP is strict" "script-src 'self'" "$page"
 has "page CSP forbids framing" "frame-ancestors 'none'" "$page"
 has "api keeps its own deny-all CSP" "default-src 'none'; frame-ancestors 'none'" "$api"
 has "api responses are no-store" 'cache-control: no-store' "$api"
 if grep -qi '^server:' <<<"$page"; then bad "Server header is exposed"; else ok "no Server header"; fi
+
+echo "== docs, OpenAPI and operator routes are not public"
+for path in /api/v1/docs /api/v1/docs/oauth2-redirect /api/v1/openapi.json /api/v1/operator/tenants; do
+  expect "$path is 404 through the proxy" "$(code "$BASE$path")" 404
+done
 
 echo "== body cap"
 head -c 2097152 /dev/zero | tr '\0' 'a' > "$tmp/big"
@@ -56,6 +63,10 @@ curl -s -X DELETE "$MAIL/api/v1/messages" >/dev/null
 email="owner-$(openssl rand -hex 3)@smoke.example.com"; slug="smoke-$(openssl rand -hex 3)"
 $S run --rm -T api cli onboard-tenant --name "Smoke Club" --slug "$slug" --time-zone America/Chicago \
   --owner-email "$email" --owner-first-name Smoke --owner-last-name Owner >/dev/null 2>&1
+# Two-step verification (S2) is required for an owner by default and is tested by its own suite. Here the new tenant's
+# policy is set to optional (superuser, test setup only) so the checks below can use password sign-in.
+docker exec -e PGPASSWORD="$FH_POSTGRES_PASSWORD" fhstack-postgres-1 psql -U postgres -d facilityhub -Atc \
+  "UPDATE tenant SET staff_mfa_policy = 'optional' WHERE slug = '$slug'" >/dev/null
 token=""
 for _ in $(seq 30); do
   id=$(curl -s "$MAIL/api/v1/messages" | jget messages.0.ID 2>/dev/null || true)
@@ -80,6 +91,19 @@ echo "== client IP"
 stored=$(docker exec -e PGPASSWORD="$FH_POSTGRES_PASSWORD" fhstack-postgres-1 psql -U postgres -d facilityhub -Atc \
   "SELECT host(ip) FROM auth_session ORDER BY created_at DESC LIMIT 1")
 if [ -n "$stored" ] && [ "$stored" != "203.0.113.9" ]; then ok "client-supplied X-Forwarded-For is not believed (session ip $stored)"; else bad "session ip is '$stored'"; fi
+
+echo "== trusted edge (EDGE_CIDRS)"
+signin_ip() {  # sign in with a spoofed X-Forwarded-For, return the address the session row recorded
+  local c; c=$(pre jarx)
+  curl -ks -o /dev/null -b "$tmp/jarx" -c "$tmp/jarx" -H "x-tenant-slug: $slug" -H "x-csrf-token: $c" -H 'content-type: application/json' \
+    -H "x-forwarded-for: $1" -d "{\"email\":\"$email\",\"password\":\"$password\"}" "$BASE/api/v1/auth/sign-in"
+  docker exec -e PGPASSWORD="$FH_POSTGRES_PASSWORD" fhstack-postgres-1 psql -U postgres -d facilityhub -Atc "SELECT host(ip) FROM auth_session ORDER BY created_at DESC LIMIT 1"
+}
+FH_STACK_EDGE_CIDRS=172.29.77.1/32 $S up -d --wait web >/dev/null 2>&1; wait_ready || true
+expect "a trusted edge's appended client address is used, a spoofed left-most hop is not" "$(signin_ip "6.6.6.6, 203.0.113.9")" 203.0.113.9
+$S up -d --wait web >/dev/null 2>&1; wait_ready || true
+got=$(signin_ip 198.51.100.7)
+if [ -n "$got" ] && [ "$got" != 198.51.100.7 ]; then ok "back to the default, the same header is not believed (session ip $got)"; else bad "default proxy believed a client-supplied address ($got)"; fi
 
 echo "== file round trip"
 jid() { local body; body=$(cat); jget id <<<"$body" 2>/dev/null || { echo "FAIL  create call answered: $body" >&2; exit 1; }; }
