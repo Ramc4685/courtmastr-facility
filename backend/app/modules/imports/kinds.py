@@ -2,23 +2,26 @@
 owning context's service (so every rule, audit row, event and plan limit applies).
 
 `parse` returns (data, errors); an error is (field key, code, plain words). `apply` runs inside the caller's
-savepoint and returns (entity_type, entity_id, created). Column names are ours (clean-room)."""
+savepoint and returns (entity_type, entity_id, created, warnings); a warning has the error shape and does not stop
+the row. Column names are ours (clean-room)."""
 
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, time
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationFailed
-from app.modules import billing, clients, engagement, memberships, pos
+from app.modules import billing, clients, engagement, memberships, platform, pos
 from app.modules.imports import csvio
 from app.modules.imports.csvio import CellError, Field
 from app.modules.imports.models import EntityType, ImportKind
 
 Errors = list[tuple[str, str, str]]
+Applied = tuple[str, UUID, bool, Errors]
 _PHONE = re.compile(r"^\+[1-9][0-9]{6,14}$")
 _RELATIONS = ("child", "spouse", "parent", "guardian", "ward", "sibling", "other")
 
@@ -40,7 +43,7 @@ class Kind:
     guide: list[str]
     parse: Callable[[dict[str, str], Context], tuple[dict, Errors]]
     natural_key: Callable[[dict], str]
-    apply: Callable[[Session, dict, Context], tuple[str, UUID, bool]]
+    apply: Callable[[Session, dict, Context], Applied]
     pointers: dict[str, str] = field(default_factory=dict)  # service error pointer -> our field
     limit_key: str | None = None  # plan limit a created row counts against
     once: bool = False  # True: a row already created by an earlier job is skipped (no updates for this type)
@@ -129,6 +132,10 @@ CLIENT_FIELDS = [
           "For other members: child, spouse, parent, guardian, ward, sibling or other.", ""),
     Field("email_marketing", "Email marketing", False, "yes if the person agreed to marketing email.", "no"),
     Field("sms_marketing", "Text marketing", False, "yes if the person agreed to marketing texts.", "no"),
+    Field("consent_date", "Consent given on", False,
+          "When the person agreed to marketing. Needed with the next column in GDPR mode.", ""),
+    Field("consent_source", "How consent was given", False,
+          "How they agreed, such as 'Paper form at sign-up'. Needed with the date in GDPR mode.", ""),
 ]  # fmt: skip
 _CLIENT_POINTERS = {
     "/primary_email": "email", "/emails": "email", "/member_number": "member_number", "/first_name": "first_name",
@@ -150,9 +157,12 @@ def _parse_client(cells: dict[str, str], ctx: Context) -> tuple[dict, Errors]:
         "country_code": _country, "household_ref": lambda v: text(v, 100), "household_head": csvio.flag,
         "relationship_to_head": lambda v: csvio.choice(v, _RELATIONS),
         "email_marketing": csvio.flag, "sms_marketing": csvio.flag,
+        "consent_date": lambda v: csvio.day(v, ctx.date_format), "consent_source": text,
     })  # fmt: skip
     if data["birth_date"] and data["birth_date"] > ctx.today:
         errors.append(("birth_date", "date-in-future", "A birth date cannot be in the future."))
+    if data["consent_date"] and data["consent_date"] > ctx.today:
+        errors.append(("consent_date", "date-in-future", "A consent date cannot be in the future."))
     if data["household_head"] and not data["household_ref"]:
         errors.append(("household_ref", "required", "A household head needs a household."))
     if data["household_head"] and data["relationship_to_head"]:
@@ -175,7 +185,7 @@ def _client_key(data: dict) -> str:
                             data.get("mobile_phone") or ""])  # fmt: skip
 
 
-def _apply_client(session: Session, data: dict, ctx: Context) -> tuple[str, UUID, bool]:
+def _apply_client(session: Session, data: dict, ctx: Context) -> Applied:
     row = {
         "first_name": data["first_name"], "last_name": data["last_name"], "home_location_id": ctx.location_id,
         "member_number": data["member_number"], "primary_email": data["email"],
@@ -184,16 +194,28 @@ def _apply_client(session: Session, data: dict, ctx: Context) -> tuple[str, UUID
         "address_line2": data["address_line2"], "city": data["city"], "region": data["region"],
         "postal_code": data["postal_code"], "country_code": data["country_code"],
     }  # fmt: skip
-    client, created = clients.service.import_client(session, {k: v for k, v in row.items() if v is not None})
+    client, created = clients.service.import_client(
+        session, {k: v for k, v in row.items() if v is not None}, import_job_id=ctx.job_id
+    )
+    warnings: Errors = []
     if data["email_marketing"] is not None or data["sms_marketing"] is not None:
-        engagement.service.import_consent(
+        given_at = None
+        if data["consent_date"]:
+            zone = ZoneInfo(platform.service.location_time_zone(session, ctx.location_id))
+            given_at = datetime.combine(data["consent_date"], time(0), tzinfo=zone)
+        withheld = engagement.service.import_consent(
             session, client.id, email_marketing=data["email_marketing"], sms_marketing=data["sms_marketing"],
-            note=f"Import job {ctx.job_id}",
+            note=f"Import job {ctx.job_id}", given_at=given_at, given_how=data["consent_source"],
         )  # fmt: skip
+        for channel in withheld:
+            column = "email_marketing" if channel == "email" else "sms_marketing"
+            words = "email" if channel == "email" else "text"
+            warnings.append((column, "consent-evidence-missing", f"Imported without {words} marketing: GDPR mode "
+                             "needs the consent date and how consent was given."))  # fmt: skip
     if data.get("head_client_id"):  # set by the engine from the head's row
         code = "other" if data["relationship_to_head"] == "other" else f"{data['relationship_to_head']}_of"
         clients.households.import_link(session, client.id, data["head_client_id"], code)
-    return EntityType.CLIENT, client.id, created
+    return EntityType.CLIENT, client.id, created, warnings
 
 
 # --- memberships and contracts -----------------------------------------------------------------------------------
@@ -230,13 +252,13 @@ def _membership_key(data: dict) -> str:
     return "|".join([ref, data["membership"].lower(), str(data["start_date"])])
 
 
-def _apply_membership(session: Session, data: dict, ctx: Context) -> tuple[str, UUID, bool]:
+def _apply_membership(session: Session, data: dict, ctx: Context) -> Applied:
     contract, created = memberships.service.import_contract(session, {
         "client_id": _client_ref(session, data), "location_id": ctx.location_id, "plan_name": data["membership"],
         "start_on": data["start_date"], "end_on": data["end_date"], "next_bill_on": data["next_bill_date"],
         "status": data["status"], "term_fee_minor": data["price"],
     })  # fmt: skip
-    return EntityType.MEMBERSHIP_CONTRACT, contract.id, created
+    return EntityType.MEMBERSHIP_CONTRACT, contract.id, created, []
 
 
 # --- opening balances --------------------------------------------------------------------------------------------
@@ -271,14 +293,14 @@ def _balance_key(data: dict) -> str:
     return "|".join([ref, str(data["as_of_date"]), data["direction"], str(data["amount"])])
 
 
-def _apply_balance(session: Session, data: dict, ctx: Context) -> tuple[str, UUID, bool]:
+def _apply_balance(session: Session, data: dict, ctx: Context) -> Applied:
     entity, entity_id = billing.service.post_opening_balance(
         session, client_id=_client_ref(session, data), location_id=ctx.location_id, amount_minor=data["amount"],
         kind="credit" if data["direction"] == "credit" else "owed", as_of=data["as_of_date"],
         description=data["description"] or f"Opening balance as of {data['as_of_date'].isoformat()}",
         key=f"{ctx.job_id}:{data['_row_key']}",
     )  # fmt: skip
-    return entity, entity_id, True
+    return entity, entity_id, True, []
 
 
 # --- POS products ------------------------------------------------------------------------------------------------
@@ -297,25 +319,27 @@ def _codes(value: str) -> list[str] | None:
     codes = [c.strip() for c in value.split(";") if c.strip()]
     if any(len(c) > 40 for c in codes):
         raise CellError("too-long", "A tax code is at most 40 characters.")
+    if len(codes) > 20:  # the catalogue's bound on a product's taxes
+        raise CellError("too-many", "Give at most 20 tax codes.")
     return codes or None
 
 
 def _parse_product(cells: dict[str, str], ctx: Context) -> tuple[dict, Errors]:
     errors: Errors = []
     _required(cells, errors, PRODUCT_FIELDS)
-    data = _cells(cells, errors, {
-        "sku": lambda v: csvio.text(v, 64), "name": csvio.text, "category": lambda v: csvio.text(v, 120),
+    data = _cells(cells, errors, {  # the SKU is also the product ID, so at most 60 characters
+        "sku": lambda v: csvio.text(v, 60), "name": csvio.text, "category": lambda v: csvio.text(v, 120),
         "price": csvio.money, "tax_codes": _codes, "stock_on_hand": lambda v: csvio.whole(v, high=1_000_000),
     })  # fmt: skip
     return data, errors
 
 
-def _apply_product(session: Session, data: dict, ctx: Context) -> tuple[str, UUID, bool]:
+def _apply_product(session: Session, data: dict, ctx: Context) -> Applied:
     product, created = pos.catalogue.import_product(session, {
         "sku": data["sku"], "name": data["name"], "category": data["category"], "unit_price_minor": data["price"],
         "tax_codes": data["tax_codes"], "stock_on_hand": data["stock_on_hand"],
     }, ctx.location_id)  # fmt: skip
-    return EntityType.PRODUCT, product.id, created
+    return EntityType.PRODUCT, product.id, created, []
 
 
 KINDS: dict[str, Kind] = {

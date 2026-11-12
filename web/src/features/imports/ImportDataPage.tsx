@@ -22,6 +22,7 @@ const STATUS: Record<string, { label: string; tone: Tone }> = {
   needs_review: { label: 'Checked, with problems', tone: 'warning' },
   importing: { label: 'Importing', tone: 'info' },
   completed: { label: 'Completed', tone: 'success' },
+  failed: { label: 'Stopped', tone: 'danger' },
 }
 const RUNNING = ['validating', 'importing']
 const DATE_FORMATS = [
@@ -298,6 +299,14 @@ function CurrentJob({ jobId, templates, onClose }: { jobId: string; templates: T
             <Counts job={data} done />
             <ReportLink job={data} />
           </div>
+        </Card>
+      )}
+      {data.status === 'failed' && (
+        <Card title="Import stopped">
+          <p className="text-sm">
+            The import stopped after {data.processed_row_count} of {data.total_row_count} rows because of an error on our side. Start another import with the same file:
+            rows that were already imported are recognised and not added twice.
+          </p>
         </Card>
       )}
     </section>

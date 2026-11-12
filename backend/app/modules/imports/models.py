@@ -34,6 +34,7 @@ class JobStatus(StrEnum):
     NEEDS_REVIEW = "needs_review"  # dry run found row errors: commit imports the rest and fails those rows
     IMPORTING = "importing"
     COMPLETED = "completed"
+    FAILED = "failed"  # a chunk exhausted its retries (dead letter); rows already done keep their outcomes
 
 
 class RowStatus(StrEnum):

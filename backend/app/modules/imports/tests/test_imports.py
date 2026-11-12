@@ -8,6 +8,7 @@ import time
 from datetime import timedelta
 from decimal import Decimal
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 import pytest
 from dramatiq import Worker
@@ -451,6 +452,141 @@ def test_expired_files_are_purged_by_retention(client, tenant, owner, location_i
     purged = ok(client.get(f"{API}/import-jobs/{job['id']}", headers=owner))
     assert purged["files_purged_at"] and not purged["has_error_report"] and purged["source_file_name"] is None
     assert client.get(f"{API}/import-jobs/{job['id']}/error-report", headers=owner).status_code == 404
+
+
+# --- side effects: automations, GDPR consent, dry runs, dead letters ------------------------------------------------
+
+
+def _automation_sends(tenant, client_ids) -> int:
+    return scalar(tenant, text(
+        "SELECT count(*) FROM scheduled_notification WHERE automation_rule_id IS NOT NULL AND client_id = ANY(:c)"
+    ).bindparams(c=[UUID(c) for c in client_ids]))  # fmt: skip
+
+
+def test_imports_never_start_welcome_automations(client, tenant, owner, location_id, plan):
+    from app.modules.memberships.tests.support import deliver_events
+
+    template = ok(client.post(f"{API}/message-templates", headers=owner,
+                              json={"name": "Welcome", "subject": "Hi", "body_text": "Welcome"}), 201)  # fmt: skip
+    for trigger in ("clients.client.created", "memberships.contract.activated"):
+        ok(client.post(f"{API}/automation-rules", headers=owner, json={
+            "name": trigger, "trigger_event_type": trigger, "channel": "email", "message_template_id": template["id"],
+        }), 201)  # fmt: skip
+    run(client, owner, location_id, "clients", [CLIENT_HEADER, ["W-1", "Wren", "Import", "wren@example.com", "", "",
+                                                                 "", "", "", "yes"]])  # fmt: skip
+    today = clock.now().date()
+    later = today + timedelta(days=10)
+    header = ["client_member_number", "membership", "start_date", "end_date", "status"]
+    done = run(client, owner, location_id, "memberships", [header,
+               ["W-1", "Adult Monthly", (today - timedelta(days=30)).isoformat(), (today + timedelta(days=5)).isoformat(),
+                "active"],  # ends before the next one starts (contracts may not overlap)
+               ["W-1", "Adult Monthly", later.isoformat(), (later + timedelta(days=30)).isoformat(), "upcoming"]])  # fmt: skip
+    assert done["created_count"] == 2
+    wren = str(scalar(tenant, text("SELECT id FROM client WHERE member_number = 'W-1'")))
+    payload = scalar(tenant, text("SELECT payload FROM outbox_event WHERE event_type = 'clients.client.created' "
+                                  "AND aggregate_id = :c").bindparams(c=UUID(wren)))  # fmt: skip
+    assert payload["source"] == "import" and payload["import_job_id"]
+    with (
+        tenant_session(tenant.id, actor=system_principal("tests")) as session,
+        clock.freeze(clock.now() + timedelta(days=11)),
+    ):
+        from app.modules import memberships
+
+        memberships.service.run_daily(session)  # the upcoming imported contract starts: still an import
+    reasons = {row[0] for row in scalar_rows(tenant, "SELECT payload->>'reason' FROM outbox_event "
+                                             "WHERE event_type = 'memberships.contract.activated'")}  # fmt: skip
+    assert reasons == {"import"}
+    walk_in = new_client(client, owner, location_id, primary_email="walkin@example.com")  # control: a real sign-up
+    deliver_events()
+    assert _automation_sends(tenant, [wren]) == 0
+    assert _automation_sends(tenant, [walk_in["id"]]) == 1
+
+
+def scalar_rows(tenant, sql: str) -> list:
+    with tenant_session(tenant.id) as session:
+        return list(session.execute(text(sql)))
+
+
+def test_gdpr_mode_needs_consent_evidence_and_outside_it_the_basis_is_import(client, tenant, owner, location_id):
+    header = ["member_number", "first_name", "last_name", "email", "email_marketing", "consent_date", "consent_source"]
+    run(client, owner, location_id, "clients", [header, ["G-0", "Old", "Optin", "old@example.com", "yes", "", ""]])
+    with tenant_session(tenant.id) as session:
+        old = session.execute(text("SELECT id FROM client WHERE member_number = 'G-0'")).scalar_one()
+        basis = session.execute(text("SELECT basis FROM consent_event WHERE client_id = :c"), {"c": old}).scalar_one()
+        assert basis == "import" and engagement_subscribed(session, old, "old@example.com")
+
+    ok(client.put(f"{API}/privacy-settings", headers=owner, json={"is_gdpr_mode": True}))
+    rows = [header,
+            ["G-1", "Proof", "Given", "proof@example.com", "yes", "2025-03-04", "Paper form at sign-up"],  # 2
+            ["G-2", "No", "Proof", "noproof@example.com", "yes", "2025-03-04", ""],                      # 3 warning
+            ["G-3", "Says", "No", "no@example.com", "no", "", ""]]  # fmt: skip                           # 4 opt-out
+    job = check(client, owner, start(client, owner, location_id, "clients", to_csv(rows)))
+    assert job["status"] == "validated" and job["has_error_report"]  # a warning is not a failure
+    assert report(client, owner, job)[1][:2] == ["3", "Would import with a warning"]
+    done = commit(client, owner, job)
+    assert (done["created_count"], done["error_count"]) == (3, 0)
+    assert outcomes(tenant, done)[3] == ("created", ["consent-evidence-missing"])
+    lines = report(client, owner, done)
+    assert len(lines) == 2 and lines[1][:3] == ["3", "Imported with a warning", "email_marketing"]
+    with tenant_session(tenant.id) as session:
+        ids = dict(session.execute(text("SELECT member_number, id FROM client WHERE member_number LIKE 'G-%'")).all())
+        events = {r.client_id: r for r in session.execute(text(
+            "SELECT client_id, kind, basis, note, occurred_at FROM consent_event WHERE client_id = ANY(:c)"
+        ), {"c": list(ids.values())})}  # fmt: skip
+        proof = events[ids["G-1"]]
+        assert (proof.kind, proof.basis) == ("opt_in", "express") and "Paper form at sign-up" in proof.note
+        assert proof.occurred_at.astimezone(ZoneInfo("America/Chicago")).date().isoformat() == "2025-03-04"
+        assert ids["G-2"] not in events and events[ids["G-3"]].kind == "opt_out"
+        assert engagement_subscribed(session, ids["G-1"], "proof@example.com")
+        assert not engagement_subscribed(session, ids["G-2"], "noproof@example.com")
+        assert not engagement_subscribed(session, old, "old@example.com")  # an `import` basis is not express
+
+
+def engagement_subscribed(session, client_id, address) -> bool:
+    from app.modules import engagement
+
+    return engagement.service.is_subscribed(session, client_id, "email", "email_campaigns", address)
+
+
+def test_a_dry_run_leaks_nothing_outside_its_transaction(client, tenant, owner, location_id, mailbox):
+    from app.modules import clients
+
+    with tenant_session(tenant.id) as session:
+        settings = clients.service.settings_row(session)
+        settings.is_member_number_auto_generated, settings.member_number_trigger = True, "client_created"
+    rows = [CLIENT_HEADER, ["", "Dee", "Dryden", "dee@example.com", "", "", "", "", "", "yes"],
+            ["", "Eli", "Okafor", "eli@example.com", "", "", "", "", "", "yes"]]  # fmt: skip
+
+    def state() -> tuple:
+        return (scalar(tenant, text("SELECT coalesce(max(next_value), 0) FROM tenant_counter "
+                                    "WHERE counter_key = 'member_number'")),  # member numbers handed out
+                scalar(tenant, text("SELECT count(*) FROM outbox_event")),  # events for subscribers
+                scalar(tenant, text("SELECT count(*) FROM consent_event")))  # fmt: skip
+
+    mailbox.clear()
+    before = state()
+    job = check(client, owner, start(client, owner, location_id, "clients", to_csv(rows)))
+    assert job["status"] == "validated" and state() == before and not mailbox
+    commit(client, owner, job)
+    numbers = scalar_rows(tenant, "SELECT member_number FROM client WHERE last_name IN ('Dryden', 'Okafor')")
+    assert len(numbers) == 2 and all(n[0] for n in numbers)  # the commit hands them out; the dry run did not
+    assert state()[0] == (before[0] or 1) + 2  # gapless: the check consumed none
+
+
+def test_a_dead_lettered_chunk_stops_the_job_instead_of_running_forever(client, tenant, owner, location_id):
+    from app.core.jobs import FailedJobRecorder
+
+    job = start(client, owner, location_id, "clients", to_csv([CLIENT_HEADER, ["", "Fay", "Fail", "", "", "", "",
+                                                                                "", "", ""]]))  # fmt: skip
+    ok(client.post(f"{API}/import-jobs/{job['id']}/dry-runs", headers=owner, json={}), 202)
+    proxy = type("Proxy", (), {"args": (str(tenant.id), job["id"]), "actor_name": "run_import",
+                               "queue_name": "default", "message_id": "m", "options": {},
+                               "_exception": RuntimeError("boom")})()  # fmt: skip
+    FailedJobRecorder().after_nack(broker, proxy)
+    stopped = ok(client.get(f"{API}/import-jobs/{job['id']}", headers=owner))
+    assert stopped["status"] == "failed" and stopped["finished_at"]
+    drain()  # the queued chunk finds a failed job and does nothing
+    assert ok(client.get(f"{API}/import-jobs/{job['id']}", headers=owner))["status"] == "failed"
 
 
 # --- volume --------------------------------------------------------------------------------------------------------

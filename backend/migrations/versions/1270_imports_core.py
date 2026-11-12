@@ -44,7 +44,7 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.CheckConstraint("date_format IN ('iso', 'mdy', 'dmy')", name=op.f('ck_import_job_date_format')),
     sa.CheckConstraint("kind IN ('clients', 'memberships', 'balances', 'products')", name=op.f('ck_import_job_kind')),
-    sa.CheckConstraint("status IN ('new', 'uploaded', 'validating', 'validated', 'needs_review', 'importing', 'completed')", name=op.f('ck_import_job_status')),
+    sa.CheckConstraint("status IN ('new', 'uploaded', 'validating', 'validated', 'needs_review', 'importing', 'completed', 'failed')", name=op.f('ck_import_job_status')),
     sa.ForeignKeyConstraint(['tenant_id', 'location_id'], ['location.tenant_id', 'location.id'], name=op.f('fk_import_job_location_id_location'), ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['tenant_id', 'report_file_id'], ['stored_file.tenant_id', 'stored_file.id'], name=op.f('fk_import_job_report_file_id_stored_file'), ondelete='RESTRICT'),
     sa.ForeignKeyConstraint(['tenant_id', 'source_file_id'], ['stored_file.tenant_id', 'stored_file.id'], name=op.f('fk_import_job_source_file_id_stored_file'), ondelete='RESTRICT'),

@@ -17,7 +17,7 @@ import hashlib
 from datetime import timedelta
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -40,7 +40,6 @@ _UPLOADABLE = (JobStatus.NEW, JobStatus.UPLOADED, JobStatus.VALIDATED, JobStatus
 _CHECKABLE = (JobStatus.UPLOADED, JobStatus.VALIDATED, JobStatus.NEEDS_REVIEW)
 _SKIP_CODES = {"possible-duplicate"}  # a service refusal that means "this is a duplicate", not a failure
 _TAKEN = (RowStatus.VALID, RowStatus.CREATED, RowStatus.UPDATED)
-_PROBLEMS = (RowStatus.INVALID, RowStatus.FAILED, RowStatus.SKIPPED)
 
 
 # --- templates -----------------------------------------------------------------------------------------------------
@@ -78,7 +77,8 @@ def template_csv(principal: Principal, kind_key: str) -> bytes:
 def job_view(session: Session, job: ImportJob) -> dict:
     view = {c.key: getattr(job, c.key) for c in ImportJob.__table__.columns if c.key not in ("tenant_id", "progress")}
     view["processed_row_count"] = job.progress.get("next", 0) if job.status in (
-        JobStatus.VALIDATING, JobStatus.IMPORTING) else (job.total_row_count if job.finished_at else 0)  # fmt: skip
+        JobStatus.VALIDATING, JobStatus.IMPORTING, JobStatus.FAILED) else (
+        job.total_row_count if job.finished_at else 0)  # fmt: skip
     view["source_file_name"] = None
     if job.source_file_id and job.files_purged_at is None:
         view["source_file_name"] = session.scalar(
@@ -266,23 +266,24 @@ def _household(kind: Kind, parsed: list, idx: int, data: dict, heads: dict) -> t
 
 
 def _apply(session: Session, kind: Kind, data: dict, ctx: Context, dry: bool) -> tuple:
-    """Run the context's import function in a savepoint: (status, entity_type, entity_id, created, problem)."""
+    """Run the context's import function in a savepoint: (status, entity_type, entity_id, created, problems); on
+    success the problems are the row's warnings."""
     hooks = session.info.setdefault("after_commit", [])
     pending = len(hooks)
     nested = session.begin_nested()
     try:
-        entity_type, entity_id, created = kind.apply(session, data, ctx)
+        entity_type, entity_id, created, warned = kind.apply(session, data, ctx)
         session.flush()
     except DomainError as error:
         nested.rollback()
         del hooks[pending:]
         problem = _problem(kind, error)
-        return (RowStatus.SKIPPED if error.code in _SKIP_CODES else None), None, None, False, problem
+        return (RowStatus.SKIPPED if error.code in _SKIP_CODES else None), None, None, False, [problem]
     except IntegrityError:
         nested.rollback()
         del hooks[pending:]
-        return None, None, None, False, {"field": "", "code": "already-exists",
-                                         "detail": "This row clashes with a record that already exists."}  # fmt: skip
+        return None, None, None, False, [{"field": "", "code": "already-exists",
+                                          "detail": "This row clashes with a record that already exists."}]  # fmt: skip
     if dry:
         nested.rollback()
         del hooks[pending:]  # nothing a dry run did may reach the outside world (emails, file deletes)
@@ -290,10 +291,11 @@ def _apply(session: Session, kind: Kind, data: dict, ctx: Context, dry: bool) ->
         nested.commit()
     if kind.once and not created:
         problem = {"field": "", "code": "already-exists", "detail": "This record already exists; skipped."}
-        return RowStatus.SKIPPED, entity_type, entity_id, False, problem
+        return RowStatus.SKIPPED, entity_type, entity_id, False, [problem]
+    warnings = [{"field": f, "code": c, "detail": d, "warning": True} for f, c, d in warned]
     if dry:
-        return RowStatus.VALID, None, None, created, None
-    return (RowStatus.CREATED if created else RowStatus.UPDATED), entity_type, entity_id, created, None
+        return RowStatus.VALID, None, None, created, warnings
+    return (RowStatus.CREATED if created else RowStatus.UPDATED), entity_type, entity_id, created, warnings
 
 
 def _process(session: Session, job: ImportJob, kind: Kind, ctx: Context, parsed: list, idx: int, heads: dict) -> None:
@@ -328,8 +330,8 @@ def _process(session: Session, job: ImportJob, kind: Kind, ctx: Context, parsed:
             elif not dry:
                 data["head_client_id"] = head_row.entity_id
     if not problems:
-        result, entity_type, entity_id, created, problem = _apply(session, kind, data, ctx, dry)
-        status, problems = result or fail, [problem] if problem else []
+        result, entity_type, entity_id, created, problems = _apply(session, kind, data, ctx, dry)
+        status = result or fail
         if dry and status == RowStatus.VALID and created and "remaining" in job.progress:
             if job.progress.get("creates", 0) >= job.progress["remaining"]:
                 status = fail
@@ -354,13 +356,14 @@ def _process(session: Session, job: ImportJob, kind: Kind, ctx: Context, parsed:
 
 def _write_report(session: Session, job: ImportJob, kind: Kind, phase: str) -> None:
     rows = session.scalars(select(ImportJobRow).where(
-        ImportJobRow.import_job_id == job.id, ImportJobRow.status.in_(_PROBLEMS)
-    ).order_by(ImportJobRow.row_number))  # fmt: skip
+        ImportJobRow.import_job_id == job.id, func.jsonb_array_length(ImportJobRow.errors) > 0
+    ).order_by(ImportJobRow.row_number))  # every row not imported, and imported rows that carry a warning  # fmt: skip
     labels = {f.key: f.label for f in kind.fields}
     lines: list[list] = [["Row", "Outcome", "Column", "Problem"]]
+    words: dict[str, str] = {RowStatus.SKIPPED: "Skipped", RowStatus.INVALID: "Would fail", RowStatus.FAILED: "Failed",
+                             RowStatus.VALID: "Would import with a warning"}  # fmt: skip
     for row in rows:
-        outcome = "Skipped" if row.status == RowStatus.SKIPPED else (
-            "Would fail" if row.status == RowStatus.INVALID else "Failed")  # fmt: skip
+        outcome = words.get(row.status, "Imported with a warning")
         for problem in row.errors:
             column = job.column_mapping.get(problem["field"]) or labels.get(problem["field"], "")
             lines.append([row.row_number, outcome, column, problem["detail"]])
@@ -409,6 +412,19 @@ def run_chunk(session: Session, job_id: UUID) -> bool:
                      "updated_count": job.updated_count, "skipped_count": job.skipped_count,
                      "error_count": job.error_count})  # fmt: skip
     return False
+
+
+def fail_job(session: Session, job_id: UUID) -> None:
+    """Internal (dead-letter hook of `run_import`): a chunk exhausted its retries, so the running job ends as
+    failed instead of showing progress forever. Committed chunks keep their rows; a new import of the same file
+    recognises them (clients and products update, memberships and balances are skipped as already imported)."""
+    job = session.scalars(select(ImportJob).where(ImportJob.id == job_id).with_for_update()).one_or_none()
+    if job is None or job.status not in (JobStatus.VALIDATING, JobStatus.IMPORTING):
+        return
+    job.status, job.finished_at = JobStatus.FAILED, clock.now()
+    session.flush()
+    audit.record(session, "imports.import_job.fail", job, location_id=job.location_id,
+                 changes={"status": job.status, "processed_row_count": job.progress.get("next", 0)})  # fmt: skip
 
 
 # --- retention ---------------------------------------------------------------------------------------------------
