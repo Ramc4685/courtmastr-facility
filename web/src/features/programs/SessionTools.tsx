@@ -6,6 +6,7 @@ import { Dialog } from '../../components/Dialog'
 import { Checkbox, Input, Select } from '../../components/Field'
 import { ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
+import { useAuth } from '../../lib/auth'
 import { formatDateTime } from '../../lib/format'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { useWorkingLocation } from '../scheduling/location'
@@ -30,15 +31,25 @@ const refresh = (qc: ReturnType<typeof useQueryClient>) => {
 }
 
 /** Book one client into the session and the other sessions it is linked with (CLS-02). */
-export function BatchBookDialog({ sessionId, onClose }: { sessionId: string; onClose: () => void }) {
+export function BatchBookDialog({ sessionId, reservationTypeId, onClose }: { sessionId: string; reservationTypeId?: string | null; onClose: () => void }) {
+  const { can } = useAuth()
   const qc = useQueryClient()
   const toast = useToast()
   const { q, label, sessions } = useUpcoming(sessionId)
   const [client, setClient] = useState<ClientSummary | null>(null)
   const [scope, setScope] = useState<'all_linked' | 'custom'>('all_linked')
   const [picked, setPicked] = useState<string[]>([])
+  const [packageId, setPackageId] = useState('')
+  const packages = useQuery({
+    queryKey: ['session', sessionId, 'packages', client?.id, reservationTypeId],
+    queryFn: () => api.get('/api/v1/client-packages', { query: { usable_by_client_id: client?.id, reservation_type_id: reservationTypeId ?? undefined, status: 'active', limit: 50 } }),
+    enabled: Boolean(client && reservationTypeId) && can('packages.package.read'),
+  })
   const book = useMutation({
-    mutationFn: () => api.post('/api/v1/enrollments/batch', { body: { client_id: client?.id ?? '', session_id: sessionId, booked_scope: scope, session_ids: scope === 'custom' ? picked : [] } }),
+    mutationFn: () =>
+      api.post('/api/v1/enrollments/batch', {
+        body: { client_id: client?.id ?? '', session_id: sessionId, booked_scope: scope, session_ids: scope === 'custom' ? picked : [], client_package_id: packageId || null },
+      }),
     onSuccess: (r) => {
       refresh(qc)
       toast('success', `${r.enrolled.length} booked${r.skipped.length ? `, ${r.skipped.length} skipped` : ''}.`)
@@ -69,7 +80,24 @@ export function BatchBookDialog({ sessionId, onClose }: { sessionId: string; onC
             {programError(book.error)}
           </p>
         )}
-        <ClientPicker label="Client" value={client} onChange={setClient} required />
+        <ClientPicker
+          label="Client"
+          value={client}
+          onChange={(c) => {
+            setClient(c)
+            setPackageId('')
+          }}
+          required
+        />
+        {(packages.data?.data.length ?? 0) > 0 && (
+          <Select
+            label="Pay with"
+            value={packageId}
+            onChange={(e) => setPackageId(e.target.value)}
+            hint="One package session per booked session"
+            options={[{ value: '', label: 'No package' }, ...(packages.data?.data ?? []).map((p) => ({ value: p.id, label: `${p.name}: ${p.is_unlimited ? 'unlimited' : `${p.sessions_available_count ?? 0} left`}` }))]}
+          />
+        )}
         <fieldset className="space-y-1.5">
           <legend className="mb-1 text-sm font-medium">Sessions</legend>
           <label className="flex items-center gap-2 text-sm">

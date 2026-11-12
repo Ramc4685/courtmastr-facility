@@ -22,6 +22,8 @@ EVERY_HOUR = (
     "billing_daily", "run_membership_day", "run_package_day", "sweep_documents", "auto_archive_programs",
     "abandon_stale_drafts", "purge_expired", "purge_files",
     "purge_expired_results", "purge_expired_exports",
+    "send_client_task_reminders",
+    "send_low_stock_digest",
 )  # fmt: skip
 
 

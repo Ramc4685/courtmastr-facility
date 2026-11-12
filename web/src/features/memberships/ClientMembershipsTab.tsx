@@ -447,18 +447,140 @@ function SharesDialog({ contract, onClose }: { contract: ContractOut; onClose: (
   )
 }
 
+function SpanRow({ label, span, kind, editable }: { label: ReactNode; span: { id: string; end_on?: string | null; removed_at?: string | null; remarks?: string | null }; kind: 'freeze' | 'suspension'; editable: boolean }) {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const [end, setEnd] = useState(span.end_on ?? '')
+  const save = useMutation({
+    mutationFn: (remove: boolean): Promise<unknown> => {
+      if (kind === 'freeze') {
+        const path = { freeze_id: span.id }
+        return remove ? api.post('/api/v1/membership-freezes/{freeze_id}/remove', { path, body: {} }) : api.patch('/api/v1/membership-freezes/{freeze_id}', { path, body: { end_on: end || null } })
+      }
+      const path = { suspension_id: span.id }
+      return remove ? api.post('/api/v1/membership-suspensions/{suspension_id}/remove', { path, body: {} }) : api.patch('/api/v1/membership-suspensions/{suspension_id}', { path, body: { end_on: end || null } })
+    },
+    onSuccess: (_, remove) => {
+      void qc.invalidateQueries({ queryKey: ['membership-contracts'] })
+      toast('success', remove ? `${kind === 'freeze' ? 'Freeze' : 'Suspension'} removed` : 'End date saved')
+    },
+    onError: (e) => toast('error', e.message),
+  })
+  return (
+    <li className="flex flex-wrap items-end gap-2">
+      <span>{label}</span>
+      {span.removed_at && <Badge>Removed</Badge>}
+      {span.remarks && <span className="text-muted">· {span.remarks}</span>}
+      {editable && !span.removed_at && (
+        <>
+          <Input label={`${kind === 'freeze' ? 'Freeze' : 'Suspension'} end date`} type="date" value={end} onChange={(e) => setEnd(e.target.value)} hint="Leave empty for open-ended" />
+          <Button size="sm" variant="secondary" loading={save.isPending && !save.variables} onClick={() => save.mutate(false)}>
+            Save end date
+          </Button>
+          <Button size="sm" variant="secondary" loading={save.isPending && save.variables} onClick={() => save.mutate(true)}>
+            Remove {kind}
+          </Button>
+        </>
+      )}
+    </li>
+  )
+}
+
+function PeriodRow({ period, editable }: { period: Schemas['PeriodOut']; editable: boolean }) {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const money = useMoney()
+  const [edit, setEdit] = useState<{ amount: string; due: string } | null>(null)
+  const save = useMutation({
+    mutationFn: (e: { amount: string; due: string }) => api.patch('/api/v1/billing-schedule-periods/{period_id}', { path: { period_id: period.id }, body: { amount_minor: toMinor(e.amount) ?? undefined, due_on: e.due } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['membership-contracts'] })
+      setEdit(null)
+      toast('success', 'Period updated')
+    },
+    onError: (e) => toast('error', e.message),
+  })
+  return (
+    <tr>
+      <td className="py-1">{period.description}</td>
+      <td>{edit ? <Input label="Due date" type="date" value={edit.due} onChange={(e) => setEdit({ ...edit, due: e.target.value })} /> : formatDate(period.due_on)}</td>
+      <td>
+        <Badge tone={period.status === 'billed' ? 'success' : period.status === 'cancelled' ? 'neutral' : period.status === 'withheld' ? 'warning' : 'info'}>{period.status}</Badge>
+      </td>
+      <td className="tabular text-right">{edit ? <Input label="Amount" inputMode="decimal" value={edit.amount} onChange={(e) => setEdit({ ...edit, amount: e.target.value })} /> : money(period.amount_minor)}</td>
+      {editable && (
+        <td className="text-right">
+          {period.status === 'scheduled' &&
+            (edit ? (
+              <Button size="sm" loading={save.isPending} disabled={toMinor(edit.amount) === null || !edit.due} onClick={() => save.mutate(edit)}>
+                Save
+              </Button>
+            ) : (
+              <Button size="sm" variant="secondary" aria-label={`Edit ${period.description}`} onClick={() => setEdit({ amount: (period.amount_minor / 100).toFixed(2), due: period.due_on })}>
+                Edit
+              </Button>
+            ))}
+        </td>
+      )}
+    </tr>
+  )
+}
+
 function DetailsDialog({ contract, onClose }: { contract: ContractOut; onClose: () => void }) {
   const money = useMoney()
+  const qc = useQueryClient()
+  const toast = useToast()
+  const { can } = useAuth()
   const path = { contract_id: contract.id }
+  const canSchedule = can('memberships.billing_schedule.update')
   const schedule = useQuery({ queryKey: ['membership-contracts', contract.id, 'schedule'], queryFn: () => api.get('/api/v1/membership-contracts/{contract_id}/billing-schedule', { path }) })
   const freezes = useQuery({ queryKey: ['membership-contracts', contract.id, 'freezes'], queryFn: () => api.get('/api/v1/membership-contracts/{contract_id}/freezes', { path }) })
   const suspensions = useQuery({ queryKey: ['membership-contracts', contract.id, 'suspensions'], queryFn: () => api.get('/api/v1/membership-contracts/{contract_id}/suspensions', { path }) })
+  const visits = useQuery({ queryKey: ['membership-contracts', contract.id, 'visits'], queryFn: () => api.get('/api/v1/membership-contracts/{contract_id}/visits', { path, query: { limit: 20, sort: '-visited_at' } }) })
   const history = useQuery({ queryKey: ['membership-contracts', contract.id, 'history'], queryFn: () => api.get('/api/v1/membership-contracts/{contract_id}/history', { path }) })
+  const [fee, setFee] = useState('')
+  const [effective, setEffective] = useState('')
+  const [adjust, setAdjust] = useState({ delta: '', reason: '' })
+  const [used, setUsed] = useState(contract.visits_used_count)
+  const refresh = (message: string) => {
+    void qc.invalidateQueries({ queryKey: ['membership-contracts'] })
+    toast('success', message)
+  }
+  const invoice = useMutation({
+    mutationFn: () => api.post('/api/v1/membership-contracts/{contract_id}/billing-schedule/invoice', { path, body: {} }),
+    onSuccess: (r) => refresh(r.period_ids.length ? `Invoiced ${r.period_ids.length} deferred period(s)` : 'Nothing deferred to invoice'),
+    onError: (e) => toast('error', e.message),
+  })
+  const reprice = useMutation({
+    mutationFn: () => api.post('/api/v1/membership-contracts/{contract_id}/reprice', { path, body: { term_fee_minor: toMinor(fee) ?? 0, effective_on: effective || null } }),
+    onSuccess: () => {
+      setFee('')
+      refresh('Future periods repriced')
+    },
+    onError: (e) => toast('error', e.message),
+  })
+  const adjustVisits = useMutation({
+    mutationFn: () => api.post('/api/v1/membership-contracts/{contract_id}/visit-adjustments', { path, body: { delta: Number(adjust.delta), reason: adjust.reason.trim() } }),
+    onSuccess: (c) => {
+      setUsed(c.visits_used_count)
+      setAdjust({ delta: '', reason: '' })
+      refresh('Visits adjusted')
+    },
+    onError: (e) => toast('error', e.message),
+  })
+  const delta = Number(adjust.delta)
   return (
     <Dialog open size="lg" onClose={onClose} title={`${contract.name}: details`}>
       <div className="space-y-5 text-sm">
         <section>
-          <h3 className="mb-2 font-medium">Billing schedule</h3>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h3 className="font-medium">Billing schedule</h3>
+            {canSchedule && (
+              <Button size="sm" variant="secondary" loading={invoice.isPending} onClick={() => invoice.mutate()}>
+                Invoice deferred periods
+              </Button>
+            )}
+          </div>
           {schedule.isPending ? (
             <LoadingState />
           ) : (
@@ -472,38 +594,70 @@ function DetailsDialog({ contract, onClose }: { contract: ContractOut; onClose: 
                   <th scope="col" className="text-right">
                     Amount
                   </th>
+                  {canSchedule && (
+                    <th scope="col">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {(schedule.data ?? []).map((p) => (
-                  <tr key={p.id}>
-                    <td className="py-1">{p.description}</td>
-                    <td>{formatDate(p.due_on)}</td>
-                    <td>
-                      <Badge tone={p.status === 'billed' ? 'success' : p.status === 'cancelled' ? 'neutral' : p.status === 'withheld' ? 'warning' : 'info'}>{p.status}</Badge>
-                    </td>
-                    <td className="tabular text-right">{money(p.amount_minor)}</td>
-                  </tr>
+                  <PeriodRow key={p.id} period={p} editable={canSchedule} />
                 ))}
               </tbody>
             </table>
           )}
+          {canSchedule && (
+            <div className="mt-3 flex flex-wrap items-end gap-2">
+              <Input label="New term fee" inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value)} hint="Applies to periods not billed yet" />
+              <Input label="Effective from" type="date" value={effective} onChange={(e) => setEffective(e.target.value)} />
+              <Button size="sm" loading={reprice.isPending} disabled={toMinor(fee) === null} onClick={() => reprice.mutate()}>
+                Reprice
+              </Button>
+            </div>
+          )}
         </section>
         <section>
           <h3 className="mb-2 font-medium">Freezes and suspensions</h3>
-          <ul className="space-y-1">
+          <ul className="space-y-2">
             {(freezes.data ?? []).map((f) => (
-              <li key={f.id}>
-                Freeze {formatDate(f.start_on)} – {f.end_on ? formatDate(f.end_on) : 'open'} {f.removed_at && <Badge>Removed</Badge>} {f.remarks && <span className="text-muted">· {f.remarks}</span>}
-              </li>
+              <SpanRow key={f.id} kind="freeze" span={f} editable={can('memberships.contract.freeze')} label={`Freeze ${formatDate(f.start_on)} – ${f.end_on ? formatDate(f.end_on) : 'open'}`} />
             ))}
             {(suspensions.data ?? []).map((s) => (
-              <li key={s.id}>
-                Suspension {formatDate(s.start_on)} – {s.end_on ? formatDate(s.end_on) : 'open'} {s.fee_minor ? `· fee ${money(s.fee_minor)}` : ''} {s.removed_at && <Badge>Removed</Badge>}
-              </li>
+              <SpanRow
+                key={s.id}
+                kind="suspension"
+                span={s}
+                editable={can('memberships.contract.suspend')}
+                label={`Suspension ${formatDate(s.start_on)} – ${s.end_on ? formatDate(s.end_on) : 'open'}${s.fee_minor ? ` · fee ${money(s.fee_minor)}` : ''}`}
+              />
             ))}
             {!freezes.data?.length && !suspensions.data?.length && <li className="text-muted">None.</li>}
           </ul>
+        </section>
+        <section>
+          <h3 className="mb-2 font-medium">Visits</h3>
+          <p className="mb-2 text-muted">
+            {used} used{contract.max_visits_count ? ` of ${contract.max_visits_count}` : ''}
+          </p>
+          <ul className="space-y-1">
+            {(visits.data?.data ?? []).map((v) => (
+              <li key={v.id}>
+                {formatDateTime(v.visited_at)} {!v.is_counted && <Badge>Not counted</Badge>}
+              </li>
+            ))}
+            {visits.data && !visits.data.data.length && <li className="text-muted">No visits recorded.</li>}
+          </ul>
+          {can('memberships.contract.adjust_visits') && (
+            <div className="mt-3 flex flex-wrap items-end gap-2">
+              <Input label="Visits to add or remove" inputMode="numeric" value={adjust.delta} onChange={(e) => setAdjust({ ...adjust, delta: e.target.value })} hint="Negative gives visits back" />
+              <Input label="Reason" value={adjust.reason} onChange={(e) => setAdjust({ ...adjust, reason: e.target.value })} />
+              <Button size="sm" loading={adjustVisits.isPending} disabled={!Number.isInteger(delta) || delta === 0 || !adjust.reason.trim()} onClick={() => adjustVisits.mutate()}>
+                Adjust visits
+              </Button>
+            </div>
+          )}
         </section>
         <section>
           <h3 className="mb-2 font-medium">History</h3>

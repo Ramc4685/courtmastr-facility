@@ -72,7 +72,8 @@ class PosSettingsOut(Out):
     low_stock_alert_email: str | None
     is_negative_stock_allowed: bool
     allowed_networks: list[str]
-    receipt_footer: str | None
+    receipt_footer: str | None  # stored here (POS-14); blank prints billing's footer
+    effective_receipt_footer: str | None
 
 
 class PosSettingsWrite(In):
@@ -81,6 +82,7 @@ class PosSettingsWrite(In):
     is_drawer_session_required: bool | None = None
     low_stock_alert_email: EmailStr | None = None
     is_negative_stock_allowed: bool | None = None
+    receipt_footer: LongText | None = None
     allowed_networks: Annotated[list[Annotated[str, StringConstraints(max_length=64)]], Field(max_length=50)] | None = (
         None
     )
@@ -468,6 +470,19 @@ class PosSaleUpdate(In):
     version: int
     client_id: UUID | None = None
     note: LongText | None = None
+
+
+_PersonName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+
+
+class PosQuickClientCreate(In):
+    version: int
+    first_name: _PersonName
+    last_name: _PersonName
+    primary_email: EmailStr | None = None
+    phone_mobile: Annotated[str, StringConstraints(pattern=r"^\+[1-9][0-9]{6,14}$")] | None = None  # E.164, as clients
+    birth_on: date | None = None
+    confirm_new: bool = False  # the cashier saw the possible duplicates and this is someone else
 
 
 class PosSaleLineCreate(In):

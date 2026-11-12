@@ -94,6 +94,7 @@ class ClientListItem(Out):
     merged_into_id: UUID | None
     erased_at: datetime | None
     created_at: datetime
+    photo_file_id: UUID | None = None  # CLI-12: the bytes come from getClientPhoto
 
 
 class ClientOut(ClientListItem):
@@ -633,3 +634,15 @@ class MergePrecheck(Out):
     review: list[MergeReviewItem]
     backfill_fields: list[str]
     can_merge: bool
+
+
+# --- client files (phase 10 chip F) --------------------------------------------------------------------------
+
+
+class NoteAttachmentOut(Out):
+    id: UUID
+    client_note_id: UUID
+    file_name: str | None
+    content_type: str
+    size_bytes: int
+    created_at: datetime

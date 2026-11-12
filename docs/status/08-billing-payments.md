@@ -7,6 +7,29 @@ real PostgreSQL, tenant-isolated, audited. It does not mean a person can use it 
 
 Module README (interfaces, assumptions, deviations): `backend/app/modules/billing/README.md`.
 
+## Phase 7: Stripe test mode (2026-11-11)
+
+`payments.provider: stripe` (or `FH_PAYMENTS_PROVIDER=stripe` outside tests) runs the Stripe Connect adapter
+with test-mode keys; the fake stays the default for dev, tests and CI. A live key refuses to start outside
+`FH_ENV=prod|production`. Local testing with the Stripe CLI: `docs/dev/stripe-test-mode.md`.
+
+| Flow | Stripe test mode |
+|---|---|
+| Card tokenisation in the browser (Stripe Elements on the connected account) | works: staff take payment, stored methods, portal pay and checkout, pay link |
+| Charge (on-session and off-session autopay), decline mapping, `unknown` on timeout | works (mocked-HTTP contract tests; not run against a real Stripe account from here) |
+| Refund, partial refund, pending refund settled by webhook | works |
+| Saved payment methods (attach, detach, card updater webhook) | works |
+| Connect account per tenant, hosted onboarding, `account.updated` | works; return URL fixed to `/billing/setup` |
+| Signed webhooks: signature, five-minute replay window, idempotent by event id, re-read the object | works for payment, refund, method, account and dispute events |
+| Disputes (PAY-17) | works by webhook: open, won, lost; ACH return lost on arrival |
+| Bank-account entry in the browser through Stripe | **not built** (needs Financial Connections and a SetupIntent per client) |
+| 3-D Secure completion in the browser | **not built** (`requires_action` comes back with a client secret; nothing calls `handleNextAction`) |
+| Platform application fee | not built (default zero by ADR 0003) |
+
+Tests: `test_stripe.py` (request shapes, key refusal, live-key refusal in dev, test and staging, dispute
+mapping, webhook signatures), `test_surface::test_disputes_arrive_by_webhook_and_move_the_money`, and the web
+`PaymentMethodField` test that mounts a mocked Stripe.js.
+
 ## Summary
 
 | Priority | Done | Partial | Not built | Total |
@@ -64,13 +87,13 @@ Test files are under `backend/app/modules/billing/tests/`: `test_billing.py` (ke
 | PAY-08 Decline notifications | P0 | partial | notices on any failed payment; `GET /billing-notices` | `test_autopay::test_decline_notices_follow_the_settings_and_a_timeout_never_notifies`, `test_soft_declines_retry...` | Client notice and per-event staff alert, deduplicated; an unknown outcome never notifies. Not built: the daily digest mode (the setting is stored; in digest mode no staff alert is sent). |
 | PAY-09 Autopay collection run | P0 | partial | `GET/POST /autopay-runs`, `GET /autopay-runs/{id}`, `GET /autopay-attempts`, `POST /autopay-attempts/{id}/retry`, `/clear-error` | all of `test_autopay.py` (16 tests), `test_surface::test_autopay_through_the_api` | Credit first, off-session charge, retries on days 3, 5, 7 then stop, hard declines wait for a new method, a new method retries at once, clearable error queue, preview, resumable without double charging, safe under concurrency. **The scheduled trigger is missing**: runs start when staff start them. |
 | PAY-10 ACH / direct debit processing | P0 | partial | bank debit tender, provisional allocations, `payment_pending` invoices, bank verification | kernel ACH tests, `test_autopay::test_a_bank_debit_is_pending_then_its_return_arrives_by_webhook`, `test_a_closed_bank_account_suspends_the_method` | Works against the fake provider. Not built: returns after settlement (they arrive as disputes, PAY-17); the failed direct-debit report. No BACS, SEPA or NACHA-file processor. |
-| PAY-11 Merchant processor integration | P0 | partial | `GET/POST /provider-accounts`, `POST /provider-accounts/{id}/onboarding-links`, `/disconnect`, `POST /webhooks/{provider}` | `test_stripe.py` (18 tests, mocked HTTP), `test_surface::test_webhooks_are_verified_stored_once_and_idempotent` | Port, fake provider, Stripe Connect adapter, signed and idempotent webhook intake with tenant routing, reconciliation sweep. **The Stripe adapter has never talked to Stripe**: no keys were available, it is disabled by default, and its request shapes must be checked against Stripe's current API before a live tenant. Not built: platform application fee; refusing onboarding when the account cannot settle in the tenant currency; a retry for a webhook that was stored but not enqueued. |
+| PAY-11 Merchant processor integration | P0 | partial | `GET/POST /provider-accounts`, `POST /provider-accounts/{id}/onboarding-links`, `/disconnect`, `POST /webhooks/{provider}` | `test_stripe.py` (18 tests, mocked HTTP), `test_surface::test_webhooks_are_verified_stored_once_and_idempotent` | Port, fake provider, Stripe Connect adapter, signed and idempotent webhook intake with tenant routing, reconciliation sweep. Stripe runs in test mode by config (see Phase 7 above); it has been exercised against mocked HTTP only, not a real Stripe account, and live keys are refused outside production. Not built: platform application fee; refusing onboarding when the account cannot settle in the tenant currency; a retry for a webhook that was stored but not enqueued. |
 | PAY-12 EMV card terminals | v2-adapter | not built | none | none | Out of scope for v1. |
 | PAY-13 Clover terminal integration | v2-adapter | not built | none | none | Out of scope for v1. |
 | PAY-14 Credit card surcharging | P1 | not built | none | none | ADR 0003 section 9: not enabled in v1. The `surcharge` charge kind and revenue category exist. |
 | PAY-15 Digital wallets and tap-to-pay | P1 | not built | none | none | The wallet type of a stored method is mirrored from the provider; nothing else. |
 | PAY-16 Processor disbursement reconciliation | P1 | not built | none | none | No payout tables. |
-| PAY-17 Chargeback and transaction sync | P1 | not built | none | none | No `dispute` table; dispute webhooks are stored and ignored. ADR 0003 wanted the state machine shipped with this module: it was not. |
+| PAY-17 Chargeback and transaction sync | P1 | partial | `POST /webhooks/{provider}` (dispute events), `service.sync_dispute` | `test_surface::test_disputes_arrive_by_webhook_and_move_the_money`, `test_stripe::test_disputes_map_onto_the_port` | `dispute` table (migration `0310`), ADR 0003 section 9 state machine and postings. Not built: a staff screen or route (evidence goes through the Stripe dashboard); more than one dispute per payment moves no money. |
 | PAY-18 Self-service payment of open invoices | P0 | partial | `GET /portal/invoices`, `GET /portal/invoices/{id}`, `GET/POST /portal/payments`, `GET /portal/billing-summary`, `/portal/payment-methods` routes, the public pay link | `test_surface::test_a_client_sees_and_pays_only_their_own_invoices`, `test_invoice_email_carries_a_single_use_pay_link` | A client pays the full balance of their own invoices with their own stored method, a new card, or credit. Not built: partial amounts, portal receipt and PDF, `confirm` on return from the processor's page, acting for a household member (`can_act_for` arrives with module 4), any screen. |
 | PAY-19 Magnetic card swipe entry | P2 | not built | none | none | Excluded by the no-raw-card-data rule. |
 

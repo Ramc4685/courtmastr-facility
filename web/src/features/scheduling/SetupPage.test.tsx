@@ -32,6 +32,25 @@ describe('SetupPage reservation types', SCREEN, () => {
   })
 })
 
+describe('SetupPage reservation type grants', SCREEN, () => {
+  it('restricts a type to the ticked staff and links to the booking policies', async () => {
+    const calls = renderAsStaff(<SetupPage />, ['scheduling.booking.read', 'scheduling.reservation_type.grant', 'programs.registration_config.manage'], {
+      'GET /api/v1/reservation-types': page([yoga]),
+      'GET /api/v1/reservation-categories': page([]),
+      'GET /api/v1/reservation-types/t1/grants': { status: 200, body: { reservation_type_id: 't1', is_restricted: false, staff_user_ids: [] } },
+      'GET /api/v1/staff-users': page([{ id: 'u1', first_name: 'Sam', last_name: 'Coach', role: { id: 'r2', name: 'Front desk' } }, { id: 'u2', first_name: 'Ana', last_name: 'Desk', role: { id: 'r2', name: 'Front desk' } }]),
+      'PUT /api/v1/reservation-types/t1/grants': { status: 200, body: { reservation_type_id: 't1', is_restricted: true, staff_user_ids: ['u1'] } },
+    })
+    expect(await screen.findByRole('link', { name: 'booking policies' })).toHaveAttribute('href', '/programs/booking-policies')
+    await userEvent.click(screen.getByRole('button', { name: 'Who can book Yoga' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Who can book Yoga' })
+    await userEvent.click(await within(dialog).findByRole('checkbox', { name: /Sam Coach/ }))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'PUT')).toBe(true))
+    expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ staff_user_ids: ['u1'] })
+  })
+})
+
 describe('describeRule', () => {
   it('puts a recurrence into words', () => {
     expect(describeRule(defaultRule('2026-11-10'))).toBe('Repeats every week on Tuesday, 10 times')

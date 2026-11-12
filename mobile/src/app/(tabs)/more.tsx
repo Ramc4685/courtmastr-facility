@@ -12,6 +12,7 @@ export default function More() {
     <Screen>
       <Surface>
         <Row title="Memberships & packages" onPress={() => router.push('/memberships')} />
+        <Row title="Progress" subtitle="Assessment results" onPress={() => router.push('/progress')} />
         <Row title="Invoices & payments" onPress={() => router.push('/invoices')} />
         <Row title="Notifications" subtitle={unread ? `${unread} unread` : undefined} onPress={() => router.push('/inbox')} />
         <Row title="Facility info" subtitle={tenant?.name} onPress={() => router.push('/facility')} />

@@ -511,14 +511,18 @@ def on_session_cancelled(session: Db, session_id: UUID) -> None:
 # --- internal: payroll facts (staff, STF-09) ---------------------------------------------------------------------
 
 
-def attended_counts(session: Db, session_ids) -> dict[UUID, int]:
-    """Clients marked attended per session: the attendee count a per-attendee trainer is paid on."""
+def attended_enrollments(session: Db, session_ids) -> dict[UUID, list[UUID]]:
+    """Enrolments marked attended per session: the attendees a trainer is paid for, each with the package credit
+    its enrolment spent (staff payroll, STF-02, STF-10)."""
     ids = list(session_ids)
     rows = session.execute(
-        select(Attendance.session_id, func.count()).where(Attendance.session_id.in_(ids), Attendance.status == "attended")
-        .group_by(Attendance.session_id)
+        select(Attendance.session_id, Attendance.enrollment_id)
+        .where(Attendance.session_id.in_(ids), Attendance.status == "attended")
     ).all() if ids else []  # fmt: skip
-    return {row[0]: int(row[1]) for row in rows}
+    found: dict[UUID, list[UUID]] = {}
+    for session_id, enrollment_id in rows:
+        found.setdefault(session_id, []).append(enrollment_id)
+    return found
 
 
 # --- roster message (CLS-03) -------------------------------------------------------------------------------
@@ -636,17 +640,18 @@ def lapse_offers(session: Db) -> int:
 
 def mark_attended_by_check_in(
     session: Db, *, client_id: UUID, location_id: UUID, at, early: timedelta, late: timedelta,
-    source: str = "check_in", staff_user_id: UUID | None = None,
+    source: str = "check_in", staff_user_id: UUID | None = None, session_id: UUID | None = None,
 ) -> list[tuple[UUID, UUID]]:  # fmt: skip
     """Internal (access, CHK-01, CHK-05): mark attended the client's unmarked session places at the location
-    whose session starts from `early` before to `late` after `at`. Credits and events follow as for a staff
-    mark. Returns (enrollment id, session id) per place marked."""
+    whose session starts from `early` before to `late` after `at` (only `session_id` when given). Credits and
+    events follow as for a staff mark. Returns (enrollment id, session id) per place marked."""
     rows = session.scalars(
         select(Enrollment)
         .outerjoin(Attendance, (Attendance.enrollment_id == Enrollment.id) & (Attendance.session_id == Enrollment.session_id))
         .where(
             Enrollment.client_id == client_id, Enrollment.location_id == location_id,
             Enrollment.status == "enrolled", Enrollment.target_kind == "session", Attendance.id.is_(None),
+            *([Enrollment.session_id == session_id] if session_id else []),
         )
         .order_by(Enrollment.enrolled_at.desc())
         .limit(50)  # shortcut: newest 50 unmarked places; enough for one visit, revisit if rosters stay unmarked

@@ -48,6 +48,7 @@ from app.modules.packages.models import (
 _READ, _SELL, _MANAGE = "packages.package.read", "packages.package.sell", "packages.plan.manage"
 _COMP, _UPDATE, _SHARE = "packages.package.grant_complimentary", "packages.package.update", "packages.package.share"
 _REMOVE, _ADJUST = "packages.package.remove", "packages.credit.adjust"
+_OVERRIDE = "packages.package.remove_override"
 _ONE_DAY = timedelta(days=1)
 _OUTCOMES = {  # booking outcome -> (settings switch that makes it consume, ledger reason)
     "attended": (None, "attendance"),
@@ -990,11 +991,26 @@ def quote_removal(session: Session, principal: Principal, package_id: UUID) -> d
         "sessions_forfeited_on_removal_count": 0 if package.is_unlimited else available(package) + package.sessions_reserved_count,
         "charge_id": package.charge_id, "charge_total_minor": charge.total_minor if billed else 0,
         "paid_minor": charge.applied_minor if billed else 0,
-        "can_reverse_billing": billed and package.sessions_consumed_count == 0,
+        "can_reverse_billing": billed and (package.sessions_consumed_count == 0 or principal.has(_OVERRIDE)),
+        "needs_override_reason": billed and package.sessions_consumed_count > 0,
     }  # fmt: skip
 
 
-def _remove(session: Session, package: ClientPackage, mode: str, staff_id: UUID | None) -> None:
+def _remove(
+    session: Session,
+    package: ClientPackage,
+    mode: str,
+    staff_id: UUID | None,
+    principal: Principal | None = None,
+    override_reason: str | None = None,
+) -> None:
+    """Every removal path meets here, so the used-sessions guard does too (question 16): reversing the billing of
+    a package with consumed sessions needs `remove_override` at its location and a reason, recorded in the audit."""
+    override = mode == "billing_reversed" and package.sessions_consumed_count > 0
+    if override:
+        if principal is None or not override_reason:
+            raise Conflict("Sessions were used: remove the package and keep its billing.", code="package-in-use")
+        authorize(principal, _OVERRIDE, location_id=package.location_id)
     package.is_auto_renew = False  # before the ledger moves: an emptied package must not renew itself
     for kind, source_id, client_id in _open_sources(session, package.id):
         count = _source_state(session, (kind, source_id))["count"]
@@ -1015,20 +1031,19 @@ def _remove(session: Session, package: ClientPackage, mode: str, staff_id: UUID 
         package,
         location_id=package.location_id,
         changes={"status": [None, "removed"], "removal_mode": [None, mode]},
+        **({"reason": override_reason} if override else {}),
     )
     session.flush()
 
 
 def remove_package(session: Session, principal: Principal, package_id: UUID, data: dict) -> dict:
     """Remove a sold package: open reservations are released and what is left is forfeited. `billing_reversed`
-    reverses its charge (money already paid becomes account credit; a refund is then a billing action) and is
-    refused once sessions have been used; `billing_kept` leaves the billing as it is."""
+    reverses its charge (money already paid becomes account credit; a refund is then a billing action); once
+    sessions have been used it needs the manager override and a reason; `billing_kept` leaves the billing as it is."""
     package = _load(session, principal, package_id, _REMOVE)
     if package.status == "removed":
         raise Conflict("This package was already removed.")
-    if data["removal_mode"] == "billing_reversed" and package.sessions_consumed_count > 0:
-        raise Conflict("Sessions were used: remove the package and keep its billing.", code="package-in-use")
-    _remove(session, package, data["removal_mode"], _staff_id(principal))
+    _remove(session, package, data["removal_mode"], _staff_id(principal), principal, data.get("override_reason"))
     return package_view(session, package)
 
 
@@ -1418,3 +1433,21 @@ def sales_by_seller(session: Session, staff_user_id: UUID, starts_at, ends_at, l
          "reservation_type_id": p.reservation_type_id, "price_minor": p.price_minor}
         for p in session.scalars(stmt.order_by(ClientPackage.created_at, ClientPackage.id))
     ]  # fmt: skip
+
+
+def session_credit_facts(session: Session, source_type: str, source_ids) -> dict[UUID, dict]:
+    """Sources (a `booking`, or a program `enrollment`) that consumed a package credit: whether the package is
+    complimentary and what one session of it cost (staff session pay and completion commission, STF-02, STF-10).
+    A restored credit does not count."""
+    ids = list(source_ids)
+    if not ids:
+        return {}
+    e = CreditLedgerEntry
+    rows = session.execute(
+        select(e.source_id, ClientPackage.is_complimentary, ClientPackage.unit_price_minor)
+        .join(ClientPackage, ClientPackage.id == e.client_package_id)
+        .where(e.source_type == source_type, e.source_id.in_(ids))
+        .group_by(e.source_id, ClientPackage.id)
+        .having(func.sum(e.consumed_delta) > 0)
+    ).all()  # fmt: skip
+    return {row[0]: {"is_complimentary": row[1], "unit_price_minor": row[2]} for row in rows}

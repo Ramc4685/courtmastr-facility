@@ -35,6 +35,7 @@ _TABLES = {
 LOCATION_BOUND_WRITES = {"markInvoicePaid", "cancelPayment", "confirmPayment"}
 # Reviewed: id routes whose key is client-following or tenant-wide, so a limited admin may reach them anywhere.
 # Backlog 18: billing.invoice.read/send and billing.payment.read stay client-following (spec section 6).
+# get/setClientAccessMode: the access mode is one row per client that every location enforces (CHK-08), so it follows the client.
 CLIENT_OR_TENANT_ROUTES = {
     "client": set("""
         applyAccountCredit attachPaymentMethod clearClientDocumentPaperSigned clearWaiverOverride
@@ -49,6 +50,8 @@ CLIENT_OR_TENANT_ROUTES = {
         updatePaymentMethod uploadClientDocumentPaperScan verifyBankAccount
         getAssessmentResult updateAssessmentResult
         assignCredential revokeClientAppCards revokeCredential
+        getClientAccessMode setClientAccessMode
+        getClientIdCard
     """.split()),
     "tenant": set("""
         addTaxRate releaseSuppression approveClientRelationship archiveDocumentTemplate archiveLocation assignClientMemberNumber
@@ -59,7 +62,7 @@ CLIENT_OR_TENANT_ROUTES = {
         disconnectProviderAccount duplicateMembershipPlan enableClient endClientRelationship getClient
         getClientCommunicationPreferences getClientEmergencyContacts getClientLocationSettings
         getClientPortalAccess getClientTimeline getDataSubjectRequest getRole getStaffUser
-        getStaffUserPermissions inviteClientToPortal listClientAlerts listClientNotes listClientRelationships
+        getStaffUserPermissions inviteClientToPortal listClientAlerts listClientSystemAlerts listClientNotes listClientRelationships
         listCouponRedemptions listDocumentTemplateVersions mergeClients precheckClientMerge
         publishDocumentTemplate putClientCommunicationPreferences reactivateStaffUser
         replaceClientEmergencyContacts replaceMembershipPlanAddons replaceRolePermissions
@@ -74,7 +77,11 @@ CLIENT_OR_TENANT_ROUTES = {
         updateRevenueCategory updateRole updateStaffUser updateTag updateTax updateTaxRate updateTenderType
         addStaffHourlyRate deleteStaffHourlyRate getCommissionRules listPayRates listStaffHourlyRates
         closeSupportRequest getSupportRequest createTenantExportDownloadUrl getTenantExport
-        putCommissionRules putDefaultPayRate
+        putCommissionRules putDefaultPayRate putPayRateOverride putMembershipPayRate deletePayRateOverride
+        deleteMembershipPayRate listBonusRules putBonusRules
+        listReservationTypeGrants replaceReservationTypeGrants
+        setClientPhoto deleteClientPhoto getClientPhoto listClientNoteAttachments uploadClientNoteAttachment
+        getClientNoteAttachment deleteClientNoteAttachment
         createAssessmentField updateAssessmentField updateAssessmentTemplate
     """.split())
     # Integrations (module 16): T keys; the service limits a location-bound admin to their own endpoints and to

@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Literal, Protocol
 
 Outcome = Literal["succeeded", "processing", "requires_action", "declined", "unknown", "cancelled"]
@@ -15,7 +16,7 @@ FailureCategory = Literal[
     "insufficient_funds", "card_declined", "expired_card", "authentication_required", "account_closed",
     "authorization_revoked", "processor_error",
 ]  # fmt: skip
-EventKind = Literal["payment", "refund", "method", "account", "other"]
+EventKind = Literal["payment", "refund", "method", "account", "dispute", "other"]
 
 
 @dataclass(frozen=True)
@@ -67,6 +68,18 @@ class AccountState:
     has_bank_debit: bool = False
     is_payouts_enabled: bool = False
     requirements_due: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class DisputeState:
+    """A chargeback or bank-debit return. `status` None is an inquiry: no money was withdrawn, nothing to do."""
+
+    provider_dispute_ref: str
+    provider_payment_ref: str
+    amount_minor: int
+    status: Literal["open", "won", "lost"] | None
+    reason_code: str | None = None
+    evidence_due_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -138,6 +151,8 @@ class PaymentProvider(Protocol):
 
     def get_refund(self, *, account_ref: str, provider_refund_ref: str) -> RefundState: ...
 
+    def get_dispute(self, *, account_ref: str, provider_dispute_ref: str) -> DisputeState: ...
+
     def parse_webhook(self, headers: dict[str, str], body: bytes) -> ProviderEvent:
         """Verify the signature and normalise. Raises WebhookRejected."""
 
@@ -179,3 +194,12 @@ def get(name: str) -> PaymentProvider:
 
 def registered(name: str) -> bool:
     return name in _providers
+
+
+def browser_keys(name: str, account_ref: str) -> dict:
+    """What a browser needs to mount the processor's hosted fields for one connected account: the publishable
+    key (public by design) and the account. Empty for a processor without hosted fields (the fake)."""
+    key = getattr(_providers.get(name), "publishable_key", None)
+    return (
+        {"publishable_key": key, "account_ref": account_ref} if key else {"publishable_key": None, "account_ref": None}
+    )

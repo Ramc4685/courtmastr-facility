@@ -24,13 +24,13 @@ export function useBookingActions(clientId: string | undefined) {
   const invalidate = () => qc.invalidateQueries({ predicate: (q) => ['sessions', 'bookings'].includes(String(q.queryKey[0])) });
 
   const book = useMutation({
-    mutationFn: (sessionId: string) => {
+    mutationFn: ({ sessionId, clientPackageId }: { sessionId: string; clientPackageId?: string }) => {
       const intent = `${clientId}:${sessionId}`;
       const idempotencyKey = keys.current.get(intent) ?? Crypto.randomUUID();
       keys.current.set(intent, idempotencyKey);
-      return portal.createEnrollment({ clientId: clientId!, sessionId, idempotencyKey });
+      return portal.createEnrollment({ clientId: clientId!, sessionId, clientPackageId, idempotencyKey });
     },
-    onSuccess: (_e, sessionId) => {
+    onSuccess: (_e, { sessionId }) => {
       keys.current.delete(`${clientId}:${sessionId}`);
       void invalidate();
       void maybeAskForPush();

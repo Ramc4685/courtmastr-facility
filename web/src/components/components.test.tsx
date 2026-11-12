@@ -78,4 +78,28 @@ describe('Table with keyset pagination', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Previous' }))
     await waitFor(() => expect(screen.getByText('row-1')).toBeInTheDocument())
   })
+
+  it('keeps stale rows at full contrast while the next page loads (axe colour-contrast regression)', async () => {
+    let release: () => void = () => {}
+    const fetchPage = vi.fn((cursor: string | undefined) =>
+      cursor === 'c2'
+        ? new Promise<{ data: { id: string }[]; page: { next_cursor: null; has_more: false } }>((resolve) => (release = () => resolve({ data: [{ id: 'row-3' }], page: { next_cursor: null, has_more: false } })))
+        : Promise.resolve({ data: [{ id: 'row-1' }], page: { next_cursor: 'c2', has_more: true } }),
+    )
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <Paged fetchPage={fetchPage} />
+      </QueryClientProvider>,
+    )
+    expect(await screen.findByText('row-1')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await waitFor(() => expect(fetchPage).toHaveBeenLastCalledWith('c2'))
+    // Opacity scales the text's contrast: muted text fell from 7.2:1 to 2.8:1 at 60%.
+    expect(screen.getByText('row-1').closest('[class*="opacity-"]')).toBeNull()
+    expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByTestId('table-updating')).toBeInTheDocument()
+    release()
+    expect(await screen.findByText('row-3')).toBeInTheDocument()
+    expect(screen.getByRole('table')).not.toHaveAttribute('aria-busy')
+  })
 })

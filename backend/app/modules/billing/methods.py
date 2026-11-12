@@ -51,10 +51,13 @@ def connect_provider_account(session: Session, principal: Principal, provider_na
     if live is not None:
         raise Conflict("A payment processor is already connected.", code="processor-already-connected")
     tenant = platform.service.get_tenant(session)
-    state = payment_provider.get(provider_name).create_account(
-        tenant_ref=str(tenant.id), email=principal.email, country=get_settings().payments.default_country,
-        currency=tenant.currency,
-    )  # fmt: skip
+    try:
+        state = payment_provider.get(provider_name).create_account(
+            tenant_ref=str(tenant.id), email=principal.email, country=get_settings().payments.default_country,
+            currency=tenant.currency,
+        )  # fmt: skip
+    except ValueError as error:  # the processor said no (its message says why): show it, not a bare 500
+        raise Conflict(str(error), code="provider-refused") from None
     account = ProviderAccount(provider=provider_name, provider_account_ref=state.provider_account_ref)
     _apply_account(account, state)
     session.add(account)
@@ -83,7 +86,7 @@ def create_onboarding_link(session: Session, principal: Principal, account_id: U
     account = service._get(session, ProviderAccount, account_id)
     if account.status == "disabled":
         raise Conflict("This processor account is disconnected.", code="processor-not-connected")
-    back = f"{get_settings().app.web_base_url}/settings/billing"
+    back = f"{get_settings().app.web_base_url}/billing/setup"
     return payment_provider.get(account.provider).onboarding_link(
         account_ref=account.provider_account_ref, return_url=back, refresh_url=back
     )
@@ -162,7 +165,10 @@ def create_setup(session: Session, client_id: UUID, kinds: tuple[str, ...] = ("c
     setup = payment_provider.get(account.provider).create_setup(
         account_ref=account.provider_account_ref, customer_ref=_customer_ref(session, account, client_id), kinds=kinds
     )
-    return {"provider": account.provider, "client_secret": setup.client_secret}
+    return {
+        "provider": account.provider, "client_secret": setup.client_secret,
+        **payment_provider.browser_keys(account.provider, account.provider_account_ref),
+    }  # fmt: skip
 
 
 def attach_method(session: Session, client_id: UUID, method_token: str, *, is_autopay: bool | None = None):

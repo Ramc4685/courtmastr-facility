@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { Select } from '../../components/Field'
 import { LoadingState } from '../../components/States'
 import { useProviderAccounts } from './shared'
+import { StripeCardField, type StripeKeys } from './StripeCardField'
 
 /** The fake processor's scripted tokens (backend/app/adapters/fake_payments.py). Each one stands for a card
  * or bank account and decides the outcome; nobody types a card number. */
@@ -22,15 +23,15 @@ const FAKE_BANKS = [
 ]
 
 // `provider` is given where the processor is already known (the public pay page cannot list accounts).
-type Props = { kind: 'card' | 'bank' | 'any'; value: string; onChange: (token: string) => void; label?: string; error?: string; provider?: 'fake' | 'stripe' | null }
+type Props = { kind: 'card' | 'bank' | 'any'; value: string; onChange: (token: string) => void; label?: string; error?: string; provider?: 'fake' | 'stripe' | null; keys?: StripeKeys }
 
 /** Collects a new card or bank account as a processor token. Provider-agnostic: the tenant's connected
  * processor decides what renders. Our own inputs never see a card number: the fake processor gets a list of
- * scripted test methods, and a real processor gets its hosted fields (Stripe Elements) in this slot. */
-export function PaymentMethodField({ kind, value, onChange, label = 'New payment method', error, provider }: Props) {
+ * scripted test methods, and Stripe gets its hosted card field (StripeCardField). */
+export function PaymentMethodField({ kind, value, onChange, label = 'New payment method', error, provider, keys }: Props) {
   const accounts = useProviderAccounts(provider === undefined)
   if (provider === undefined && accounts.isPending) return <LoadingState label="Checking the payment processor" />
-  const account = provider !== undefined ? (provider ? { provider } : undefined) : accounts.data?.find((a) => a.status !== 'disabled')
+  const account = provider !== undefined ? (provider ? { provider, ...keys } : undefined) : accounts.data?.find((a) => a.status !== 'disabled')
   if (!account && provider === null) {
     return (
       <p role="alert" className="rounded border border-warning/40 bg-warning/10 p-3 text-sm">
@@ -55,11 +56,14 @@ export function PaymentMethodField({ kind, value, onChange, label = 'New payment
       </fieldset>
     )
   }
-  // shortcut: Stripe Elements is not mounted yet; the adapter exists server-side. Mount Elements here with the
-  // client_secret from the setup-intent endpoint before a tenant goes live on Stripe.
+  if (account.provider === 'stripe' && kind !== 'bank') {
+    const stripeKeys = 'provider_account_ref' in account ? { publishable_key: account.publishable_key, account_ref: account.provider_account_ref } : account
+    return <StripeCardField keys={stripeKeys} label={label} onChange={onChange} error={error} />
+  }
+  // shortcut: bank accounts through Stripe need Financial Connections (a setup intent per client); not built.
   return (
     <p role="alert" className="rounded border border-border bg-surface-2 p-3 text-sm">
-      Card entry through {account.provider === 'stripe' ? 'Stripe' : account.provider} is not available in this version. Use a stored method, or take cash, cheque or an external payment.
+      Bank account entry through Stripe is not available in this version. Use a stored method, a card, or take cash, cheque or an external payment.
     </p>
   )
 }

@@ -2,7 +2,7 @@
 portal inbox and devices, reminders, automations, staff alerts, settings and videos, and the data-subject side."""
 
 from datetime import timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import func, select
@@ -21,6 +21,7 @@ from app.modules.engagement.models import (
     Suppression,
 )
 from app.modules.platform.models import Identity
+from app.ports import notifications
 from conftest import add_staff, link_token, login, new_client, verify_email
 
 API = "/api/v1"
@@ -249,6 +250,33 @@ def test_announcement_reaches_the_portal_inbox_and_can_be_recalled(client, tenan
         assert session.get(DeviceRegistration, device["id"]).revoked_at is not None
 
 
+def test_household_inbox_shows_each_item_once_in_its_recipients_view(client, tenant, owner, site):
+    """Known gap: a login holding a dependent's record saw a household announcement once per member, merged into
+    one list. Each item belongs to one recipient; the dependent's shows only when acting for them."""
+    parent = _person(client, owner, site, "parent@example.com", tenant=tenant, first_name="Pat")
+    kid = new_client(client, owner, site, first_name="Kit")
+    portal = _member(client, tenant, parent)
+    with tenant_session(tenant.id, actor=SYSTEM) as session:
+        identity_id = session.scalar(select(Identity.id).where(Identity.email == "parent@example.com"))
+        clients.service.link_identity(session, kid["id"], identity_id, is_primary=False)
+    notice = _campaign(client, owner, site, [parent["id"], kid["id"]], channel="push", subject="Hi $first_name",
+                       body_text="Closed at 6 today.")  # fmt: skip
+    assert ok(client.post(f"{API}/campaigns/{notice['id']}/send", headers=owner))["inbox_count"] == 2
+    own = ok(client.get(f"{API}/portal/inbox", headers=portal))["data"]
+    assert [i["title"] for i in own] == ["Hi Pat"]
+    assert ok(client.get(f"{API}/portal/inbox/unread-count", headers=portal)) == {"unread": 1}
+    as_kid = {"client_id": kid["id"]}
+    theirs = ok(client.get(f"{API}/portal/inbox", headers=portal, params=as_kid))["data"]
+    assert [i["title"] for i in theirs] == ["Hi Kit"]
+    ok(client.post(f"{API}/portal/inbox/{theirs[0]['id']}/read", headers=portal))
+    assert ok(client.get(f"{API}/portal/inbox/unread-count", headers=portal, params=as_kid)) == {"unread": 0}
+    assert ok(client.get(f"{API}/portal/inbox/unread-count", headers=portal)) == {"unread": 1}
+    stranger = _member(client, tenant, _person(client, owner, site, "other@example.com", tenant=tenant))
+    refused(client.get(f"{API}/portal/inbox", headers=stranger, params=as_kid), 404)
+    refused(client.get(f"{API}/portal/inbox/unread-count", headers=stranger, params=as_kid), 404)
+    refused(client.post(f"{API}/portal/inbox/{own[0]['id']}/read", headers=stranger), 404)
+
+
 def test_campaigns_stay_inside_the_senders_locations(client, tenant, owner, site):
     west = {"name": "West", "time_zone": "America/Chicago", "country_code": "US"}
     other = ok(client.post(f"{API}/locations", headers=owner, json=west), 201)["id"]
@@ -323,7 +351,9 @@ def test_automation_sends_on_its_trigger_and_stops_on_an_exit_event(client, tena
     mailbox.clear()
     with tenant_session(tenant.id, actor=SYSTEM) as session:
         svc.on_trigger(session, "programs.waitlist.promoted", payload | {"client_id": opted_out["id"]})
-        sent = session.scalar(select(Message).where(Message.client_id == opted_out["id"]))
+        sent = session.scalar(
+            select(Message).where(Message.client_id == opted_out["id"], Message.category == "marketing")
+        )
         assert (sent.category, sent.skip_reason) == ("marketing", "unsubscribed")  # automations honour consent
     assert not mailbox
     activated = {"client_id": person["id"], "contract_id": str(uuid4())}
@@ -438,3 +468,17 @@ def test_w2_08_a_push_token_on_another_login_is_revoked_never_reassigned(client,
         old, new = session.get(DeviceRegistration, mine["id"]), session.get(DeviceRegistration, theirs["id"])
         assert old.revoked_at is not None and old.identity_id != new.identity_id and old.client_id != new.client_id
     refused(client.delete(f"{API}/portal/devices/{theirs['id']}", headers=first), 404)
+
+
+def test_a_notice_is_logged_on_its_client_but_never_on_a_staff_address(client, tenant, owner, site):
+    member = new_client(client, owner, site, primary_email="member-only@example.com")
+    with tenant_session(tenant.id) as session:
+        staff_email = session.scalar(select(Identity.email).where(Identity.kind == "staff"))
+    coach = new_client(client, owner, site, primary_email=staff_email)  # a staff member who is also a client
+    notifications.TEMPLATES.setdefault("tests.link", notifications.NotificationTemplate("s", "b"))
+    with tenant_session(tenant.id, actor=SYSTEM) as session:
+        notifications.send(session, "tests.link", "member-only@example.com", {})
+        notifications.send(session, "tests.link", staff_email, {})
+    with tenant_session(tenant.id) as session:
+        linked = session.scalars(select(Message.client_id).where(Message.subject == "s")).all()
+        assert set(linked) == {UUID(member["id"]), None} and UUID(coach["id"]) not in linked

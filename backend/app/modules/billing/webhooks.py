@@ -37,7 +37,7 @@ def receive(provider_name: str, headers: dict[str, str], body: bytes) -> str:
         raise DomainError("The webhook signature is not valid.", code="invalid-signature", status=400) from error
     stored = inbound_webhooks.record(
         provider_name, event.provider_event_id, event.account_ref, event.event_type,
-        {"kind": event.kind, "object": event.object_ref},
+        {"kind": event.kind, "object": event.object_ref, "account": event.account_ref},
     )  # fmt: skip
     if stored is None:
         return "duplicate"
@@ -49,7 +49,7 @@ def receive(provider_name: str, headers: dict[str, str], body: bytes) -> str:
     return "accepted"
 
 
-def apply_event(session: Session, kind: str, object_ref: str | None) -> None:
+def apply_event(session: Session, kind: str, object_ref: str | None, account_ref: str | None = None) -> None:
     """Bring our row in line with the provider's current state of the object the event names."""
     if not object_ref:
         return
@@ -63,6 +63,10 @@ def apply_event(session: Session, kind: str, object_ref: str | None) -> None:
             service.confirm_refund(session, refund_id)
     elif kind == "method":
         methods.sync_method(session, object_ref)
+    elif kind == "dispute":
+        account = session.scalar(select(ProviderAccount).where(ProviderAccount.provider_account_ref == account_ref))
+        if account is not None:
+            service.sync_dispute(session, account, object_ref)
     elif kind == "account":
         account_id = session.scalar(
             select(ProviderAccount.id).where(ProviderAccount.provider_account_ref == object_ref)
@@ -77,7 +81,7 @@ def process_provider_event(session: Session, row_id: str) -> None:
     if row is None or row.status == "processed":
         return
     try:
-        apply_event(session, row.payload.get("kind"), row.payload.get("object"))
+        apply_event(session, row.payload.get("kind"), row.payload.get("object"), row.payload.get("account"))
     except Exception as error:
         inbound_webhooks.finish(UUID(row_id), error=str(error)[:500])
         raise
