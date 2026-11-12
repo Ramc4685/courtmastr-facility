@@ -12,14 +12,20 @@
 . "$(dirname "$0")/lib.sh"
 need_passphrase
 DB=${PGDATABASE:-facilityhub}; DIR=${FH_BACKUP_DIR:-backups}; KEEP=${FH_BACKUP_KEEP:-14}
-case "$KEEP" in ''|*[!0-9]*) die "FH_BACKUP_KEEP must be a number" ;; esac
+case "$KEEP" in ''|*[!0-9]*|0) die "FH_BACKUP_KEEP must be a whole number of at least 1" ;; esac
 umask 077; mkdir -p "$DIR"
-work=$(mktemp -d); trap 'touch "$work/done"; rm -rf "$work"' EXIT
+work=$(mktemp -d); session=""
+# On any exit (failure, Ctrl-C, kill): release the snapshot holder first, wait until its psql has really ended, and only
+# then delete the work directory. Otherwise the open REPEATABLE READ transaction would pin xmin and block vacuum forever.
+cleanup() { touch "$work/done"; [ -z "$session" ] || wait "$session" 2>/dev/null || true; rm -rf "$work"; }
+trap cleanup EXIT
+trap 'exit 130' INT TERM
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 
 # A held-open REPEATABLE READ session exports a snapshot and reads the facts; pg_dump joins that snapshot.
+# The loop also ends if the work directory vanishes, so it can never outlive this script.
 ( printf '%s\n' "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;" "SELECT 'snap|' || pg_export_snapshot();" "$FACTS_SQL"
-  while [ ! -e "$work/done" ]; do sleep 0.2; done; echo "COMMIT;" ) \
+  while [ -d "$work" ] && [ ! -e "$work/done" ]; do sleep 0.2; done; echo "COMMIT;" ) \
   | psql_q -d "$DB" > "$work/facts" &
 session=$!
 snapshot=""
