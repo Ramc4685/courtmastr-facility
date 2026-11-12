@@ -14,14 +14,15 @@ events (their owning contexts; not built yet).
 from datetime import timedelta
 from uuid import UUID
 
-from sqlalchemy import select, text
+from sqlalchemy import exists, select, text
 from sqlalchemy.orm import Session
 
 from app.core import audit, clock
 from app.core.errors import Conflict, NotFound
 from app.core.jobs import broker, tenant_actor
 from app.core.settings import get_settings
-from app.modules.platform.models import FailedJob, FailedJobResolution, Tenant
+from app.modules.platform import files
+from app.modules.platform.models import FailedJob, FailedJobResolution, StoredFile, SupportRequest, Tenant
 
 # table -> rows past retention. shortcut: outbox published_at and processed_event processed_at have no index, so
 # each run scans the tenant's rows; add partial indexes when the purge shows up in the slow-query log.
@@ -54,6 +55,17 @@ def purge(session: Session) -> dict[str, int]:
     # Append-only: fh_app cannot delete audit rows, only call the owner's function, which removes rows whose
     # retain_until_on (24 months, or 7 years for the long class, fixed at insert) has passed (migration 1210).
     deleted["audit_event"] = session.execute(text("SELECT app.purge_audit_event(:n)"), params).scalar_one()
+    # A support screenshot uploaded but never attached to a request (ONB-03) goes after a day.
+    unused = session.scalars(
+        select(StoredFile.id).where(
+            StoredFile.purpose == "support_screenshot", StoredFile.status == "ready",
+            StoredFile.created_at < now - timedelta(days=cfg.support_screenshot_days),
+            ~exists().where(SupportRequest.screenshot_file_id == StoredFile.id),
+        ).limit(cfg.batch_rows)
+    ).all()  # fmt: skip
+    for file_id in unused:
+        files.remove(session, file_id)
+    deleted["support_screenshot"] = len(unused)
     return deleted
 
 

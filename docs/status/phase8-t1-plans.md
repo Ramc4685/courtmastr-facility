@@ -33,11 +33,12 @@ plan**: entitlements only, no charge and no Stripe call.
 
 ## Decisions and assumptions (owner to confirm)
 
-- **Plan names and numbers are ours and invented**: Essentials (1 location, 5 staff, 500 clients, no add-ons),
-  Growth (3, 15, 2,000, 500 app users, API access), Complete (everything, unlimited). Change them in a new
+- **PLACEHOLDERS: plan names and numbers are ours and invented** (confirmed as placeholders by the owner's
+  relayed decision, 2026-11-11): Essentials (1 location, 500 clients, no add-ons), Growth (3, 2,000, 500 app
+  users, API access), Complete (everything, unlimited). Not final pricing or packaging; change them in a new
   migration; nothing else hard-codes them except the demo seed's `complete`.
-- **Staff users are metered** because the brief says so, although the discovery notes the reference product
-  never meters staff or contacts (feature-inventory PLT-14). Easy to drop: leave `staff_users` out of every plan.
+- **Staff users were metered** because the brief said so (5 on Essentials, 15 on Growth). Owner decision
+  2026-11-11: not for now. Chip S4 removed the limit and kept a named hook (`docs/status/phase8-s4-followups.md`).
 - **`branded_app` gates member sign-in on any mobile build.** The server cannot tell the shared app from a
   tenant-branded build, so a tenant without the add-on has no member mobile sign-in at all. Staff on the mobile
   client are not affected. If the shared app should stay free, the gate needs an attested build identity first.
@@ -81,6 +82,6 @@ plan**: entitlements only, no charge and no Stripe call.
 - **I1 (import):** client rows created by import go through `clients.service._create`, which enforces the
   `clients` cap per row with 409 `plan-limit-reached`; report it as a row error in the dry run (call
   `entitlements.limit` and `usage` once up front to say how many rows fit). Staff and location imports, if any,
-  should call `enforce_limit` with `staff_users` and `locations`.
+  should call `enforce_limit` with `locations` (staff seats are no longer metered, S4).
 - Any new metered table registers its counter with `entitlements.register_usage_counter(key, fn)` from its own
   package `__init__`, as `clients` does.

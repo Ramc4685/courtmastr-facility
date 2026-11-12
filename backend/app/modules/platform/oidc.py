@@ -565,7 +565,7 @@ def complete(
         return _finish_step_up(session, row, identity, claims, mfa_ok, session_token)
     if identity is None:
         return _offer_link(session, config, claims, row)  # never a session, so its MFA claims never count
-    if auth._refused_before_password(session, "staff", identity):
+    if auth._refused_before_password(session, "staff"):
         raise auth._ip_not_allowed()
     if mfa_ok:  # the tenant trusts this provider's MFA and the token shows it
         grant = auth._start_session(session, identity, "web", mfa_verified_at=clock.now())

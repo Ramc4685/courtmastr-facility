@@ -143,6 +143,7 @@ class Retention(BaseModel):
     gdpr_auth_session_days: int = 30  # a tenant in GDPR mode (PLT-16) keeps ended sessions and links shorter
     gdpr_auth_token_days: int = 7
     tenant_export_days: int = 7  # a tenant export bundle stays downloadable this long (IMP-04)
+    support_screenshot_days: int = 1  # a screenshot never attached to a support request (ONB-03)
 
 
 class S3(BaseModel):
@@ -252,11 +253,11 @@ def get_settings() -> Settings:
         raise RuntimeError("outside dev and test, payments.stripe.test_onboarding must be hosted")
     if env not in ("dev", "test") and settings.payments.provider == "fake":
         raise RuntimeError("outside dev and test, payments.provider must not be fake: it takes no real money")
-    if env not in ("dev", "test") and settings.storage.scanner == "noop":
-        raise RuntimeError("outside dev and test, storage.scanner must not be noop: uploads must be malware-scanned")
     if env not in PRODUCTION_ENVS and any(
         os.environ.get(name, "").startswith(_LIVE_KEY_PREFIXES) for name in STRIPE_KEY_VARS
     ):
         # A live Stripe key moves real money: only a production deployment may hold one.
         raise RuntimeError(f"a live Stripe key is set but FH_ENV is {env!r}: use test-mode keys outside production")
+    if env not in ("dev", "test") and settings.storage.scanner == "noop":
+        raise RuntimeError("outside dev and test, storage.scanner must not be noop: uploads must be malware-scanned")
     return settings

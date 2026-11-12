@@ -61,7 +61,7 @@
 	handle /api/* {
 		# Upload exception, mirrored from core/api.py BodyLimitMiddleware.UPLOAD_PATHS: file bytes up to 20 MiB
 		# (storage.max_upload_bytes) plus slack. Every other API body is capped at 1 MiB (api.max_body_bytes).
-		@upload path_regexp ^/api/v1/client-documents/[^/]+/paper-scan$
+		@upload path_regexp ^/api/v1/(client-documents/[^/]+/paper-scan|clients/[^/]+/photo|client-notes/[^/]+/attachments)$
 		handle @upload {
 			request_body {
 				max_size 21MiB

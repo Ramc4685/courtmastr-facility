@@ -68,6 +68,7 @@ rate_limit:                           # security-baseline 6; fixed windows. clos
     step-up-identity: {limit: 10, window_sec: 300,  closed: true}   # re-authentication, per identity
     oidc:             {limit: 20, window_sec: 300,  closed: true}   # OIDC authorize and callback, per IP
     refresh:          {limit: 60, window_sec: 60}                   # mobile token rotation, per IP
+    support-request:  {limit: 10, window_sec: 3600}                 # support requests and screenshots, per staff user
     default:          {limit: 20, window_sec: 60}                   # any other named bucket, per IP
 audit:
   retention_days: 730                 # standard class, 24 months
@@ -81,6 +82,7 @@ retention:                            # purge periods in days (ADR 0007 section 
   gdpr_auth_session_days: 30          # the shorter periods a tenant in GDPR mode gets (PLT-16)
   gdpr_auth_token_days: 7
   tenant_export_days: 7               # a tenant export bundle is downloadable this long, then purged (IMP-04)
+  support_screenshot_days: 1          # a support screenshot never attached to a request (ONB-03)
 storage:
   local_dir: var/storage              # relative to the repository root (git-ignored)
   max_upload_bytes: 20971520          # the one route that takes file bytes (scanned documents, 20 MiB)

@@ -1,11 +1,14 @@
 """Phase 8 T2: logos and their public URL (PLT-08), the setup checklist (ONB-01) and support requests (ONB-03)."""
 
+from datetime import timedelta
+
 import pytest
 from sqlalchemy import select
 
+from app.core import clock
 from app.core.db.session import tenant_session
 from app.core.settings import get_settings
-from app.modules.platform import files
+from app.modules.platform import files, retention
 from app.modules.platform.models import StoredFile
 from conftest import WEEK, add_staff, login, make_tenant, png_bytes
 
@@ -150,3 +153,29 @@ def test_support_request_is_emailed_to_the_operator_and_visible_to_its_sender_on
     assert closed["status"] == "closed" and closed["closed_at"]
     again = client.post(f"{API}/support-requests/{request['id']}/close", headers=owner)
     assert again.status_code == 409 and again.json()["code"] == "invalid-state-transition"
+
+
+def test_support_requests_are_rate_limited_per_staff_user(client, tenant, owner, monkeypatch):
+    cfg = get_settings().rate_limit
+    monkeypatch.setattr(cfg, "enabled", True)
+    monkeypatch.setitem(cfg.buckets, "support-request", cfg.buckets["support-request"].model_copy(update={"limit": 2}))
+    body = {"category": "question", "message": "?"}
+    codes = [client.post(f"{API}/support-requests", headers=owner, json=body).status_code for _ in range(3)]
+    assert codes == [201, 201, 429]
+    shot = client.put(f"{API}/support-requests/screenshot", headers=_image(owner), content=png_bytes())
+    assert shot.status_code == 429
+    email, _ = add_staff(tenant, "manager", all_locations=True)  # another staff user has their own bucket
+    ok(client.post(f"{API}/support-requests", headers=login(client, tenant, email), json=body), 201)
+
+
+def test_an_unattached_support_screenshot_is_purged_after_a_day(client, tenant, owner):
+    loose = ok(client.put(f"{API}/support-requests/screenshot", headers=_image(owner), content=png_bytes()), 201)
+    kept = ok(client.put(f"{API}/support-requests/screenshot", headers=_image(owner), content=png_bytes()), 201)
+    ok(client.post(f"{API}/support-requests", headers=owner,
+                   json={"category": "question", "message": "?", "screenshot_file_id": kept["id"]}), 201)  # fmt: skip
+    with tenant_session(tenant.id) as session:
+        assert retention.purge(session)["support_screenshot"] == 0  # under a day old
+    with clock.freeze(clock.now() + timedelta(days=2)), tenant_session(tenant.id) as session:
+        assert retention.purge(session)["support_screenshot"] == 1
+        assert session.get(StoredFile, loose["id"]).status == "purged"
+        assert session.get(StoredFile, kept["id"]).status == "ready"

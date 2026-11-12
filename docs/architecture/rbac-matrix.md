@@ -53,9 +53,9 @@ Tables (elaborating the `platform` rows in overview section 2; DDL belongs to `d
 
 `authorize(principal, perm, location_id=None, subject_id=None, record=None)` for a staff principal:
 
-1. Principal active, session valid, IP allow-list satisfied unless the principal holds
-   `platform.security.bypass_ip_allowlist` (PLT-07; unknowns "IP restriction scope": tenant-wide, checked at
-   sign-in and on every request).
+1. Principal active, session valid, IP allow-list satisfied (PLT-07; unknowns "IP restriction scope":
+   tenant-wide, checked at sign-in and on every request; no role bypasses it, Owners included; break-glass is
+   the operator CLI `clear-ip-allowlist`).
 2. Entitlement gate for the permission's module.
 3. Owner role: allow (all keys, all locations, all subjects, reach `all`). Stop.
 4. Grant = `user_permission_override` row if present, else `role_permission` row. No row or `deny`: `403`.
@@ -197,13 +197,13 @@ Cells: `Y` granted (reach all), `own` granted with reach own, `-` not granted. O
 | `platform.staff_user.update` | T | A | | Y | - | - | - | - | - | - | PLT-02 |
 | `platform.staff_user.deactivate` | T | A | | Y | - | - | - | - | - | - | PLT-02 |
 | `platform.staff_user.reset_credentials` | T | A | | Y | - | - | - | - | - | - | PLT-03 |
+| `platform.staff_user.reset_mfa` | T | A + | | Y | - | - | - | - | - | - | PLT-03, ADR 0002 s6 |
 | `platform.staff_user.assign_role` | T | A + | | Y | - | - | - | - | - | - | PLT-05 |
 | `platform.staff_user.assign_locations` | T | A | | Y | - | - | - | - | - | - | PLT-13 |
 | `platform.staff_user.override_permissions` | T | A + | | Y | - | - | - | - | - | - | PLT-05, SCH-05 |
 | `platform.role.read` | T | | | Y | Y | - | - | - | - | - | PLT-04 |
 | `platform.role.manage` | T | A + | | Y | - | - | - | - | - | - | PLT-04, PLT-06 |
 | `platform.security.manage` | T | A + | | Y | - | - | - | - | - | - | PLT-07 (IP allow-list, password and session policy, OIDC) |
-| `platform.security.bypass_ip_allowlist` | T | A | | Y | - | - | - | - | - | - | PLT-07, POS-01 |
 | `platform.identity_provider.manage` | T | OO + | | - | - | - | - | - | - | - | PLT-07 (OIDC providers; Phase 8 S3 review: a provider decides who can sign in, so not Admin) |
 | `platform.audit.read` | L | | | Y | Y | - | - | - | - | - | PLT-17, BIL-09 |
 | `platform.audit.export` | T | X | | Y | - | - | - | - | - | - | PLT-17 |
@@ -523,7 +523,7 @@ allow-list (STF-06, PLT-07).
 | `engagement.campaign.edit` | L | | | Y | Y | - | - | - | - | - | PLT-06 Editor, MKT-04, MKT-05, MKT-06, MKT-11 |
 | `engagement.campaign.create` | L | | | Y | Y | - | - | - | - | - | PLT-06 Publisher, MKT-03 |
 | `engagement.campaign.send` | L | B | | Y | Y | - | - | - | - | - | PLT-06 Publisher, MKT-09, MKT-12 |
-| `engagement.campaign.send_all` | L | B | | Y | Y | - | - | - | - | - | PLT-06 (Phase 8 T2: an unfiltered all-clients audience) |
+| `engagement.campaign.send_all` | L | B | | Y | Y | - | - | - | - | - | PLT-06 (Phase 8 T2: an all-clients audience, filtered or not) |
 | `engagement.sms_campaign.send` | L | B | | Y | Y | - | - | - | - | - | MKT-15, MKT-23 |
 | `engagement.push.send` | L | B | | Y | Y | - | - | - | - | - | MKT-16, MKT-17, PLT-13 ("send notifications for this location") |
 | `engagement.message.send_direct` | C | | own | Y | Y | Y | own | Y | - | - | MKT-10 |
@@ -536,7 +536,7 @@ allow-list (STF-06, PLT-07).
 
 PLT-06 levels map to key sets: Viewer = `read`; Editor = `read` + `edit`; Publisher = all four. The role editor
 presents them as one four-way control. `send_all` (Phase 8 T2) is separate from the levels: a sender also needs it
-when the audience is every client of the location with no filter, so a role can send to segments only. Divergence from MKT-10: a single direct email needs only
+when the audience has an all-clients source (filters do not waive it), so a role can send to segments only. Divergence from MKT-10: a single direct email needs only
 `send_direct`, not a campaign level.
 
 ### 6.16 assessments

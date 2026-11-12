@@ -93,9 +93,10 @@ def _principal_for(session: Session, identity: Identity, session_id: UUID | None
 
 
 def check_ip_allowlist(session: Session, principal: Principal) -> None:
-    """PLT-07: staff act only from the tenant's listed networks, unless the list is empty or they hold the
-    bypass key. Checked at sign-in and on every staff request; client sessions and API keys are not staff."""
-    if principal.kind != "staff" or principal.has("platform.security.bypass_ip_allowlist"):
+    """PLT-07: staff act only from the tenant's listed networks unless the list is empty; no role bypasses it
+    (owner decision, phase 8). Checked at sign-in and on every staff request; client sessions and API keys are
+    not staff. Break-glass is `python -m app.cli clear-ip-allowlist` (platform README)."""
+    if principal.kind != "staff":
         return
     if _outside(session, principal.tenant_id):
         raise _ip_not_allowed()
@@ -110,13 +111,10 @@ def _ip_not_allowed() -> PermissionDenied:
     return PermissionDenied("Staff access is not allowed from this network.", code="ip-not-allowed")
 
 
-def _refused_before_password(session: Session, audience: str, identity: Identity | None) -> bool:
+def _refused_before_password(session: Session, audience: str) -> bool:
     """Decided before the password is checked, and the same for an unknown email, so a refusal from outside
-    the allow-list says nothing about the credentials. Only bypass holders go on to the password check."""
-    if audience != "staff" or not _outside(session, session.info["tenant_id"]):
-        return False
-    principal = identity is not None and identity.kind == "staff" and _principal_for(session, identity)
-    return not (principal and principal.has("platform.security.bypass_ip_allowlist"))
+    the allow-list says nothing about the credentials."""
+    return audience == "staff" and _outside(session, session.info["tenant_id"])
 
 
 def _lifetime(session: Session, identity: Identity, client_kind: str) -> tuple[timedelta, timedelta]:
@@ -239,7 +237,7 @@ def sign_in(
 ) -> Grant | Challenge:
     now = clock.now()
     identity = _find_identity(session, audience, email)
-    if _refused_before_password(session, audience, identity):
+    if _refused_before_password(session, audience):
         passwords.burn(password)
         raise _ip_not_allowed()
     if identity is None or identity.password_hash is None:

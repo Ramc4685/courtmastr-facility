@@ -7,7 +7,7 @@ email match. auth_token.purpose gains oidc_state (one authorization round trip: 
 Generated from the models, then completed by hand: enable_rls() and the CHECK change.
 
 Revision ID: 1240
-Revises: 1263
+Revises: 1280
 """
 import sqlalchemy as sa
 from alembic import op
@@ -16,7 +16,7 @@ from app.core.db.rls import enable_rls
 
 
 revision = '1240'
-down_revision = '1263'
+down_revision = '1280'
 
 _PURPOSES = (
     "'magic_link', 'password_reset', 'invite', 'email_verify', 'email_change', 'relationship_confirm', 'mfa_challenge'"

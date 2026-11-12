@@ -1,7 +1,7 @@
 # Phase 8 chip S3: OIDC sign-in for staff
 
 Date: 2026-11-11. Branch `claude/p8-s3-oidc`, cut from `claude/phase8-wave7-5be825` (`ac21204`), later
-merged with it again (T1, T2 and `main` with Phase 10). Migrations `1240` (down from `1263`, the phase branch
+merged with it again (T1, T2 and `main` with Phase 10). Migrations `1240` (down from `1280`, the phase branch
 head) and `1241` (link confirmation, after the security review). Scope:
 `docs/planning/phase-8.md` chip S3, with the S2 hand-over notes (`docs/status/phase8-s2-mfa.md`, "For S3").
 The behaviour description is in `backend/app/modules/platform/README.md` under "OIDC sign-in for staff".

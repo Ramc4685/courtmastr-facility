@@ -134,6 +134,19 @@ def update_security_settings(session: Session, principal: Principal, data: dict)
     return _security_view(tenant)
 
 
+def clear_staff_ip_allowlist(session: Session, principal: Principal) -> list[str]:
+    """Operator break-glass for a tenant locked out by its own allow-list (`python -m app.cli
+    clear-ip-allowlist`); no role bypasses the list. Returns the list it removed."""
+    authorize(principal, "platform.security.manage")
+    tenant = get_tenant(session)
+    before = [str(net) for net in tenant.staff_ip_allowlist]
+    if before:
+        tenant.staff_ip_allowlist = []
+        audit.record(session, "platform.security.manage", tenant, changes={"staff_ip_allowlist": [before, []]})
+        session.flush()
+    return before
+
+
 # --- locations ---------------------------------------------------------------------------------------------
 
 

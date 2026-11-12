@@ -132,7 +132,7 @@ class Tenant(Timestamps, Base):
     is_listed_in_app_directory: Mapped[bool] = _false()
     app_directory_name: Mapped[str | None]
     settings: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))
-    # Staff may act only from these networks unless they hold platform.security.bypass_ip_allowlist (PLT-07).
+    # Staff may act only from these networks when it is non-empty; no role bypasses it (PLT-07).
     staff_ip_allowlist: Mapped[list[Any]] = mapped_column(ARRAY(CIDR), server_default=text("'{}'"))
     # Staff web idle limit in minutes, 15 to 60 (security-baseline 5.1); NULL is the configured default.
     staff_idle_timeout_min: Mapped[int | None] = mapped_column(info={"audit": "value"})
