@@ -1,16 +1,18 @@
 """Phase 8 T2 in engagement: the send-to-everyone gate (PLT-06) and GDPR mode's express-consent rule (PLT-16)."""
 
 from datetime import timedelta
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import func, select, update
 
 from app.core import clock
 from app.core.audit import AuditEvent
+from app.core.auth import Principal
 from app.core.db.session import tenant_session
-from app.modules.engagement.models import CommunicationPreference, InboxItem, Message
+from app.modules.engagement.models import Campaign, CommunicationPreference, InboxItem, Message
 from app.modules.engagement.tests.test_messaging import API, SYSTEM, _campaign, _person, ok, refused, svc
-from conftest import add_staff, login
+from conftest import add_staff, login, new_client
 
 EVERYONE = {"sources": [{"kind": "all_clients"}]}
 
@@ -90,6 +92,27 @@ def test_a_segment_widened_to_everyone_after_scheduling_goes_back_to_draft(clien
         svc.send_due_campaigns(session)
     held = ok(client.get(f"{API}/campaigns/{campaign['id']}", headers=owner))
     assert (held["status"], held["hold_reason"], held["attempted_count"]) == ("draft", "send-all-required", 0)
+
+    # even a scheduler who held send_all: the grant covered the audience as scheduled, not a later segment edit
+    ok(client.patch(f"{API}/segments/{segment['id']}", headers=owner, json={"definition": narrow["definition"]}))
+    ok(client.post(f"{API}/campaigns/{campaign['id']}/schedule", headers=owner, json=later))
+    with tenant_session(tenant.id) as session:
+        assert session.get(Campaign, campaign["id"]).is_send_all_granted
+    ok(client.patch(f"{API}/segments/{segment['id']}", headers=owner, json={"definition": EVERYONE}))
+    with tenant_session(tenant.id) as session:
+        assert not session.get(Campaign, campaign["id"]).is_send_all_granted
+
+
+def test_send_all_held_only_elsewhere_is_not_recorded_as_granted(client, tenant, owner, site):
+    campaign = _campaign(client, owner, site, [new_client(client, owner, site)["id"]])
+    elsewhere = Principal(kind="staff", tenant_id=tenant.id, permissions={svc.SEND_ALL: "all"},
+                          location_ids=frozenset({uuid4()}))  # fmt: skip
+    with tenant_session(tenant.id) as session:
+        row = session.get(Campaign, campaign["id"])
+        svc._authorize_send(session, elsewhere, row)
+        assert row.is_send_all_granted is False
+        svc._authorize_send(session, SYSTEM, row)
+        assert row.is_send_all_granted is True
 
 
 def test_automation_mail_checks_consent_even_with_a_transactional_template(client, tenant, owner, site, mailbox):

@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.core import audit, clock, events
 from app.core.auth import Principal, authorize, authorize_tenant_wide, scope_query, system_principal, tokens
-from app.core.errors import Conflict, NotFound, ValidationFailed
+from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.pagination import ListQuery, paginate
 from app.core.settings import get_settings
 from app.modules import memberships, platform, scheduling
@@ -635,6 +635,9 @@ def update_segment(session: Session, principal: Principal, segment_id: UUID, dat
         _check_definition(data["definition"])
     for field, value in data.items():
         setattr(row, field, value)
+    if "definition" in data:  # a send_all grant covered the audience as scheduled, not this new one (PLT-06)
+        session.execute(update(Campaign).where(Campaign.segment_id == row.id, Campaign.status == "scheduled")
+                        .values(is_send_all_granted=False))  # fmt: skip
     audit.record(session, "engagement.campaign.edit", row, changes=audit.diff(row))
     session.flush()
     return row
@@ -792,9 +795,14 @@ def _needs_send_all(session: Session, row: Campaign) -> bool:
 def _authorize_send(session: Session, principal: Principal, row: Campaign) -> None:
     """After the channel's send key. The grant is recorded so the send job can refuse a scheduled campaign whose
     segment was widened to everyone after a sender without send_all scheduled it."""
-    if _needs_send_all(session, row):
+    try:  # the grant is recorded by the same location-scoped gate: the key at another location does not count
         authorize(principal, SEND_ALL, location_id=row.location_id)
-    row.is_send_all_granted, row.hold_reason = principal.has(SEND_ALL), None
+        granted = True
+    except (PermissionDenied, NotFound):
+        if _needs_send_all(session, row):
+            raise
+        granted = False
+    row.is_send_all_granted, row.hold_reason = granted, None
 
 
 def send_campaign(session: Session, principal: Principal, campaign_id: UUID) -> Campaign:
