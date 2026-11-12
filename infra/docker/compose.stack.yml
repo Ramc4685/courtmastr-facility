@@ -48,6 +48,7 @@ services:
       HTTP_PORT: ${FH_STACK_HTTP_PORT:-18080}
       HTTPS_PORT: ${FH_STACK_HTTPS_PORT:-18443}
       SITE_ADDRESS: ${FH_STACK_SITE:-localhost}
+      EDGE_CIDRS: ${FH_STACK_EDGE_CIDRS:-192.0.2.255/32}   # the smoke test sets this to prove the trusted-edge path
     volumes: [caddy-data:/data]
     depends_on: {api: {condition: service_healthy}}
     read_only: true
@@ -110,7 +111,7 @@ services:
     volumes: [redisdata:/data]
     healthcheck: {test: [CMD, redis-cli, ping], interval: 2s, timeout: 3s, retries: 30}
   s3:
-    image: rustfs/rustfs:latest   # S3-compatible stand-in; a cloud deployment uses the provider's bucket instead
+    image: rustfs/rustfs@sha256:b81d16a90ee25bd9511280127ca1471788c6e874cf0f0da759645f46b2dc1d74   # pinned (was latest); S3-compatible stand-in; a cloud deployment uses the provider's bucket instead
     restart: unless-stopped
     networks: [stack]
     environment:
@@ -119,13 +120,13 @@ services:
     ports: ["127.0.0.1:${FH_STACK_S3_PORT:-19000}:9000"]   # only so the smoke test can fetch a presigned URL
     volumes: [s3data:/data]
   clamav:
-    image: clamav/clamav-debian:stable
+    image: clamav/clamav-debian@sha256:76a9c3b63764b78178dc68fa7efcceca0cde2c8c9d4f925a8e697cb4511f8fdc   # stable
     restart: unless-stopped
     networks: [stack]
     volumes: [clamdb:/var/lib/clamav]
     healthcheck: {test: [CMD, clamdcheck.sh], interval: 15s, timeout: 10s, retries: 40, start_period: 60s}
   mailpit:
-    image: axllent/mailpit:latest
+    image: axllent/mailpit@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
     profiles: [mail]
     networks: [stack]
     ports: ["127.0.0.1:${FH_STACK_MAIL_UI_PORT:-18025}:8025"]

@@ -20,9 +20,11 @@ owner can price it and decide. Example config: `infra/fly/fly.toml`. Pipeline: `
 
 ## Things that must be true before a go-live
 
-1. The proxy's client-IP handling is verified on Fly. Fly's edge adds its own forwarded headers in front of Caddy:
-   confirm what `X-Forwarded-For` the API receives and set `api.trusted_proxies` to the range that makes `core/api.py::_ip`
-   return the real client address (rate limits and the staff IP allow-list depend on it). **Untested.**
+1. The proxy's client-IP handling is verified on Fly. By default the proxy trusts only the socket peer, so behind Fly's edge
+   every client would share the edge's address and the per-address sign-in limits would collapse into one bucket. Set the web
+   app's `EDGE_CIDRS` to Fly's proxy address range and `EDGE_IP_HEADER` to `Fly-Client-IP` (check Fly's current documentation
+   for both), then confirm that `core/api.py::_ip` returns the real client address (rate limits and the staff IP allow-list
+   depend on it). The mechanism is tested locally with a stand-in edge (`infra/docker/smoke.sh`); on Fly it is **untested**.
 2. The deploy workflow's migrate and deploy steps are placeholders; fill them in for the commands you choose.
 3. `api.trusted_proxies`, `app.web_base_url`, `email.smtp_*` (a real mail relay) and `payments.provider` are set in the
    overlay. Production refuses to start with the fake payment processor, insecure cookies or no malware scanner.

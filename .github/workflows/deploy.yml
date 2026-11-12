@@ -1,4 +1,6 @@
-# Deploy pipeline SKELETON. Manual only; deploys nothing until the owner chooses a host and adds that host's secrets.
+# Deploy pipeline SKELETON. Third-party actions are pinned by commit SHA (the tag is in the comment); bump them by hand.
+# NOTE: the `production` environment only gates anything once required reviewers are set on it (repository Settings >
+# Environments > production). Until then the migrate and deploy jobs run without approval. Manual only; deploys nothing until the owner chooses a host and adds that host's secrets.
 # Build and scan run on every dispatch and need no secrets. Migrate and deploy are separate jobs that sit behind the
 # `production` GitHub Environment (add required reviewers there: that is the gate) and are skipped, with a notice,
 # when DEPLOY_ENABLED is not set to "true" in the repository's variables.
@@ -23,10 +25,10 @@ jobs:
       matrix:
         image: [backend, web]
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - name: Build ${{ matrix.image }} image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: infra/docker/${{ matrix.image }}.Dockerfile
@@ -35,7 +37,7 @@ jobs:
           push: false
       # security-baseline 14: no HIGH or CRITICAL finding that has a fix ships.
       - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: facilityhub-${{ matrix.image }}:${{ github.sha }}
           severity: HIGH,CRITICAL
@@ -45,7 +47,7 @@ jobs:
           trivyignores: .trivyignore
       - name: Scan the repository for secrets and misconfiguration
         if: matrix.image == 'backend'
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scanners: secret,misconfig

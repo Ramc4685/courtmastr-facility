@@ -106,7 +106,7 @@ mobile-test:        ## Jest + React Native Testing Library
 # --- Operations (chip O1): the container stack and the backup drill. See docs/ops/. ---
 STACK = docker compose --env-file infra/docker/.env.stack -f infra/docker/compose.stack.yml --profile mail
 
-.PHONY: stack-up stack-smoke stack-down backup-drill
+.PHONY: stack-up stack-smoke stack-down backup-drill backup-drill-fresh
 
 infra/docker/.env.stack:
 	cp infra/docker/stack.env.example $@
@@ -126,3 +126,7 @@ backup-drill: .env  ## back up this lane's database via the dev Postgres contain
 	  FH_PG_EXEC="docker exec -i -e PGPASSWORD -e PGUSER facilityhub-postgres-1" \
 	  FH_EXPECTED_HEAD="$$(cd backend && uv run alembic heads | cut -d' ' -f1)"; \
 	infra/backup/backup.sh && infra/backup/drill.sh
+
+backup-drill-fresh: backup-drill  ## the same drill against a throwaway Postgres with no fh_* roles (the lost-host case)
+	set -a; . ./.env; set +a; export FH_BACKUP_PASSPHRASE=lane-drill-passphrase FH_EXPECTED_HEAD="$$(cd backend && uv run alembic heads | cut -d' ' -f1)"; \
+	infra/backup/drill-fresh.sh "$$(ls -t var/backups/*.enc | head -1)"

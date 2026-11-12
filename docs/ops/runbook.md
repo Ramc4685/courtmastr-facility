@@ -61,8 +61,11 @@ export FH_BACKUP_PASSPHRASE=...   PGHOST=... PGUSER=postgres PGPASSWORD=...   # 
 infra/backup/restore.sh backups/fh-facilityhub-<timestamp>.tar.enc facilityhub_restored
 ```
 
-The script verifies the manifest checksums, creates missing roles (without passwords: set them from the secret store),
-creates the database owned as in the source, and restores. It refuses an existing database unless `--drop-existing`.
+The script verifies the manifest checksums, then creates the `fh_*` roles from the archive (without passwords: set them
+from the secret store). Only `CREATE ROLE` / `ALTER ROLE` / `GRANT` lines for `fh_*` roles are run; an archive that grants
+SUPERUSER, CREATEROLE, CREATEDB or REPLICATION, or BYPASSRLS to a role the init script (`infra/postgres/init`) does not
+create with it, is refused. The data is restored into `<name>_restoring` and renamed to `<name>` only on success, so a
+failed restore never costs an existing database; it refuses an existing target unless `--drop-existing`.
 Then point the app at the restored database (`db.name` in the config overlay), run `migrate` to be safe, and check
 `/api/v1/health/ready`. On hosts without client tools set `FH_PG_EXEC` (see `infra/backup/lib.sh`).
 
@@ -70,11 +73,25 @@ Then point the app at the restored database (`db.name` in the config overlay), r
 table's row count and RLS, prints PASS or FAIL and drops the scratch database. Run it weekly (`make backup-drill` on a
 lane). A backup that was never restored is not a backup.
 
+**Fresh cluster.** `infra/backup/drill-fresh.sh <archive>` runs the same drill against a throwaway Postgres container with no
+`fh_*` roles and no database, the state after losing the host (`make backup-drill-fresh` on a lane). Run it after changing
+the backup or restore scripts.
+
 **Roles.** The backup role must bypass RLS (superuser, or a dedicated login role with `BYPASSRLS` and
 `pg_read_all_data`): the tables force RLS, so any other role dumps no rows. On managed Postgres where superuser is not
 available, create that role and set `FH_BACKUP_SKIP_GLOBALS=1` (roles are then created by your provisioning).
 
 **Files.** Object storage is restored from bucket versioning or replication, not from these archives (README).
+
+## Operator access
+
+`/api/v1/docs`, `/api/v1/openapi.json` and `/api/v1/operator/*` (tenant onboarding) answer 404 through the proxy. Reach them
+around it, from a place that can talk to the API's private address:
+
+- onboarding without HTTP: `$STACK run --rm api cli onboard-tenant ...` (the invitation goes out by email as usual);
+- the HTTP routes and docs: open a tunnel to `api:8100` (`docker compose exec`/`port-forward` locally, `fly proxy 8100` or an
+  SSH tunnel on Fly, an ECS exec or bastion tunnel on AWS) and call `http://127.0.0.1:8100/api/v1/...` with
+  `X-Operator-Token` for operator routes. Never publish the API port.
 
 ## Rotate secrets
 
