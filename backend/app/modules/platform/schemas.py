@@ -48,6 +48,12 @@ class RefreshRequest(In):
     refresh_token: str | None = Field(None, max_length=200)
 
 
+class PreSessionOut(Out):
+    """The login-CSRF token: send it as X-CSRF-Token on sign-in, emailed-link and reset requests from a browser."""
+
+    csrf_token: str
+
+
 class PasswordChange(In):
     current_password: str | None = Field(None, max_length=1024)
     new_password: str = Field(max_length=1024)
@@ -63,7 +69,8 @@ class PrincipalOut(Out):
 
 
 class AuthSessionOut(Out):
-    """Tokens appear in the body only for bearer clients (mobile); web gets HttpOnly cookies plus csrf_token."""
+    """Tokens appear in the body only for bearer clients (mobile); web gets the HttpOnly session cookie plus
+    csrf_token, which it sends as X-CSRF-Token on every non-GET."""
 
     id: UUID
     kind: Literal["web", "mobile", "impersonation"]
@@ -75,7 +82,57 @@ class AuthSessionOut(Out):
     absolute_expires_at: datetime
     mfa_verified_at: datetime | None = None
     mfa_required: bool = False
+    elevated_until_at: datetime | None = None  # `+` permissions work until then (step-up)
     csrf_token: str | None = None
+    recovery_codes: list[str] | None = None  # only when MFA enrolment completed during this sign-in
+
+
+class MfaChallengeOut(Out):
+    """A pending sign-in: send mfa_token with a code to /auth/mfa/verify (after /auth/mfa/enrolment when
+    enrolment_required). It grants nothing else and expires in minutes."""
+
+    mfa_token: str
+    expires_at: datetime
+    enrolment_required: bool
+
+
+class MfaChallengeToken(In):
+    mfa_token: Annotated[str, StringConstraints(max_length=200)]
+
+
+class MfaChallengeCode(MfaChallengeToken):
+    code: Annotated[str, StringConstraints(max_length=32)]
+
+
+class MfaCode(In):
+    code: Annotated[str, StringConstraints(max_length=32)]
+
+
+class MfaEnrolmentOut(Out):
+    """Shown once. Render otpauth_uri as a QR code on the device; never send it anywhere."""
+
+    secret: str
+    otpauth_uri: str
+
+
+class MfaRecoveryCodesOut(Out):
+    recovery_codes: list[str]
+
+
+class MfaStatus(Out):
+    enrolled: bool
+    confirmed_at: datetime | None
+    recovery_codes_remaining: int
+    required: bool
+    # No code and no password, but linked to a sign-in provider: step-up is a fresh sign-in there (S3).
+    provider_step_up: bool = False
+
+
+class StepUpRequest(In):
+    """A code when two-step verification is on (TOTP or a recovery code), otherwise the password."""
+
+    code: Annotated[str, StringConstraints(max_length=32)] | None = None
+    password: Annotated[str, StringConstraints(max_length=1024)] | None = None
 
 
 class OwnSession(Out):
@@ -117,6 +174,24 @@ class TenantUpdate(In):
     locale: str | None = Field(None, pattern=r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$")
     currency: str | None = Field(None, pattern=r"^[A-Z]{3}$")
     settings: dict[str, Any] | None = None
+
+
+class SecuritySettings(Out):
+    """Tenant security policy. An empty staff_ip_allowlist means staff may act from anywhere (PLT-07).
+    staff_mfa_policy: who must use two-step verification (privileged = Owner and Admin). staff_idle_timeout_min:
+    minutes a staff web session survives unused."""
+
+    staff_ip_allowlist: list[str]
+    staff_mfa_policy: Literal["optional", "privileged", "all"]
+    staff_idle_timeout_min: int
+
+
+class SecuritySettingsUpdate(In):
+    staff_ip_allowlist: (
+        Annotated[list[Annotated[str, StringConstraints(max_length=64)]], Field(max_length=100)] | None
+    ) = None
+    staff_mfa_policy: Literal["optional", "privileged", "all"] | None = None
+    staff_idle_timeout_min: Annotated[int, Field(ge=15, le=60)] | None = None
 
 
 class TenantOnboard(In):
@@ -292,13 +367,11 @@ class RoleCreate(In):
     name: Name
     description: str | None = None
     clone_from_role_id: UUID | None = None
-    default_ip_policy: IpPolicy = "any"
 
 
 class RoleUpdate(In):
     name: Name | None = None
     description: str | None = None
-    default_ip_policy: IpPolicy | None = None
 
 
 # --- staff users -------------------------------------------------------------------------------------------
@@ -319,7 +392,7 @@ class StaffUserOut(Out):
     primary_location_id: UUID | None
     linked_resource_id: UUID | None
     is_attendance_notified: bool
-    ip_policy: IpPolicy
+    ip_policy: IpPolicy  # stored, read-only, not consulted (deferred: platform README, staff IP allow-list)
     access_expires_on: date | None
     has_permission_overrides: bool
     last_sign_in_at: datetime | None
@@ -345,7 +418,6 @@ class StaffUserUpdate(In):
     mobile_phone: str | None = None
     linked_resource_id: UUID | None = None
     is_attendance_notified: bool | None = None
-    ip_policy: IpPolicy | None = None
     access_expires_on: date | None = None
 
 
@@ -368,6 +440,28 @@ class StaffUserPermissions(Out):
     is_diverged_from_role: bool
 
 
+class PlanRef(Out):
+    code: str
+    name: str
+
+
+class LimitUsage(Out):
+    """`limit` null = unlimited. `used` is counted for capped limits (all of them on the plan screen)."""
+
+    key: str
+    label: str
+    limit: int | None
+    used: int | None
+
+
+class MeEntitlements(Out):
+    """What the tenant's plan includes (PLT-14). `limits` is empty for anyone but staff."""
+
+    plan: PlanRef
+    features: list[str]
+    limits: list[LimitUsage]
+
+
 class Me(Out):
     principal: PrincipalOut
     tenant: TenantOut
@@ -376,7 +470,7 @@ class Me(Out):
     has_all_location_access: bool | None = None
     locations: list[LocationRef] | None = None
     primary_location_id: UUID | None = None
-    entitlements: list[str] = []
+    entitlements: MeEntitlements
     linked_resource_id: UUID | None = None
 
 

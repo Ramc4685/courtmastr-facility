@@ -1,0 +1,26 @@
+{
+  "_about": "p95 budgets in ms for `make perf` at 10 users (docs/ops/performance-budget.md). Reads 300, writes 500, money writes and reports 800 (O1's p95 warn), sign-in 1500 (argon2 by design).",
+  "error_rate_pct": 1.0,
+  "p95_ms": {
+    "auth.pre_session": 300,
+    "auth.me": 300,
+    "auth.sign_out": 300,
+    "auth.sign_in": 1500,
+    "calendar.day": 300,
+    "calendar.week": 300,
+    "availability": 300,
+    "clients.search": 300,
+    "clients.get": 300,
+    "invoices.list": 300,
+    "invoices.get": 300,
+    "booking.create": 500,
+    "booking.cancel": 500,
+    "check_in.create": 500,
+    "pos.create": 500,
+    "pos.line": 500,
+    "pos.tender": 800,
+    "pos.complete": 800,
+    "payment.take": 800,
+    "report.run": 800
+  }
+}

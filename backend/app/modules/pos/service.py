@@ -6,14 +6,13 @@ discounts, equipment), `inventory` (stock), `drawer`, `sales` (cart, tenders, co
 location (outside the caller's locations is 404), then changes state and audits once per aggregate.
 """
 
-import ipaddress
 from uuid import UUID
 
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from app.core import audit
+from app.core import audit, networks
 from app.core.auth import Principal, authorize, scope_query
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.ids import new_id
@@ -123,13 +122,8 @@ def put_settings(session: Session, principal: Principal, location_id: UUID | Non
     else:
         check_location(session, principal, location_id, pointer="/location_id")
         authorize(principal, "pos.register.manage", location_id=location_id)
-    for index, network in enumerate(data.get("allowed_networks") or []):
-        try:
-            data["allowed_networks"][index] = str(ipaddress.ip_network(network, strict=False))
-        except ValueError:
-            raise ValidationFailed(
-                "Give networks as addresses or CIDR ranges.", pointer=f"/allowed_networks/{index}"
-            ) from None
+    if data.get("allowed_networks"):
+        data["allowed_networks"] = networks.normalize(data["allowed_networks"], "/allowed_networks")
     row = _settings_row(session, location_id, create=True)
     for name in SETTINGS_FIELDS:
         if name in data:
@@ -142,14 +136,8 @@ def put_settings(session: Session, principal: Principal, location_id: UUID | Non
 def check_network(session: Session, location_id: UUID, client_ip: str | None) -> None:
     """The register works only from the location's allowed networks, when it lists any (our setting; the
     reference restricts logins by IP account-wide). Not an IP address, or not in a listed range: 403."""
-    networks = settings_for(session, location_id).allowed_networks
-    if not networks:
-        return
-    try:
-        address = ipaddress.ip_address(client_ip or "")
-    except ValueError:
-        address = None
-    if address is None or not any(address in ipaddress.ip_network(net) for net in networks):
+    allowed = settings_for(session, location_id).allowed_networks
+    if allowed and not networks.contains(allowed, client_ip):
         raise PermissionDenied("The register cannot be used from this network.", code="network-not-allowed")
 
 

@@ -17,17 +17,32 @@ from app.core.db.platform import platform_engine
 from app.core.jobs import broker
 
 log = logging.getLogger(__name__)
-EVERY_MINUTE = ("expire_checkout_holds", "expire_registration_holds", "send_due_messages")
+EVERY_MINUTE = ("expire_checkout_holds", "expire_registration_holds", "send_due_messages", "sweep_webhook_deliveries")
 EVERY_HOUR = (
     "billing_daily", "run_membership_day", "run_package_day", "sweep_documents", "auto_archive_programs",
+    "abandon_stale_drafts", "purge_expired", "purge_files",
+    "purge_expired_results", "purge_expired_exports",
     "send_client_task_reminders",
     "send_low_stock_digest",
 )  # fmt: skip
+# Retention keeps running for a suspended tenant (purges, export expiry, file byte deletion): suspension stops
+# the business, not the data-protection clock. Billing and messaging stay with active tenants only.
+RETENTION = ("purge_expired", "purge_files", "purge_expired_results", "purge_expired_exports")
+
+
+def tenants(status: str = "active") -> list[str]:
+    with platform_engine().connect() as conn:
+        rows = conn.execute(text("SELECT id FROM tenant WHERE status = :status"), {"status": status})
+        return [str(row[0]) for row in rows]
 
 
 def active_tenants() -> list[str]:
-    with platform_engine().connect() as conn:
-        return [str(row[0]) for row in conn.execute(text("SELECT id FROM tenant WHERE status = 'active'"))]
+    return tenants("active")
+
+
+def tick_hour() -> int:
+    """The hourly round: every dated job for active tenants, the retention jobs for suspended ones."""
+    return enqueue(EVERY_HOUR, tenants("active")) + enqueue(RETENTION, tenants("suspended"))
 
 
 def enqueue(actor_names: Iterable[str], tenant_ids: Iterable[str]) -> int:
@@ -48,11 +63,10 @@ def main() -> None:  # pragma: no cover - a loop around enqueue
     log.info("scheduler started")
     last_hour = None
     while True:
-        tenants = active_tenants()
-        enqueue(EVERY_MINUTE, tenants)
+        enqueue(EVERY_MINUTE, active_tenants())
         hour = time.gmtime().tm_hour
         if hour != last_hour:
-            enqueue(EVERY_HOUR, tenants)
+            tick_hour()
             last_hour = hour
         time.sleep(60)
 

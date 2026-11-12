@@ -22,10 +22,23 @@ def cell(value, kind: str, exponent: int = 2) -> str:
     return text
 
 
+BOM = "﻿".encode()
+
+
+def header(columns: list[dict], *, currency: str) -> bytes:
+    return _lines([[f"{c['label']} ({currency})" if c["type"] == "money" else c["label"] for c in columns]])
+
+
+def body(columns: list[dict], rows: list[dict]) -> bytes:
+    """Data lines only, so a chunked export can append rows to what earlier chunks rendered."""
+    return _lines([cell(row.get(c["key"]), c["type"]) for c in columns] for row in rows)
+
+
 def render(columns: list[dict], rows: list[dict], *, currency: str) -> bytes:
+    return BOM + header(columns, currency=currency) + body(columns, rows)
+
+
+def _lines(rows) -> bytes:
     out = io.StringIO()
-    writer = csv.writer(out, lineterminator="\r\n")
-    writer.writerow(f"{c['label']} ({currency})" if c["type"] == "money" else c["label"] for c in columns)
-    for row in rows:
-        writer.writerow(cell(row.get(c["key"]), c["type"]) for c in columns)
-    return ("﻿" + out.getvalue()).encode()
+    csv.writer(out, lineterminator="\r\n").writerows(rows)
+    return out.getvalue().encode()

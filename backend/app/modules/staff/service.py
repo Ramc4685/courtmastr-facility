@@ -13,7 +13,6 @@ import io
 from collections import defaultdict
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
-from ipaddress import ip_address, ip_network
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -21,7 +20,7 @@ from sqlalchemy import delete, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core import audit, clock, context, events
+from app.core import audit, clock, context, events, networks
 from app.core.api import CONSTRAINT_CODES
 from app.core.auth import Principal, authorize, scope_query
 from app.core.auth.permissions import authorize_tenant_wide
@@ -495,14 +494,7 @@ def _network_allowed(session: Session, location_id: UUID | None) -> bool:
     settings = effective_settings(session, location_id)
     if not settings["is_time_clock_network_restricted"]:
         return True
-    raw = context.client_ip.get()
-    if not raw:
-        return False
-    try:
-        address = ip_address(raw)
-    except ValueError:
-        return False
-    return any(address in ip_network(net, strict=False) for net in settings["time_clock_networks"])
+    return networks.contains(settings["time_clock_networks"], context.client_ip.get())
 
 
 # --- time clock --------------------------------------------------------------------------------------------

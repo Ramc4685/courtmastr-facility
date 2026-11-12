@@ -1,0 +1,111 @@
+# Reverse proxy and static host for the web app. Caddy over nginx: automatic TLS (ACME, or an internal CA for
+# localhost) with renewal, HTTP/2 and 3, and one small file that needs no certbot or cron. Provider-neutral.
+#
+# Environment (all optional):
+#   SITE_ADDRESS  public host name; default localhost (a local CA certificate). ":8080" serves plain HTTP,
+#                 for a platform edge (Fly, an AWS load balancer) that terminates TLS in front of this proxy.
+#   HTTP_PORT, HTTPS_PORT  listen ports; default 8080 and 8443 so the container needs no root or capabilities.
+#   API_UPSTREAM  default api:8100
+#   EDGE_CIDRS    space-separated CIDRs of a load balancer or CDN in FRONT of this proxy whose forwarded client address
+#                 is believed. Default: a documentation-only address, i.e. trust nothing but the socket peer.
+#   EDGE_IP_HEADER  header that carries the client address from that edge; default X-Forwarded-For (Fly: Fly-Client-IP).
+{
+	admin off
+	http_port {$HTTP_PORT:8080}
+	https_port {$HTTPS_PORT:8443}
+	servers {
+		# Who may tell us the client address. With no edge in front, nobody: {client_ip} is the socket peer.
+		trusted_proxies static {$EDGE_CIDRS:192.0.2.255/32}
+		trusted_proxies_strict   # read the forwarded header right to left: only the hop a trusted edge appended is believed
+		client_ip_headers {$EDGE_IP_HEADER:X-Forwarded-For}
+		# Slow-client limits (security-baseline 6): header 10 s, body 60 s (a 20 MiB upload on a slow line),
+		# write 60 s, idle keep-alive 2 min.
+		timeouts {
+			read_header 10s
+			read_body 60s
+			write 60s
+			idle 2m
+		}
+	}
+}
+
+{$SITE_ADDRESS:localhost} {
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Cross-Origin-Opener-Policy "same-origin"
+		Permissions-Policy "camera=(self), microphone=(), geolocation=(), payment=(self)"
+		-Server
+	}
+
+	# HSTS for static pages. Not on localhost: a browser applies it to every port of that host and every subdomain, which
+	# would break other local dev servers. (The API still sends its own HSTS header whenever cookies are Secure.)
+	@public not host localhost *.localhost
+	header @public Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+	# The API sends its own deny-all CSP and no-store; everything else is the SPA (security-baseline 9.6).
+	@spa not path /api/*
+	header @spa Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'"
+
+	# Never public: the interactive docs load CDN scripts on the app origin, the OpenAPI document maps every route, and the
+	# operator routes (tenant onboarding) are for the platform operator, who reaches the API around the proxy
+	# (docs/ops/runbook.md "Operator access").
+	@internal path /api/v1/docs /api/v1/docs/* /api/v1/openapi.json /api/v1/operator /api/v1/operator/*
+	handle @internal {
+		respond "Not found" 404
+	}
+
+	handle /api/* {
+		# Upload exception, mirrored from core/api.py BodyLimitMiddleware.UPLOAD_PATHS: file bytes up to 20 MiB
+		# (storage.max_upload_bytes) plus slack. Every other API body is capped at 1 MiB (api.max_body_bytes).
+		@upload path_regexp ^/api/v1/(client-documents/[^/]+/paper-scan|clients/[^/]+/photo|client-notes/[^/]+/attachments|import-jobs/[^/]+/source)$
+		handle @upload {
+			request_body {
+				max_size 21MiB
+			}
+			reverse_proxy {$API_UPSTREAM:api:8100} {
+				header_up X-Forwarded-For {client_ip}
+				transport http {
+					dial_timeout 5s
+					response_header_timeout 120s
+				}
+			}
+		}
+		handle {
+			request_body {
+				max_size 1MiB
+			}
+			reverse_proxy {$API_UPSTREAM:api:8100} {
+				# One hop, set by us: the real client (the socket peer, or the address a trusted edge forwarded). The app
+				# trusts this proxy's address only (api.trusted_proxies) and reads the right-most hop, so a client-sent
+				# value is never believed.
+				header_up X-Forwarded-For {client_ip}
+				health_uri /api/v1/health/live
+				health_interval 10s
+				transport http {
+					dial_timeout 5s
+					response_header_timeout 60s
+				}
+			}
+		}
+	}
+
+	handle {
+		root * /srv/web
+		@hashed path /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		@shell not path /assets/*
+		header @shell Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+# Container healthcheck target: loopback only, plain HTTP, no TLS name to match.
+http://127.0.0.1:8081 {
+	bind 127.0.0.1
+	respond /healthz "ok" 200
+}

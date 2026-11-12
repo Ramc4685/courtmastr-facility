@@ -27,6 +27,7 @@ from app.modules.billing.models import (
     PaymentAllocation,
     PaymentSchedule,
     Refund,
+    TenderType,
 )
 from app.modules.billing.tests.test_billing import (
     API,
@@ -476,6 +477,35 @@ def test_a_tenant_labelled_tender_and_a_disabled_one(client, shop):
     assert off.status_code == 200 and off.json()["is_enabled"] is False
     with pytest.raises(ValidationFailed), work(shop.tenant) as session:
         cash(session, shop, 100, tender_kind="external", tender_type_id=paypal_id)
+
+
+def test_the_opening_balance_tender_is_billing_owned_and_never_a_desk_choice(client, shop):
+    # A disabled ordinary tender renamed to the opening-balance label earns no exemption.
+    paypal = client.post(f"{API}/tender-types", headers=shop.owner, json={"kind": "external", "label": "PayPal"})
+    renamed = client.patch(f"{API}/tender-types/{paypal.json()['id']}", headers=shop.owner,
+                           json={"label": svc.OPENING_BALANCE_TENDER, "is_enabled": False})  # fmt: skip
+    assert renamed.status_code == 200, renamed.text
+    with pytest.raises(ValidationFailed), work(shop.tenant) as session:
+        cash(session, shop, 100, tender_kind="external", tender_type_id=UUID(paypal.json()["id"]))
+    with work(shop.tenant) as session:
+        _, payment_id, _ = svc.post_opening_balance(
+            session, client_id=shop.client_id, location_id=shop.location_id, amount_minor=500, kind="credit",
+            as_of=date(2026, 1, 1), description="Opening balance", key="t-1",
+        )  # fmt: skip
+        tender = session.get(TenderType, session.get(Payment, payment_id).tender_type_id)
+        tender_id, tender_label = tender.id, tender.label
+        assert tender.system_key == "opening_balance" and tender.id != UUID(paypal.json()["id"])
+    assert tender_label == f"{svc.OPENING_BALANCE_TENDER} (import)"  # the tenant's own name stands
+    listed = client.get(f"{API}/tender-types", headers=shop.owner).json()
+    assert str(tender_id) not in {row["id"] for row in listed}
+    desk = client.post(f"{API}/payments", headers=shop.owner, json={
+        "client_id": str(shop.client_id), "location_id": str(shop.location_id), "amount_minor": 100,
+        "tender_kind": "external", "tender_type_id": str(tender_id)})  # fmt: skip
+    assert desk.status_code == 422, desk.text
+    for body in ({"label": "Mine now"}, {"is_enabled": True}, {"sort_order": 1}):
+        edit = client.patch(f"{API}/tender-types/{tender_id}", headers=shop.owner, json=body)
+        assert (edit.status_code, edit.json().get("code")) == (409, "tender-system"), edit.text
+    assert client.delete(f"{API}/tender-types/{tender_id}", headers=shop.owner).status_code == 405  # no delete
 
 
 # --- the row committed before the provider call (ADR 0003 section 8) --------------------------------------

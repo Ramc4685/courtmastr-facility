@@ -3,6 +3,7 @@
 import os
 from functools import cache
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlsplit
 
 import yaml
@@ -22,6 +23,10 @@ class Api(BaseModel):
     host: str
     port: int
     max_body_bytes: int = 1_048_576
+    trusted_proxies: list[str] = []  # peers whose X-Forwarded-For names the client
+    # True only when browsers reach the API with no proxy in front: then the socket peer is the client. Outside dev
+    # and test, an empty trusted_proxies without this is refused at startup (every client would look like the proxy).
+    exposed_directly: bool = False
 
 
 class Db(BaseModel):
@@ -54,8 +59,8 @@ class Argon2(BaseModel):
 
 
 class SessionLifetime(BaseModel):
-    idle_hours: int
-    absolute_days: int
+    idle_min: int
+    absolute_hours: int
 
 
 class Stripe(BaseModel):
@@ -92,16 +97,27 @@ class Auth(BaseModel):
     password_reset_ttl_min: int
     invite_ttl_days: int
     lockout_threshold: int
+    lockout_window_min: int
     lockout_min: int
+    lockout_max_min: int
+    pre_session_ttl_min: int
     password_min_length: int
     cookie_secure: bool
     argon2: Argon2
     sessions: dict[str, SessionLifetime]
+    step_up_min: int = 10  # how long a re-authentication satisfies `+` keys (owner decision 4)
+    mfa_challenge_ttl_min: int = 5  # the pending sign-in between password (or link) and the second factor
+
+
+class Bucket(BaseModel):
+    limit: int
+    window_sec: int
+    closed: bool = False  # refuse rather than allow while Redis is unreachable
 
 
 class RateLimit(BaseModel):
     enabled: bool
-    auth_per_minute: int
+    buckets: dict[str, Bucket]
     api_per_minute: int = 120  # per API key (ADR 0012 section 2)
 
 
@@ -118,9 +134,56 @@ class Audit(BaseModel):
     retention_days_long: int
 
 
+class Retention(BaseModel):
+    """Purge periods in days (ADR 0007 section 9, security-baseline 2.3). Audit rows carry their own
+    retain_until_on from `audit`; idempotency keys and report results carry their own expiry."""
+
+    auth_session_days: int = 90  # after the session expired or was revoked
+    auth_token_days: int = 30  # after the link expired or was used (assumption: no spec value)
+    outbox_days: int = 30  # published events only; unpublished rows are never purged
+    processed_event_days: int = 45  # must exceed outbox retention plus the retry window
+    batch_rows: int = 10_000  # per table per run; the hourly clock drains any backlog
+    gdpr_auth_session_days: int = 30  # a tenant in GDPR mode (PLT-16) keeps ended sessions and links shorter
+    gdpr_auth_token_days: int = 7
+    tenant_export_days: int = 7  # a tenant export bundle stays downloadable this long (IMP-04)
+    support_screenshot_days: int = 1  # a screenshot never attached to a support request (ONB-03)
+
+
+class S3(BaseModel):
+    """S3-compatible bucket (AWS S3, Fly Tigris, MinIO). Keys come from the environment only (.env.example)."""
+
+    bucket: str = "facilityhub"
+    endpoint_url: str | None = None  # None means AWS; MinIO and Tigris give one
+    region: str = "us-east-1"
+    path_style: bool = False  # MinIO needs path-style addressing
+
+
 class Storage(BaseModel):
+    adapter: Literal["local", "s3"] = "local"
     local_dir: str = "var/storage"  # relative to the repository root
     max_upload_bytes: int = 20_971_520  # scanned documents and attachments (security-baseline 8.2)
+    s3: S3 = S3()
+    scanner: Literal["noop", "clamd"] = "noop"  # noop is refused outside dev and test
+    clamd_host: str = "127.0.0.1"
+    clamd_port: int = 53310
+    # Origin serving the public prefix t/*/public/* (logos) straight from the bucket or a CDN; None means the
+    # app's /public/objects route serves them (platform.branding).
+    public_base_url: str | None = None
+
+
+class Support(BaseModel):
+    operator_email: str = "support@facilityhub.localhost"  # ONB-03 support requests go here
+
+
+class Imports(BaseModel):
+    """CSV imports (Phase 8 I1)."""
+
+    max_opening_balance_minor: int = 10_000_000  # one opening balance, owed or credit: 100,000.00 in the currency
+    stalled_minutes: int = 60  # a running import with no progress this long is marked failed (its files can expire)
+
+
+class Entitlements(BaseModel):
+    default_plan: str = "complete"  # subscription_plan.code for new tenants and tenants without a plan (PLT-14)
 
 
 class Settings(BaseModel):
@@ -138,6 +201,10 @@ class Settings(BaseModel):
     audit: Audit
     integrations: Integrations = Integrations()
     storage: Storage = Storage()
+    retention: Retention = Retention()
+    entitlements: Entitlements = Entitlements()
+    support: Support = Support()
+    imports: Imports = Imports()
 
     def db_url(self, role: str) -> str:
         """role is owner, app or platform; the password comes from FH_DB_<ROLE>_PASSWORD."""
@@ -147,6 +214,28 @@ class Settings(BaseModel):
     @property
     def operator_token(self) -> str:
         return os.environ.get("FH_OPERATOR_TOKEN", "")
+
+
+# Dev and test only: a fixed data key so a fresh checkout works (core.crypto). Refused anywhere else, as are the
+# values that were ever committed as examples (they are public) and an operator token short enough to guess.
+DEV_DATA_KEY = "ZmFjaWxpdHlodWItZGV2LW9ubHktZGF0YS1rZXktMzI="  # base64 of b"facilityhub-dev-only-data-key-32"
+_EXAMPLE_DATA_KEYS = {DEV_DATA_KEY, "VwpXfRnSkcoF5/q6HdE+0q6UoYCTPLxCXfp2XaacPsw="}
+_EXAMPLE_OPERATOR_TOKENS = {"dev-operator-token", "stack-operator-token"}
+MIN_OPERATOR_TOKEN_LENGTH = 32
+
+
+def _refuse_example_secrets() -> None:
+    data_key = os.environ.get("FH_DATA_KEY", "").strip()
+    if not data_key or data_key in _EXAMPLE_DATA_KEYS:
+        # It seals TOTP secrets, OIDC client secrets and webhook and integration credentials, and keys the file
+        # URL and recovery-code MACs: a known key gives all of them away.
+        raise RuntimeError("outside dev and test, FH_DATA_KEY must be set to a generated key, not a dev or example one")
+    token = os.environ.get("FH_OPERATOR_TOKEN", "")
+    if token and (token in _EXAMPLE_OPERATOR_TOKENS or len(token) < MIN_OPERATOR_TOKEN_LENGTH):
+        raise RuntimeError(
+            f"outside dev and test, FH_OPERATOR_TOKEN must be empty (endpoint off) or a generated value of at least "
+            f"{MIN_OPERATOR_TOKEN_LENGTH} characters, never an example one"
+        )
 
 
 def _merge(base: dict, over: dict) -> dict:
@@ -202,4 +291,13 @@ def get_settings() -> Settings:
     ):
         # A live Stripe key moves real money: only a production deployment may hold one.
         raise RuntimeError(f"a live Stripe key is set but FH_ENV is {env!r}: use test-mode keys outside production")
+    if env not in ("dev", "test") and not settings.api.trusted_proxies and not settings.api.exposed_directly:
+        # Behind an unlisted proxy every client is seen as the proxy: one global sign-in bucket, and an allow-list
+        # error that tells the admin to add the proxy's address (which admits everyone).
+        raise RuntimeError("outside dev and test, set api.trusted_proxies to the proxy's address range, or set "
+                           "api.exposed_directly: true if no proxy stands in front of the API")  # fmt: skip
+    if env not in ("dev", "test"):
+        _refuse_example_secrets()
+    if env not in ("dev", "test") and settings.storage.scanner == "noop":
+        raise RuntimeError("outside dev and test, storage.scanner must not be noop: uploads must be malware-scanned")
     return settings

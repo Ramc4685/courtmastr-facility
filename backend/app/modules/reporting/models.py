@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, Index, func, text
+from sqlalchemy import CheckConstraint, Index, LargeBinary, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base, TenantOwned, Timestamps, enum_check, enum_column, tenant_args, tfk
@@ -112,3 +112,7 @@ class ExportJob(TenantOwned, Timestamps, Base):
     started_at: Mapped[datetime | None]
     finished_at: Mapped[datetime | None]
     expires_at: Mapped[datetime]
+    # Chunked rendering (core.jobs.chunked_actor): the cursor and counts, and the CSV rendered so far, cleared
+    # when the file is stored. Deviation from data-model-programs 4.4 (README).
+    progress: Mapped[dict] = mapped_column(server_default=text("'{}'"))
+    partial: Mapped[bytes | None] = mapped_column(LargeBinary, info={"audit": "never"})

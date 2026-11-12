@@ -13,6 +13,10 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Roles & permissions', to: '/roles', permission: 'platform.role.read', icon: 'shield' },
   { label: 'Activity log', to: '/audit', permission: 'platform.audit.read', icon: 'list' },
   { label: 'Settings', to: '/settings', permission: 'platform.tenant.update', icon: 'gear' },
+  { label: 'Security', to: '/settings/security', permission: 'platform.security.manage', icon: 'shield' },
+  { label: 'Plan and usage', to: '/settings/plan', permission: 'platform.tenant.update', icon: 'chart' },
+  { label: 'Import data', to: '/settings/import', permission: 'platform.import_job.read', icon: 'list' },
+  { label: 'Privacy & data', to: '/settings/privacy', permission: ['platform.security.manage', 'platform.tenant.export'], icon: 'shield' },
   { label: 'Billing & payments', to: '/billing', permission: 'billing.charge.read', icon: 'cash' },
   { label: 'Point of sale', to: '/pos', permission: 'pos.sale.read', icon: 'cart' },
   { label: 'Clients', to: '/clients', permission: 'clients.client.read', icon: 'person' },
@@ -34,6 +38,7 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Assessment setup', to: '/assessments/setup', permission: 'assessments.definition.manage', icon: 'pulse' },
   { label: 'Reports', to: '/reports', permission: REPORT_KEYS, icon: 'chart' },
   { label: 'Integrations', to: '/integrations', permission: 'integrations.connection.manage', icon: 'plug' },
+  { label: 'Help & support', to: '/support', permission: 'platform.support_request.create', icon: 'mail' },
 ]
 
 // Build modules 2-17 (docs/architecture/overview.md section 6).

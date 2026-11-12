@@ -119,7 +119,7 @@ def test_api_onboarding_fills_stripe_test_values_with_a_stable_key(http):
     assert http.calls[0]["headers"]["Idempotency-Key"] == http.calls[1]["headers"]["Idempotency-Key"]
 
 
-def test_api_onboarding_is_refused_outside_dev_and_test(monkeypatch, tmp_path):
+def test_api_onboarding_is_refused_outside_dev_and_test(monkeypatch, tmp_path, deploy_secrets):
     config = (REPO_ROOT / "config" / "app.yaml").read_text().replace("cookie_secure: false", "cookie_secure: true")
     (tmp_path / "app.yaml").write_text(config)
     (tmp_path / "app.staging.yaml").write_text(
@@ -133,10 +133,14 @@ def test_api_onboarding_is_refused_outside_dev_and_test(monkeypatch, tmp_path):
 
 @pytest.mark.parametrize("name", list(TEST_KEYS))
 @pytest.mark.parametrize("env", ["dev", "test", "staging"])
-def test_a_live_key_refuses_to_start_outside_production(monkeypatch, tmp_path, name, env):
+def test_a_live_key_refuses_to_start_outside_production(monkeypatch, tmp_path, name, env, deploy_secrets):
     config = (REPO_ROOT / "config" / "app.yaml").read_text().replace("cookie_secure: false", "cookie_secure: true")
     (tmp_path / "app.yaml").write_text(config.replace("provider: fake ", "provider: stripe "))
-    (tmp_path / f"app.{env}.yaml").write_text("email:\n  log_links: false\n")
+    overlay = (
+        "email:\n  log_links: false\nstorage:\n  scanner: clamd\n"  # outside dev and test, uploads must be scanned
+        "api:\n  exposed_directly: true\n"  # and a proxy in front must be listed
+    )
+    (tmp_path / f"app.{env}.yaml").write_text(overlay)
     monkeypatch.setenv("FH_CONFIG_DIR", str(tmp_path))
     monkeypatch.setenv("FH_ENV", env)
     live = {"FH_STRIPE_SECRET_KEY": "sk_live_x", "FH_STRIPE_PUBLISHABLE_KEY": "pk_live_x"}.get(name, "rk_live_x")
@@ -147,7 +151,7 @@ def test_a_live_key_refuses_to_start_outside_production(monkeypatch, tmp_path, n
     assert get_settings.__wrapped__().payments.provider == "stripe"  # test-mode keys start anywhere
     monkeypatch.setenv(name, live)
     monkeypatch.setenv("FH_ENV", "production")
-    (tmp_path / "app.production.yaml").write_text("email:\n  log_links: false\n")
+    (tmp_path / "app.production.yaml").write_text(overlay)
     assert get_settings.__wrapped__().env == "production"  # only production may hold a live key
 
 

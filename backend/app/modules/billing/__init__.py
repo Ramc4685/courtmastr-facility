@@ -11,3 +11,7 @@ from app.modules.billing import catalogue, methods, autopay, checkout, documents
 
 __all__ = ["autopay", "catalogue", "checkout", "documents", "methods", "models", "permissions", "service", "webhooks"]
 from app.modules.billing import subject  # noqa: E402, F401  (registers the merge and data-subject handlers)
+from app.modules.platform import onboarding  # noqa: E402
+
+onboarding.register_step("payments", label="Connect a payment provider", path="/billing/setup", order=50,
+                         done=onboarding.has_rows(models.ProviderAccount, models.ProviderAccount.status == "active"))  # fmt: skip

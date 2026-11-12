@@ -53,6 +53,10 @@ cart discounts and coupons skip the line, and it cannot be re-priced. At complet
 (`not-sold-at-register`). A package line cannot be returned or voided here: remove the package from the
 client's profile. Memberships are not sold at the till (not in the parity matrix).
 
+Imports (Phase 8 I1): `catalogue.import_product` creates or updates a product by SKU (also its product ID)
+through the staff commands, creates a missing top-level category by name, sets its own taxes by code, and writes
+a stock count as a `set` movement when it differs.
+
 ## Assumptions (written down, not asked)
 
 - **Late fees.** Charged per unit, per started day late. A loan with no `return_time` falls due at the
@@ -75,8 +79,8 @@ client's profile. Memberships are not sold at the till (not in the parity matrix
 
 ## Known gaps
 
-- `abandon_stale_drafts()` exists and is tested, but nothing schedules it yet. The worker schedule belongs to
-  the integrator.
+- `abandon_stale_drafts()` runs hourly through `jobs.abandon_stale_drafts` (app/scheduler.py); drafts idle for
+  24 hours with no money taken become `abandoned`.
 - `StockLow` is published when a sale or adjustment crosses the reorder level. The daily digest email to
   `low_stock_alert_email` is not built.
 - Not built:

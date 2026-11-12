@@ -19,12 +19,15 @@ def create_app() -> FastAPI:
     from app.modules.documents.router import router as documents_router
     from app.modules.engagement.router import public as engagement_public
     from app.modules.engagement.router import router as engagement_router
+    from app.modules.imports.router import router as imports_router
     from app.modules.integrations.router import router as integrations_router
     from app.modules.leagues.router import router as leagues_router
     from app.modules.memberships.router import public as memberships_public
     from app.modules.memberships.router import router as memberships_router
     from app.modules.packages.router import public as packages_public
     from app.modules.packages.router import router as packages_router
+    from app.modules.platform.files_router import router as files_router
+    from app.modules.platform.oidc_router import router as oidc_router
     from app.modules.platform.privacy_router import router as privacy_router
     from app.modules.platform.router import API_PREFIX, router
     from app.modules.pos.router import router as pos_router
@@ -62,8 +65,17 @@ def create_app() -> FastAPI:
     for each in (access_router, access_kiosk):
         app.include_router(each, prefix=API_PREFIX)
     app.include_router(leagues_router, prefix=API_PREFIX)
+    app.include_router(files_router, prefix=API_PREFIX)
+    app.include_router(oidc_router, prefix=API_PREFIX)
+    from app.modules.platform import entitlements_router
+    from app.modules.platform.branding_router import router as branding_router
+    from app.modules.platform.onboarding_router import router as onboarding_router
+
+    for each in (entitlements_router.router, entitlements_router.operator, branding_router, onboarding_router):
+        app.include_router(each, prefix=API_PREFIX)
     app.include_router(integrations_router, prefix=API_PREFIX)
     app.include_router(reporting_router, prefix=API_PREFIX)
+    app.include_router(imports_router, prefix=API_PREFIX)
     _document_auth(app)
     return app
 

@@ -640,7 +640,7 @@ def _render(session: Session, doc: ClientDocument) -> None:
     )  # fmt: skip
     stored = files.store(
         session, pdf.render(snapshot, signers), purpose="documents.rendered", content_type=files.PDF,
-        uploaded_by=("system", None), original_name=f"{doc.title}.pdf",
+        uploaded_by=("system", None), original_name=f"{doc.title}.pdf", generated=True,
     )  # fmt: skip
     doc.rendered_file_id = stored.id
 

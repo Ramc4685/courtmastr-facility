@@ -1,0 +1,57 @@
+# EXAMPLE ONLY: nothing here has been run, no Fly account or app exists, and `fly` was never called for this project.
+# Shape: two Fly apps. This one runs the backend image as four process groups; fly.web.toml runs the proxy and web
+# build. Postgres, Redis (Upstash) and the Tigris bucket are provisioned separately (docs/ops/deploy-fly.md).
+# Secrets are set with `fly secrets set` (FH_DB_APP_PASSWORD, FH_DB_PLATFORM_PASSWORD, FH_DATA_KEY, FH_S3_*), never here.
+app = "REPLACE-facilityhub-api"
+primary_region = "REPLACE-region"
+
+[build]
+  image = "REPLACE-registry/facilityhub-backend:REPLACE-tag"   # built and scanned by .github/workflows/deploy.yml
+
+[env]
+  FH_ENV = "production"
+
+# Non-secret settings overlay. Copy infra/docker/config/app.production.yaml next to this file as app.production.yaml
+# and change the hosts (Fly private DNS, <app>.internal / <app>.flycast), web_base_url and bucket endpoint.
+# Two different trust lists, do not mix them up:
+#   api.trusted_proxies (this app's overlay): the address range the PROXY APP reaches the API from over Fly's private
+#     network (its 6PN range; check Fly's documentation). Never the stack file's 172.29.77.250/32: that address only
+#     exists on the Compose network, and with it the API sees every client as the proxy. Startup refuses an empty list.
+#   EDGE_CIDRS and EDGE_IP_HEADER (the proxy app's env, fly.web.toml): Fly's public edge ranges and Fly-Client-IP, so the
+#     proxy puts the real client address in X-Forwarded-For (docs/ops/deploy-fly.md).
+[[files]]
+  guest_path = "/srv/fh/config/app.production.yaml"
+  local_path = "app.production.yaml"
+
+# One image, four processes: the argument is the entrypoint command (infra/docker/entrypoint.sh).
+[processes]
+  api = "api"
+  worker = "worker"
+  relay = "relay"
+  scheduler = "scheduler"
+
+# Migrations are a separate, gated step in the deploy workflow, not a release_command.
+
+# No [http_service] and no [[services]]: either would put the API on Fly's public edge. The API is reached only by the
+# proxy app over Fly's private network at <app>.internal:8100. Never allocate a public IP for this app; check with
+# `fly ips list` and release any with `fly ips release`.
+[checks.live]
+  type = "http"
+  port = 8100
+  method = "GET"
+  path = "/api/v1/health/live"
+  interval = "15s"
+  timeout = "3s"
+  grace_period = "20s"
+  processes = ["api"]
+
+# Availability: run at least two api machines in different hosts (`fly scale count api=2`); auto-stop stays off.
+
+# Exactly one of each: the relay and the scheduler must not run twice (the relay is safe to duplicate because it uses
+# row locks, the scheduler's jobs are idempotent; one is still the intended shape).
+[[vm]]
+  processes = ["api"]
+  size = "REPLACE-size"
+[[vm]]
+  processes = ["worker", "relay", "scheduler"]
+  size = "REPLACE-size"

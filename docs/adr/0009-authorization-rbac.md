@@ -171,6 +171,9 @@ then, if reach = own: the owner predicate of the aggregate must hold        (sec
   `platform.session.any_ip`, grantable on a role (the per-role bypass) or by override (the per-user "allow from
   any IP" box). `staff.time_entry.punch` re-checks the list and ignores the bypass unless the user also holds
   `staff.time_entry.punch_any_ip`. Owner always bypasses, so a bad list cannot lock the tenant out.
+  Amended 2026-11-11 (owner decision, phase 8 S4): no role or key bypasses the staff allow-list, Owners
+  included. Lock-out is prevented by refusing a list without the caller's own address and recovered by the
+  operator CLI `clear-ip-allowlist` (platform README, "Sign-in hardening").
 
 ### 5. Per-record (subject-scoped) grants (SCH-05, U-76, U-102)
 

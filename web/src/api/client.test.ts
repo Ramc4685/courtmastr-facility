@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockFetch } from '../test/fetchMock'
-import { api, ApiError, fieldErrors, setCsrfToken, setUnauthenticatedHandler } from './client'
+import { api, ApiError, fieldErrors, setCsrfToken, setStepUpHandler, setUnauthenticatedHandler } from './client'
 
 afterEach(() => {
   vi.unstubAllGlobals()
   setCsrfToken(null)
+  setStepUpHandler(null)
 })
 
 describe('api client', () => {
@@ -55,28 +56,70 @@ describe('api client', () => {
     expect(fieldErrors(error)).toEqual({ name: 'Field required' })
   })
 
-  it('refreshes once on 401 and retries with the same idempotency key and the new CSRF token', async () => {
-    let attempts = 0
-    const calls = mockFetch({
-      'POST /api/v1/staff-users/u1/deactivate': () => (++attempts === 1 ? { status: 401, body: { code: 'unauthenticated' } } : { status: 200, body: { id: 'u1' } }),
-      'POST /api/v1/auth/refresh': { status: 200, body: { csrf_token: 'csrf-2' } },
-    })
-    setCsrfToken('csrf-1')
-    await api.post('/api/v1/staff-users/{staff_user_id}/deactivate', { path: { staff_user_id: 'u1' } })
-    const [first, refresh, retry] = calls
-    expect(refresh?.url).toBe('/api/v1/auth/refresh')
-    expect(retry?.headers['idempotency-key']).toBe(first?.headers['idempotency-key'])
-    expect(retry?.headers['x-csrf-token']).toBe('csrf-2')
-  })
-
-  it('reports the session as gone when the refresh fails', async () => {
-    mockFetch({
-      'GET /api/v1/tenant': { status: 401, body: { code: 'unauthenticated' } },
-      'POST /api/v1/auth/refresh': { status: 401, body: { code: 'session-revoked' } },
-    })
+  it('ends the session on a 401: web sessions have no refresh token to trade', async () => {
+    const calls = mockFetch({ 'GET /api/v1/tenant': { status: 401, body: { code: 'unauthenticated' } } })
     const gone = vi.fn()
     setUnauthenticatedHandler(gone)
     await expect(api.get('/api/v1/tenant')).rejects.toBeInstanceOf(ApiError)
     expect(gone).toHaveBeenCalledOnce()
+    expect(calls.map((c) => c.url)).toEqual(['/api/v1/tenant'])
+  })
+
+  it('sends the pre-session token, not the session one, on sign-in (login CSRF)', async () => {
+    const calls = mockFetch({
+      'GET /api/v1/auth/pre-session': { status: 200, body: { csrf_token: 'pre-1' } },
+      'POST /api/v1/auth/sign-in': { status: 401, body: { code: 'invalid-credentials' } },
+    })
+    const gone = vi.fn()
+    setUnauthenticatedHandler(gone)
+    setCsrfToken('session-csrf')
+    const body = { email: 'a@example.com', password: 'x', audience: 'staff' as const, client_kind: 'web' as const }
+    await expect(api.post('/api/v1/auth/sign-in', { body })).rejects.toBeInstanceOf(ApiError)
+    expect(calls.find((c) => c.method === 'POST')?.headers['x-csrf-token']).toBe('pre-1')
+    expect(gone).not.toHaveBeenCalled() // a 401 from sign-in is an answer, not a lost session
+  })
+
+  it('takes a fresh pre-session token once when the old one is refused, keeping the idempotency key', async () => {
+    let issued = 0
+    let attempts = 0
+    const calls = mockFetch({
+      'GET /api/v1/auth/pre-session': () => ({ status: 200, body: { csrf_token: `pre-${++issued}` } }),
+      'POST /api/v1/auth/magic-links': () => (++attempts === 1 ? { status: 403, body: { code: 'csrf-failed' } } : { status: 202 }),
+    })
+    await api.post('/api/v1/auth/magic-links', { body: { email: 'a@example.com', audience: 'staff' } })
+    const posts = calls.filter((c) => c.method === 'POST')
+    expect(posts.map((c) => c.headers['x-csrf-token'])).toEqual(['pre-1', 'pre-2'])
+    expect(posts[1]?.headers['idempotency-key']).toBe(posts[0]?.headers['idempotency-key'])
+  })
+
+  it('asks once for a step-up, then retries each refused request with its own idempotency key', async () => {
+    let elevated = false
+    const refused = { status: 403, body: { code: 'step-up-required', detail: 'Confirm it is you.' } }
+    const calls = mockFetch({
+      'POST /api/v1/locations': () => (elevated ? { status: 201, body: { id: 'l' } } : refused),
+      'GET /api/v1/api-keys': () => (elevated ? { status: 200, body: { data: [] } } : refused),
+    })
+    const confirm = vi.fn(async () => {
+      elevated = true
+      setCsrfToken('rotated')
+      return true
+    })
+    setStepUpHandler(confirm)
+    setCsrfToken('before')
+    const body = { name: 'A', time_zone: 'UTC', country_code: 'US' }
+    const [created] = await Promise.all([api.post('/api/v1/locations', { body, idempotencyKey: 'k-9' }), api.get('/api/v1/api-keys')])
+    expect(created).toEqual({ id: 'l' })
+    expect(confirm).toHaveBeenCalledTimes(1) // concurrent refusals share one prompt
+    const posts = calls.filter((c) => c.method === 'POST')
+    expect(posts.map((c) => c.headers['idempotency-key'])).toEqual(['k-9', 'k-9'])
+    expect(posts.map((c) => c.headers['x-csrf-token'])).toEqual(['before', 'rotated'])
+  })
+
+  it('surfaces step-up-required when the user cancels the prompt', async () => {
+    const calls = mockFetch({ 'GET /api/v1/api-keys': { status: 403, body: { code: 'step-up-required' } } })
+    setStepUpHandler(async () => false)
+    const error = await api.get('/api/v1/api-keys').catch((e: unknown) => e)
+    expect((error as ApiError).code).toBe('step-up-required')
+    expect(calls).toHaveLength(1)
   })
 })

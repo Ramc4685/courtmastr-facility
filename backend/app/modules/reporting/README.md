@@ -40,7 +40,12 @@ Status per feature: `docs/status/15-reporting.md`.
 - **Row cap.** One snapshot holds at most 50,000 rows (summary plus detail). Queries fetch at most one row past
   the cap in SQL and the run fails with 422 `report-too-large`; narrow the dates or locations.
 - **Retention.** Runs and exports expire after 7 days. Expiry is computed on read (the run shows `expired`,
-  rows and downloads are 404); stored bytes are not purged yet.
+  rows and downloads are 404). The hourly `jobs.purge_expired_results` then removes the snapshot and CSV bytes
+  through `platform.files.remove` and clears the reference (Phase 8 T2; not audited, like the K2 purges).
+- **Chunked exports.** `jobs.run_export` is a `core.jobs.chunked_actor`: each message renders the next 1,000 rows
+  (`service.EXPORT_CHUNK_ROWS`) and re-sends itself. The cursor and counts sit in `export_job.progress`, the CSV
+  so far in `export_job.partial` (cleared when the file is stored), so a crash re-renders one chunk at most. While
+  it runs the job shows `running`.
 - **Revenue (RPT-03)** uses each charge's revenue date and excludes voided charges; the payment figures use the
   payment date, so the two halves are not expected to tie. Goal is an optional parameter in minor units.
 - **Deposits (RPT-04)** count `succeeded`, `disputed` and `charged_back` payments; net is received minus
@@ -58,6 +63,8 @@ Status per feature: `docs/status/15-reporting.md`.
 - `GET /export-jobs/{id}/download` is `getExportJobFile` (the kernel requires GET operation names to start with
   get, list or search) and streams the file instead of answering with a redirect to a signed URL.
 - Formats other than CSV, and the `list` and `document_batch` sources, return 422 `not-supported`.
+- `export_job` has two columns the data model does not list: `progress` (jsonb, the chunk cursor and counts) and
+  `partial` (bytea, the CSV rendered so far), for chunked rendering (migration 1211).
 - `GET /report-definitions` is a single page (the catalogue is small and code-defined).
 
 ## Not built

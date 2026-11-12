@@ -82,6 +82,7 @@ def test_tenant_row_is_private(two_tenants):
 
 _BODIES = {
     "updateLocation": {"name": "Renamed"},
+    "createImportJobDryRun": {},
     "updateSavedReport": {"name": "Renamed"},
     # access rules (phase 10 chip B)
     "setClientAccessMode": {"access_mode": "always_admit", "reason": "Isolation"},
@@ -347,6 +348,8 @@ _BODIES = {
     # integrations (module 16)
     "rotateApiKey": {},
     "updateWebhookEndpoint": {"description": "Renamed"},
+    # platform OIDC (Phase 8 S3)
+    "updateIdentityProvider": {"display_name": "Renamed"},
 }
 _ACCEPTANCE = {"content_sha256": "0" * 64, "signers": [
     {"decision": "accepted", "signer_role": "client", "signer_name": "X", "method": "checkbox"}]}  # fmt: skip
@@ -412,7 +415,7 @@ def test_every_id_route_is_covered():
         "/membership-types", "/membership-plans", "/membership-contracts", "/package-plans", "/client-packages",
         "/package-series",
         "/api-keys", "/webhook-endpoints", "/webhook-deliveries", "/external-connections", "/accounting-exports",
-        "/adapter-commands",
+        "/adapter-commands", "/import-jobs",
     ],
 )  # fmt: skip
 def test_api_lists_never_include_the_other_tenant(client, two_tenants, path):

@@ -8,5 +8,8 @@ context.
 
 from app.modules.memberships import models, permissions  # isort: skip
 from app.modules.memberships import handlers, service
+from app.modules.platform import onboarding
 
 __all__ = ["handlers", "models", "permissions", "service"]
+onboarding.register_step("offer", label="Create your first membership or program", path="/memberships", order=60,
+                         done=onboarding.has_rows(models.MembershipPlan))  # fmt: skip

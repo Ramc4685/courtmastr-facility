@@ -62,8 +62,8 @@ through `service.adapter_for`.
   later upgrade if partners need bursts.
 - `_ledger_rows` reads `ledger_entry` with SQL rather than through a billing interface, because billing has no
   journal read yet. Replace it when module 8 adds one.
-- `sweep_webhook_deliveries` exists, but nothing schedules it; deliveries rely on the job's own reschedule.
-  Wire it into the scheduler when module 17 adds periodic jobs.
+- `sweep_webhook_deliveries` runs every minute (app/scheduler.py) and re-enqueues due deliveries whose message
+  was lost; a duplicate is harmless because `attempt_delivery` locks and re-checks the row.
 - The disable email goes to the endpoint's creator, not to every Owner.
 - Not built: OAuth client-credentials and the QuickBooks OAuth round trip, `sync_mapping` per object, the
   class/account mapping screen, a `video_meeting` table and entitlement-checked join redirects, the calendar

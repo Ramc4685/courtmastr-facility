@@ -93,11 +93,25 @@ Rules a caller must know:
 - Events emitted: `billing.charge.created|reversed|voided|adjusted`, `billing.invoice.issued|paid|voided|past_due`,
   `billing.payment.processing|succeeded|failed|refunded|voided|disputed|dispute_closed`, `billing.payment_method.expiring`.
 
+Imports (Phase 8 I1): `post_opening_balance` posts an opening balance as ledger entries, never a balance write:
+owed is a charge (`source_context` imports, `source_type` opening_balance, default revenue category, no tax) on a
+system invoice; credit is an external payment that becomes account credit, on the billing-owned tender
+`system_key` = `opening_balance` (migration 1272; kind external, labelled "Opening balance", or "Opening balance
+(import)" when the tenant already has a tender of that name; created disabled on first use; reports show it apart
+from money taken that day). A tender with a `system_key` is never listed by `GET /tender-types`, never picked as a
+kind's default, refuses `PATCH` (409 `tender-system`; tenders have no delete), and takes a payment only when
+`take_payment(internal_tender=True)` is passed, which only `post_opening_balance` does and no router can. Its
+label carries no meaning: a tenant tender renamed "Opening balance" is an ordinary tender.
+with the import job as its `external_reference` and the importing staff user's id in its audit row. Both are
+idempotent on the key the importer passes (the resolved client, as-of date, direction and amount, never the job),
+and say whether they posted (`created`). `take_payment` gained `audit_changes` (merged into its one audit row).
+`tax_ids_by_code` resolves tax codes without case.
+
 ## Jobs
 
 `webhooks.process_provider_event` (enqueued by the webhook route), `webhooks.billing_daily` (per tenant:
-`autopay.daily` then `webhooks.reconcile`). **Nothing schedules `billing_daily` yet**: the kernel has no
-scheduler or per-tenant fan-out. Until it does, autopay runs when staff start a run (`POST /autopay-runs`).
+`autopay.daily` then `webhooks.reconcile`). `app/scheduler.py` enqueues `billing_daily` hourly per tenant
+(`EVERY_HOUR`); staff can still start a run by hand (`POST /autopay-runs`).
 
 ## Assumptions and deviations (the specs win where they are silent; these are the places we chose)
 

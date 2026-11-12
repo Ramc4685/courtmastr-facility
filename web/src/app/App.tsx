@@ -4,11 +4,13 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { ToastProvider } from '../components/Toast'
 import { SignInPage } from '../features/auth/SignInPage'
+import { StepUpDialog } from '../features/auth/StepUpDialog'
 import { ClientPickerDemo } from '../features/clients/ClientPickerDemo'
 import { ClientProfilePage } from '../features/clients/ClientProfilePage'
 import { ClientsPage } from '../features/clients/ClientsPage'
 import { MergePage } from '../features/clients/MergePage'
 import { TokenLinkPage } from '../features/auth/TokenLinkPage'
+import { OidcCallbackPage, OidcLinkPage } from '../features/auth/oidc'
 import { IntegrationsPage } from '../features/integrations/IntegrationsPage'
 import { PayLinkPage } from '../features/billing/PayLinkPage'
 import { AutomationsPage, RemindersPage } from '../features/engagement/AutomationPages'
@@ -29,11 +31,18 @@ import { PackagesPage } from '../features/packages/PackagesPage'
 import { PortalApp } from '../features/portal/PortalApp'
 import { AuditLogPage } from '../features/platform/AuditLogPage'
 import { DashboardPage } from '../features/platform/DashboardPage'
+import { WhatsNewPage } from '../features/platform/WhatsNewPage'
 import { LocationsPage } from '../features/platform/LocationsPage'
 import { RoleDetailPage } from '../features/platform/RoleDetailPage'
 import { RolesPage } from '../features/platform/RolesPage'
 import { StaffUserPage } from '../features/platform/StaffUserPage'
 import { StaffUsersPage } from '../features/platform/StaffUsersPage'
+import { PrivacyPage } from '../features/platform/PrivacyPage'
+import { SecuritySettingsPage } from '../features/platform/SecuritySettingsPage'
+import { PlanUsagePage } from '../features/platform/PlanUsagePage'
+import { ImportDataPage } from '../features/imports/ImportDataPage'
+import { SupportPage } from '../features/platform/SupportPage'
+import { AccountSecurityPage } from '../features/platform/AccountSecurityPage'
 import { TenantSettingsPage } from '../features/platform/TenantSettingsPage'
 import { RentalSetupPage } from '../features/rentals/RentalSetupPage'
 import { RentalsPage } from '../features/rentals/RentalsPage'
@@ -99,6 +108,8 @@ export function AppRoutes() {
       <Route path="/auth/magic-link" element={<TokenLinkPage purpose="magic-link" />} />
       <Route path="/auth/reset-password" element={<TokenLinkPage purpose="reset-password" />} />
       <Route path="/auth/accept-invite" element={<TokenLinkPage purpose="accept-invite" />} />
+      <Route path="/auth/oidc/callback" element={<OidcCallbackPage />} />
+      <Route path="/auth/oidc/link" element={<OidcLinkPage />} />
       <Route path="/pay" element={<PayLinkPage />} />
       <Route path="/sign" element={<PublicSignPage />} />
       <Route path="/unsubscribe" element={<UnsubscribePage />} />
@@ -112,6 +123,7 @@ export function AppRoutes() {
       <Route element={<RequireStaff><AppFrame /></RequireStaff>}>
         <Route index element={<DashboardPage />} />
         <Route path="locations" element={<LocationsPage />} />
+        <Route path="whats-new" element={<WhatsNewPage />} />
         <Route path="staff" element={<RequirePermission permission="platform.staff_user.read"><StaffUsersPage /></RequirePermission>} />
         <Route path="staff/:id" element={<RequirePermission permission="platform.staff_user.read"><StaffUserPage /></RequirePermission>} />
         <Route path="roles" element={<RequirePermission permission="platform.role.read"><RolesPage /></RequirePermission>} />
@@ -119,6 +131,12 @@ export function AppRoutes() {
         <Route path="audit" element={<RequirePermission permission="platform.audit.read"><AuditLogPage /></RequirePermission>} />
         <Route path="integrations" element={<IntegrationsPage />} />
         <Route path="settings" element={<RequirePermission permission="platform.tenant.update"><TenantSettingsPage /></RequirePermission>} />
+        <Route path="account/security" element={<AccountSecurityPage />} />
+        <Route path="settings/security" element={<RequirePermission permission="platform.security.manage"><SecuritySettingsPage /></RequirePermission>} />
+        <Route path="settings/plan" element={<RequirePermission permission="platform.tenant.update"><PlanUsagePage /></RequirePermission>} />
+        <Route path="settings/import" element={<RequirePermission permission="platform.import_job.read"><ImportDataPage /></RequirePermission>} />
+        <Route path="settings/privacy" element={<RequirePermission permission={['platform.security.manage', 'platform.tenant.export']}><PrivacyPage /></RequirePermission>} />
+        <Route path="support" element={<RequirePermission permission="platform.support_request.create"><SupportPage /></RequirePermission>} />
         <Route path="billing" element={<RequirePermission permission="billing.charge.read"><BillingLayout /></RequirePermission>}>
           <Route index element={<WorkbenchPage />} />
           <Route path="clients" element={<ClientBillingLookupPage />} />
@@ -207,6 +225,7 @@ export function App() {
           <BrowserRouter future={ROUTER_FUTURE}>
             <AppRoutes />
           </BrowserRouter>
+          <StepUpDialog />
         </ToastProvider>
       </AuthProvider>
     </QueryClientProvider>

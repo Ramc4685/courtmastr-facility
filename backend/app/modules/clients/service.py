@@ -754,8 +754,9 @@ def get_client(session: Session, principal: Principal, client_id: UUID) -> Clien
 
 
 def _create(
-    session: Session, principal: Principal, data: dict, *, context: str, created_via: str, verify: bool
-) -> Client:
+    session: Session, principal: Principal, data: dict, *, context: str, created_via: str, verify: bool,
+    import_job_id: UUID | None = None,
+) -> Client:  # fmt: skip
     data = dict(data)
     emails = data.pop("emails", None)
     primary = data.pop("primary_email", None)
@@ -765,6 +766,7 @@ def _create(
     custom = data.pop("custom_values", None) or {}
     for key in [k for k, v in data.items() if v is None]:
         data.pop(key)
+    platform.entitlements.enforce_limit(session, "clients")  # every create path (staff, portal, import) meets here
     _check_refs(session, data)
     check_capture(session, context, _policy_values(data, emails or [], custom))
     settings = settings_row(session)
@@ -791,8 +793,14 @@ def _create(
         session, "clients.client.create", client, location_id=client.home_location_id,
         changes={"home_location_id": [None, str(client.home_location_id)], "created_via": [None, created_via]},
     )  # fmt: skip
-    events.publish(session, ClientCreated(client_id=client.id), client.id)
+    source = "import" if created_via == "import" else None
+    events.publish(session, ClientCreated(client_id=client.id, source=source, import_job_id=import_job_id), client.id)
     return client
+
+
+def count_active_clients(session: Session) -> int:
+    """Internal: the PLT-14 metered count (merged clients are disabled, so they are not counted)."""
+    return session.execute(select(func.count()).where(Client.status == "active")).scalar_one()
 
 
 def create_client(session: Session, principal: Principal, data: dict) -> Client:
@@ -889,6 +897,7 @@ def enable_client(session: Session, principal: Principal, client_id: UUID) -> Cl
     _require_live(client)
     if client.status == "active":
         raise Conflict("This client is already active.")
+    platform.entitlements.enforce_limit(session, "clients")
     disabled_at = client.disabled_at
     client.status, client.disabled_at, client.disabled_by_staff_user_id = "active", None, None
     changes = audit.diff(client)
@@ -1119,14 +1128,17 @@ def ensure_member_number(session: Session, client_id: UUID) -> str | None:
     return client.member_number
 
 
-def import_client(session: Session, data: dict) -> tuple[Client, bool]:
+def import_client(session: Session, data: dict, *, import_job_id: UUID | None = None) -> tuple[Client, bool]:
     """Importer entry point (IMP-01): match on member number, then on a single client with the same primary
     email and names; update that client, else create one (created_via `import`, no verification email).
+    A new record that the duplicate rule (`_duplicate_of`) pairs with an existing client is refused with 409
+    `possible-duplicate`, so an import never adds a likely duplicate. An update keeps the home location, member
+    number and primary email; a new email is added as a secondary address (primary only when there was none).
     Returns (client, created). Field policy is the staff context; the caller runs it per row in a savepoint."""
     actor = session.info["actor"]
     match = None
     if data.get("member_number"):
-        match = session.scalar(select(Client).where(Client.member_number == data["member_number"]))
+        match = find_by_member_number(session, data["member_number"])
     if match is None and data.get("primary_email"):
         found = list(
             session.scalars(
@@ -1140,17 +1152,21 @@ def import_client(session: Session, data: dict) -> tuple[Client, bool]:
         )
         match = found[0] if len(found) == 1 else None
     if match is None:
-        return _create(session, actor, data, context="staff", created_via="import", verify=False), True
-    update = {k: v for k, v in data.items() if k not in ("primary_email", "member_number") and v is not None}
-    if data.get("primary_email"):
-        current = [
-            {"email": e, "is_primary": e == data["primary_email"].lower()} for e in client_addresses(session, match.id)
+        client = _create(session, actor, data, context="staff", created_via="import", verify=False,
+                         import_job_id=import_job_id)  # fmt: skip
+        other, predicate = _duplicate_of()
+        if session.scalar(select(other.id).join(Client, predicate).where(Client.id == client.id).limit(1)):
+            raise Conflict("This person looks like a client who already exists.", code="possible-duplicate")
+        return client, True
+    skip = ("primary_email", "member_number", "home_location_id")
+    update = {k: v for k, v in data.items() if k not in skip and v is not None}
+    current = client_addresses(session, match.id)
+    if data.get("primary_email") and data["primary_email"].lower() not in current:
+        # An import never changes an existing client's primary email: a new address is added as a secondary one.
+        primary = (match.primary_email or "").lower()
+        update["emails"] = [{"email": e, "is_primary": e == primary} for e in current] + [
+            {"email": data["primary_email"], "is_primary": not current}
         ]
-        if data["primary_email"].lower() not in [e["email"] for e in current]:
-            current.append({"email": data["primary_email"], "is_primary": True})
-            for e in current[:-1]:
-                e["is_primary"] = False
-        update["emails"] = current
     changes = apply_update(session, match, update, context="staff", actor_staff_id=None)
     if changes:
         audit.record(session, "clients.client.update", match, location_id=match.home_location_id, changes=changes)
@@ -1209,6 +1225,12 @@ def find_by_member_number(session: Session, value: str) -> Client | None:
     return session.scalar(
         select(Client).where(func.upper(Client.member_number) == value.upper(), Client.merged_into_id.is_(None))
     )
+
+
+def find_by_primary_email(session: Session, address: str) -> list[Client]:
+    """Internal (imports): live clients whose primary email is this address, compared without case."""
+    stmt = select(Client).where(Client.primary_email == address, Client.merged_into_id.is_(None)).limit(2)
+    return list(session.scalars(stmt))
 
 
 def find_by_last_name_prefix(session: Session, prefix: str, limit: int) -> list[Client]:

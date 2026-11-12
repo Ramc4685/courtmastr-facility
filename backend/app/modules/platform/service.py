@@ -13,15 +13,16 @@ from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from app.core import audit, clock, events
+from app.core import audit, clock, context, events, networks
 from app.core.audit import AuditEvent
 from app.core.auth import Principal, authorize, passwords, scope_query, system_principal
 from app.core.db import platform as platform_db
 from app.core.db.session import tenant_session
-from app.core.errors import Conflict, NotFound, ValidationFailed
+from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.ids import new_id
 from app.core.pagination import ListQuery, paginate
-from app.modules.platform import staff
+from app.core.settings import get_settings
+from app.modules.platform import entitlements, staff
 from app.modules.platform.events import LocationCreated, TenantCreated
 from app.modules.platform.models import (
     FacilityHours,
@@ -78,6 +79,104 @@ def minor_age(session: Session) -> int:
     return value if type(value) is int and 1 <= value <= 99 else 18
 
 
+# --- security settings (PLT-07) -----------------------------------------------------------------------------
+
+
+_MFA_STRENGTH = {"optional": 0, "privileged": 1, "all": 2}
+
+
+def _security_view(tenant) -> dict:
+    return {
+        "staff_ip_allowlist": [str(net) for net in tenant.staff_ip_allowlist],
+        "staff_mfa_policy": tenant.staff_mfa_policy,
+        "staff_idle_timeout_min": tenant.staff_idle_timeout_min or get_settings().auth.sessions["staff_web"].idle_min,
+    }
+
+
+def get_security_settings(session: Session, principal: Principal) -> dict:
+    authorize(principal, "platform.security.manage")
+    return _security_view(get_tenant(session))
+
+
+def _seen_as_proxy(address: str | None) -> bool:
+    proxies = get_settings().api.trusted_proxies
+    return networks.contains(networks.NOT_A_CLIENT, address) or networks.contains(proxies, address)
+
+
+def _refuse_unreachable_networks(allowed: list[str]) -> None:
+    """An entry covering a private, loopback or link-local range, or a trusted proxy, would match the proxy
+    rather than a facility: every client behind it would pass. Refused with the index of the entry."""
+    proxies = get_settings().api.trusted_proxies
+    for index, network in enumerate(allowed):
+        if networks.overlaps(network, proxies):
+            raise ValidationFailed(
+                "That range includes this service's own proxy, so it would let everyone in. List your facility's "
+                "public address instead.", code="ip-allowlist-not-public", pointer=f"/staff_ip_allowlist/{index}",
+            )  # fmt: skip
+        if networks.overlaps(network, networks.NOT_A_CLIENT):
+            raise ValidationFailed(
+                "Private, loopback and link-local addresses never reach us from the internet. List your facility's "
+                "public address instead.", code="ip-allowlist-not-public", pointer=f"/staff_ip_allowlist/{index}",
+            )  # fmt: skip
+
+
+def update_security_settings(session: Session, principal: Principal, data: dict) -> dict:
+    """Staff IP allow-list, MFA policy and staff idle timeout. The key carries `+`, so the caller re-authenticated
+    in the last 10 minutes. A non-empty allow-list must contain the caller's own address, so nobody can lock
+    themselves (or an Owner) out from where they stand; an empty list lifts the restriction. Weakening the MFA
+    policy is for an Owner only (owner decision 3)."""
+    authorize(principal, "platform.security.manage")
+    tenant = get_tenant(session)
+    policy = data.get("staff_mfa_policy")
+    if policy and _MFA_STRENGTH[policy] < _MFA_STRENGTH[tenant.staff_mfa_policy] and not principal.is_owner:
+        raise PermissionDenied("Only an Owner can relax the two-step verification policy.", code="owner-only")
+    policy_changes = {}  # policy values are not personal data: audited as values
+    if policy and policy != tenant.staff_mfa_policy:
+        policy_changes["staff_mfa_policy"] = [tenant.staff_mfa_policy, policy]
+        tenant.staff_mfa_policy = policy
+    idle = data.get("staff_idle_timeout_min")
+    if idle is not None and idle != tenant.staff_idle_timeout_min:
+        policy_changes["staff_idle_timeout_min"] = [tenant.staff_idle_timeout_min, idle]
+        tenant.staff_idle_timeout_min = idle
+    before = [str(net) for net in tenant.staff_ip_allowlist]
+    if data.get("staff_ip_allowlist") is not None:
+        allowed = networks.normalize(data["staff_ip_allowlist"], "/staff_ip_allowlist")
+        _refuse_unreachable_networks(allowed)
+        here = context.client_ip.get()
+        if allowed and not networks.contains(allowed, here):
+            if _seen_as_proxy(here):
+                raise ValidationFailed(
+                    f"We see your address as {here}, a proxy or private address, so an allow-list cannot work yet. "
+                    "Ask your operator to list the proxy in api.trusted_proxies.",
+                    code="ip-allowlist-proxy-misconfigured", pointer="/staff_ip_allowlist",
+                )  # fmt: skip
+            raise ValidationFailed(
+                f"Add the address you are using now ({here or 'unknown'}), or you would be locked out.",
+                code="ip-allowlist-excludes-you", pointer="/staff_ip_allowlist",
+            )  # fmt: skip
+        tenant.staff_ip_allowlist = allowed
+    after = [str(net) for net in tenant.staff_ip_allowlist]
+    if after != before:
+        policy_changes["staff_ip_allowlist"] = [before, after]
+    if policy_changes:
+        audit.record(session, "platform.security.manage", tenant, changes=policy_changes)
+    session.flush()
+    return _security_view(tenant)
+
+
+def clear_staff_ip_allowlist(session: Session, principal: Principal) -> list[str]:
+    """Operator break-glass for a tenant locked out by its own allow-list (`python -m app.cli
+    clear-ip-allowlist`); no role bypasses the list. Returns the list it removed."""
+    authorize(principal, "platform.security.manage")
+    tenant = get_tenant(session)
+    before = [str(net) for net in tenant.staff_ip_allowlist]
+    if before:
+        tenant.staff_ip_allowlist = []
+        audit.record(session, "platform.security.manage", tenant, changes={"staff_ip_allowlist": [before, []]})
+        session.flush()
+    return before
+
+
 # --- locations ---------------------------------------------------------------------------------------------
 
 
@@ -120,6 +219,7 @@ def get_location(session: Session, principal: Principal, location_id: UUID) -> L
 def create_location(session: Session, principal: Principal, data: dict) -> Location:
     """Create a location and its seven facility_hours rows."""
     authorize(principal, "platform.location.create")
+    entitlements.enforce_limit(session, "locations")
     check_time_zone(data["time_zone"], "/time_zone")
     data = {
         "public_name": data["name"],
@@ -289,7 +389,8 @@ def get_me(session: Session, principal: Principal) -> dict:
         "tenant": get_tenant(session),
         "role": None,
         "permissions": None,
-        "entitlements": [],
+        # Usage counts are tenant figures, so only staff see the limits; everyone sees the features.
+        "entitlements": entitlements.summary(session, limits=principal.kind == "staff"),
     }
     if principal.kind != "staff":
         if principal.kind == "client" and _client_ids_resolver is not None:
@@ -344,6 +445,7 @@ def onboard_tenant(
     )
     try:
         with tenant_session(tenant_id, actor=system_principal("platform.onboard_tenant")) as session:
+            get_tenant(session).subscription_plan_id = entitlements.default_plan(session).id
             roles = staff.ensure_system_roles(session)
             identity = Identity(kind="staff", email=owner_email, status="invited")
             if owner_password:

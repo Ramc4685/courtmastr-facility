@@ -34,8 +34,10 @@ Catalogue rules:
   most of it is published on the portal). Exceptions with explicit keys: pay and commission rates, padlock
   combinations, integration credentials, provider settings.
 - Level-typed permissions (PLT-06) are separate keys per level, not an enum on the grant.
-- Permission checks run after the entitlement gate (PLT-14): a module the tenant's plan does not include
-  returns `404 feature-disabled` whatever the role says.
+- Permission checks run after the entitlement gate (PLT-14): a feature the tenant's plan does not include
+  returns `403 feature-not-in-plan` whatever the role says (`platform/entitlements.py::require_feature`; Phase 8
+  T1 chose 403 so the web can tell a plan matter from a missing record). Only `api_access` and `branded_app`
+  are gated today.
 
 Tables (elaborating the `platform` rows in overview section 2; DDL belongs to `data-model.md`):
 
@@ -53,16 +55,19 @@ Tables (elaborating the `platform` rows in overview section 2; DDL belongs to `d
 
 `authorize(principal, perm, location_id=None, subject_id=None, record=None)` for a staff principal:
 
-1. Principal active, session valid, IP allow-list satisfied unless the principal holds
-   `platform.security.bypass_ip_allowlist` (PLT-07; unknowns "IP restriction scope": tenant-wide, checked at
-   sign-in and on every request).
+1. Principal active, session valid, IP allow-list satisfied (PLT-07; unknowns "IP restriction scope":
+   tenant-wide, checked at sign-in and on every request; no role bypasses it, Owners included; break-glass is
+   the operator CLI `clear-ip-allowlist`).
 2. Entitlement gate for the permission's module.
-3. Owner role: allow (all keys, all locations, all subjects, reach `all`). Stop.
+3. Owner role: holds every key, all locations, all subjects, reach `all`; skip to step 8.
 4. Grant = `user_permission_override` row if present, else `role_permission` row. No row or `deny`: `403`.
 5. Scope check (section 3.1). Out of scope: `404`.
 6. Subject check if the key declares a subject type (section 3.3). Fail: `403`.
 7. Reach check if the grant's reach is `own` (section 3.2). Fail: `404` on reads, `403` on writes.
-8. If the key carries a `+` flag: session must have re-authenticated within 15 minutes, else `401 step-up-required`.
+8. If the key carries a `+` flag: the session must have re-authenticated within the last 10 minutes
+   (`auth.step_up_min`), else `403 step-up-required`. This applies to Owners too; only the system principal
+   skips it, and an API key never satisfies it (`core/auth/permissions.py::check_step_up`, Phase 8 S2). A 403,
+   not a 401, so clients do not read it as "signed out".
 
 `scope_query(stmt, principal, perm)` applies steps 5 to 7 as predicates on every list query. Permissions are
 never embedded in the session token; they are resolved per request from `(role_id, role.version)` plus the
@@ -137,7 +142,7 @@ Keys that declare `subj:<type>` can be granted for all subjects or a listed subs
 |---|---|---|
 | `$` | Money out or receivable destruction: refund, payment void, invoice or charge void, reversal, manual credit | mandatory reason code + free text; idempotency key; negating ledger entry, never an update; daily digest to Owner |
 | `P` | Price override, ad-hoc discount, complimentary grant, contract term customisation | reason required; original and overridden amounts stored on the line with the overriding user (POS-09) |
-| `X` | Bulk data export | async export job, file under signed 15-minute URL, export logged with row count and filter (overview 3.10) |
+| `X` | Bulk data export | async export job, file through the gated download route or a signed 5-minute URL (`files.download_url`, used by the tenant export), export logged with row count and filter (overview 3.10) |
 | `G` | GDPR data-subject export or erasure | typed confirmation, `data_subject_request` row, erasure is anonymisation that keeps ledger rows (IMP-04) |
 | `I` | Impersonation and support access | banner in the acting session, every request audited with both identities, 30-minute cap |
 | `W` | Payroll, pay rates, commission rates, time-entry edits | pay figures masked without the key (section 8) |
@@ -146,7 +151,7 @@ Keys that declare `subj:<type>` can be granted for all subjects or a listed subs
 | `D` | Irreversible or wide blast radius: merge, series delete, schedule generation, bulk import | preview required before commit where the service supports it (SCH-09) |
 | `B` | Bulk outbound communication | suppression and consent enforced server-side (MKT-08, MKT-09) |
 | `H` | Health or special-category personal data | field-level masking (section 8) |
-| `+` | Step-up | re-authentication within the last 15 minutes |
+| `+` | Step-up | re-authentication within the last 10 minutes (MFA code if enrolled, else password, or the OIDC provider round trip); else `403 step-up-required`, Owners included |
 | `OD` | Owner-default | only Owner holds it by default; Owner may grant it by override or custom role |
 | `OO` | Owner-only | never grantable, not in the role editor, not an API scope |
 
@@ -188,6 +193,7 @@ Cells: `Y` granted (reach all), `own` granted with reach own, `-` not granted. O
 | `platform.tenant.manage_subscription` | T | OO | | - | - | - | - | - | - | - | PLT-14 |
 | `platform.tenant.transfer_ownership` | T | OO + | | - | - | - | - | - | - | - | PLT-11 |
 | `platform.tenant.close` | T | OO D + | | - | - | - | - | - | - | - | our design |
+| `platform.tenant.export` | T | OO X + | | - | - | - | - | - | - | - | IMP-04 (Phase 8 T2: the whole account as a zip) |
 | `platform.location.create` | T | A | | Y | - | - | - | - | - | - | PLT-01 |
 | `platform.location.update` | L | | | Y | Y | - | - | - | - | - | RES-01, RES-02, PLT-08 |
 | `platform.location.archive` | T | A D | | Y | - | - | - | - | - | - | PLT-01 |
@@ -196,13 +202,14 @@ Cells: `Y` granted (reach all), `own` granted with reach own, `-` not granted. O
 | `platform.staff_user.update` | T | A | | Y | - | - | - | - | - | - | PLT-02 |
 | `platform.staff_user.deactivate` | T | A | | Y | - | - | - | - | - | - | PLT-02 |
 | `platform.staff_user.reset_credentials` | T | A | | Y | - | - | - | - | - | - | PLT-03 |
+| `platform.staff_user.reset_mfa` | T | A + | | Y | - | - | - | - | - | - | PLT-03, ADR 0002 s6 |
 | `platform.staff_user.assign_role` | T | A + | | Y | - | - | - | - | - | - | PLT-05 |
 | `platform.staff_user.assign_locations` | T | A | | Y | - | - | - | - | - | - | PLT-13 |
 | `platform.staff_user.override_permissions` | T | A + | | Y | - | - | - | - | - | - | PLT-05, SCH-05 |
 | `platform.role.read` | T | | | Y | Y | - | - | - | - | - | PLT-04 |
 | `platform.role.manage` | T | A + | | Y | - | - | - | - | - | - | PLT-04, PLT-06 |
 | `platform.security.manage` | T | A + | | Y | - | - | - | - | - | - | PLT-07 (IP allow-list, password and session policy, OIDC) |
-| `platform.security.bypass_ip_allowlist` | T | A | | Y | - | - | - | - | - | - | PLT-07, POS-01 |
+| `platform.identity_provider.manage` | T | OO + | | - | - | - | - | - | - | - | PLT-07 (OIDC providers; Phase 8 S3 review: a provider decides who can sign in, so not Admin) |
 | `platform.audit.read` | L | | | Y | Y | - | - | - | - | - | PLT-17, BIL-09 |
 | `platform.audit.export` | T | X | | Y | - | - | - | - | - | - | PLT-17 |
 | `platform.client_session.impersonate` | T | I + | | Y | - | - | - | - | - | - | our design (support view of the portal) |
@@ -211,7 +218,8 @@ Cells: `Y` granted (reach all), `own` granted with reach own, `-` not granted. O
 | `platform.data_subject_request.export` | T | G X | | Y | - | - | - | - | - | - | IMP-04, PLT-16 |
 | `platform.data_subject_request.erase` | T | G D OD + | | - | - | - | - | - | - | - | IMP-04 (dedicated permission) |
 | `platform.import_job.read` | T | | | Y | Y | - | - | - | - | - | IMP-01 |
-| `platform.import_job.run` | T | D | | Y | - | - | - | - | - | - | IMP-01, IMP-02 |
+| `platform.import_job.run` | T | D + | | Y | - | - | - | - | - | - | IMP-01, IMP-02 |
+| `platform.support_request.create` | T | | | Y | Y | - | - | - | - | - | ONB-03 (Phase 8 T2: contact support, see one's own requests) |
 
 Impersonation is client-only and read-only: staff may open the portal as a client to see what the client
 sees; purchases, payment-method changes and document signing are blocked in that session. Rejected:
@@ -520,6 +528,7 @@ allow-list (STF-06, PLT-07).
 | `engagement.campaign.edit` | L | | | Y | Y | - | - | - | - | - | PLT-06 Editor, MKT-04, MKT-05, MKT-06, MKT-11 |
 | `engagement.campaign.create` | L | | | Y | Y | - | - | - | - | - | PLT-06 Publisher, MKT-03 |
 | `engagement.campaign.send` | L | B | | Y | Y | - | - | - | - | - | PLT-06 Publisher, MKT-09, MKT-12 |
+| `engagement.campaign.send_all` | L | B | | Y | Y | - | - | - | - | - | PLT-06 (Phase 8 T2: an all-clients audience, filtered or not) |
 | `engagement.sms_campaign.send` | L | B | | Y | Y | - | - | - | - | - | MKT-15, MKT-23 |
 | `engagement.push.send` | L | B | | Y | Y | - | - | - | - | - | MKT-16, MKT-17, PLT-13 ("send notifications for this location") |
 | `engagement.message.send_direct` | C | | own | Y | Y | Y | own | Y | - | - | MKT-10 |
@@ -531,7 +540,8 @@ allow-list (STF-06, PLT-07).
 | `engagement.suppression.manage` | T | | | Y | - | - | - | - | - | - | MKT-08 (un-suppress is a compliance act) |
 
 PLT-06 levels map to key sets: Viewer = `read`; Editor = `read` + `edit`; Publisher = all four. The role editor
-presents them as one four-way control. Divergence from MKT-10: a single direct email needs only
+presents them as one four-way control. `send_all` (Phase 8 T2) is separate from the levels: a sender also needs it
+when the audience has an all-clients source (filters do not waive it), so a role can send to segments only. Divergence from MKT-10: a single direct email needs only
 `send_direct`, not a campaign level.
 
 ### 6.16 assessments

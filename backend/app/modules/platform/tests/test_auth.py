@@ -246,6 +246,30 @@ def test_change_own_password(client, tenant):
     assert _sign_in(client, tenant, password="another-long-passphrase").status_code == 200
 
 
+def test_password_change_guesses_count_toward_lockout_and_are_rate_limited(client, tenant, monkeypatch):
+    """A stolen non-elevated session cannot guess the current password indefinitely: each wrong guess counts
+    toward the sign-in lockout (persisted past the rollback), a locked identity is refused even with the right
+    password, and the step-up buckets limit the attempts."""
+    from app.core.settings import get_settings
+
+    here = login(client, tenant, elevated=False)
+    guess = {"current_password": "nope", "new_password": "another-long-passphrase"}
+    for _ in range(get_settings().auth.lockout_threshold):
+        assert client.post(f"{API}/auth/password", headers=here, json=guess).json()["code"] == "invalid-credentials"
+    right = guess | {"current_password": PASSWORD}
+    locked = client.post(f"{API}/auth/password", headers=here, json=right)
+    assert locked.status_code == 403 and locked.json()["code"] == "identity-locked"
+    assert _sign_in(client, tenant).json()["code"] == "identity-locked"  # the same lock as sign-in
+
+    cfg = get_settings().rate_limit
+    monkeypatch.setattr(cfg, "enabled", True)
+    monkeypatch.setitem(
+        cfg.buckets, "step-up-identity", cfg.buckets["step-up-identity"].model_copy(update={"limit": 1})
+    )
+    client.post(f"{API}/auth/password", headers=here, json=guess)
+    assert client.post(f"{API}/auth/password", headers=here, json=guess).json()["code"] == "rate-limited"
+
+
 def test_password_change_sends_a_notification(client, tenant, mailbox):
     here = login(client, tenant)
     body = {"current_password": PASSWORD, "new_password": "another-long-passphrase"}
@@ -269,7 +293,7 @@ def test_first_password_needs_a_fresh_magic_link_session(client, tenant, owner, 
 
     # A magic-link session older than the proof window cannot set a first password (stolen-session case).
     stale = magic_link_session()
-    with clock.freeze(clock.now() + timedelta(minutes=16)):
+    with clock.freeze(clock.now() + timedelta(minutes=11)):  # the step-up window (auth.step_up_min), not 15
         assert refused(client.post(f"{API}/auth/password", headers=stale, json=body))
     # Nor can a session established some other way, however fresh: here an invite accepted without a password.
     invite = {"email": f"new@{tenant.slug}.example.com", "first_name": "N", "last_name": "U"}
@@ -291,8 +315,10 @@ def test_web_session_uses_cookies_and_csrf(client, tenant):
     response = _sign_in(client, tenant)  # client_kind defaults to web
     body = response.json()
     assert "access_token" not in body and "refresh_token" not in body
-    set_cookie = response.headers["set-cookie"].lower()
-    assert "fh_access=" in set_cookie and "httponly" in set_cookie and "samesite=lax" in set_cookie
+    # One cookie, nothing but Path, HttpOnly and SameSite (Secure and the __Host- prefix follow cookie_secure).
+    (set_cookie,) = response.headers.get_list("set-cookie")
+    name, _, rest = set_cookie.partition("=")
+    assert name == "fh_session" and sorted(rest.lower().split("; ")[1:]) == ["httponly", "path=/", "samesite=lax"]
     assert client.get(f"{API}/me").status_code == 200  # the cookie alone authenticates safe methods
     assert client.get(f"{API}/auth/session").json()["csrf_token"] == body["csrf_token"]
     patch = {"settings": {"onboarding": {"dismissed": ["hours"]}}}
@@ -300,12 +326,9 @@ def test_web_session_uses_cookies_and_csrf(client, tenant):
     assert denied.status_code == 403 and denied.json()["code"] == "csrf-failed"
     assert client.patch(f"{API}/tenant", json=patch, headers={"X-CSRF-Token": "wrong"}).status_code == 403
     assert client.patch(f"{API}/tenant", json=patch, headers={"X-CSRF-Token": body["csrf_token"]}).status_code == 200
-    # Refresh from the cookie rotates both cookies and the CSRF token with them.
-    refreshed = client.post(f"{API}/auth/refresh")
-    assert refreshed.status_code == 200 and refreshed.json()["csrf_token"] != body["csrf_token"]
-    assert (
-        client.post(f"{API}/auth/sign-out", headers={"X-CSRF-Token": refreshed.json()["csrf_token"]}).status_code == 204
-    )
+    # Web sessions have no refresh token: the cookie cannot be traded for a new pair.
+    assert client.post(f"{API}/auth/refresh").status_code == 401
+    assert client.post(f"{API}/auth/sign-out", headers={"X-CSRF-Token": body["csrf_token"]}).status_code == 204
     assert client.get(f"{API}/me").status_code == 401
 
 
@@ -361,8 +384,8 @@ def test_tenant_resolution(client, tenant, owner):
 def test_rate_limit_on_auth_endpoints(client, tenant, monkeypatch):
     cfg = get_settings().rate_limit
     monkeypatch.setattr(cfg, "enabled", True)
-    monkeypatch.setattr(cfg, "auth_per_minute", 2)
+    monkeypatch.setitem(cfg.buckets, "sign-in", cfg.buckets["sign-in"].model_copy(update={"limit": 2}))
     statuses = [_sign_in(client, tenant, password="not-the-password").status_code for _ in range(4)]
     assert statuses[-1] == 429
     limited = _sign_in(client, tenant)
-    assert limited.json()["code"] == "rate-limited" and limited.headers["retry-after"] == "60"
+    assert limited.json()["code"] == "rate-limited" and 0 < int(limited.headers["retry-after"]) <= 60

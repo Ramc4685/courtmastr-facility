@@ -6,7 +6,7 @@ import os
 os.environ["FH_ENV"] = "test"  # must precede every app import: selects config/app.test.yaml
 
 from types import SimpleNamespace  # noqa: E402
-from uuid import uuid4  # noqa: E402
+from uuid import UUID, uuid4  # noqa: E402
 
 import pytest  # noqa: E402
 from alembic import command  # noqa: E402
@@ -27,6 +27,14 @@ WEEK = [{"weekday": d, "opens_time": "08:00", "closes_time": "20:00", "is_closed
 
 
 @pytest.fixture(scope="session", autouse=True)
+def _own_rate_limit_keys():
+    """Parallel lanes share one Redis and the tests share documentation IPs: keep each run's buckets apart."""
+    from app.core import ratelimit
+
+    ratelimit.PREFIX = f"rl-test-{uuid4().hex[:8]}"
+
+
+@pytest.fixture(scope="session", autouse=True)
 def _migrated():
     command.upgrade(Config(os.path.join(os.path.dirname(__file__), "alembic.ini")), "head")
 
@@ -34,6 +42,16 @@ def _migrated():
 @pytest.fixture
 def client():
     return TestClient(fastapi_app)
+
+
+@pytest.fixture
+def deploy_secrets(monkeypatch):
+    """Generated-looking secrets for tests that build settings for a non-dev environment (FH_DATA_KEY and
+    FH_OPERATOR_TOKEN must not be dev or example values there)."""
+    import base64
+
+    monkeypatch.setenv("FH_DATA_KEY", base64.b64encode(os.urandom(32)).decode())
+    monkeypatch.setenv("FH_OPERATOR_TOKEN", "t" * 40)
 
 
 @pytest.fixture
@@ -48,13 +66,19 @@ def link_token(message) -> str:
     return message.body.split("#token=")[1].split()[0].split("&")[0]
 
 
-def make_tenant(time_zone: str = "America/Chicago") -> SimpleNamespace:
+def make_tenant(time_zone: str = "America/Chicago", mfa_policy: str = "optional") -> SimpleNamespace:
+    """A fresh tenant. MFA is optional by default so tests sign in with a password alone; the MFA tests pass
+    mfa_policy="privileged" (the product default) or "all"."""
+    from app.modules.platform.models import Tenant
+
     slug = f"t-{uuid4().hex[:12]}"
     owner_email = f"owner@{slug}.example.com"
     created = service.onboard_tenant(
         name=f"Club {slug}", slug=slug, default_time_zone=time_zone, owner_email=owner_email,
         owner_first_name="Olive", owner_last_name="Owner", owner_password=PASSWORD,
     )  # fmt: skip
+    with tenant_session(created["tenant_id"]) as session:
+        session.get(Tenant, created["tenant_id"]).staff_mfa_policy = mfa_policy
     return SimpleNamespace(
         id=created["tenant_id"], slug=slug, owner_email=owner_email, owner_id=created["owner_staff_user_id"]
     )
@@ -82,8 +106,12 @@ def add_staff(tenant, role_key: str, *, location_ids=(), all_locations: bool = F
         return email_address, user.id
 
 
-def login(client, tenant, email_address: str | None = None, password: str = PASSWORD, audience: str = "staff") -> dict:
-    """Bearer headers for a signed-in principal (mobile-style session, so no CSRF dance)."""
+def login(
+    client, tenant, email_address: str | None = None, password: str = PASSWORD, audience: str = "staff",
+    *, elevated: bool = True,
+) -> dict:  # fmt: skip
+    """Bearer headers for a signed-in principal (mobile-style session, so no CSRF dance). A password sign-in is
+    a fresh re-authentication, so the session satisfies `+` keys for 10 minutes; elevated=False clears that."""
     response = client.post(
         "/api/v1/auth/sign-in",
         headers={"X-Tenant-Slug": tenant.slug},
@@ -95,7 +123,43 @@ def login(client, tenant, email_address: str | None = None, password: str = PASS
         },
     )
     assert response.status_code == 200, response.text
-    return {"Authorization": f"Bearer {response.json()['access_token']}"}
+    token = response.json()["access_token"]
+    if not elevated:
+        drop_elevation(tenant, token)
+    return {"Authorization": f"Bearer {token}"}
+
+
+def totp(secret: str, steps: int = 0) -> str:
+    """The TOTP code for `secret` at the (frozen) clock, `steps` 30-second steps away."""
+    import pyotp
+
+    return pyotp.TOTP(secret).at(int(clock.now().timestamp()) + 30 * steps)
+
+
+def finish_enrolment(client, challenge: dict) -> tuple[dict, str]:
+    """Walk a forced enrolment from a 202 sign-in challenge: new secret, first code. (session body, secret)."""
+    assert challenge["enrolment_required"], challenge
+    started = client.post("/api/v1/auth/mfa/enrolment", json={"mfa_token": challenge["mfa_token"]})
+    assert started.status_code == 200, started.text
+    secret = started.json()["secret"]
+    done = client.post("/api/v1/auth/mfa/verify", json={"mfa_token": challenge["mfa_token"], "code": totp(secret)})
+    assert done.status_code == 200, done.text
+    return done.json(), secret
+
+
+def drop_elevation(tenant, access_token: str) -> None:
+    """End a session's step-up window, as if its re-authentication were more than 10 minutes old."""
+    from sqlalchemy import update
+
+    from app.core.auth import tokens
+    from app.modules.platform.models import AuthSession
+
+    with tenant_session(tenant.id) as session:
+        session.execute(
+            update(AuthSession)
+            .where(AuthSession.access_token_hash == tokens.digest(access_token))
+            .values(elevated_until_at=None)
+        )
 
 
 def role_id(tenant, system_key: str):
@@ -133,6 +197,7 @@ def populate(client, tenant) -> SimpleNamespace:
 
     from app.core.events import ProcessedEvent
     from app.modules import billing, clients
+    from app.modules.platform.models import FailedJob
 
     headers = login(client, tenant)
     location = client.post(
@@ -158,6 +223,8 @@ def populate(client, tenant) -> SimpleNamespace:
     )
     with tenant_session(tenant.id) as session:
         session.add(ProcessedEvent(consumer_name="tests.populate", event_id=uuid4()))
+        session.add(FailedJob(actor_name="tests.populate", queue="default", message_id=str(uuid4()), args=[],
+                              error_class="RuntimeError", attempts=1))  # fmt: skip
     session_id = client.get("/api/v1/auth/session", headers=headers).json()["id"]
 
     # clients skeleton and billing kernel: a taxed charge, invoiced, paid by card with an overpayment that is
@@ -225,13 +292,106 @@ def populate(client, tenant) -> SimpleNamespace:
     leagues = _populate_leagues(client, headers, post, location["id"], person["id"], space["resource_id"], category_id)
     integration = _populate_integrations(client, headers, tenant, post, location, person)
     reporting = _populate_reporting(post, location["id"])
+    reporting |= _populate_imports(client, headers, tenant, location["id"])
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
         session_id=session_id, client_id=person["id"], charge_id=charge["id"], invoice_id=invoice["id"],
         payment_id=payment["id"], revenue_category_id=category_id, tax_id=tax_id, **billing_ids, **people, **documents, **space,
         **leagues,
         **integration, **reporting,
+        **_populate_files(tenant),
+        **_populate_mfa(tenant),
+        **_populate_oidc(tenant),
+        **_populate_entitlements(tenant),
+        **_populate_t2(client, headers, tenant, location["id"]),
     )  # fmt: skip
+
+
+def _populate_entitlements(tenant) -> dict:
+    """An add-on row that changes nothing (the default plan already has the feature) (Phase 8 T1)."""
+    from app.modules.platform import entitlements
+
+    detail = entitlements.add_entitlement(tenant.id, {"key": "branded_app", "source": "addon"})
+    return {"entitlement_id": detail["overrides"][0].id}
+
+
+def _populate_t2(client, headers, tenant, location_id) -> dict:
+    """Logos, a support request and a tenant export row (Phase 8 T2)."""
+    from sqlalchemy import select
+
+    from app.modules.platform.models import TenantExport
+
+    image = headers | {"Content-Type": "image/png", "X-File-Name": "logo.png"}
+    for path in ("/api/v1/branding/logo", f"/api/v1/locations/{location_id}/logo"):
+        assert client.put(path, headers=image, content=png_bytes()).status_code == 200
+    request = client.post("/api/v1/support-requests", headers=headers, json={"category": "question", "message": "Hi"})
+    assert request.status_code == 201, request.text
+    with tenant_session(tenant.id) as session:
+        owner_id = session.scalar(select(StaffUser.id).order_by(StaffUser.created_at).limit(1))
+        export = TenantExport(requested_by_staff_user_id=owner_id, status="failed", error="populate")
+        session.add(export)
+        session.flush()
+        export_id = export.id
+    return {"support_request_id": request.json()["id"], "tenant_export_id": export_id}
+
+
+def _populate_mfa(tenant) -> dict:
+    """A staff member with a confirmed TOTP factor and recovery codes (Phase 8 S2)."""
+    from sqlalchemy import select
+
+    from app.modules.platform import mfa
+
+    email_address, staff_user_id = add_staff(tenant, "front_desk", all_locations=True)
+    with tenant_session(tenant.id) as session:
+        identity = session.scalar(select(Identity).where(Identity.email == email_address))
+        mfa.start_enrolment(session, identity)
+        mfa.factor(session, identity.id).confirmed_at = clock.now()
+        mfa.new_recovery_codes(session, identity.id)
+    return {"mfa_staff_user_id": staff_user_id}
+
+
+def _populate_oidc(tenant) -> dict:
+    """An OIDC provider and the owner's link to it (Phase 8 S3); straight in the database, no discovery fetch."""
+    from sqlalchemy import select
+
+    from app.core import crypto
+    from app.modules.platform.models import ExternalLogin, IdentityProviderConfig
+
+    with tenant_session(tenant.id) as session:
+        provider = IdentityProviderConfig(
+            preset="generic", display_name="Club SSO", issuer_url="https://idp.example.com", client_id="populate",
+            client_secret_encrypted=crypto.encrypt("populate-secret", tenant.id),
+        )  # fmt: skip
+        session.add(provider)
+        owner = session.scalar(select(Identity).where(Identity.email == tenant.owner_email))
+        session.add(ExternalLogin(identity_id=owner.id, issuer=provider.issuer_url, subject="populate-subject"))
+        session.flush()
+        return {"identity_provider_id": provider.id}
+
+
+def _populate_files(tenant) -> dict:
+    """A ready stored file, for the signed download route (Phase 8 K1)."""
+    from app.modules.platform import files
+
+    with tenant_session(tenant.id) as session:
+        row = files.store(session, b"%PDF-1.4 populate", purpose="tests.populate", content_type=files.PDF,
+                          uploaded_by=("system", None))  # fmt: skip
+    return {"tenant_id": tenant.id, "file_id": row.id}
+
+
+def _populate_imports(client, headers, tenant, location_id) -> dict:
+    """Phase 8 I1: a clients import job with its uploaded file, checked once (rows and an error report)."""
+    from app.modules import imports
+
+    job = client.post("/api/v1/import-jobs", headers=headers, json={"kind": "clients", "location_id": location_id})
+    job_id = job.json()["id"]
+    csv = b"first_name,last_name,email\r\nImport,Person,imported@example.com\r\nNo,Email,not-an-email\r\n"
+    url = f"/api/v1/import-jobs/{job_id}/source"
+    assert client.put(url, headers=headers | {"Content-Type": "text/csv"}, content=csv).status_code == 200
+    assert client.post(f"/api/v1/import-jobs/{job_id}/dry-runs", headers=headers, json={}).status_code == 202
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        assert imports.service.run_chunk(session, UUID(job_id)) is False
+    return {"import_job_id": job_id}
 
 
 def _populate_reporting(post, location_id) -> dict:

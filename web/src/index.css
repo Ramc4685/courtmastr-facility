@@ -89,7 +89,10 @@
   h2 {
     @apply text-lg font-semibold tracking-tight;
   }
-  :focus-visible {
+  /* Date and time fields: Tab also stops on the picker button inside the field, where :focus-visible does not
+     match the field itself (only :focus-within does), so the ring vanished on that stop (WCAG 2.4.7). */
+  :focus-visible,
+  input:is([type='date'], [type='time'], [type='datetime-local'], [type='month']):focus-within {
     outline: 2px solid rgb(var(--accent));
     outline-offset: 2px;
   }

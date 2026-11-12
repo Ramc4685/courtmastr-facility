@@ -20,11 +20,10 @@ function Field({ label, hint, error, className = '', children }: FieldProps & { 
           {hint}
         </p>
       )}
-      {error && (
-        <p id={`${id}-error`} className="text-xs font-medium text-danger">
-          {error}
-        </p>
-      )}
+      {/* Always mounted so an error that appears after submit is announced (WCAG 4.1.3); empty and out of flow until then. */}
+      <p id={`${id}-error`} aria-live="polite" className={error ? 'text-xs font-medium text-danger' : 'sr-only'}>
+        {error}
+      </p>
     </div>
   )
 }
@@ -72,7 +71,8 @@ export function Checkbox({ label, hint, className = '', ...rest }: { label: Reac
     <div className={`flex items-start gap-2 ${className}`}>
       <input id={id} type="checkbox" className="mt-0.5 h-4 w-4 rounded border-border accent-[rgb(var(--primary))]" aria-describedby={hint ? `${id}-hint` : undefined} {...rest} />
       <div>
-        <label htmlFor={id} className="text-sm">
+        {/* The padding grows the click target to 24 px without moving anything (WCAG 2.5.8). */}
+        <label htmlFor={id} className="-my-1 block py-1 text-sm">
           {label}
         </label>
         {hint && (
