@@ -257,6 +257,14 @@ def list_ledger_entries(session: Session, principal: Principal, query: ListQuery
 def ensure_defaults(session: Session) -> None:
     """The rows every tenant has: the two system revenue categories and one tender per built-in kind.
     Idempotent and safe under concurrency; called by seeds and lazily by the functions that need a row."""
+    system_keys = ("uncategorised", "surcharge")
+    tenders = select(func.count(TenderType.kind.distinct())).where(TenderType.kind.in_(list(_TENDERS)))
+    categories = select(func.count()).select_from(RevenueCategory).where(RevenueCategory.system_key.in_(system_keys))
+    if tuple(session.execute(select(tenders.scalar_subquery(), categories.scalar_subquery())).one()) == (
+        len(_TENDERS),
+        len(system_keys),
+    ):  # all there: one read instead of ten upserts on every tender (docs/ops/performance-budget.md)
+        return
     tenant_id = session.info["tenant_id"]
     for key, label in (("uncategorised", "Uncategorised"), ("surcharge", "Surcharge")):
         session.execute(

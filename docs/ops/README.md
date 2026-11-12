@@ -7,6 +7,7 @@ Hosting is the owner's call (Fly.io or AWS, chosen on cost, possibly switched la
 |---|---|
 | [runbook.md](runbook.md) | start, stop, migrate, roll back, restore, rotate secrets, requeue dead letters |
 | [monitoring.md](monitoring.md) | what to alert on and the thresholds, the 99.9% monthly target and its error budget |
+| [performance-budget.md](performance-budget.md) | the load test, p95 budgets per request class, measured latencies, hot spots |
 | [deploy-fly.md](deploy-fly.md), [deploy-aws.md](deploy-aws.md) | one-page outlines: what maps to what, cost drivers, what is still open |
 
 ## What is in the box

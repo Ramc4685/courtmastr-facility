@@ -406,7 +406,7 @@ export function CalendarPage() {
             {title}
           </h2>
         </div>
-        <div className="flex items-end gap-3">
+        <div className="flex flex-wrap items-end gap-3">
           <Input className="w-40" label="Go to date" type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
           <div role="group" aria-label="View" className="flex overflow-hidden rounded border border-border">
             {(['day', 'week', 'month'] as const).map((v) => (

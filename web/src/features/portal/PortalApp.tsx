@@ -102,7 +102,7 @@ function Shell({ children }: { children: ReactNode }) {
                 <NavLink
                   to={n.to}
                   end={n.end}
-                  className={({ isActive }) => `-mb-px block whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium ${isActive ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-fg'}`}
+                  className={({ isActive }) => `relative -mb-px block whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium ${isActive ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-fg'}`}
                 >
                   {n.label}
                   {n.to === '/portal/inbox' && <InboxBadge />}
@@ -112,7 +112,7 @@ function Shell({ children }: { children: ReactNode }) {
           </ul>
         </nav>
       </header>
-      <main id="portal-main" className="mx-auto max-w-6xl px-4 py-8">
+      <main id="portal-main" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-8">
         {children}
       </main>
     </div>

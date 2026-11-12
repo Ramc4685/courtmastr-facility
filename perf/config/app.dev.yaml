@@ -1,0 +1,19 @@
+# FH_CONFIG_DIR overlay for `make perf` only: config/app.dev.yaml plus rate-limit buckets raised for the load test.
+# app.yaml here is a symlink to config/app.yaml, so only the overlay differs. Keep the first block in step with
+# config/app.dev.yaml. Never point a real deployment at this directory.
+integrations:
+  webhook_allow_localhost: true
+payments:
+  stripe:
+    test_onboarding: api
+# The lane shares Redis and Mailpit with other checkouts: keep the seed's 5,000 welcome emails and the run's jobs
+# in process. (smtplib also resolves the host name per connection, about 5 s each on macOS with mDNS.)
+email:
+  adapter: memory
+jobs:
+  broker: stub
+rate_limit:
+  buckets:                            # ten virtual staff sign in from one address, and a few sign in again each minute
+    sign-in:          {limit: 100000, window_sec: 60,  closed: true}
+    sign-in-identity: {limit: 100000, window_sec: 900, closed: true}
+    default:          {limit: 100000, window_sec: 60}

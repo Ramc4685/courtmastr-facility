@@ -104,6 +104,7 @@ class Tenant(Timestamps, Base):
     """Global row: id is the tenant id. Policy is id = app.current_tenant_id(); inserted only by fh_platform."""
 
     __tablename__ = "tenant"
+    __pinned__ = True  # core.db.session._pin: kept for the session, read on every request
     __table_args__ = (
         UniqueConstraint("slug", name="uq_tenant_slug"),
         enum_check("status", TenantStatus),
@@ -169,6 +170,7 @@ class TenantCounter(TenantOwned, Timestamps, Base):
 
 class Location(TenantOwned, Timestamps, Base):
     __tablename__ = "location"
+    __pinned__ = True  # core.db.session._pin
     __table_args__ = tenant_args(
         UniqueConstraint("tenant_id", "slug", name="uq_location_slug"),
         UniqueConstraint("tenant_id", "name", name="uq_location_name"),
