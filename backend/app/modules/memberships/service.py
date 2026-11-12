@@ -671,6 +671,7 @@ def import_contract(session: Session, data: dict) -> tuple[MembershipContract, b
     draft = {"location_id": data["location_id"], "client_id": data["client_id"], "membership_plan_id": plan.id,
              "start_on": data["start_on"], "customize": custom}  # fmt: skip
     fields, periods = _draft(session, session.info["actor"], draft, "import")
+    fields.pop("addons")  # an imported contract takes no add-ons; `keep` below holds dues only
     today = _today(session, data["location_id"])
     end = data.get("end_on") or fields["end_on"]
     if end < fields["start_on"]:
