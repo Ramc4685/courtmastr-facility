@@ -145,6 +145,7 @@ _BODIES = {
     "updateEquipmentItem": {"name": "Renamed"},
     "returnEquipment": {"outcome": "lost"},
     "updatePosSale": {"version": 1},
+    "createPosSaleQuickClient": {"version": 1, "first_name": "Iso", "last_name": "Probe"},
     "addPosSaleLine": lambda a: {"product_id": a.product_id},
     "updatePosSaleLine": {"quantity": 1},
     "addPosSaleDiscount": {"source": "custom", "discount_minor": 1},

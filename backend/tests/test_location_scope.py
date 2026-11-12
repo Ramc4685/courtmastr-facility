@@ -62,7 +62,7 @@ CLIENT_OR_TENANT_ROUTES = {
         disconnectProviderAccount duplicateMembershipPlan enableClient endClientRelationship getClient
         getClientCommunicationPreferences getClientEmergencyContacts getClientLocationSettings
         getClientPortalAccess getClientTimeline getDataSubjectRequest getRole getStaffUser
-        getStaffUserPermissions inviteClientToPortal listClientAlerts listClientNotes listClientRelationships
+        getStaffUserPermissions inviteClientToPortal listClientAlerts listClientSystemAlerts listClientNotes listClientRelationships
         listCouponRedemptions listDocumentTemplateVersions mergeClients precheckClientMerge
         publishDocumentTemplate putClientCommunicationPreferences reactivateStaffUser
         replaceClientEmergencyContacts replaceMembershipPlanAddons replaceRolePermissions

@@ -149,7 +149,7 @@ Lane detail: `04-clients-households.md`.
 | CLI-08 Tags (sports, seasons, custom) | P0 | done |  |
 | CLI-09 Activity log with attachments | P1 | done | Attachments (PDF, JPEG, PNG; up to 5 per note) on notes, with the note's reach; served by a checked route, not a signed URL. Bodies over 1 MiB get 413 until Phase 8 widens `BodyLimitMiddleware`; bytes of removed files wait for K1 `files.remove`. |
 | CLI-10 Activity/task subject list | P1 | done |  |
-| CLI-11 Client tasks and task/activity report | P1 | partial | **Not built**: a dedicated task/activity report (the reporting module owns it) and a scheduler that calls the reminder function. Own reach means the assignee. |
+| CLI-11 Client tasks and task/activity report | P1 | partial | The hourly `send_client_task_reminders` job (scheduler `EVERY_HOUR`) emails each due task once, on the client's home-location day (phase 10 chip E). **Not built**: a dedicated task/activity report (the reporting module owns it). Own reach means the assignee. |
 | CLI-12 Client photo | P0 | partial | Staff upload, replace and remove (JPEG/PNG, re-encoded); shown on the profile, the client list and the check-in status card, never the kiosk. **Not built**: webcam capture and the portal photo edit (`is_portal_photo_edit_enabled`). Uploads over 1 MiB get 413 until Phase 8 widens `BodyLimitMiddleware`. |
 | CLI-13 Duplicate detection and merge | P1 | done |  |
 | CLI-14 Disable a client | P0 | done |  |
@@ -158,7 +158,7 @@ Lane detail: `04-clients-households.md`.
 | CLI-17 Default trainer / salesperson ownership | P1 | done |  |
 | CLI-18 Emergency contacts | P0 | done |  |
 | CLI-19 Cross-location shared client record | P0 | done |  |
-| CLI-20 Staff-facing client alerts and notes | P1 | partial | **Not built**: derived system alerts (balance, expiry, waiver). Those contexts add them. |
+| CLI-20 Staff-facing client alerts and notes | P1 | done | Derived alerts on the profile from `GET /clients/{id}/system-alerts` (memberships context, the layer that may read billing and documents): balance due, membership expiring within 14 days or expired, missing required waiver. Each alert needs the owning context's read key. |
 | CLI-21 Client API surface | P1 | partial | **Not built**: public API keys and scopes (integrations module). `createClientExport` (CSV) is also not built. |
 | FAM-01 Typed client-to-client relationships | P0 | done |  |
 | FAM-02 Self-service relationship management | P0 | done |  |
@@ -191,14 +191,14 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | MEM-10 Contract list, status views and edit | P0 | done |  |
 | MEM-11 Contract renewal | P0 | done |  |
 | MEM-12 Freeze a contract | P0 | done |  |
-| MEM-13 Edit or remove a freeze and re-bill | P1 | partial | Editing a freeze, repricing, editing a period and invoicing deferred periods are API only. |
-| MEM-14 Suspend and unsuspend a contract | P1 | partial | Editing a suspension is API only. Automatic suspension for non-payment is not built. |
+| MEM-13 Edit or remove a freeze and re-bill | P1 | done | Staff screens in the contract's Details dialog: freeze end date and removal, period edit, reprice, invoice deferred periods (phase 10 chip E). |
+| MEM-14 Suspend and unsuspend a contract | P1 | partial | Editing and removing a suspension on the Details dialog. Automatic suspension for non-payment is not built. |
 | MEM-15 Cancel a contract | P0 | done |  |
 | MEM-16 Cancel with full or partial refund | P1 | done |  |
 | MEM-17 Shared membership | P1 | done |  |
 | MEM-18 Member auto-renew opt-out | P1 | done | Portal Memberships screen, "Stop renewal". |
-| MEM-19 Membership number and member card | P0 | partial | Printable member card with a Code 128 barcode in the browser (phase 10 chip C); no QR on the printed card, the photo slot is a placeholder until client photos (chip F), no RFID. |
-| MEM-20 Visit limits and visit counting | P0 | done | An admitted check-in records one visit (idempotent on the check-in id); used-up memberships deny at the door with an override. Visit screens belong to phase 10 chip E. |
+| MEM-19 Membership number and member card | P0 | partial | Printable member card with a Code 128 barcode in the browser (phase 10 chip C); no QR on the printed card, the card shows the client photo when the template has a photo slot, no RFID. |
+| MEM-20 Visit limits and visit counting | P0 | done | An admitted check-in records one visit (idempotent on the check-in id); used-up memberships deny at the door with an override. Details dialog lists recent visits and adjusts the count with a reason. |
 | MEM-21 Revenue and lifecycle reports | P1 | not built |  |
 | MEM-22 Membership data in the public API | P1 | partial | No API keys or scopes. |
 | MEM-23 Onboarding checklist | P2 | not built |  |
@@ -213,8 +213,8 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | PKG-09 Online package sales | P1 | partial | Portal Packages screen buys with a new card (fake processor, or Stripe Elements in Stripe test mode); history and auto-renew opt-out. |
 | PKG-10 Member-only plans | P1 | done |  |
 | PKG-11 Post-billed packages | P2 | not built | No tables, rate table or batch close. Not built here either. |
-| PKG-12 Session registration, roster and attendance | P0 | partial | Integration: staff register a client into a session and pick the package that pays; the credit follows attendance marks and cancellation. Not built: book all linked sessions, speed register, selling a package inline,... |
-| PKG-13 Remove a package and reverse or refund | P1 | done |  |
+| PKG-12 Session registration, roster and attendance | P0 | done | Staff register a client into a session and pick the package that pays; the credit follows attendance marks and cancellation. Phase 10 chip E: "Book across sessions" pays with a package, a speed-register mode registers on pick with the first usable package, and "Sell a package" sells inline then preselects it. |
+| PKG-13 Remove a package and reverse or refund | P1 | done | Reversing the charge after sessions were used is a manager override (`packages.package.remove_override`, reason required, audited; question 16). |
 | PKG-14 Client ledger and balance views | P0 | done |  |
 | PKG-15 Sales and usage reports | P1 | not built |  |
 | PKG-16 Package data in the public and self-service APIs | P1 | partial | No API keys or cart. |
@@ -347,13 +347,13 @@ Lane detail: `09-pos-inventory.md`.
 | POS-05 product master data | P0 | done |  |
 | POS-06 inventory adjustments and stock | P0 | done |  |
 | POS-07 browsing, cart, barcode scan | P0 | done |  |
-| POS-08 attach client | P0 | partial | Walk-ins allowed (owner decision 7). Quick-create of a client from the register not built |
+| POS-08 attach client | P0 | done | Walk-ins allowed (owner decision 7). Quick-create from the register with a duplicate precheck inside the cashier's reach (409 `possible-duplicate` with candidates; attach one or confirm new). |
 | POS-09 quantity and price override | P0 | done |  |
 | POS-10 discounts | P0 | partial | Built: presets, custom amounts (`billing.discount.apply_custom`), sale or line scope and a largest-remainder spread. Client-level discount not built: clients have no discount field |
 | POS-11 coupons and coupon report | P1 | done |  |
 | POS-12 tenders and completion | P0 | done |  |
 | POS-13 receipts and re-send | P0 | done |  |
-| POS-14 receipt content | P1 | partial | The footer is billing's tenant-level `receipt_footer`, not a per-location POS footer |
+| POS-14 receipt content | P1 | done | Per-location `receipt_footer` on POS settings; billing's tenant footer is the fallback. |
 | POS-15 receipt-printer bridge | v2-adapter | not built | Browser print only |
 | POS-16 history, refunds, returns | P0 | done |  |
 | POS-17 equipment catalogue | P0 | done |  |
@@ -361,7 +361,7 @@ Lane detail: `09-pos-inventory.md`.
 | POS-19 sell packages | P1 | done | Integration: a `package_plan_id` cart line; `packages.sell` runs at completion on the sale's invoice. Backend tests; no browser test of the register control. |
 | POS-20 deposits | P2 | not built | Drawer close-out (expected vs counted) covers the likely intent |
 | POS-21 card-present terminals | v2-adapter | not built | `pos.terminal.*` keys registered only |
-| POS-22 reorder and reporting hooks | P1 | partial | Built: reorder, sales by employee, category, coupon, supplier, brand, product or register, daily register, and returns. Not built: the daily low-stock email and the `rpt_*` read models for the reporting module |
+| POS-22 reorder and reporting hooks | P1 | partial | Built: reorder, sales by employee, category, coupon, supplier, brand, product or register, daily register, returns, and the daily low-stock email (`send_low_stock_digest`, once per location per local day). Not built: the `rpt_*` read models for the reporting module |
 | POS-23 partner POS lines | v2-adapter | not built |  |
 ## Module 11: Leagues and tournaments
 

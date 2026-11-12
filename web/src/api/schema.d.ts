@@ -3004,6 +3004,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/clients/{client_id}/system-alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Client System Alerts
+         * @description Derived alerts (CLI-20): balance due, membership expiring or expired, waiver missing. Staff only.
+         */
+        get: operations["listClientSystemAlerts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/clients/{client_id}/timeline": {
         parameters: {
             query?: never;
@@ -7861,6 +7881,27 @@ export interface paths {
          * @description A unit price other than the list price needs pos.sale.override_price.
          */
         patch: operations["updatePosSaleLine"];
+        trace?: never;
+    };
+    "/api/v1/pos-sales/{pos_sale_id}/quick-client": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Pos Sale Quick Client
+         * @description Create a client with minimal fields and attach them to the sale (POS-08). Also needs clients.client.create.
+         *     Errors: possible-duplicate (409, with candidates; resend with confirm_new), version-conflict.
+         */
+        post: operations["createPosSaleQuickClient"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/pos-sales/{pos_sale_id}/receipt": {
@@ -21798,6 +21839,8 @@ export interface components {
         };
         /** PackageRemove */
         PackageRemove: {
+            /** Override Reason */
+            override_reason?: string | null;
             /**
              * Removal Mode
              * @enum {string}
@@ -25115,6 +25158,26 @@ export interface components {
             /** Target Kind */
             target_kind: string;
         };
+        /** PosQuickClientCreate */
+        PosQuickClientCreate: {
+            /** Birth On */
+            birth_on?: string | null;
+            /**
+             * Confirm New
+             * @default false
+             */
+            confirm_new: boolean;
+            /** First Name */
+            first_name: string;
+            /** Last Name */
+            last_name: string;
+            /** Phone Mobile */
+            phone_mobile?: string | null;
+            /** Primary Email */
+            primary_email?: string | null;
+            /** Version */
+            version: number;
+        };
         /** PosReasonRequest */
         PosReasonRequest: {
             /** Reason */
@@ -25656,6 +25719,8 @@ export interface components {
         PosSettingsOut: {
             /** Allowed Networks */
             allowed_networks: string[];
+            /** Effective Receipt Footer */
+            effective_receipt_footer: string | null;
             /** Is Auto Print Receipt */
             is_auto_print_receipt: boolean;
             /** Is Drawer Session Required */
@@ -25687,6 +25752,8 @@ export interface components {
             is_negative_stock_allowed?: boolean | null;
             /** Low Stock Alert Email */
             low_stock_alert_email?: string | null;
+            /** Receipt Footer */
+            receipt_footer?: string | null;
         };
         /**
          * PosTenderType
@@ -27415,6 +27482,8 @@ export interface components {
             charge_id: string | null;
             /** Charge Total Minor */
             charge_total_minor: number;
+            /** Needs Override Reason */
+            needs_override_reason: boolean;
             /** Open Reservations Count */
             open_reservations_count: number;
             /** Paid Minor */
@@ -30826,6 +30895,25 @@ export interface components {
              * Format: date
              */
             start_on: string;
+        };
+        /** SystemAlertOut */
+        SystemAlertOut: {
+            /** Amount Minor */
+            amount_minor: number | null;
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "balance_due" | "membership_expiring" | "membership_expired" | "waiver_missing";
+            /** Message */
+            message: string;
+            /** On */
+            on: string | null;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "warning" | "danger";
         };
         /** TagIn */
         TagIn: {
@@ -39831,6 +39919,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeliveryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listClientSystemAlerts: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemAlertOut"][];
                 };
             };
             /** @description Validation Error */
@@ -52141,6 +52263,44 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["PosSaleLineUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PosSaleDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createPosSaleQuickClient: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                pos_sale_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PosQuickClientCreate"];
             };
         };
         responses: {

@@ -84,3 +84,7 @@ its own savepoint; idempotent through `uq_client_package_previous` and the serie
 - An invoice created at sale carries the package's `is_autopay`, so billing's autopay run collects it.
 - The handlers on `scheduling.booking.created/.cancelled/.completed` stay, but scheduling's bookings carry no
   package: places are enrolments, and `programs` calls `reserve_credit` and `settle_credit` directly.
+
+## Removal override (question 16, phase 10 chip E)
+
+Reversing the billing of a package after sessions were used is refused (409 `package-in-use`) unless the caller holds `packages.package.remove_override`. The key is per location and goes by default to Admin and Manager. The caller must also give an `override_reason`. The reason is stored on the audit record. The removal quote reports `needs_override_reason`. No billing change was needed: `reverse()` already turns paid money into account credit.

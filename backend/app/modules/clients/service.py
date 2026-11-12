@@ -1069,6 +1069,36 @@ def client_addresses(session: Session, client_id: UUID) -> list[str]:
     )
 
 
+def possible_duplicates(session: Session, principal: Principal, data: dict, limit: int = 5) -> list[Client]:
+    """Live clients that a new record with these values may duplicate, within the caller's read reach: the
+    candidate predicate of `_duplicate_of` applied to unsaved values, plus the same first and last name (a
+    quick-create often has nothing else). Internal: the precheck before a quick-create (POS-08)."""
+    clause = _reach_clause(principal, "clients.client.read")
+    c = Client
+    first = data["first_name"].strip().lower()
+    same = [func.lower(c.first_name) == first]
+    if data.get("birth_on") and principal.has("clients.client.read_sensitive"):
+        # only a caller who may see birth dates matches on one: a 409 would otherwise confirm a guessed date
+        sensitive = _reach_clause(principal, "clients.client.read_sensitive")
+        same.append(and_(c.birth_on == data["birth_on"], *([] if sensitive is None else [sensitive])))
+    if data.get("primary_email"):
+        same.append(exists().where(
+            ClientEmail.client_id == c.id, ClientEmail.email == data["primary_email"],
+            or_(c.created_via != "portal", ClientEmail.verified_at.is_not(None)),
+        ))  # fmt: skip
+    if data.get("phone_mobile"):
+        same.append(
+            and_(c.phone_mobile == data["phone_mobile"], func.similarity(func.lower(c.first_name), first) >= 0.3)
+        )
+    stmt = select(c).where(
+        c.merged_into_id.is_(None), c.erased_at.is_(None),
+        func.lower(c.last_name) == data["last_name"].strip().lower(), or_(*same),
+    )  # fmt: skip
+    if clause is not None:
+        stmt = stmt.where(clause)
+    return list(session.scalars(stmt.order_by(c.last_name, c.first_name, c.id).limit(limit)))
+
+
 def matchable_addresses(session: Session, client: Client) -> set[str]:
     """Addresses that may match another record as a duplicate: a portal-created record's verified ones only,
     so a dependent typed in with someone's address is never paired with that person (merge would follow)."""

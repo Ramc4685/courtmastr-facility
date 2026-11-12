@@ -346,6 +346,7 @@ combined key. The reference sets "customize contract" per user only and Billing 
 | `packages.package.update` | L | P | | Y | Y | - | - | - | - | - | PKG-04, PKG-05 (extend expiry, renewal flag) |
 | `packages.package.share` | L | | | Y | Y | - | - | - | - | - | PKG-06, FAM-05 |
 | `packages.package.remove` | L | D | | Y | Y | - | - | - | - | - | PKG-13 |
+| `packages.package.remove_override` | L | D P | | Y | Y | - | - | - | - | - | PKG-13, question 16 (reverse the billing after sessions were used; reason required, audited) |
 | `packages.credit.adjust` | L | $ | | Y | Y | - | - | - | - | - | PKG-14 (manual ledger adjustment) |
 | `packages.period.close` | L | | | Y | Y | - | - | - | - | - | PKG-11, BIL-18 |
 | `packages.plan.manage` | T | | | Y | Y | - | - | - | - | - | PKG-01, PKG-03, PKG-10 |

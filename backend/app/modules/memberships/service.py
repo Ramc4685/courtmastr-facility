@@ -23,7 +23,7 @@ from app.core import audit, clock, events
 from app.core.api import CONSTRAINT_CODES
 from app.core.audit import AuditEvent
 from app.core.auth import Principal, authorize
-from app.core.errors import Conflict, DomainError, NotFound, ValidationFailed
+from app.core.errors import Conflict, DomainError, NotFound, PermissionDenied, ValidationFailed
 from app.core.jobs import tenant_actor
 from app.core.pagination import ListQuery, paginate
 from app.modules import billing, clients, documents, platform
@@ -1681,6 +1681,60 @@ def adjust_visits(session: Session, principal: Principal, contract_id: UUID, dat
                  changes={"visits_used_count": [was, contract.visits_used_count]})  # fmt: skip
     session.flush()
     return contract_view(session, contract)
+
+
+# --- derived client alerts (CLI-20) ------------------------------------------------------------------------------
+
+EXPIRING_SOON_DAYS = 14  # assumption (README): how early "membership expiring" shows
+
+
+def client_alerts(session: Session, principal: Principal, client_id: UUID) -> list[dict]:
+    """System alerts on a client, computed on read from their owners: balance due (billing), membership expiring or
+    expired (here), waiver missing (documents). Here and not in `clients`, which may not call those contexts
+    (overview section 2). Staff only; each alert shows only to a caller holding its owning context's read key."""
+    client = clients.service.load(session, principal, client_id, "clients.client.read")
+    today = platform.service.location_today(session, client.home_location_id)
+
+    def reaches(key: str) -> bool:  # the section's own key and reach (own = their clients), not mere possession
+        try:
+            clients.service.load(session, principal, client_id, key)
+        except (NotFound, PermissionDenied):
+            return False
+        return True
+
+    out = []
+    if principal.has("billing.invoice.read"):
+        money = billing.documents.billing_summary(session, client.id)
+        due = money["open_balance_minor"] + money["uninvoiced_minor"]
+        if due > 0:
+            late = money["past_due_minor"] > 0
+            out.append({"code": "balance_due", "severity": "danger" if late else "warning", "amount_minor": due,
+                        "on": money["oldest_past_due_on"], "message": "Past-due balance" if late else "Balance due"})  # fmt: skip
+    if reaches(_READ):
+        standing = eligibility(session, client.id, today)
+        end_on = standing.get("end_on")
+        if standing["contract_id"] is not None:
+            if end_on is not None and end_on <= today + timedelta(days=EXPIRING_SOON_DAYS):
+                out.append({"code": "membership_expiring", "severity": "warning", "on": end_on, "amount_minor": None,
+                            "message": f"{standing['membership_name']} ends {end_on.isoformat()}"})  # fmt: skip
+        else:
+            c = MembershipContract
+            last = session.scalar(
+                select(c)
+                .where(c.owner_client_id == client.id, c.status == "expired")
+                .order_by(c.end_on.desc())
+                .limit(1)
+            )
+            if last is not None:
+                out.append({"code": "membership_expired", "severity": "warning", "on": last.end_on, "amount_minor": None,
+                            "message": f"{last.name} expired"})  # fmt: skip
+    if reaches("documents.document.read"):
+        rules = documents.service.settings_row(session)
+        required = rules.is_waiver_required_for_check_in or rules.is_waiver_required_for_booking
+        if required and not documents.service.has_valid_waiver(session, client.id):
+            out.append({"code": "waiver_missing", "severity": "danger", "on": None, "amount_minor": None,
+                        "message": "No valid waiver on file"})  # fmt: skip
+    return out
 
 
 # --- portal (MEM-10, MEM-18) -------------------------------------------------------------------------------------

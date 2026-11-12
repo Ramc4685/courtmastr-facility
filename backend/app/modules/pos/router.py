@@ -367,6 +367,15 @@ def add_pos_sale_line(
     return sales.add_line(ctx.session, ctx.principal, pos_sale_id, body.model_dump(), _ip(request))
 
 
+@router.post("/pos-sales/{pos_sale_id}/quick-client", response_model=s.PosSaleDetail)
+def create_pos_sale_quick_client(
+    pos_sale_id: UUID, body: s.PosQuickClientCreate, request: Request, ctx: Ctx = Depends(require("pos.sale.create"))
+):
+    """Create a client with minimal fields and attach them to the sale (POS-08). Also needs clients.client.create.
+    Errors: possible-duplicate (409, with candidates; resend with confirm_new), version-conflict."""
+    return sales.quick_create_client(ctx.session, ctx.principal, pos_sale_id, body.model_dump(), _ip(request))
+
+
 @router.patch("/pos-sales/{pos_sale_id}/lines/{pos_sale_line_id}", response_model=s.PosSaleDetail)
 def update_pos_sale_line(
     pos_sale_id: UUID,

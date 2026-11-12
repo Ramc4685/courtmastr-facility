@@ -31219,6 +31219,19 @@
       "PackageRemove": {
         "additionalProperties": false,
         "properties": {
+          "override_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Reason"
+          },
           "removal_mode": {
             "enum": [
               "billing_reversed",
@@ -41110,6 +41123,75 @@
         "title": "PortalWaitlistOut",
         "type": "object"
       },
+      "PosQuickClientCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "birth_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birth On"
+          },
+          "confirm_new": {
+            "default": false,
+            "title": "Confirm New",
+            "type": "boolean"
+          },
+          "first_name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "First Name",
+            "type": "string"
+          },
+          "last_name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Last Name",
+            "type": "string"
+          },
+          "phone_mobile": {
+            "anyOf": [
+              {
+                "pattern": "^\\+[1-9][0-9]{6,14}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone Mobile"
+          },
+          "primary_email": {
+            "anyOf": [
+              {
+                "format": "email",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Email"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "first_name",
+          "last_name"
+        ],
+        "title": "PosQuickClientCreate",
+        "type": "object"
+      },
       "PosReasonRequest": {
         "additionalProperties": false,
         "properties": {
@@ -42756,6 +42838,17 @@
             "title": "Allowed Networks",
             "type": "array"
           },
+          "effective_receipt_footer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Receipt Footer"
+          },
           "is_auto_print_receipt": {
             "title": "Is Auto Print Receipt",
             "type": "boolean"
@@ -42820,7 +42913,8 @@
           "low_stock_alert_email",
           "is_negative_stock_allowed",
           "allowed_networks",
-          "receipt_footer"
+          "receipt_footer",
+          "effective_receipt_footer"
         ],
         "title": "PosSettingsOut",
         "type": "object"
@@ -42899,6 +42993,19 @@
               }
             ],
             "title": "Low Stock Alert Email"
+          },
+          "receipt_footer": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Footer"
           }
         },
         "title": "PosSettingsWrite",
@@ -48811,6 +48918,10 @@
             "title": "Charge Total Minor",
             "type": "integer"
           },
+          "needs_override_reason": {
+            "title": "Needs Override Reason",
+            "type": "boolean"
+          },
           "open_reservations_count": {
             "title": "Open Reservations Count",
             "type": "integer"
@@ -48835,7 +48946,8 @@
           "charge_id",
           "charge_total_minor",
           "paid_minor",
-          "can_reverse_billing"
+          "can_reverse_billing",
+          "needs_override_reason"
         ],
         "title": "RemovalQuoteOut",
         "type": "object"
@@ -59597,6 +59709,64 @@
           "created_at"
         ],
         "title": "SuspensionOut",
+        "type": "object"
+      },
+      "SystemAlertOut": {
+        "properties": {
+          "amount_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Minor"
+          },
+          "code": {
+            "enum": [
+              "balance_due",
+              "membership_expiring",
+              "membership_expired",
+              "waiver_missing"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On"
+          },
+          "severity": {
+            "enum": [
+              "warning",
+              "danger"
+            ],
+            "title": "Severity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "message",
+          "on",
+          "amount_minor"
+        ],
+        "title": "SystemAlertOut",
         "type": "object"
       },
       "TagIn": {
@@ -79116,6 +79286,73 @@
         "summary": "Send Client Statement",
         "tags": [
           "billing"
+        ]
+      }
+    },
+    "/api/v1/clients/{client_id}/system-alerts": {
+      "get": {
+        "description": "Derived alerts (CLI-20): balance due, membership expiring or expired, waiver missing. Staff only.",
+        "operationId": "listClientSystemAlerts",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Client Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SystemAlertOut"
+                  },
+                  "title": "Response Listclientsystemalerts",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Client System Alerts",
+        "tags": [
+          "memberships"
         ]
       }
     },
@@ -104872,6 +105109,79 @@
           }
         },
         "summary": "Update Pos Sale Line",
+        "tags": [
+          "pos"
+        ]
+      }
+    },
+    "/api/v1/pos-sales/{pos_sale_id}/quick-client": {
+      "post": {
+        "description": "Create a client with minimal fields and attach them to the sale (POS-08). Also needs clients.client.create.\nErrors: possible-duplicate (409, with candidates; resend with confirm_new), version-conflict.",
+        "operationId": "createPosSaleQuickClient",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pos_sale_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Pos Sale Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PosQuickClientCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PosSaleDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Pos Sale Quick Client",
         "tags": [
           "pos"
         ]

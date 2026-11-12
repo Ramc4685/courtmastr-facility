@@ -220,6 +220,7 @@ def populate(client, tenant) -> SimpleNamespace:
     space |= _populate_programs(client, headers, post, location["id"], person["id"], space, category_id)
     space |= _populate_access(client, headers, post, tenant, location["id"], person["id"], space)
     space |= _populate_access_rules(client, headers, post, location["id"], person["id"], people["membership_type_id"])
+    _populate_pos_desk(client, headers, post, tenant, location["id"], billing_ids["product_category_id"])
     space |= _populate_engagement(client, tenant, post, location["id"], person["id"], identity_id)
     leagues = _populate_leagues(client, headers, post, location["id"], person["id"], space["resource_id"], category_id)
     integration = _populate_integrations(client, headers, tenant, post, location, person)
@@ -859,6 +860,20 @@ def _populate_access(client, headers, post, tenant, location_id, client_id, spac
         "kiosk_device_id": device["kiosk_device_id"], "check_in_station_id": station["id"],
         "id_card_template_id": card["id"],
     }  # fmt: skip
+
+
+def _populate_pos_desk(client, headers, post, tenant, location_id, product_category_id) -> None:
+    """Phase 10 chip E: a location footer and alert email, a product below its reorder level, one digest row."""
+    body = {"receipt_footer": "Thanks!", "low_stock_alert_email": "stock@example.com"}
+    assert client.put(f"/api/v1/pos-settings?location_id={location_id}", headers=headers, json=body).status_code == 200
+    low = post("/products", {"product_category_id": product_category_id, "name": "Grip tape", "product_code": "GT-1", "unit_price_minor": 300,
+                             "reorder_level": 5})  # fmt: skip
+    post("/stock-movements", {"product_id": low["id"], "location_id": location_id, "kind": "adjustment",
+                              "quantity_delta": 1, "reason": "new_stock"})  # fmt: skip
+    from app.modules.pos import inventory
+
+    with tenant_session(tenant.id, actor=system_principal("populate")) as session:
+        assert inventory.send_low_stock_digests(session) == 1
 
 
 def _populate_access_rules(client, headers, post, location_id, client_id, membership_type_id) -> dict:

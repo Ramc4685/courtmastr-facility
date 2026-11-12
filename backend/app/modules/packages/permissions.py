@@ -18,6 +18,7 @@ register(
     _p("package.update", L, "Edit sold packages", "P", _MG),
     _p("package.share", L, "Share packages with other clients", "", _MG),
     _p("package.remove", L, "Remove sold packages", "D", _MG),
+    _p("package.remove_override", L, "Reverse the billing of a package after sessions were used", "D P", _MG),
     _p("credit.adjust", L, "Adjust session credits", "$", _MG),
     _p("period.close", L, "Close post-billed package periods", "", _MG),
     _p("plan.manage", T, "Manage package plans and settings", "", _MG),

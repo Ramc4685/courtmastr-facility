@@ -4,7 +4,7 @@ Staff only; none of this reaches the portal. Own reach: notes and alerts follow 
 (service.load); tasks are own when the caller is the assignee (rbac-matrix 3.2).
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import case, func, or_, select
@@ -14,6 +14,7 @@ from app.core import audit, clock
 from app.core.audit import AuditEvent
 from app.core.auth import Principal, authorize
 from app.core.errors import Conflict, NotFound, ValidationFailed
+from app.core.jobs import tenant_actor
 from app.core.pagination import ListQuery, paginate
 from app.core.settings import get_settings
 from app.modules import platform
@@ -240,22 +241,33 @@ def open_task_count(session: Session, principal: Principal) -> dict:
     return {"open_count": open_, "overdue_count": overdue}
 
 
-def send_task_reminders(session: Session, on: date) -> int:
-    """Email assignees about open tasks with a reminder due on or before `on`. Idempotent: reminder_sent_at.
-    Internal; callable from a job. shortcut: no periodic scheduler exists yet, wire this into one when jobs land."""
+def send_task_reminders(session: Session, on: date | None = None) -> int:
+    """Email assignees about open tasks with a reminder due on or before `on` (default: today at the client's
+    home location). Idempotent: reminder_sent_at. Internal; the hourly actor below calls it."""
     sent = 0
     settings = get_settings()
+    today: dict[UUID, date] = {}
+    # Zones span UTC-12 to UTC+14 (26 hours), so the latest local day can be two days past the earliest one.
+    horizon = on or platform.service.earliest_today(session) + timedelta(days=2)
     for task in session.scalars(
-        select(ClientTask).where(
+        select(ClientTask)
+        .where(
             ClientTask.has_email_reminder,
             ClientTask.reminder_sent_at.is_(None),
             ClientTask.status.in_(("open", "in_progress")),
-            ClientTask.due_on <= on,
-        )  # fmt: skip
+            ClientTask.due_on <= horizon,
+        )
+        .with_for_update(skip_locked=True)  # an overlapping run skips rows this one is sending
     ):
+        client = session.get(Client, task.client_id)
+        if on is None:
+            home = client.home_location_id
+            if home not in today:
+                today[home] = platform.service.location_today(session, home)
+            if task.due_on > today[home]:
+                continue
         staff_user = session.get(platform.models.StaffUser, task.assignee_staff_user_id)
         identity = session.get(platform.models.Identity, staff_user.identity_id)
-        client = session.get(Client, task.client_id)
         subject = task.subject_text or session.get(NoteSubject, task.note_subject_id).label
         notifications.send(
             session, "clients.task_reminder", identity.email,
@@ -266,6 +278,12 @@ def send_task_reminders(session: Session, on: date) -> int:
         sent += 1
     session.flush()
     return sent
+
+
+@tenant_actor
+def send_client_task_reminders(session: Session) -> int:
+    """Hourly per tenant (app/scheduler.py): reminders for tasks due by the client's home-location day (CLI-11)."""
+    return send_task_reminders(session)
 
 
 # --- alerts --------------------------------------------------------------------------------------------------
