@@ -9,6 +9,7 @@ Staff commands take a principal and check both gates. `addon_terms` is internal 
 memberships calls it while it sells a plan with item add-ons (MEM-04).
 """
 
+import logging
 from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -30,6 +31,9 @@ from app.modules.billing.models import CatalogItem, CatalogItemSale, Charge, Rev
 _MANAGE = "billing.item.manage"
 _SOURCE = ("billing", "catalog_item_sale")
 _DAY = timedelta(days=1)
+# A desk sale starts within this window around the location's today (a typo'd year is refused, not billed).
+_START_WINDOW = (timedelta(days=366), timedelta(days=366))
+log = logging.getLogger(__name__)
 # What a sale snapshots from its item: the pricing and recurrence columns (data-model-money 1.1).
 _TERMS = (
     "kind", "description", "additional_description", "internal_remarks", "length_count", "length_unit",
@@ -110,6 +114,21 @@ def create_item(session: Session, principal: Principal, data: dict) -> CatalogIt
     return item
 
 
+def _refuse_move(session: Session, item: CatalogItem) -> None:
+    """An item another item renews as, or one with active sales, keeps its location: those rows bill there."""
+    renews_into = select(CatalogItem.id).where(CatalogItem.renews_as_catalog_item_id == item.id).limit(1)
+    sold = (
+        select(CatalogItemSale.id)
+        .where(
+            CatalogItemSale.status == "active",
+            (CatalogItemSale.catalog_item_id == item.id) | (CatalogItemSale.renews_as_catalog_item_id == item.id),
+        )
+        .limit(1)
+    )
+    if session.scalar(renews_into) is not None or session.scalar(sold) is not None:
+        raise Conflict("Other items renew as this one or it has active sales; its location cannot change.")
+
+
 def update_item(session: Session, principal: Principal, item_id: UUID, data: dict) -> CatalogItem:
     """Edits apply to later sales only: a sale keeps the terms it froze."""
     authorize(principal, _MANAGE)
@@ -117,6 +136,7 @@ def update_item(session: Session, principal: Principal, item_id: UUID, data: dic
     _in_scope(principal, item.location_id)
     if "location_id" in data and data["location_id"] != item.location_id:
         service._location_in_scope(session, principal, data["location_id"])
+        _refuse_move(session, item)
     for key, value in data.items():
         setattr(item, key, value)
     _check_item(session, item)
@@ -226,7 +246,10 @@ def sell(
     if terms["discount_pct"] is not None and terms["discount_minor"] is not None:
         raise ValidationFailed("Give a percentage or an amount off, not both.", pointer="/discount_minor")
     start = item.starts_on if item.start_mode == "fixed_date" else starts_on
-    start = start or platform.service.location_today(session, item.location_id)
+    today = platform.service.location_today(session, item.location_id)
+    start = start or today
+    if not today - _START_WINDOW[0] <= start <= today + _START_WINDOW[1]:
+        raise ValidationFailed("Start within a year of today.", pointer="/starts_on")
     sale = _create_sale(
         session, item, client_id=client_id, terms=terms, starts_on=start,
         is_auto_renew=item.is_auto_renew if is_auto_renew is None else is_auto_renew,
@@ -345,6 +368,11 @@ def renew(session: Session, sale: CatalogItemSale) -> CatalogItemSale | None:
         session, target, client_id=sale.client_id, terms=terms, starts_on=sale.ends_on + _DAY,
         is_auto_renew=auto, renews_as_catalog_item_id=renews_as, previous_sale_id=sale.id,
     )  # fmt: skip
+    audit.record(
+        session, "billing.charge.create", successor, location_id=successor.location_id,
+        changes={"catalog_item_id": [None, str(target.id)], "previous_sale_id": [None, str(sale.id)]},
+    )  # fmt: skip
+    events.publish(session, CatalogItemSold(**_ref(successor)), successor.id)
     sale.status = "renewed"
     audit.record(
         session, "billing.catalog_item_sale.renew", sale, location_id=sale.location_id,
@@ -358,7 +386,8 @@ def renew(session: Session, sale: CatalogItemSale) -> CatalogItemSale | None:
 def renew_due(session: Session) -> dict:
     """Renew every auto-renewing sale whose renewal day has come at its location, and end the sales whose term
     is over. Idempotent: a renewed or ended sale is no longer a candidate, and a successor exists only once.
-    A sale that cannot renew (the client was disabled, the period is locked) is skipped and retried next run."""
+    A sale that cannot renew (the client was disabled, the period is locked) is logged and retried next run
+    until its term is over; then it ends without a successor."""
     horizon = clock.now().date() + _DAY  # no location's today is later than UTC's tomorrow
     renewed = ended = failed = 0
     due = select(CatalogItemSale).where(
@@ -372,8 +401,13 @@ def renew_due(session: Session) -> dict:
         try:
             with session.begin_nested():
                 renewed += renew(session, sale) is not None
-        except DomainError:
+        except DomainError as error:
             failed += 1
+            today = platform.service.location_today(session, sale.location_id)
+            log.warning("catalog item sale %s did not renew: %s", sale.id, error)
+            if sale.ends_on < today:  # the term is over: stop retrying every hour, the sale ends unrenewed
+                sale.is_auto_renew = False
+                _end(session, sale, "ended", reason=f"Renewal failed: {error}")
     over = select(CatalogItemSale).where(
         CatalogItemSale.status == "active", CatalogItemSale.ends_on < horizon, CatalogItemSale.is_auto_renew.is_(False)
     )
@@ -408,8 +442,10 @@ def addon_terms(session: Session, item_id: UUID, *, location_id: UUID, pointer: 
     }  # fmt: skip
 
 
-def item_exists(session: Session, item_id: UUID) -> bool:
-    return session.get(CatalogItem, item_id) is not None
+def item_is_active(session: Session, item_id: UUID) -> bool:
+    """MEM-04: a plan add-on must be an item that is sold now (its location is checked at each sale)."""
+    item = session.get(CatalogItem, item_id)
+    return item is not None and item.is_active
 
 
 def revenue_category_of(session: Session, item_id: UUID) -> UUID:
