@@ -51,7 +51,7 @@ describe('membership details (MEM-13, MEM-14, MEM-20)', { timeout: 20_000 }, () 
       'POST /api/v1/membership-contracts/k1/visit-adjustments': { status: 200, body: { ...contract, visits_used_count: 2 } },
     })
     wrap(<ClientMembershipsTab client={client} />)
-    await userEvent.click(await screen.findByRole('button', { name: 'Details: Ten visits' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Details: Ten visits' }, { timeout: 5000 })) // first render pays the cold transform
     const dialog = await screen.findByRole('dialog')
     await userEvent.type(await within(dialog).findByLabelText('Freeze end date'), '2026-11-30')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save end date' }))
