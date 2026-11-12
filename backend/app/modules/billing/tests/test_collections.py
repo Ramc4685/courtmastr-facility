@@ -5,12 +5,15 @@ from datetime import timedelta
 from uuid import UUID
 
 import pytest
+from sqlalchemy import select
 
 from app.core import clock
+from app.core.audit import AuditEvent
 from app.modules.billing import autopay, catalogue, collections, methods
 from app.modules.billing.models import Invoice
 from app.modules.billing.tests.test_billing import charge, svc, work
 from app.modules.billing.tests.test_money import NOON, TODAY
+from conftest import new_client
 from tests.test_security import ROUTES
 
 # Portal POST routes that stay open while a payer is locked out for a past-due balance.
@@ -68,6 +71,11 @@ def test_tags_profiles_and_the_collections_report(api, shop, desk):
     )
     assert (profile["collections_tag_id"], profile["notes"]) == (tag["id"], "Calls back") and profile["placed_on"]
     assert api("GET", f"/clients/{who}/collections-profile")["collections_tag_id"] == tag["id"]
+    with work(shop.tenant) as session:
+        audited = session.scalars(
+            select(AuditEvent.changes).where(AuditEvent.action.like("billing.collections%"))
+        ).all()
+    assert len(audited) == 3 and all(audited)  # two tags and a profile; the diff is taken before the flush
     # A manager limited to another location cannot place a client whose home is here (location gate).
     api(
         "PUT",
@@ -109,6 +117,16 @@ def test_a_past_due_payer_cannot_buy_or_book_online_but_can_pay(shop, member):
     owed = [row["id"] for row in member.api("GET", "/portal/invoices?is_payable=true")["data"]]  # reading is open
     member.api("POST", "/portal/payments", {"invoice_ids": owed, "method_token": "tok_card_ok"}, 201)
     member.api("POST", quote, {}, 422)  # settled: open again
+
+
+def test_a_guardian_is_locked_out_by_a_dependent_reached_only_through_a_relationship(api, shop, member, client):
+    kid = new_client(client, shop.owner, shop.location_id)["id"]  # no portal access row: only the relationship
+    types = {t["code"]: t["id"] for t in api("GET", "/relationship-types")}
+    api("POST", f"/clients/{member.id}/relationships",
+        {"other_client_id": kid, "relationship_type_id": types["parent_of"]}, 201)  # fmt: skip
+    _past_due_invoice(shop, UUID(kid))
+    _settings(shop.tenant, is_portal_blocked_when_past_due=True)
+    member.api("POST", "/portal/membership-contracts/quote", {"client_id": kid}, 403, "portal-past-due")
 
 
 def test_expiring_cards_lists_cards_through_a_month_with_their_holder(api, shop):

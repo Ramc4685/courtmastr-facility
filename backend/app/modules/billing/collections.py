@@ -55,8 +55,9 @@ def create_tag(session: Session, principal: Principal, data: dict) -> Collection
     authorize(principal, _TAGS)
     tag = CollectionsTag(**data)
     session.add(tag)
+    changes = audit.diff(tag)  # before the flush: diff reads the pending state
     session.flush()
-    audit.record(session, _TAGS, tag, changes=audit.diff(tag))
+    audit.record(session, _TAGS, tag, changes=changes)
     return tag
 
 
@@ -107,8 +108,9 @@ def put_profile(session: Session, principal: Principal, client_id: UUID, data: d
         session.add(profile)
     profile.collections_tag_id, profile.placed_on, profile.notes = tag.id, placed_on, data.get("notes")
     profile.updated_by_staff_user_id = principal.staff_user_id
+    changes = audit.diff(profile)
     session.flush()
-    audit.record(session, _MANAGE, profile, location_id=client.home_location_id, changes=audit.diff(profile))
+    audit.record(session, _MANAGE, profile, location_id=client.home_location_id, changes=changes)
     return profile
 
 
@@ -237,7 +239,8 @@ def _portal_guard(session: Session, principal: Principal, request: Request) -> N
     at = path.find("/portal/")
     if at < 0 or path[at:] not in PORTAL_PURCHASE_ROUTES:
         return
-    if is_portal_locked(session, clients.service.client_ids_for_identity(session, principal.identity_id)):
+    # Every client the identity may act for (direct access and one-hop relationships), as purchases accept.
+    if is_portal_locked(session, clients.households.actable_client_ids(session, principal.identity_id)):
         raise PermissionDenied(
             "Your account has a past-due balance. Please pay it before booking or buying online.",
             code="portal-past-due",
