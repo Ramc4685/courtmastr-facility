@@ -108,8 +108,10 @@ STACK = docker compose --env-file infra/docker/.env.stack -f infra/docker/compos
 
 .PHONY: stack-up stack-smoke stack-down backup-drill backup-drill-fresh
 
+# The app's own secrets are generated, never copied: production refuses the dev and example values.
 infra/docker/.env.stack:
-	cp infra/docker/stack.env.example $@
+	sed -e "s|^FH_DATA_KEY=.*|FH_DATA_KEY=$$(openssl rand -base64 32)|" \
+	    -e "s|^FH_OPERATOR_TOKEN=.*|FH_OPERATOR_TOKEN=$$(openssl rand -hex 32)|" infra/docker/stack.env.example > $@
 
 stack-up: infra/docker/.env.stack   ## build and start the whole stack on its own project (fhstack) and ports; https://localhost:18443
 	$(STACK) up -d --build --wait --wait-timeout 900

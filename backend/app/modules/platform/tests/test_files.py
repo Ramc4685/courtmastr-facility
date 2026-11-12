@@ -213,7 +213,7 @@ def test_purge_is_on_the_hourly_clock():
 # --- configuration ----------------------------------------------------------------------------------------------
 
 
-def test_production_refuses_the_noop_scanner(tmp_path, monkeypatch):
+def test_production_refuses_the_noop_scanner(tmp_path, monkeypatch, deploy_secrets):
     shutil.copy(REPO_ROOT / "config" / "app.yaml", tmp_path / "app.yaml")
     overlay = tmp_path / "app.production.yaml"
     base = "auth: {cookie_secure: true}\nemail: {log_links: false}\npayments: {provider: none}\napi: {exposed_directly: true}\n"

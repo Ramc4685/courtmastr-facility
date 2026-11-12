@@ -15,11 +15,9 @@ from uuid import UUID
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-from app.core.settings import get_settings
+from app.core.settings import DEV_DATA_KEY, get_settings
 
 _KEY_ID = "k1"
-# Dev and test only: a fixed key so a fresh checkout works. _key() refuses it anywhere else.
-_DEV_KEY = base64.b64encode(b"facilityhub-dev-only-data-key-32").decode()
 
 
 @cache
@@ -28,7 +26,7 @@ def _key() -> bytes:
     if not raw:
         if get_settings().env not in ("dev", "test"):
             raise RuntimeError("FH_DATA_KEY must be set outside dev and test")
-        raw = _DEV_KEY
+        raw = DEV_DATA_KEY  # get_settings() refuses it (and an absent key) outside dev and test
     key = base64.b64decode(raw)
     if len(key) != 32:
         raise RuntimeError("FH_DATA_KEY must be 32 bytes, base64-encoded")

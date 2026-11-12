@@ -45,6 +45,16 @@ def client():
 
 
 @pytest.fixture
+def deploy_secrets(monkeypatch):
+    """Generated-looking secrets for tests that build settings for a non-dev environment (FH_DATA_KEY and
+    FH_OPERATOR_TOKEN must not be dev or example values there)."""
+    import base64
+
+    monkeypatch.setenv("FH_DATA_KEY", base64.b64encode(os.urandom(32)).decode())
+    monkeypatch.setenv("FH_OPERATOR_TOKEN", "t" * 40)
+
+
+@pytest.fixture
 def mailbox():
     """Messages sent through the email port (in-memory adapter), newest last."""
     sent = email._provider.sent

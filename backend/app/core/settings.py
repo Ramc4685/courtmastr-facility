@@ -208,6 +208,28 @@ class Settings(BaseModel):
         return os.environ.get("FH_OPERATOR_TOKEN", "")
 
 
+# Dev and test only: a fixed data key so a fresh checkout works (core.crypto). Refused anywhere else, as are the
+# values that were ever committed as examples (they are public) and an operator token short enough to guess.
+DEV_DATA_KEY = "ZmFjaWxpdHlodWItZGV2LW9ubHktZGF0YS1rZXktMzI="  # base64 of b"facilityhub-dev-only-data-key-32"
+_EXAMPLE_DATA_KEYS = {DEV_DATA_KEY, "VwpXfRnSkcoF5/q6HdE+0q6UoYCTPLxCXfp2XaacPsw="}
+_EXAMPLE_OPERATOR_TOKENS = {"dev-operator-token", "stack-operator-token"}
+MIN_OPERATOR_TOKEN_LENGTH = 32
+
+
+def _refuse_example_secrets() -> None:
+    data_key = os.environ.get("FH_DATA_KEY", "").strip()
+    if not data_key or data_key in _EXAMPLE_DATA_KEYS:
+        # It seals TOTP secrets, OIDC client secrets and webhook and integration credentials, and keys the file
+        # URL and recovery-code MACs: a known key gives all of them away.
+        raise RuntimeError("outside dev and test, FH_DATA_KEY must be set to a generated key, not a dev or example one")
+    token = os.environ.get("FH_OPERATOR_TOKEN", "")
+    if token and (token in _EXAMPLE_OPERATOR_TOKENS or len(token) < MIN_OPERATOR_TOKEN_LENGTH):
+        raise RuntimeError(
+            f"outside dev and test, FH_OPERATOR_TOKEN must be empty (endpoint off) or a generated value of at least "
+            f"{MIN_OPERATOR_TOKEN_LENGTH} characters, never an example one"
+        )
+
+
 def _merge(base: dict, over: dict) -> dict:
     for key, value in over.items():
         base[key] = _merge(base[key], value) if isinstance(value, dict) and key in base else value
@@ -266,6 +288,8 @@ def get_settings() -> Settings:
         # error that tells the admin to add the proxy's address (which admits everyone).
         raise RuntimeError("outside dev and test, set api.trusted_proxies to the proxy's address range, or set "
                            "api.exposed_directly: true if no proxy stands in front of the API")  # fmt: skip
+    if env not in ("dev", "test"):
+        _refuse_example_secrets()
     if env not in ("dev", "test") and settings.storage.scanner == "noop":
         raise RuntimeError("outside dev and test, storage.scanner must not be noop: uploads must be malware-scanned")
     return settings

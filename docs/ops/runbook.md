@@ -101,9 +101,9 @@ All secrets are environment variables; none are in the image or the repository.
 |---|---|
 | `FH_DB_APP_PASSWORD`, `FH_DB_PLATFORM_PASSWORD`, `FH_DB_OWNER_PASSWORD` | `ALTER ROLE fh_app PASSWORD '...'` as superuser, update the secret, restart `api`, `worker`, `relay`, `scheduler` (owner: used only by `migrate`) |
 | `FH_S3_ACCESS_KEY_ID` / `FH_S3_SECRET_ACCESS_KEY` | create a second key pair with the provider, deploy it, then delete the old pair |
-| `FH_OPERATOR_TOKEN` | set a new value and restart `api`; leave it empty to disable the onboarding endpoint |
+| `FH_OPERATOR_TOKEN` | set a new generated value (at least 32 characters; `openssl rand -hex 32`) and restart `api`; leave it empty to disable the operator endpoints. Production refuses a short or example value |
 | `FH_BACKUP_PASSPHRASE` | new backups use the new value; keep the old one until the last archive encrypted with it has aged out |
-| `FH_DATA_KEY` | **not a drop-in rotation**: it encrypts stored tenant secrets (webhook signing keys). Rotating needs a re-encryption step that does not exist yet; treat the key as long-lived and back it up with the secrets |
+| `FH_DATA_KEY` | **Rotation is not supported yet.** The key seals every user's TOTP secret, OIDC client secrets, webhook signing secrets and integration credentials, and keys the MACs on recovery codes and signed file URLs. Changing it without re-sealing locks every MFA user out (codes and recovery codes both fail), breaks OIDC sign-in and webhook signing, and voids issued file links; ciphertexts carry one key id (`k1`) and no re-encryption step exists. Until one does: generate it once (`openssl rand -base64 32`), keep it in the secret store and with the backups' secret escrow, and never change it. If it leaks, treat it as an incident: today's remedy is a planned outage in which each affected secret is re-entered under a new key (MFA re-enrolment, provider, webhook and integration secrets re-set). Production refuses to start with the dev key or a committed example value |
 | Stripe keys | per the Stripe adapter docs, in the Stripe dashboard first, then the environment |
 
 After any rotation: restart the affected services and confirm `/api/v1/health/ready`.
