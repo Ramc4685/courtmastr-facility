@@ -5,6 +5,29 @@ phase branch twice (T2, Phase 10 main, S4; then S3 at `b9e83c8`). Migrations `12
 head) and `1271`. Scope: `docs/planning/phase-8.md` chip I1, backlog rows IMP-01, IMP-02, MEM-23. Behaviour
 description: `backend/app/modules/imports/README.md`.
 
+## Review round 2 (findings 1 to 11, branch `claude/p8-i1-fixes`)
+
+No migration: the row key stays a 64-character hex string, the checked file and stop reason live in the job's
+`progress` cursor, and the opening-balance tender is a row, not a new enum value.
+
+| # | Finding | What changed | Regression test |
+|---|---|---|---|
+| 1 | HIGH: an import re-subscribed people who opted out; a member-number match replaced the primary email | `engagement.import_consent` withholds an opt-in for a topic the client opted out of on any address (warning `consent-withheld`, "the client opted out here"), whatever the file's consent date, and leaves an already-subscribed address alone (no backdated event). `clients.import_client` never changes an existing primary email: a new one is added as secondary. Email consent for an existing client whose file email is new is not imported (`consent-withheld`). README made true. | `test_an_import_never_resubscribes_an_opt_out_or_changes_a_primary_email` |
+| 2 | MEDIUM: opening balances double-posted across jobs | The billing key is the resolved client, as-of date, direction and amount, never the job id; `post_opening_balance` reports whether it posted; a repeat is `skipped` "already posted" (`already-posted`). | `test_an_opening_balance_posts_once_however_it_arrives_and_reads_as_an_opening_balance` |
+| 3 | MEDIUM: imports matched clients outside the submitter's locations | Check and commit need every location: router dependency `_every_location` and `service.require_all_locations` in `start_dry_run` / `start_commit`, 403 `all-locations-required`. Keys unchanged. | `test_running_an_import_needs_every_location_and_the_keys_of_its_writes`; the existing gates test now expects the code |
+| 4 | MEDIUM: counter row locks held for 200-row chunks | `Kind.chunk_rows`: 20 for memberships and balances, and for clients when member numbers are generated on creation; 200 otherwise. Reasoning in the README. | `test_chunk_size_per_kind_keeps_counter_locks_short` |
+| 5 | MEDIUM: one poison row killed the job | Any other exception rolls back the row's savepoint and fails the row `unexpected`; only the class name is logged. | `test_one_poison_row_fails_alone_and_the_job_carries_on` |
+| 6 | MEDIUM: opening credit read as cash taken on the import day | Credit is booked on the tender "Opening balance" (kind external, created disabled so the desk never offers it), so the deposits report lists it apart; `external_reference` = import job; submitter id in the payment's audit row (`take_payment(audit_changes=...)`). Cap `imports.max_opening_balance_minor`, default 10,000,000 minor units (100,000.00), `amount-too-large`. Refund stays an external hand-back. | same test as 2 (tender label in `rpt_payment`, reference, audit, refund without a provider, desk default unchanged) |
+| 7 | LOW: run key a super-key; queued jobs outlived rights | `start_commit` authorizes `service.KIND_KEYS[kind]` (the equivalent staff commands' keys). `run_chunk` checks the submitter (via `platform.staff.principal_for`) is active with the run key, every location and those keys, else stops the job with `stop_reason` (new field on the job, shown on the screen). | `test_a_queued_job_stops_when_its_submitter_loses_the_right`; key part in the test for 3 |
+| 8 | LOW: upload racing commit | `_load` takes the row lock for run-key calls; the finished check records `checked_file_id`, and a commit of another file is 409 `check-stale`. | `test_a_commit_needs_a_check_of_the_current_file` |
+| 9 | LOW: privacy retention | `row_key` = `crypto.mac` of the natural key. Retention purges `import_job_row` 30 days after the job's files (`import_job_rows`). Data subject handler `imports`: erasure deletes the client's rows (client, contracts, charges, payments) and removes those jobs' files at once; failed or skipped rows carry no entity, so those files expire in the 30-day window (justified in the README). Jobs stalled `imports.stalled_minutes` (60) are failed by the hourly purge. | `test_row_keys_are_keyed_and_rows_are_erased_and_expire` |
+| 10 | LOW: memberships could bill before the file's next bill date; fixed plan start silently replaced the file's | `memberships.import_contract` refuses `bills-before-next-bill-date` (due date less the billing lead before the next bill date) and `plan-fixed-start`. | `test_memberships_refuse_billing_before_the_next_bill_date_and_a_moved_start` |
+| 11 | LOW: template example phone failed; no NFC | `csvio.cell` strips our own neutralising apostrophe and normalises to NFC before matching. | `test_every_template_example_row_passes_its_own_check_and_names_match_in_nfc`, `test_read_cells_undo_our_neutralising_apostrophe_and_compose_accents` |
+
+Not changed, by decision: row keys written before this round are plain SHA-256 and no longer match new MAC keys, so
+a once-only row imported before it is caught by the owning service (membership owner, plan and start; balance
+billing key) rather than the row key. The feature is unreleased, so no rewrite.
+
 ## Review round (coordinator changes A, B, C)
 
 | Change | What changed | Regression test |
