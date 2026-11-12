@@ -1266,6 +1266,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/branding/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Tenant Logo
+         * @description JPEG or PNG up to 512 KiB. Errors: file-type-mismatch, file-too-large, file-empty.
+         */
+        put: operations["putTenantLogo"];
+        post?: never;
+        /** Delete Tenant Logo */
+        delete: operations["deleteTenantLogo"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/calendar": {
         parameters: {
             query?: never;
@@ -4828,6 +4849,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/locations/{location_id}/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Location Logo
+         * @description JPEG or PNG up to 512 KiB. Errors: file-type-mismatch, file-too-large, file-empty.
+         */
+        put: operations["putLocationLogo"];
+        post?: never;
+        /** Delete Location Logo */
+        delete: operations["deleteLocationLogo"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/locations/{location_id}/portal-settings": {
         parameters: {
             query?: never;
@@ -5802,6 +5844,46 @@ export interface paths {
         head?: never;
         /** Update Official */
         patch: operations["updateOfficial"];
+        trace?: never;
+    };
+    "/api/v1/onboarding/checklist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Onboarding Checklist
+         * @description Setup steps, each worked out from the account's data now.
+         */
+        get: operations["getOnboardingChecklist"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/onboarding/checklist/dismissal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Onboarding Checklist Dismissal
+         * @description Hide or show the checklist for the signed-in staff user only.
+         */
+        put: operations["putOnboardingChecklistDismissal"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/operator/tenants": {
@@ -7839,6 +7921,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/privacy-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Privacy Settings */
+        get: operations["getPrivacySettings"];
+        /**
+         * Put Privacy Settings
+         * @description GDPR mode: express marketing consent only, shorter retention of sessions and sign-in links.
+         */
+        put: operations["putPrivacySettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/product-brands": {
         parameters: {
             query?: never;
@@ -8392,6 +8495,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/branding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Branding
+         * @description Logo URLs of the tenant resolved from the host: the staff shell and the member portal header.
+         */
+        get: operations["getPublicBranding"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/communication-preferences": {
         parameters: {
             query?: never;
@@ -8635,6 +8758,26 @@ export interface paths {
          *     name.
          */
         get: operations["listPublicMembershipPlans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/objects/{object_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Object
+         * @description Serves the public prefix t/<tenant>/public/<file> when no bucket or CDN origin is configured. Only logos.
+         */
+        get: operations["getPublicObject"];
         put?: never;
         post?: never;
         delete?: never;
@@ -11033,6 +11176,88 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/support-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Support Requests
+         * @description The caller's own requests. Filter: status.
+         */
+        get: operations["listSupportRequests"];
+        put?: never;
+        /**
+         * Create Support Request
+         * @description Records the request and emails it to the operator's support address.
+         */
+        post: operations["createSupportRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/support-requests/screenshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upload Support Screenshot
+         * @description Raw JPEG or PNG bytes (under 900 KiB); send the returned id as screenshot_file_id.
+         *     Errors: file-type-mismatch, file-too-large, file-empty.
+         */
+        put: operations["uploadSupportScreenshot"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/support-requests/{support_request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Support Request */
+        get: operations["getSupportRequest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/support-requests/{support_request_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close Support Request
+         * @description Errors: invalid-state-transition.
+         */
+        post: operations["closeSupportRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/suppressions": {
         parameters: {
             query?: never;
@@ -11240,6 +11465,68 @@ export interface paths {
         head?: never;
         /** Update Tenant */
         patch: operations["updateTenant"];
+        trace?: never;
+    };
+    "/api/v1/tenant-exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Tenant Exports
+         * @description Filter: status.
+         */
+        get: operations["listTenantExports"];
+        put?: never;
+        /**
+         * Create Tenant Export
+         * @description Owner only, after a fresh step-up. Builds a zip of every table in the background.
+         *     Errors: export-in-progress, step-up-required.
+         */
+        post: operations["createTenantExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant-exports/{tenant_export_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Tenant Export */
+        get: operations["getTenantExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tenant-exports/{tenant_export_id}/download-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Tenant Export Download Url
+         * @description A signed link valid 5 minutes. Errors: export-not-ready; 404 once expired.
+         */
+        post: operations["createTenantExportDownloadUrl"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/tender-types": {
@@ -13686,6 +13973,13 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** BrandingOut */
+        BrandingOut: {
+            /** Locations */
+            locations: components["schemas"]["LocationLogoOut"][];
+            /** Tenant Logo Url */
+            tenant_logo_url: string | null;
+        };
         /** BulkInvoiceItem */
         BulkInvoiceItem: {
             /** Charge Ids */
@@ -14829,6 +15123,33 @@ export interface components {
             override_reason: string | null;
             /** Result */
             result: string;
+        };
+        /** ChecklistDismissal */
+        ChecklistDismissal: {
+            /** Is Dismissed */
+            is_dismissed: boolean;
+        };
+        /** ChecklistOut */
+        ChecklistOut: {
+            /** Done Count */
+            done_count: number;
+            /** Is Complete */
+            is_complete: boolean;
+            /** Is Dismissed */
+            is_dismissed: boolean;
+            /** Steps */
+            steps: components["schemas"]["ChecklistStepOut"][];
+        };
+        /** ChecklistStepOut */
+        ChecklistStepOut: {
+            /** Is Done */
+            is_done: boolean;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Path */
+            path: string;
         };
         /** CheckoutCreate */
         CheckoutCreate: {
@@ -17273,6 +17594,11 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Due At
+             * Format: date-time
+             */
+            due_at: string;
             /** Handler Results */
             handler_results: {
                 [key: string]: unknown;
@@ -17284,6 +17610,8 @@ export interface components {
             id: string;
             /** Is Blocker Override */
             is_blocker_override: boolean;
+            /** Is Overdue */
+            is_overdue: boolean;
             /** Kind */
             kind: string;
             /** Reason */
@@ -19297,6 +19625,16 @@ export interface components {
             time_zone: string;
             /** Website Url */
             website_url?: string | null;
+        };
+        /** LocationLogoOut */
+        LocationLogoOut: {
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Logo Url */
+            logo_url: string;
         };
         /** LocationOut */
         LocationOut: {
@@ -21977,6 +22315,12 @@ export interface components {
             data: components["schemas"]["SupplierOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[SupportRequestOut] */
+        Page_SupportRequestOut_: {
+            /** Data */
+            data: components["schemas"]["SupportRequestOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[SuppressionOut] */
         Page_SuppressionOut_: {
             /** Data */
@@ -21993,6 +22337,12 @@ export interface components {
         Page_TaxOut_: {
             /** Data */
             data: components["schemas"]["TaxOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[TenantExportOut] */
+        Page_TenantExportOut_: {
+            /** Data */
+            data: components["schemas"]["TenantExportOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[TimeEntryOut] */
@@ -24994,6 +25344,16 @@ export interface components {
             /** Staff User Id */
             staff_user_id?: string | null;
         };
+        /** PrivacySettings */
+        PrivacySettings: {
+            /** Is Gdpr Mode */
+            is_gdpr_mode: boolean;
+        };
+        /** PrivacySettingsOut */
+        PrivacySettingsOut: {
+            /** Is Gdpr Mode */
+            is_gdpr_mode: boolean;
+        };
         /** ProductCategoryCreate */
         ProductCategoryCreate: {
             /**
@@ -25551,6 +25911,13 @@ export interface components {
              */
             provider: "stripe" | "fake";
         };
+        /** PublicBranding */
+        PublicBranding: {
+            /** Locations */
+            locations: components["schemas"]["PublicLocationLogo"][];
+            /** Tenant Logo Url */
+            tenant_logo_url: string | null;
+        };
         /** PublicCompetitionOut */
         PublicCompetitionOut: {
             /** Division Label */
@@ -25704,6 +26071,16 @@ export interface components {
             slug: string;
             /** Time Zone */
             time_zone: string;
+        };
+        /** PublicLocationLogo */
+        PublicLocationLogo: {
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Logo Url */
+            logo_url: string;
         };
         /** PublicPlanOut */
         PublicPlanOut: {
@@ -29664,6 +30041,53 @@ export interface components {
             /** Phone */
             phone?: string | null;
         };
+        /** SupportRequestCreate */
+        SupportRequestCreate: {
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "question" | "problem" | "billing" | "import" | "feedback";
+            /** Message */
+            message: string;
+            /** Screenshot File Id */
+            screenshot_file_id?: string | null;
+        };
+        /** SupportRequestOut */
+        SupportRequestOut: {
+            /** Category */
+            category: string;
+            /** Closed At */
+            closed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Message */
+            message: string;
+            /** Screenshot File Id */
+            screenshot_file_id: string | null;
+            /** Status */
+            status: string;
+        };
+        /** SupportScreenshotOut */
+        SupportScreenshotOut: {
+            /** Content Type */
+            content_type: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Size Bytes */
+            size_bytes: number;
+        };
         /** SuppressionCreate */
         SuppressionCreate: {
             /** Address */
@@ -29991,6 +30415,51 @@ export interface components {
              * @default Team
              */
             name_prefix: string;
+        };
+        /** TenantExportDownload */
+        TenantExportDownload: {
+            /** Expires In */
+            expires_in: number;
+            /** Url */
+            url: string;
+        };
+        /** TenantExportOut */
+        TenantExportOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error */
+            error: string | null;
+            /** Expires At */
+            expires_at: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            progress: components["schemas"]["TenantExportProgress"];
+            /**
+             * Requested By Staff User Id
+             * Format: uuid
+             */
+            requested_by_staff_user_id: string;
+            /** Row Count */
+            row_count: number | null;
+            /** Started At */
+            started_at: string | null;
+            /** Status */
+            status: string;
+        };
+        /** TenantExportProgress */
+        TenantExportProgress: {
+            /** Tables Done */
+            tables_done: number;
+            /** Tables Total */
+            tables_total: number;
         };
         /** TenantOnboard */
         TenantOnboard: {
@@ -34094,6 +34563,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putTenantLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandingOut"];
+                };
+            };
+        };
+    };
+    deleteTenantLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandingOut"];
                 };
             };
         };
@@ -43337,6 +43846,68 @@ export interface operations {
             };
         };
     };
+    putLocationLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                location_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteLocationLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                location_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getPortalSettings: {
         parameters: {
             query?: never;
@@ -45886,6 +46457,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OfficialOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getOnboardingChecklist: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChecklistOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putOnboardingChecklistDismissal: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChecklistDismissal"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChecklistOut"];
                 };
             };
             /** @description Validation Error */
@@ -50602,6 +51241,74 @@ export interface operations {
             };
         };
     };
+    getPrivacySettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivacySettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putPrivacySettings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrivacySettings"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivacySettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listProductBrands: {
         parameters: {
             query?: {
@@ -52172,6 +52879,26 @@ export interface operations {
             };
         };
     };
+    getPublicBranding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicBranding"];
+                };
+            };
+        };
+    };
     putPublicCommunicationPreferences: {
         parameters: {
             query?: never;
@@ -52598,6 +53325,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Page_PublicPlanOut_"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPublicObject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                object_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -59172,6 +59928,185 @@ export interface operations {
             };
         };
     };
+    listSupportRequests: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_SupportRequestOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createSupportRequest: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupportRequestCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportRequestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    uploadSupportScreenshot: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportScreenshotOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getSupportRequest: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                support_request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportRequestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    closeSupportRequest: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                support_request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupportRequestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listSuppressions: {
         parameters: {
             query?: {
@@ -59890,6 +60825,149 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TenantOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listTenantExports: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_TenantExportOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createTenantExport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenantExportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getTenantExport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                tenant_export_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenantExportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createTenantExportDownloadUrl: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                tenant_export_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenantExportDownload"];
                 };
             };
             /** @description Validation Error */

@@ -5660,6 +5660,34 @@
         "title": "BrandWrite",
         "type": "object"
       },
+      "BrandingOut": {
+        "properties": {
+          "locations": {
+            "items": {
+              "$ref": "#/components/schemas/LocationLogoOut"
+            },
+            "title": "Locations",
+            "type": "array"
+          },
+          "tenant_logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenant Logo Url"
+          }
+        },
+        "required": [
+          "tenant_logo_url",
+          "locations"
+        ],
+        "title": "BrandingOut",
+        "type": "object"
+      },
       "BulkInvoiceItem": {
         "properties": {
           "charge_ids": {
@@ -9228,6 +9256,79 @@
           "client_name"
         ],
         "title": "CheckInRowOut",
+        "type": "object"
+      },
+      "ChecklistDismissal": {
+        "additionalProperties": false,
+        "properties": {
+          "is_dismissed": {
+            "title": "Is Dismissed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_dismissed"
+        ],
+        "title": "ChecklistDismissal",
+        "type": "object"
+      },
+      "ChecklistOut": {
+        "properties": {
+          "done_count": {
+            "title": "Done Count",
+            "type": "integer"
+          },
+          "is_complete": {
+            "title": "Is Complete",
+            "type": "boolean"
+          },
+          "is_dismissed": {
+            "title": "Is Dismissed",
+            "type": "boolean"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/ChecklistStepOut"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "steps",
+          "done_count",
+          "is_complete",
+          "is_dismissed"
+        ],
+        "title": "ChecklistOut",
+        "type": "object"
+      },
+      "ChecklistStepOut": {
+        "properties": {
+          "is_done": {
+            "title": "Is Done",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "path",
+          "is_done"
+        ],
+        "title": "ChecklistStepOut",
         "type": "object"
       },
       "CheckoutCreate": {
@@ -17803,6 +17904,11 @@
             "title": "Created At",
             "type": "string"
           },
+          "due_at": {
+            "format": "date-time",
+            "title": "Due At",
+            "type": "string"
+          },
           "handler_results": {
             "additionalProperties": true,
             "title": "Handler Results",
@@ -17815,6 +17921,10 @@
           },
           "is_blocker_override": {
             "title": "Is Blocker Override",
+            "type": "boolean"
+          },
+          "is_overdue": {
+            "title": "Is Overdue",
             "type": "boolean"
           },
           "kind": {
@@ -17854,7 +17964,9 @@
           "handler_results",
           "confirmed_at",
           "completed_at",
-          "created_at"
+          "created_at",
+          "due_at",
+          "is_overdue"
         ],
         "title": "DsrOut",
         "type": "object"
@@ -23996,6 +24108,25 @@
           "country_code"
         ],
         "title": "LocationCreate",
+        "type": "object"
+      },
+      "LocationLogoOut": {
+        "properties": {
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "logo_url": {
+            "title": "Logo Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location_id",
+          "logo_url"
+        ],
+        "title": "LocationLogoOut",
         "type": "object"
       },
       "LocationOut": {
@@ -33088,6 +33219,26 @@
         "title": "Page[SupplierOut]",
         "type": "object"
       },
+      "Page_SupportRequestOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SupportRequestOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[SupportRequestOut]",
+        "type": "object"
+      },
       "Page_SuppressionOut_": {
         "properties": {
           "data": {
@@ -33146,6 +33297,26 @@
           "page"
         ],
         "title": "Page[TaxOut]",
+        "type": "object"
+      },
+      "Page_TenantExportOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TenantExportOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[TenantExportOut]",
         "type": "object"
       },
       "Page_TimeEntryOut_": {
@@ -41757,6 +41928,33 @@
         "title": "PrincipalOut",
         "type": "object"
       },
+      "PrivacySettings": {
+        "additionalProperties": false,
+        "properties": {
+          "is_gdpr_mode": {
+            "title": "Is Gdpr Mode",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_gdpr_mode"
+        ],
+        "title": "PrivacySettings",
+        "type": "object"
+      },
+      "PrivacySettingsOut": {
+        "properties": {
+          "is_gdpr_mode": {
+            "title": "Is Gdpr Mode",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_gdpr_mode"
+        ],
+        "title": "PrivacySettingsOut",
+        "type": "object"
+      },
       "ProductCategoryCreate": {
         "additionalProperties": false,
         "properties": {
@@ -44002,6 +44200,34 @@
         "title": "ProviderConnect",
         "type": "object"
       },
+      "PublicBranding": {
+        "properties": {
+          "locations": {
+            "items": {
+              "$ref": "#/components/schemas/PublicLocationLogo"
+            },
+            "title": "Locations",
+            "type": "array"
+          },
+          "tenant_logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenant Logo Url"
+          }
+        },
+        "required": [
+          "tenant_logo_url",
+          "locations"
+        ],
+        "title": "PublicBranding",
+        "type": "object"
+      },
       "PublicCompetitionOut": {
         "properties": {
           "division_label": {
@@ -44501,6 +44727,25 @@
           "facility_hours"
         ],
         "title": "PublicLocation",
+        "type": "object"
+      },
+      "PublicLocationLogo": {
+        "properties": {
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "logo_url": {
+            "title": "Logo Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location_id",
+          "logo_url"
+        ],
+        "title": "PublicLocationLogo",
         "type": "object"
       },
       "PublicPlanOut": {
@@ -57290,6 +57535,131 @@
         "title": "SupplierWrite",
         "type": "object"
       },
+      "SupportRequestCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "enum": [
+              "question",
+              "problem",
+              "billing",
+              "import",
+              "feedback"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "screenshot_file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Screenshot File Id"
+          }
+        },
+        "required": [
+          "category",
+          "message"
+        ],
+        "title": "SupportRequestCreate",
+        "type": "object"
+      },
+      "SupportRequestOut": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "screenshot_file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Screenshot File Id"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "category",
+          "message",
+          "status",
+          "screenshot_file_id",
+          "closed_at",
+          "created_at"
+        ],
+        "title": "SupportRequestOut",
+        "type": "object"
+      },
+      "SupportScreenshotOut": {
+        "properties": {
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "content_type",
+          "size_bytes"
+        ],
+        "title": "SupportScreenshotOut",
+        "type": "object"
+      },
       "SuppressionCreate": {
         "additionalProperties": false,
         "properties": {
@@ -58338,6 +58708,140 @@
           "count"
         ],
         "title": "TeamGenerate",
+        "type": "object"
+      },
+      "TenantExportDownload": {
+        "properties": {
+          "expires_in": {
+            "title": "Expires In",
+            "type": "integer"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expires_in"
+        ],
+        "title": "TenantExportDownload",
+        "type": "object"
+      },
+      "TenantExportOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/TenantExportProgress"
+          },
+          "requested_by_staff_user_id": {
+            "format": "uuid",
+            "title": "Requested By Staff User Id",
+            "type": "string"
+          },
+          "row_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row Count"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "requested_by_staff_user_id",
+          "row_count",
+          "error",
+          "progress",
+          "started_at",
+          "finished_at",
+          "expires_at",
+          "created_at"
+        ],
+        "title": "TenantExportOut",
+        "type": "object"
+      },
+      "TenantExportProgress": {
+        "properties": {
+          "tables_done": {
+            "title": "Tables Done",
+            "type": "integer"
+          },
+          "tables_total": {
+            "title": "Tables Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tables_done",
+          "tables_total"
+        ],
+        "title": "TenantExportProgress",
         "type": "object"
       },
       "TenantOnboard": {
@@ -67545,6 +68049,47 @@
         "summary": "Publish Bracket",
         "tags": [
           "leagues"
+        ]
+      }
+    },
+    "/api/v1/branding/logo": {
+      "delete": {
+        "operationId": "deleteTenantLogo",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Delete Tenant Logo",
+        "tags": [
+          "platform"
+        ]
+      },
+      "put": {
+        "description": "JPEG or PNG up to 512 KiB. Errors: file-type-mismatch, file-too-large, file-empty.",
+        "operationId": "putTenantLogo",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Put Tenant Logo",
+        "tags": [
+          "platform"
         ]
       }
     },
@@ -86462,6 +87007,91 @@
         ]
       }
     },
+    "/api/v1/locations/{location_id}/logo": {
+      "delete": {
+        "operationId": "deleteLocationLogo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Location Logo",
+        "tags": [
+          "platform"
+        ]
+      },
+      "put": {
+        "description": "JPEG or PNG up to 512 KiB. Errors: file-type-mismatch, file-too-large, file-empty.",
+        "operationId": "putLocationLogo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "location_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Location Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Location Logo",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/api/v1/locations/{location_id}/portal-settings": {
       "get": {
         "operationId": "getPortalSettings",
@@ -91675,6 +92305,122 @@
         "summary": "Update Official",
         "tags": [
           "leagues"
+        ]
+      }
+    },
+    "/api/v1/onboarding/checklist": {
+      "get": {
+        "description": "Setup steps, each worked out from the account's data now.",
+        "operationId": "getOnboardingChecklist",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChecklistOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Onboarding Checklist",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/onboarding/checklist/dismissal": {
+      "put": {
+        "description": "Hide or show the checklist for the signed-in staff user only.",
+        "operationId": "putOnboardingChecklistDismissal",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChecklistDismissal"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChecklistOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Onboarding Checklist Dismissal",
+        "tags": [
+          "platform"
         ]
       }
     },
@@ -101706,6 +102452,119 @@
         ]
       }
     },
+    "/api/v1/privacy-settings": {
+      "get": {
+        "operationId": "getPrivacySettings",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacySettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Privacy Settings",
+        "tags": [
+          "platform"
+        ]
+      },
+      "put": {
+        "description": "GDPR mode: express marketing consent only, shorter retention of sessions and sign-in links.",
+        "operationId": "putPrivacySettings",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrivacySettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrivacySettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Privacy Settings",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/api/v1/product-brands": {
       "get": {
         "operationId": "listProductBrands",
@@ -104978,6 +105837,28 @@
         ]
       }
     },
+    "/api/v1/public/branding": {
+      "get": {
+        "description": "Logo URLs of the tenant resolved from the host: the staff shell and the member portal header.",
+        "operationId": "getPublicBranding",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicBranding"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Public Branding",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/api/v1/public/communication-preferences": {
       "put": {
         "description": "Errors: token-invalid, email-unverified.",
@@ -105716,6 +106597,42 @@
         "summary": "List Public Membership Plans",
         "tags": [
           "memberships"
+        ]
+      }
+    },
+    "/api/v1/public/objects/{object_key}": {
+      "get": {
+        "description": "Serves the public prefix t/<tenant>/public/<file> when no bucket or CDN origin is configured. Only logos.",
+        "operationId": "getPublicObject",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "object_key",
+            "required": true,
+            "schema": {
+              "title": "Object Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Public Object",
+        "tags": [
+          "platform"
         ]
       }
     },
@@ -119390,6 +120307,384 @@
         ]
       }
     },
+    "/api/v1/support-requests": {
+      "get": {
+        "description": "The caller's own requests. Filter: status.",
+        "operationId": "listSupportRequests",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_SupportRequestOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Support Requests",
+        "tags": [
+          "platform"
+        ]
+      },
+      "post": {
+        "description": "Records the request and emails it to the operator's support address.",
+        "operationId": "createSupportRequest",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupportRequestCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Support Request",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/support-requests/screenshot": {
+      "put": {
+        "description": "Raw JPEG or PNG bytes (under 900 KiB); send the returned id as screenshot_file_id.\nErrors: file-type-mismatch, file-too-large, file-empty.",
+        "operationId": "uploadSupportScreenshot",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportScreenshotOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Support Screenshot",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/support-requests/{support_request_id}": {
+      "get": {
+        "operationId": "getSupportRequest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "support_request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Support Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Support Request",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/support-requests/{support_request_id}/close": {
+      "post": {
+        "description": "Errors: invalid-state-transition.",
+        "operationId": "closeSupportRequest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "support_request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Support Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Close Support Request",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/api/v1/suppressions": {
       "get": {
         "operationId": "listSuppressions",
@@ -120879,6 +122174,321 @@
           }
         },
         "summary": "Update Tenant",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/tenant-exports": {
+      "get": {
+        "description": "Filter: status.",
+        "operationId": "listTenantExports",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_TenantExportOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Tenant Exports",
+        "tags": [
+          "platform"
+        ]
+      },
+      "post": {
+        "description": "Owner only, after a fresh step-up. Builds a zip of every table in the background.\nErrors: export-in-progress, step-up-required.",
+        "operationId": "createTenantExport",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantExportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Tenant Export",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/tenant-exports/{tenant_export_id}": {
+      "get": {
+        "operationId": "getTenantExport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_export_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Export Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantExportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Tenant Export",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/tenant-exports/{tenant_export_id}/download-url": {
+      "post": {
+        "description": "A signed link valid 5 minutes. Errors: export-not-ready; 404 once expired.",
+        "operationId": "createTenantExportDownloadUrl",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_export_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Export Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantExportDownload"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Tenant Export Download Url",
         "tags": [
           "platform"
         ]
