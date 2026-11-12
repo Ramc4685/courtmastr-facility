@@ -66,7 +66,7 @@ export function codeMessage(error: unknown): string | undefined {
   if (!(error instanceof ApiError)) return 'We could not reach the server. Check your connection and try again.'
   if (error.code === 'mfa-code-invalid' || error.code === 'reauthentication-failed') return 'That did not match. Try again.'
   if (error.code === 'mfa-challenge-invalid') return 'This sign-in took too long. Start again.'
-  if (error.code === 'identity-locked') return 'Too many attempts. Try again later.'
+  if (error.code === 'identity-locked' || error.code === 'mfa-locked') return 'Too many attempts. Try again later.'
   if (error.code === 'rate-limited') return 'Too many attempts. Wait a minute and try again.'
   return error.message
 }
@@ -100,6 +100,14 @@ export function MfaStep({ challenge, onSignedIn }: { challenge: Challenge; onSig
   }
 
   if (done) return <RecoveryCodes codes={done.recovery_codes ?? []} onDone={() => void onSignedIn(done.csrf_token)} />
+  // A password alone cannot bind a new authenticator: the API emailed a sign-in link that resumes enrolment.
+  if (error instanceof ApiError && error.code === 'mfa-enrolment-needs-email-link')
+    return (
+      <div className="space-y-2" role="status">
+        <p className="font-medium">Check your email</p>
+        <p className="text-muted">We emailed you a link to finish setting up two-step verification. Open it on this device to continue.</p>
+      </div>
+    )
   return (
     <form onSubmit={submit} className="space-y-4" noValidate>
       {challenge.enrolment_required ? (

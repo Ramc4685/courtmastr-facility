@@ -80,6 +80,21 @@ describe('two-step sign-in', SCREEN, () => {
     expect(calls.filter((c) => c.url === '/api/v1/auth/mfa/verify').at(-1)?.body).toEqual({ mfa_token: 'fhm_x', code: '123456' })
   })
 
+  it('sends a required role without a factor to the emailed link when it signed in with a password', async () => {
+    const calls = mockFetch({
+      'GET /api/v1/auth/session': unauthenticated,
+      'GET /api/v1/auth/pre-session': { status: 200, body: { csrf_token: 'pre' } },
+      'POST /api/v1/auth/sign-in': challenge(true),
+      'POST /api/v1/auth/mfa/enrolment': { status: 403, body: { code: 'mfa-enrolment-needs-email-link', detail: 'Open the link.' } },
+      'GET /api/v1/me': unauthenticated,
+    })
+    renderApp('/sign-in')
+    await signInWithPassword()
+    expect(await screen.findByText('We emailed you a link to finish setting up two-step verification. Open it on this device to continue.', {}, { timeout: 5000 })).toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: 'QR code for your authenticator app' })).not.toBeInTheDocument()
+    expect(calls.some((c) => c.url === '/api/v1/auth/mfa/verify')).toBe(false)
+  })
+
   it('walks a required role through enrolment with a local QR code, then shows the recovery codes once', async () => {
     let signedIn = false
     const calls = mockFetch({
