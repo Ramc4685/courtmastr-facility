@@ -74,11 +74,15 @@ def on_waitlist_promoted(session, payload: dict) -> None:
 
 @handles("clients.client.created")
 def on_client_created(session, payload: dict) -> None:
+    if payload.get("source") == "import":  # a CSV import is not a new client walking in: no welcome (Phase 8 I1)
+        return
     service.on_trigger(session, "clients.client.created", payload)
 
 
 @handles("memberships.contract.activated")
 def on_contract_activated(session, payload: dict) -> None:
+    if payload.get("reason") == "import":  # a membership carried over from the old system was already welcomed
+        return
     service.on_trigger(session, "memberships.contract.activated", payload)
 
 

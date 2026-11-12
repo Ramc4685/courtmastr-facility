@@ -685,7 +685,9 @@ def _converge(session: Session, contract: MembershipContract, today: date, *, re
             contract.activated_at = clock.now()
             if contract.client_document_id is not None:
                 documents.service.consume(session, [contract.client_document_id], (*_SOURCE, contract.id))
-            events.publish(session, ContractActivated(**ref, reason=reason), contract.id)
+            # An imported contract that starts later still activates as an import (no welcome automation).
+            why = "import" if contract.sales_channel == "import" else reason
+            events.publish(session, ContractActivated(**ref, reason=why), contract.id)
         if target == "frozen":
             events.publish(session, ContractFrozen(**ref), contract.id)
         elif target == "suspended":

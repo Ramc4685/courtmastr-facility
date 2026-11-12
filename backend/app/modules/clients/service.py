@@ -754,8 +754,9 @@ def get_client(session: Session, principal: Principal, client_id: UUID) -> Clien
 
 
 def _create(
-    session: Session, principal: Principal, data: dict, *, context: str, created_via: str, verify: bool
-) -> Client:
+    session: Session, principal: Principal, data: dict, *, context: str, created_via: str, verify: bool,
+    import_job_id: UUID | None = None,
+) -> Client:  # fmt: skip
     data = dict(data)
     emails = data.pop("emails", None)
     primary = data.pop("primary_email", None)
@@ -792,7 +793,8 @@ def _create(
         session, "clients.client.create", client, location_id=client.home_location_id,
         changes={"home_location_id": [None, str(client.home_location_id)], "created_via": [None, created_via]},
     )  # fmt: skip
-    events.publish(session, ClientCreated(client_id=client.id), client.id)
+    source = "import" if created_via == "import" else None
+    events.publish(session, ClientCreated(client_id=client.id, source=source, import_job_id=import_job_id), client.id)
     return client
 
 
@@ -1126,7 +1128,7 @@ def ensure_member_number(session: Session, client_id: UUID) -> str | None:
     return client.member_number
 
 
-def import_client(session: Session, data: dict) -> tuple[Client, bool]:
+def import_client(session: Session, data: dict, *, import_job_id: UUID | None = None) -> tuple[Client, bool]:
     """Importer entry point (IMP-01): match on member number, then on a single client with the same primary
     email and names; update that client, else create one (created_via `import`, no verification email).
     A new record that the duplicate rule (`_duplicate_of`) pairs with an existing client is refused with 409
@@ -1149,7 +1151,8 @@ def import_client(session: Session, data: dict) -> tuple[Client, bool]:
         )
         match = found[0] if len(found) == 1 else None
     if match is None:
-        client = _create(session, actor, data, context="staff", created_via="import", verify=False)
+        client = _create(session, actor, data, context="staff", created_via="import", verify=False,
+                         import_job_id=import_job_id)  # fmt: skip
         other, predicate = _duplicate_of()
         if session.scalar(select(other.id).join(Client, predicate).where(Client.id == client.id).limit(1)):
             raise Conflict("This person looks like a client who already exists.", code="possible-duplicate")
