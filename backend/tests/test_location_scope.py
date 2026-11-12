@@ -63,7 +63,7 @@ CLIENT_OR_TENANT_ROUTES = {
         listCouponRedemptions listDocumentTemplateVersions mergeClients precheckClientMerge
         publishDocumentTemplate putClientCommunicationPreferences reactivateStaffUser
         replaceClientEmergencyContacts replaceMembershipPlanAddons replaceRolePermissions
-        replaceStaffPermissionOverrides resendStaffInvitation resetStaffCredentials resetStaffPermissions
+        replaceStaffPermissionOverrides resendStaffInvitation resetStaffCredentials resetStaffMfa resetStaffPermissions
         restoreDocumentTemplate revokeClientPortalAccess saveDocumentTemplateDraft sendClientEmailVerification
         updateClient updateClientAlert updateClientCategory updateClientLocationSettings updateClientNote
         updateClientTask updateCoupon updateCustomField updateDiscountPreset updateDocumentLocationSettings
