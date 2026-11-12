@@ -13,6 +13,7 @@ from app.core import audit, clock, context, events, networks
 from app.core.auth import Principal, passwords, tokens
 from app.core.auth.permissions import require_elevated
 from app.core.errors import NotFound, PermissionDenied, Unauthenticated, ValidationFailed
+from app.core.ratelimit import hit
 from app.core.settings import get_settings
 from app.modules.platform import entitlements, mfa, rbac
 from app.modules.platform.events import IdentityLocked
@@ -264,22 +265,29 @@ def sign_in(
     return grant
 
 
-def reauthenticate(session: Session, principal: Principal, password: str) -> None:
-    """Re-check the signed-in staff user's own password before a time-clock punch (STF-07). Failures count
-    toward the same lockout as sign-in, so a punch screen cannot be used to guess. Raise before any write."""
-    now = clock.now()
-    identity = session.get(Identity, principal.identity_id)
-    if identity is None or identity.password_hash is None or (identity.locked_until_at or now) > now:
-        passwords.burn(password)
-        raise PermissionDenied("Password is incorrect.", code="reauthentication-failed")
-    if not passwords.verify_password(identity.password_hash, password):
+def _check_own_password(session: Session, identity: Identity, password: str | None, failed_action: str, wrong) -> None:
+    """A signed-in caller proving their own password (time clock, password change). Same guards as step-up: the
+    per-identity bucket (the route adds the per-IP one where it suits), the row locked before counting, refused
+    while locked, and a wrong guess counted toward the sign-in lockout with a persisted error."""
+    hit("step-up-identity", str(identity.id), tenant=identity.tenant_id)
+    session.refresh(identity, with_for_update=True)
+    _refuse_if_locked(identity, PermissionDenied)
+    if not (password and passwords.verify_password(identity.password_hash, password)):
         _password_failed(session, identity)
-        audit.record(session, "platform.identity.reauthentication_failed", identity)
-        raise PermissionDenied("Password is incorrect.", code="reauthentication-failed", persist=True)
+        audit.record(session, failed_action, identity)
+        raise wrong
     _clear_failures(identity)
 
 
-_FRESH_PROOF = timedelta(minutes=15)  # the step-up window of rbac-matrix.md section 2
+def reauthenticate(session: Session, principal: Principal, password: str) -> None:
+    """Re-check the signed-in staff user's own password before a time-clock punch (STF-07). Failures count
+    toward the same lockout as sign-in, so a punch screen cannot be used to guess. Raise before any write."""
+    identity = session.get(Identity, principal.identity_id)
+    if identity is None or identity.password_hash is None:
+        passwords.burn(password)
+        raise PermissionDenied("Password is incorrect.", code="reauthentication-failed")
+    wrong = PermissionDenied("Password is incorrect.", code="reauthentication-failed", persist=True)
+    _check_own_password(session, identity, password, "platform.identity.reauthentication_failed", wrong)
 
 
 def _is_fresh_magic_link_session(session: Session, principal: Principal) -> bool:
@@ -293,7 +301,8 @@ def _is_fresh_magic_link_session(session: Session, principal: Principal) -> bool
                 audit.AuditEvent.action == "platform.identity.sign_in",
                 audit.AuditEvent.reason == "magic_link",
                 audit.AuditEvent.auth_session_id == principal.session_id,
-                audit.AuditEvent.occurred_at > clock.now() - _FRESH_PROOF,
+                # The same window as step-up (auth.step_up_min): a magic-link sign-in is a fresh mailbox proof.
+                audit.AuditEvent.occurred_at > clock.now() - timedelta(minutes=get_settings().auth.step_up_min),
             )
             .limit(1)
         )
@@ -304,8 +313,8 @@ def _is_fresh_magic_link_session(session: Session, principal: Principal) -> bool
 def change_password(session: Session, principal: Principal, *, current_password: str | None, new_password: str) -> None:
     identity = session.get(Identity, principal.identity_id)
     if identity.password_hash:
-        if not passwords.verify_password(identity.password_hash, current_password or ""):
-            raise _invalid_credentials()
+        wrong = _invalid_credentials(persist=True)
+        _check_own_password(session, identity, current_password, "platform.identity.change_password_failed", wrong)
     elif not _is_fresh_magic_link_session(session, principal):
         # A first password turns a session into a durable credential: demand fresh proof of the mailbox.
         raise PermissionDenied(

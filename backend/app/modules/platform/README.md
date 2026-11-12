@@ -143,7 +143,8 @@ bytes of purged rows and logs objects that have no row.
   and test, startup refuses an empty list unless `api.exposed_directly: true` (phase 8 S5): behind an unlisted
   proxy every client would be the proxy (one global sign-in bucket).
 - **Lockout** (5.1): 10 wrong passwords inside a 15-minute window lock password sign-in (and time-clock
-  re-authentication) for 15 minutes, doubling with each further lockout to a 4-hour cap; a successful
+  re-authentication and the current-password check of `POST /auth/password`, which since phase 8 S5 also
+  lock the row, refuse while locked and take the `step-up` / `step-up-identity` buckets) for 15 minutes, doubling with each further lockout to a 4-hour cap; a successful
   password sign-in, a redeemed magic link or a password reset ends the doubling. Magic links keep working.
   One `platform.identity_locked` notification per lockout (attempts while locked are refused before they
   count). Persisted errors now run their after-commit hooks (`core/api.py` `_finish`), which this email needed.
