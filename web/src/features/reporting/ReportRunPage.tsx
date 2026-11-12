@@ -250,7 +250,7 @@ function Results({ run, def }: { run: Run; def: Definition }) {
     <div className="space-y-4">
       <PrintHeader run={run} def={def} />
       <Totals def={def} totals={run.totals} />
-      {def.key === 'revenue_summary' && !group && data.length > 0 && <RevenueChart rows={data} totals={run.totals} currency={currency} />}
+      {def.key === 'revenue_summary' && !group && !rows.isPending && <RevenueChart rows={data} totals={run.totals} currency={currency} />}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold">{group ? `Details: ${group.label}` : `${run.row_count ?? 0} rows`}</h2>
         <div className="flex gap-2 print:hidden">
