@@ -74,12 +74,22 @@ function SettingsForm({ settings, locationId, onSaved }: { settings: Settings; l
           <Input label="Card expiry warning days" value={text.expiry} error={e.card_expiry_notice_days} hint="Days before a stored card expires." onChange={(ev) => setText({ ...text, expiry: ev.target.value })} />
           <Select label="Card expiry warnings for" value={form.card_expiry_notice_scope ?? 'autopay_methods'} onChange={(ev) => set({ card_expiry_notice_scope: ev.target.value as 'all_methods' })} options={[{ value: 'autopay_methods', label: 'Autopay methods' }, { value: 'all_methods', label: 'All stored methods' }]} />
           <Select label="Tell the client about declines" value={form.decline_notice_scope ?? 'off'} onChange={(ev) => set({ decline_notice_scope: ev.target.value as 'off' })} options={[{ value: 'off', label: 'Never' }, { value: 'autopay_payments', label: 'Autopay declines' }, { value: 'all_payments', label: 'All declines' }]} />
-          <Select label="Staff decline alerts" value={form.decline_alert_mode ?? 'per_event'} hint="Daily digest is stored but not sent in this version." onChange={(ev) => set({ decline_alert_mode: ev.target.value as 'per_event' })} options={[{ value: 'per_event', label: 'Each decline' }, { value: 'daily_digest', label: 'Daily digest' }]} />
+          <Select label="Staff decline alerts" value={form.decline_alert_mode ?? 'per_event'} hint="The digest goes out once a day: yesterday's failed payments and today's autopay." onChange={(ev) => set({ decline_alert_mode: ev.target.value as 'per_event' })} options={[{ value: 'per_event', label: 'Each decline' }, { value: 'daily_digest', label: 'Daily digest' }]} />
           <Input label="Decline alert email" type="email" value={form.decline_alert_email ?? ''} error={e.decline_alert_email} onChange={(ev) => set({ decline_alert_email: ev.target.value || null })} />
           <Select label="Save cards at checkout" value={form.save_card_default ?? 'ask'} onChange={(ev) => set({ save_card_default: ev.target.value as 'ask' })} options={[{ value: 'ask', label: 'Ask' }, { value: 'always', label: 'Always' }, { value: 'never', label: 'Never' }]} />
           <Checkbox label="Membership autopay on by default (staff sales)" checked={Boolean(form.is_membership_autopay_default_staff)} onChange={(ev) => set({ is_membership_autopay_default_staff: ev.target.checked })} />
           <Checkbox label="Membership autopay on by default (portal sales)" checked={Boolean(form.is_membership_autopay_default_portal)} onChange={(ev) => set({ is_membership_autopay_default_portal: ev.target.checked })} />
-          <Checkbox label="Block the portal while a client is past due" checked={Boolean(form.is_portal_blocked_when_past_due)} onChange={(ev) => set({ is_portal_blocked_when_past_due: ev.target.checked })} />
+          <Checkbox label="Block the portal while a client is past due" hint="Paying stays open; buying and booking online wait until the balance is paid." checked={Boolean(form.is_portal_blocked_when_past_due)} onChange={(ev) => set({ is_portal_blocked_when_past_due: ev.target.checked })} />
+          <Input
+            label="Suspend memberships past due by (days)"
+            type="number"
+            min={1}
+            max={365}
+            value={form.membership_suspend_after_days?.toString() ?? ''}
+            error={e.membership_suspend_after_days}
+            hint="Empty: never. The suspension lifts once the invoice is paid."
+            onChange={(ev) => set({ membership_suspend_after_days: ev.target.value ? Number(ev.target.value) : null })}
+          />
         </div>
       </Card>
       <div className="flex justify-end">
