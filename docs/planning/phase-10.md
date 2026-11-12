@@ -139,6 +139,13 @@ table below is the record.
 
 Migration chain: `0953 → 0310 → 1001 → 1061 → 1021 → 1022 → 1091 → 1041 → 1081`.
 
+Gate on the phase branch at `30641d0` (2026-11-12, one run, no retries): `make lint` pass; `make web-check`
+pass; `make web-test` 153 of 153; `make test` 4,126 passed with the 80% domain gate at 93%; demo seed pass;
+browser suite with one worker 39 of 40. The one browser failure was a test timing bug (an axe scan during a
+colour transition), fixed in `b678207` and then passing 6 of 6 in that spec; the full browser suite was not
+re-run after that test-only change. With several workers on a loaded machine the browser suite times out at
+sign-in; run it with `--workers=1`.
+
 Coordinator decisions made during the build:
 
 - CHK-10: a membership type with no location rows admits everywhere, as before; rows restrict.
