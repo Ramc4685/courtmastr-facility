@@ -7,6 +7,7 @@ import { Card, PageHeader } from '../../components/PageHeader'
 import { ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { timeZoneOptions } from '../../lib/format'
+import { BrandingCard } from './branding'
 
 function SettingsForm({ tenant }: { tenant: Schemas['TenantOut'] }) {
   const qc = useQueryClient()
@@ -61,6 +62,7 @@ export function TenantSettingsPage() {
     <>
       <PageHeader title="Settings" description="Account-wide defaults. Each location can set its own time zone." />
       {query.isPending ? <LoadingState /> : query.isError ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : <SettingsForm tenant={query.data} />}
+      <BrandingCard />
     </>
   )
 }

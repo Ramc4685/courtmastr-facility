@@ -36,7 +36,9 @@ import { RoleDetailPage } from '../features/platform/RoleDetailPage'
 import { RolesPage } from '../features/platform/RolesPage'
 import { StaffUserPage } from '../features/platform/StaffUserPage'
 import { StaffUsersPage } from '../features/platform/StaffUsersPage'
+import { PrivacyPage } from '../features/platform/PrivacyPage'
 import { SecuritySettingsPage } from '../features/platform/SecuritySettingsPage'
+import { SupportPage } from '../features/platform/SupportPage'
 import { AccountSecurityPage } from '../features/platform/AccountSecurityPage'
 import { TenantSettingsPage } from '../features/platform/TenantSettingsPage'
 import { RentalSetupPage } from '../features/rentals/RentalSetupPage'
@@ -124,6 +126,8 @@ export function AppRoutes() {
         <Route path="settings" element={<RequirePermission permission="platform.tenant.update"><TenantSettingsPage /></RequirePermission>} />
         <Route path="account/security" element={<AccountSecurityPage />} />
         <Route path="settings/security" element={<RequirePermission permission="platform.security.manage"><SecuritySettingsPage /></RequirePermission>} />
+        <Route path="settings/privacy" element={<RequirePermission permission={['platform.security.manage', 'platform.tenant.export']}><PrivacyPage /></RequirePermission>} />
+        <Route path="support" element={<RequirePermission permission="platform.support_request.create"><SupportPage /></RequirePermission>} />
         <Route path="billing" element={<RequirePermission permission="billing.charge.read"><BillingLayout /></RequirePermission>}>
           <Route index element={<WorkbenchPage />} />
           <Route path="clients" element={<ClientBillingLookupPage />} />
