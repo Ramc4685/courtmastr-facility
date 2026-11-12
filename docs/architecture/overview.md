@@ -64,7 +64,7 @@ access because the workload is transaction-bound CRUD, not fan-out I/O.
 
 ## 2. Bounded contexts
 
-Eighteen Python packages under `backend/app/modules/`. Rules:
+Nineteen Python packages under `backend/app/modules/` (Phase 8 added `imports`). Rules:
 
 1. A context owns its tables. No other context reads or writes them through the ORM. The single exception is
    `reporting`, which reads other contexts' **published SQL views** (`rpt_*`, declared by the owning context).
@@ -83,7 +83,7 @@ Layers (a context may call any context in a lower layer that its row lists):
 ```mermaid
 flowchart TB
   subgraph L5[L5 edge and read side]
-    engagement; reporting; integrations
+    engagement; reporting; integrations; imports
   end
   subgraph L4[L4 composed domains]
     access; leagues; staff; assessments
@@ -113,7 +113,7 @@ refresh) may subscribe to any event.
 
 | Context | Responsibility | Aggregates it owns (root tables) | May call | Emits | Consumes |
 |---|---|---|---|---|---|
-| `platform` | Tenants, locations, identity and sessions, RBAC, audit, settings, entitlements, idempotency, outbox, files | `tenant`, `tenant_domain`, `location`, `facility_hours`, `identity`, `auth_session`, `staff_user`, `role`, `user_permission_override`, `user_location_access`, `api_key`, `kiosk_device`, `audit_event`, `outbox_event`, `idempotency_key`, `tenant_entitlement`, `stored_file`, `import_job`, `data_subject_request`, `subscription_plan`, `tenant_counter`, `role_permission`, `auth_token`, `support_access_grant`, `processed_event`, `job_run`, `failed_job` | none | `platform.tenant.created`, `platform.location.created`, `platform.staff_user.invited`, `platform.identity.locked`, `platform.data_subject_request.completed` | none |
+| `platform` | Tenants, locations, identity and sessions, RBAC, audit, settings, entitlements, idempotency, outbox, files | `tenant`, `tenant_domain`, `location`, `facility_hours`, `identity`, `auth_session`, `staff_user`, `role`, `user_permission_override`, `user_location_access`, `api_key`, `kiosk_device`, `audit_event`, `outbox_event`, `idempotency_key`, `tenant_entitlement`, `stored_file`, `data_subject_request`, `subscription_plan`, `tenant_counter`, `role_permission`, `auth_token`, `support_access_grant`, `processed_event`, `job_run`, `failed_job`, `mfa_factor`, `mfa_recovery_code`, `identity_provider_config`, `external_login`, `logo`, `tenant_export`, `support_request` | none | `platform.tenant.created`, `platform.location.created`, `platform.staff_user.invited`, `platform.identity.locked`, `platform.data_subject_request.completed` | none |
 | `resources` | Bookable things and their tree: venues, sub-venues, trainers-as-resources, lockers; resource groups; availability windows | `resource`, `resource_group`, `resource_link`, `availability_window`, `locker_room`, `locker`, `locker_term` | platform | `resources.resource.created`, `.archived`, `.tree_changed` | `staff.trainer.created` |
 | `clients` | People: profiles, households, relationships, custom fields, tags, notes/tasks, merge, portal access links | `client`, `client_relationship`, `client_portal_access`, `custom_field`, `client_tag`, `client_note`, `client_task`, `client_alert` | platform | `clients.client.created`, `.updated`, `.disabled`, `.merged`, `clients.relationship.changed` | `platform.data_subject_request.completed` |
 | `scheduling` | The calendar engine: bookings, holds, sessions (capacity occurrences), recurrence series, blackouts, checkout holds | `booking`, `resource_hold`, `booking_series`, `session`, `reservation_type`, `reservation_category`, `blackout`, `booking_series_rule`, `booking_series_run`, `booking_resource`, `slot_offer`, `scheduling_settings` | platform, resources, clients | `scheduling.booking.created`, `.rescheduled`, `.cancelled`, `scheduling.session.created`, `.cancelled`, `scheduling.hold.expired`, `scheduling.series.generated`, `scheduling.session.capacity_changed` | `resources.resource.tree_changed`, `clients.client.merged` |
@@ -131,11 +131,27 @@ refresh) may subscribe to any event.
 | `engagement` | Notification routing and delivery (email, push, SMS port), campaigns, segments, suppression, reminders, portal/app content, video library | `message_template`, `campaign`, `segment`, `message`, `delivery_event`, `suppression`, `communication_preference`, `portal_content`, `video`, `inbox_item`, `email_verification`, `consent_event`, `device_registration`, `notification_route`, `reminder_rule`, `automation_rule`, `scheduled_notification`, `portal_settings`, `app_config`, `home_screen`, `trial_request`, `favorite`, `news_story` | platform, clients, read-only `audience(...)` functions of memberships, programs, access, leagues (segment resolution, MKT-04) | `engagement.message.delivered`, `.bounced`, `engagement.campaign.sent`, `engagement.contact_point.verified`, `engagement.consent.changed`, `engagement.tenant_sending.paused` | any (rule-driven); notably `programs.waitlist.promoted`, `billing.payment.failed`, `scheduling.booking.*` |
 | `reporting` | Report catalogue, saved report definitions, export jobs, dashboards. Read-only over `rpt_*` views | `saved_report`, `report_run`, `export_job` (the report catalogue is a code registry, ADR 0010; there is no `report_definition` table) | platform; SQL views of all contexts | `reporting.export.completed` | none required |
 | `integrations` | Public API surface and API-key scopes, outbound webhooks, QuickBooks sync, Zoom, calendar feeds, partner adapter registry | `webhook_endpoint`, `webhook_delivery`, `inbound_webhook_event`, `external_connection`, `sync_mapping`, `calendar_feed`, `accounting_export`, `adapter_command_log`, `video_meeting` | any service interface (facade only, no domain logic) | `integrations.connection.failed` | any (webhook fan-out); accounting reads `rpt_ledger_entry` per day, not billing events (ADR 0012) |
+| `imports` | Generic CSV import (Phase 8 I1): templates, mapping, dry run, chunked commit, row report. Keys stay `platform.import_job.*` | `import_job`, `import_job_row` | platform, clients, memberships, billing, pos, engagement; no context imports it (two import-linter contracts) | none | none |
 
 The aggregate column lists root and configuration tables; the complete per-context table inventory (child
 tables included) is the table list of the owning `data-model-*.md` document, and the RLS meta-test is driven by
 the ORM metadata, not by this table. "May call" entries marked read-only are pure query functions: they may
 not write and may not publish events.
+
+Known boundary exceptions (Phase 8 K3; `ignore_imports` in `backend/pyproject.toml`, reasons in
+`docs/status/phase8-k3-checks.md`). Each awaits an owner decision, change the "May call" column or the call;
+none is resolved here:
+
+1. `integrations.service` imports `adapters.accounting` (not through a port).
+2. `integrations.service` imports `adapters.video` (same).
+3. `platform.privacy` imports `clients.service` (an upward call from L0).
+4. `packages.service` imports `documents` (a downward call missing from the column).
+5. `programs.selfservice` imports `memberships` (a same-layer call).
+6. `engagement.handlers` imports `billing`.
+7. `engagement.handlers` imports `scheduling`.
+8. `engagement.service` imports `scheduling` (`get_booking`, `get_session`).
+
+import-linter cannot see deep imports of another context's internals; K3 lists the ones that exist.
 
 Placement decisions that are not obvious from the names:
 
@@ -572,6 +588,10 @@ All non-2xx responses are `application/problem+json` (RFC 9457):
   FAM-05).
 - Denial is `403` when the principal can see the resource but not perform the action, `404` when it is outside
   their tenant or location scope.
+- Keys flagged `+` also need a re-authentication in the last 10 minutes, Owners included: `check_step_up` in
+  `core/auth/permissions.py`, called by both gates, answers `403 step-up-required` (rbac-matrix section 2).
+- Plan features and limits are checked through `platform.entitlements` only (`require_feature`: `403
+  feature-not-in-plan`; `enforce_limit`: `409 plan-limit-reached`).
 - System roles seeded per tenant: Owner, Admin, Front Desk, Coach/Trainer (resource-scoped through
   `staff_user.linked_resource_id`), League Admin, Scorekeeper (PLT-11), View Only (PLT-04, ADR 0009). The
   reference's Advertising Manager is a documented custom-role recipe, not a seed. Member and Parent/Guardian are client
@@ -579,10 +599,52 @@ All non-2xx responses are `application/problem+json` (RFC 9457):
 
 ### 3.17 Configuration, files, logging
 
-Non-secret configuration lives in `backend/config/{base,dev,test,prod}.yaml` behind one typed settings object;
-secrets come only from environment variables; tenant behaviour is data on `tenant` and `location`, not config.
-Files go to object storage under `t/<tenant_id>/...` with a `stored_file` row and short-lived signed URLs issued
-after a permission check. Logs are structured JSON with `trace_id`, `tenant_id`, `principal_id` and no PII.
+Non-secret configuration lives in `config/app.yaml` plus an `app.<FH_ENV>.yaml` overlay behind one typed settings
+object (`core/settings.py`); secrets come only from environment variables; tenant behaviour is data on `tenant`
+and `location`, not config. Logs are structured JSON with `trace_id`, `tenant_id`, `principal_id` and no PII.
+
+Files (Phase 8 K1; platform README "Files and object storage"): every upload goes through `platform.files`
+(`clean`, `store`, `read`, `load`, `remove`, `download_url`) over the storage port (`ports/storage.py`; local disk
+or S3-compatible adapter) under `t/<tenant_id>/...`, with a `stored_file` row. `store` runs the scanner port
+first (`ports/scanner.py`: no-op or clamd; a hit is `422 file-infected`), and settings refuse the no-op scanner
+outside dev and test. Signed URLs last 5 minutes and are issued after a permission check; `t/<tenant>/public/`
+holds logos only. Uploads stay in-request (20 MiB on the routes in `BodyLimitMiddleware.UPLOAD_PATHS`); the
+presigned upload with quarantine is deferred. An hourly `purge_files` deletes purged bytes and reports orphans.
+
+### 3.18 Jobs, retention and entitlements (Phase 8)
+
+- **Jobs** (K2, ADR 0008): a message that exhausts its retries lands in `failed_job` (Dramatiq middleware
+  `FailedJobRecorder`); `python -m app.cli failed-jobs` requeues or discards, audited. `core.jobs.on_dead_letter`
+  registers a hook per actor, so a dead job marks its domain row failed. Long work is `@chunked_actor`: one
+  bounded chunk per message, progress on the domain row, re-sent after commit (reporting export, tenant export
+  and import use it).
+- **Retention** (`platform/retention.py`): the hourly `purge_expired` removes expired sessions, tokens,
+  idempotency keys, published outbox rows, `processed_event` rows and audit rows past `retain_until_on`, in
+  batches, per tenant; other contexts add purgers with `retention.register_purge`.
+- **Entitlements** (T1, platform README "Plans and entitlements"): `subscription_plan` (global catalogue) and
+  `tenant_entitlement` (per-tenant feature, flag or limit rows) resolve through `platform.entitlements`; counted
+  tables register a usage counter from their own package.
+
+### 3.19 Sign-in, MFA and step-up (Phase 8)
+
+Details: platform README sections "Sign-in hardening", "MFA, step-up and session lifetimes" and "OIDC sign-in
+for staff"; `security-baseline.md` section 5.
+
+- **One session cookie** for web sessions, `__Host-fh_session` (`Secure; HttpOnly; SameSite=Lax`), with idle
+  expiry that slides on use and an absolute limit; no refresh token on the web. Mobile clients use bearer tokens.
+- **CSRF:** a per-session synchroniser token (stored hashed) on every non-GET from `client.ts`, plus the Origin
+  check; sign-in and emailed-link requests need the `__Host-fh_pre` pre-session cookie (login CSRF).
+- **MFA:** TOTP with ten single-use recovery codes. After the first factor the API answers `202 {mfa_token}` and
+  the session starts only after the code. Tenant policy `privileged` (default), `all` or `optional`.
+- **Step-up:** `POST /auth/step-up` (code if enrolled, else password) rotates the session through
+  `auth._start_session` and elevates it for 10 minutes; OIDC-only users step up through the provider
+  (`prompt=login`, `max_age=0`).
+- **OIDC:** per-tenant providers (generic, Google, Microsoft presets), code flow with PKCE, managed only by the
+  Owner. A first sign-in never starts a session: the matched staff user is emailed a 15-minute link that stores
+  the link only when opened in the same browser. MFA is skipped only when the provider is marked `asserts_mfa`
+  and the token shows two factors. An OIDC sign-in is never elevated.
+- Every path checks the staff IP allow-list (no role bypasses it) and runs through `_second_factor` and
+  `_start_session`.
 
 ## 4. Repository layout
 

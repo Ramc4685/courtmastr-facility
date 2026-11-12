@@ -14,38 +14,35 @@ We reproduce what the reference product does, never how. Public material only (m
 centre, public API page). No logging in, no demos, no scraping behind auth, no probing their servers. Never
 copy their code, text, UI layouts, icons, images or brand. Entity and screen names are ours.
 
-## Commands (repo root)
+## Commands (repo root; Python 3.12 via uv in `backend/`, Node 22 via pnpm in `web/`; CI `.github/workflows/ci.yml`)
 
 ```
-make up            Postgres :55432, Redis :56379, Mailpit SMTP :51025 / UI :58025 (Docker Compose)
-make reset         stop and DELETE the data volume; then: make up migrate seed
+make up            Postgres :55432, Redis :56379, Mailpit SMTP :51025 / UI :58025 (Compose); make reset DELETES the data
 make migrate seed  Alembic upgrade head (as fh_owner); idempotent demo tenant (docs/dev/demo-accounts.md)
 make lane-db       parallel checkout: create + migrate the databases named in .env (FH_DB_NAME, FH_TEST_DB_NAME)
 make api           API on :8100 (FH_API_PORT; docs at /api/v1/docs); make worker / relay / scheduler: jobs, outbox, clock
 make test          pytest against the real Postgres as fh_app, then the 80% gate on domain logic
-make lint | fmt    ruff check + format
+make lint | fmt | typecheck | boundaries   ruff; mypy; import-linter.  make contract | api-diff   docs/dev/checks.md
 make openapi       regenerate backend/openapi.json; then make web-api (web/src/api/schema.d.ts)
-make web-install   pnpm install + Playwright chromium (once)
-make web           Vite on :5183 (FH_WEB_PORT), /api proxied to the API port
-make web-check     tsc + eslint (jsx-a11y);   make web-test   Vitest
-make web-e2e       Playwright + axe (needs make api and seeded data)
+make web-install | web   pnpm install + Playwright chromium (once); Vite on :5183 (FH_WEB_PORT), /api proxied
+make web-check     tsc + eslint (jsx-a11y);  make web-test  Vitest;  make web-e2e  Playwright + axe (api + seed)
+make perf-seed | perf | perf-check   load test against a lane API and its p95 budget (docs/ops/performance-budget.md)
+make stack-up | stack-smoke | stack-down | backup-drill   container stack behind the proxy; restore drill (docs/ops/)
 ```
-
-Python 3.12 via uv (`backend/`), Node 22 via pnpm (`web/`). CI: `.github/workflows/ci.yml`.
 
 ## Layout
 
 ```
 config/app.yaml (+ app.<FH_ENV>.yaml overlay)   non-secret config; secrets only from env (.env.example)
-infra/                 docker-compose.yml, postgres/init (roles fh_owner, fh_app, fh_platform)
+infra/                 docker-compose.yml, postgres/init (fh_owner, fh_app, fh_platform), docker/, proxy/, backup/
 backend/app/core/      shared kernel: db (tenant_session, mixins, enable_rls), auth, api (TxRoute, errors),
-                       audit, events (outbox), idempotency, jobs (@tenant_actor), pagination, settings
-backend/app/ports/ + adapters/   email, notifications (send), payment_provider (FakeProvider)
-backend/app/modules/<context>/   one package per bounded context (platform is the worked example)
+                       audit, events (outbox), idempotency, jobs (@tenant_actor, chunked_actor), pagination, settings
+backend/app/ports/ + adapters/   email, notifications, payment_provider (Fake), storage (local, S3), scanner (clamd)
+backend/app/modules/<context>/   one package per bounded context (platform is the worked example; imports: CSV)
 backend/migrations/versions/     one linear Alembic history, NNNN_<context>_<what>.py
 backend/seeds/<ctx>.py  backend/tests/  backend/conftest.py   demo data per context; cross-cutting tests; fixtures
 web/src/{api,app,components,features/<context>,lib}   web/e2e/   Playwright specs
-docs/architecture/  docs/adr/  docs/api/  docs/discovery/  docs/dev/
+docs/architecture/  docs/adr/  docs/api/  docs/discovery/  docs/dev/  docs/ops/ (runbook)   perf/ (load test)
 ```
 
 ## Non-negotiable conventions (the source is `docs/architecture/overview.md` section 3; read it, do not guess)
@@ -79,6 +76,9 @@ docs/architecture/  docs/adr/  docs/api/  docs/discovery/  docs/dev/
 - **Security (wave 1, playbook section "Security rules").** `L` keys: `authorize(..., location_id=record.location_id)`;
   request ids only via scoped loaders; gates in the shared inner function; privileged flags need own key; money
   only to its owner; portal sales end in `secure_online_checkout`; portal routes never reuse staff schemas.
+- **Platform (Phase 8, `platform/README.md`).** `+` keys need a step-up in the last 10 minutes, else `403 step-up-required`,
+  Owners too. Uploads only via `platform.files` (malware scanner required outside dev and test); plan limits and features
+  only via `platform.entitlements`; long work as `core.jobs.chunked_actor`. No role bypasses the staff IP allow-list.
 - **Web.** No tokens in browser storage; all calls through `src/api/client.ts`; WCAG 2.1 AA with an axe scan
   in every Playwright spec; colours from the CSS variables, never raw values.
 - **Secrets.** (Document precedence: `docs/architecture/README.md` section 1.) Environment only. `.env` is git-ignored; `.env.example` holds dev-only values. Emailed link
@@ -95,8 +95,7 @@ per location, WCAG 2.1 AA, docs updated).
 
 ## Working rules
 
-- One module per branch, one commit per module, Conventional Commits. Stop at the brief's GATEs (after
-  modules 2, 8, 11, 17) for a demo.
+- One module per branch, one commit per module, Conventional Commits. Stop at the brief's GATEs (after modules 2, 8, 11, 17) for a demo.
 - Ambiguous requirement: write the assumption down (module README), do not guess silently.
 - Keep this file under 120 lines (CI checks it). Decisions go in `docs/adr/` or the architecture docs.
 
@@ -104,8 +103,10 @@ per location, WCAG 2.1 AA, docs updated).
 
 | # | Module | Status |
 |---|---|---|
-| 1 | Platform core (tenants, locations, staff, RBAC, auth, audit) | done; OIDC, MFA and step-up deferred |
-| - | Kernel: lanes, notification port, counters, storage port, scheduler, merge and erasure handlers | done: `docs/status/kernel-slice.md` |
+| 1 | Platform core (tenants, locations, staff, RBAC, auth, audit) | done with OIDC, MFA, step-up, plans, logos, GDPR mode (Phase 8); deferred: require-SSO, mobile OIDC, member and mobile MFA screens, new-device notice |
+| - | Kernel: lanes, notification port, counters, storage port, scheduler, merge and erasure handlers | done: `docs/status/kernel-slice.md`; Phase 8: S3 adapter, scanner, failed jobs, chunked actors, retention; no presigned upload |
+| - | Imports (`imports`): CSV clients and households, memberships, balances, products | dry run, chunked commit, row report (`phase8-i1-import.md`); no cancel, no operator-run import |
+| - | Operations (`infra/`, `docs/ops/`, `perf/`) | images, proxy, backup drill, load test and budget (`phase8-o1-ops.md`); nothing deployed |
 | 2 | Resources and scheduling | staff screens; P0 16 done (phase 10: slot offers, type grants); no lockers |
 | 3 | Rentals and events | staff screens; P0 8 done, 1 partial (no portal screen); no lockers, plan sharing |
 | 4 | Clients and households | P0 15 done, 2 partial (photo: no webcam or portal edit); attachments built |
@@ -115,5 +116,4 @@ per location, WCAG 2.1 AA, docs updated).
 | 8 | Billing and payments | staff screens; P0 13 done, 13 partial; Stripe test mode, disputes by webhook; no pre-defined items, PDFs |
 | 9 | Point of sale and inventory | all P0 done bar 1 partial; packages sell at the till; quick-create client |
 | 10-17 | 10 check-in; 11 leagues; staff, assessments, reporting; 14 engagement; 16 integrations; 17 mobile (`mobile/`) | 10 P0 8 done, 1 partial, P1 access rules and desk built; 11 P0 8 done, 3 partial; 12 staff P0 6 done, 3 partial; 13 assessments P0 2 done, 1 partial; 14 P0 5 done, 9 partial; 15 reporting P0 6 done, 4 partial; 16, 17 partial (17 on the real portal API, 2 screens not available yet); details `docs/status/` |
-Per-feature state, known defects and notes for the next modules: `docs/status/README.md`; limits: module READMEs.
-Parallel lanes (worktrees), migration numbering and the kernel service APIs: top of `docs/dev/module-playbook.md`.
+Per-feature state and defects: `docs/status/README.md`; lanes, migration numbers, kernel APIs: `docs/dev/module-playbook.md`.

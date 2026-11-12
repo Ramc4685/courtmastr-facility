@@ -12,12 +12,23 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Background jobs retry automatically, and failed jobs land in a dead-letter list an operator can requeue.
 - Old records (expired sessions, sign-in links, processed events) are purged on a schedule.
 - A "What's new" link in the account menu shows this changelog.
+- Two-step verification with an authenticator app and recovery codes, set up on your account's security page; owners choose who must use it, and an owner or admin can reset a lost authenticator.
+- Sensitive actions ask you to confirm it is you (a code or your password) when you last did so more than 10 minutes ago.
+- Staff can sign in with Google Workspace or Microsoft Entra ID once the owner adds the provider under Settings > Security; the first sign-in is confirmed by an emailed link.
+- Settings > Plan and usage shows the account's plan, its limits and what is in use.
+- Upload your logo for the account and for each location; it shows in the staff sidebar and the member portal.
+- GDPR mode under Settings > Privacy & data: marketing needs express consent, old sign-in records are kept for less time, and privacy requests show their 30-day deadline.
+- The owner can export all of the account's data as a zip of spreadsheets.
+- A setup checklist on the dashboard ticks off each step as you complete it.
+- Help & support: send a request, with a screenshot, to the support team and follow your requests.
 - Container images, a reverse proxy with security headers, and backup and restore scripts for self-hosting.
 - Settings > Import data: bring clients and households, memberships, opening balances and products over from a CSV file, with a check that imports nothing, a problem report and progress. Imports send no welcome messages, and in GDPR mode marketing consent is kept only with the date and source of consent.
 
 ### Changed
 - Sign-in is harder to abuse: per-address and per-account rate limits, escalating lockouts, a common-password check, and a sign-in token that expires with the page.
-- Staff can only sign in from the networks the owner lists, when a list is set.
+- Staff can only sign in from the networks the owner lists, when a list is set; this now applies to owners and admins too.
+- Staff are signed out after 30 minutes without activity (the owner can set 15 to 60) and after 12 hours in any case.
+- Sending a campaign to every client needs its own permission.
 
 ### Fixed
 - Signing in no longer flashes the sign-in page again before opening the page you asked for.
