@@ -9,7 +9,7 @@ import hmac
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 Outcome = Literal["succeeded", "processing", "requires_action", "declined", "unknown", "cancelled"]
 FailureCategory = Literal[
@@ -196,7 +196,7 @@ def registered(name: str) -> bool:
     return name in _providers
 
 
-def browser_keys(name: str, account_ref: str) -> dict:
+def browser_keys(name: str, account_ref: str) -> dict[str, Any]:
     """What a browser needs to mount the processor's hosted fields for one connected account: the publishable
     key (public by design) and the account. Empty for a processor without hosted fields (the fake)."""
     key = getattr(_providers.get(name), "publishable_key", None)
