@@ -153,7 +153,8 @@ function PayDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => void
             {payment && done && (
               <PdfButton label="Download receipt" download={() => downloadFile('/api/v1/portal/payments/{payment_id}/receipt/pdf', { path: { payment_id: payment.id } }, `receipt-${payment.receipt_number}.pdf`)} />
             )}
-            <Button variant={done ? 'primary' : 'secondary'} onClick={onClose}>
+            {/* own key: reusing the Pay button's node would fade its colours mid-scan (axe saw 1.14:1) */}
+            <Button key="close" variant={done ? 'primary' : 'secondary'} onClick={onClose}>
               {done ? 'Done' : 'Close'}
             </Button>
           </>
@@ -162,7 +163,7 @@ function PayDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => void
             <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
-            <Button loading={pay.isPending} disabled={methods.isPending || Boolean(amountError) || (methodId === NEW_CARD && !token)} onClick={() => { confirm.reset(); pay.mutate() }}>
+            <Button key="pay" loading={pay.isPending} disabled={methods.isPending || Boolean(amountError) || (methodId === NEW_CARD && !token)} onClick={() => { confirm.reset(); pay.mutate() }}>
               Pay {amountMinor && !amountError ? money(amountMinor) : ''}
             </Button>
           </>
