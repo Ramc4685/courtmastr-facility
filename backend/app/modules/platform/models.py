@@ -661,6 +661,8 @@ class TenantEntitlement(TenantOwned, Timestamps, Base):
     source: Mapped[str] = enum_column()
     starts_on: Mapped[date] = mapped_column(info={"audit": "value"})
     ends_on: Mapped[date | None] = mapped_column(info={"audit": "value"})
+
+
 # --- Phase 8 T2: logos (PLT-08), the tenant export bundle (IMP-04), support requests (ONB-03) -----------------
 
 

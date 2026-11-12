@@ -27,6 +27,14 @@ WEEK = [{"weekday": d, "opens_time": "08:00", "closes_time": "20:00", "is_closed
 
 
 @pytest.fixture(scope="session", autouse=True)
+def _own_rate_limit_keys():
+    """Parallel lanes share one Redis and the tests share documentation IPs: keep each run's buckets apart."""
+    from app.core import ratelimit
+
+    ratelimit.PREFIX = f"rl-test-{uuid4().hex[:8]}"
+
+
+@pytest.fixture(scope="session", autouse=True)
 def _migrated():
     command.upgrade(Config(os.path.join(os.path.dirname(__file__), "alembic.ini")), "head")
 
