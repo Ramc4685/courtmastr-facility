@@ -1,7 +1,7 @@
 # Drift backlog
 
 Every place a module README and the code disagree, found 2026-11-12 by EGM drift reports (fresh "goldfish"
-reviewers, read-only, no tests run). 176 items across 19 module READMEs. Nothing here is fixed yet.
+reviewers, read-only, no tests run). 178 items across 19 module READMEs. Nothing here is fixed yet.
 Per-module evidence with file:line lives in `drift/<module>.md`; the checklist below is the same content.
 
 Tags: `[stale-not-built]` doc says missing, code has it · `[missing]` doc says built, code lacks it ·
@@ -13,9 +13,10 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 
 ## Decide first (code, not just docs)
 
-- [ ] **Bug: kiosk attendance window is reversed.** `access/service.py:727` builds `(late, early)` and the
-  code unpacks it as `(early, late)`. With defaults 60 early / 30 late, a kiosk check-in marks attendance
-  from 30 min before to 60 min after a session. The staff desk path is correct. Verified by hand.
+- [x] **Not a bug: kiosk attendance window (checked 2026-11-12).** `access/service.py:727` passes `(late, early)`
+  on purpose: `programs.mark_attended_by_check_in` bounds the session start to `now - late .. now + early`, so a
+  client is marked from 60 min before to 30 min after a session (defaults). Pinned by
+  `test_kiosk_attendance_window_runs_from_early_before_start_to_late_after`.
 - [ ] **Permission choice: catalog-item reads.** README says `/catalog-items` list and get need
   `billing.item.manage`; code deliberately allows any signed-in staff (`billing/router.py:166,324,335`),
   still location-scoped by `scope_query`. Pick one and align the other. Verified by hand.
@@ -31,7 +32,7 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 
 ## Checklist by module
 
-### access (12) — [evidence](drift/access.md)
+### access (14) — [evidence](drift/access.md)
 
 - [ ] [stale-not-built] README lines 142-144 say the card's `photo_url` "is always null until chip F adds `client.photo_file_id`". The code already wires it: backend/app/modules/access/desk.py:360 sets `photo_url` to `/api/v1/clients/{id}/photo` when the template has a photo slot and `client.photo_file_id` is set, and that route exists (backend/app/modules/clients/router.py:530).
 - [ ] [contract] README line 11 gives `check_in.result` as `admitted` / `denied` / `see_staff`. The enum is `granted` / `denied` / `granted_override` (backend/app/modules/access/models.py:32-35, CHECK at :106). "See staff" is a kiosk response wording, not a stored result.
@@ -45,6 +46,8 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [ ] [undocumented] Check-in channels include `pos`, `door` and `api` (models.py:17-23) and `identified_by` has `client_record` (models.py:26-29). README lines 3-5 name only the staff window, client profile, kiosk and app-card paths.
 - [ ] [undocumented] Erasure also drops the client's access mode (backend/app/modules/access/subject.py:4, tables at :65). README lines 105-107 mention only revoked credentials, kept check-ins and dropped match tokens.
 - [ ] [undocumented] `GET /check-ins` also filters by `check_in_station_id` (service.py:359-362). The router docstring and README line 136 list only the other filters.
+- [ ] [undocumented] Migration 1022 also adds `kiosk_device.exit_pin_failure_count`; README credits it with `kiosk_match` only.
+- [ ] [undocumented] The data subject handler also exports check-ins, credentials and access mode (`access/subject.py:39-50`); README covers merge and erasure only.
 
 ### assessments (7) — [evidence](drift/assessments.md)
 
