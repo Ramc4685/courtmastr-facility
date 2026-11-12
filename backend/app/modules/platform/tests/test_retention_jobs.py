@@ -59,8 +59,11 @@ def _left(tenant) -> dict[str, int]:
 
 
 def _purge(tenant) -> dict[str, int]:
-    with tenant_session(tenant.id) as session:
-        return retention.purge(session)
+    with tenant_session(tenant.id) as session:  # registered purgers (other contexts) are tested where they live
+        return {name: count for name, count in retention.purge(session).items() if name in _TABLES}
+
+
+_TABLES = ("auth_session", "auth_token", "idempotency_key", "outbox_event", "processed_event", "audit_event")
 
 
 def test_purge_removes_only_rows_past_retention_in_its_own_tenant_and_is_idempotent(client, tenant):
