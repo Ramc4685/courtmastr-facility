@@ -55,6 +55,7 @@ class Basis(StrEnum):
     EXPRESS_VERBAL = "express_verbal"
     IMPLIED_PURCHASE = "implied_purchase"
     IMPLIED_INQUIRY = "implied_inquiry"
+    IMPORT = "import"  # carried over by a CSV import outside GDPR mode, without proof of how it was given
 
 
 class ConsentEvent(TenantOwned, Base):

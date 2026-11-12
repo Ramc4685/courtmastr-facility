@@ -13,6 +13,7 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Old records (expired sessions, sign-in links, processed events) are purged on a schedule.
 - A "What's new" link in the account menu shows this changelog.
 - Container images, a reverse proxy with security headers, and backup and restore scripts for self-hosting.
+- Settings > Import data: bring clients and households, memberships, opening balances and products over from a CSV file, with a check that imports nothing, a problem report and progress. Imports send no welcome messages, and in GDPR mode marketing consent is kept only with the date and source of consent.
 
 ### Changed
 - Sign-in is harder to abuse: per-address and per-account rate limits, escalating lockouts, a common-password check, and a sign-in token that expires with the page.

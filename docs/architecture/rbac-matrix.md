@@ -213,7 +213,7 @@ Cells: `Y` granted (reach all), `own` granted with reach own, `-` not granted. O
 | `platform.data_subject_request.export` | T | G X | | Y | - | - | - | - | - | - | IMP-04, PLT-16 |
 | `platform.data_subject_request.erase` | T | G D OD + | | - | - | - | - | - | - | - | IMP-04 (dedicated permission) |
 | `platform.import_job.read` | T | | | Y | Y | - | - | - | - | - | IMP-01 |
-| `platform.import_job.run` | T | D | | Y | - | - | - | - | - | - | IMP-01, IMP-02 |
+| `platform.import_job.run` | T | D + | | Y | - | - | - | - | - | - | IMP-01, IMP-02 |
 | `platform.support_request.create` | T | | | Y | Y | - | - | - | - | - | ONB-03 (Phase 8 T2: contact support, see one's own requests) |
 
 Impersonation is client-only and read-only: staff may open the portal as a client to see what the client

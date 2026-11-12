@@ -90,6 +90,14 @@ routes, the portal inbox and push devices, portal settings and videos. Feature s
 9. Campaign fan-out runs in the sending transaction (`shortcut:` move it to a chunked job past a few thousand
    recipients).
 
+Imports (Phase 8 I1): `service.import_consent` records consent carried over from another system with source
+`import`, actor system, and skips the verified-address gate (no double opt-in for imported consent). Outside GDPR
+mode the basis is the new `import` (migration 1271), which `IMPLIED` lists, so GDPR mode does not count it as
+express. In GDPR mode an opt-in is recorded only with its evidence (when, as `occurred_at`; how, in the note) and
+with basis `express`; otherwise it is left out and the channel is returned for the importer's warning. The
+automation handlers for `clients.client.created` and `memberships.contract.activated` skip events marked as imports
+(`source: "import"`, reason `import`), so an import never sends welcome messages.
+
 ## Endpoints the mobile app depends on (keep stable)
 
 `GET /portal/inbox` (page of `{id, campaign_id, title, body, link_url, read_at, created_at}`; optional

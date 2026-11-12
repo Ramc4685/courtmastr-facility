@@ -754,8 +754,9 @@ def get_client(session: Session, principal: Principal, client_id: UUID) -> Clien
 
 
 def _create(
-    session: Session, principal: Principal, data: dict, *, context: str, created_via: str, verify: bool
-) -> Client:
+    session: Session, principal: Principal, data: dict, *, context: str, created_via: str, verify: bool,
+    import_job_id: UUID | None = None,
+) -> Client:  # fmt: skip
     data = dict(data)
     emails = data.pop("emails", None)
     primary = data.pop("primary_email", None)
@@ -792,7 +793,8 @@ def _create(
         session, "clients.client.create", client, location_id=client.home_location_id,
         changes={"home_location_id": [None, str(client.home_location_id)], "created_via": [None, created_via]},
     )  # fmt: skip
-    events.publish(session, ClientCreated(client_id=client.id), client.id)
+    source = "import" if created_via == "import" else None
+    events.publish(session, ClientCreated(client_id=client.id, source=source, import_job_id=import_job_id), client.id)
     return client
 
 
@@ -1126,14 +1128,16 @@ def ensure_member_number(session: Session, client_id: UUID) -> str | None:
     return client.member_number
 
 
-def import_client(session: Session, data: dict) -> tuple[Client, bool]:
+def import_client(session: Session, data: dict, *, import_job_id: UUID | None = None) -> tuple[Client, bool]:
     """Importer entry point (IMP-01): match on member number, then on a single client with the same primary
     email and names; update that client, else create one (created_via `import`, no verification email).
+    A new record that the duplicate rule (`_duplicate_of`) pairs with an existing client is refused with 409
+    `possible-duplicate`, so an import never adds a likely duplicate. An update keeps the home location.
     Returns (client, created). Field policy is the staff context; the caller runs it per row in a savepoint."""
     actor = session.info["actor"]
     match = None
     if data.get("member_number"):
-        match = session.scalar(select(Client).where(Client.member_number == data["member_number"]))
+        match = find_by_member_number(session, data["member_number"])
     if match is None and data.get("primary_email"):
         found = list(
             session.scalars(
@@ -1147,8 +1151,14 @@ def import_client(session: Session, data: dict) -> tuple[Client, bool]:
         )
         match = found[0] if len(found) == 1 else None
     if match is None:
-        return _create(session, actor, data, context="staff", created_via="import", verify=False), True
-    update = {k: v for k, v in data.items() if k not in ("primary_email", "member_number") and v is not None}
+        client = _create(session, actor, data, context="staff", created_via="import", verify=False,
+                         import_job_id=import_job_id)  # fmt: skip
+        other, predicate = _duplicate_of()
+        if session.scalar(select(other.id).join(Client, predicate).where(Client.id == client.id).limit(1)):
+            raise Conflict("This person looks like a client who already exists.", code="possible-duplicate")
+        return client, True
+    skip = ("primary_email", "member_number", "home_location_id")
+    update = {k: v for k, v in data.items() if k not in skip and v is not None}
     if data.get("primary_email"):
         current = [
             {"email": e, "is_primary": e == data["primary_email"].lower()} for e in client_addresses(session, match.id)
@@ -1216,6 +1226,12 @@ def find_by_member_number(session: Session, value: str) -> Client | None:
     return session.scalar(
         select(Client).where(func.upper(Client.member_number) == value.upper(), Client.merged_into_id.is_(None))
     )
+
+
+def find_by_primary_email(session: Session, address: str) -> list[Client]:
+    """Internal (imports): live clients whose primary email is this address, compared without case."""
+    stmt = select(Client).where(Client.primary_email == address, Client.merged_into_id.is_(None)).limit(2)
+    return list(session.scalars(stmt))
 
 
 def find_by_last_name_prefix(session: Session, prefix: str, limit: int) -> list[Client]:

@@ -21,6 +21,9 @@ def main() -> None:
     action = failed.add_mutually_exclusive_group()
     action.add_argument("--requeue", metavar="FAILED_JOB_ID")
     action.add_argument("--discard", metavar="FAILED_JOB_ID")
+    run_import = commands.add_parser("run-import", help="run an import job's chunks in this process (no worker)")
+    run_import.add_argument("--tenant", required=True, help="tenant id")
+    run_import.add_argument("--job", required=True, help="import job id")
     clear = commands.add_parser("clear-ip-allowlist", help="break-glass: empty a tenant's staff IP allow-list")
     clear.add_argument("--tenant", required=True, help="tenant id")
     args = parser.parse_args()
@@ -39,6 +42,8 @@ def main() -> None:
         _create_lane_databases()
     elif args.command == "failed-jobs":
         _failed_jobs(args)
+    elif args.command == "run-import":
+        _run_import(args)
     elif args.command == "clear-ip-allowlist":
         _clear_ip_allowlist(args.tenant)
     else:
@@ -73,6 +78,24 @@ def _failed_jobs(args) -> None:
         for row in rows:
             print(json.dumps({k: getattr(row, k) for k in ("id", "actor_name", "queue", "args", "error_class",
                               "error_detail", "attempts", "failed_at", "resolution")}, default=str))  # fmt: skip
+
+
+def _run_import(args) -> None:
+    """Operator and lane command: finish an import job's current dry run or commit here, one transaction per
+    chunk, as the queued `run_import` actor would (a worker that picks up the queued message later finds nothing
+    left to do)."""
+    from uuid import UUID
+
+    from app.bootstrap import bootstrap
+    from app.core.auth import system_principal
+    from app.core.db.session import tenant_session
+    from app.modules import imports
+
+    bootstrap()
+    more = True
+    while more:
+        with tenant_session(UUID(args.tenant), actor=system_principal("run_import")) as session:
+            more = imports.service.run_chunk(session, UUID(args.job))
 
 
 def _clear_ip_allowlist(tenant_id: str) -> None:

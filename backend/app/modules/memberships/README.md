@@ -30,6 +30,15 @@ savepoint, converge the status, create the successor when `renew_on` has come, b
 has come. Idempotent; a missed day is caught up by the next run. **Nothing schedules it yet** (the kernel has
 no scheduler): enqueue it daily per tenant after each location's `membership_renewal_run_time`.
 
+## Imported contracts (Phase 8 I1, MEM-23)
+
+`service.import_contract` (internal, for `imports`) carries over an existing contract: plan by active name, the
+plan's terms snapshotted as at a sale, an optional price per period, dues scheduled only from the next bill date
+(none: record-only), no enrolment fee, add-ons, shares or document gate, and an expired contract does not renew.
+The same owner, plan and start is returned as existing. A given status must match the dates (422
+`status-mismatch`). Activation converges with reason `import`, and so does the later start of an imported
+upcoming contract (`sales_channel` import), so engagement sends no "membership started" automation for either.
+
 ## Not built (by name)
 
 - Non-payment suspension (billing emits `billing.invoice.past_due`; nothing here subscribes), account credit

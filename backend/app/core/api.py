@@ -238,6 +238,7 @@ class BodyLimitMiddleware:
         r"^/api/v1/client-documents/[^/]+/paper-scan$"
         r"|^/api/v1/clients/[^/]+/photo$"
         r"|^/api/v1/client-notes/[^/]+/attachments$"
+        r"|^/api/v1/import-jobs/[^/]+/source$"
     )  # keep in step with the @upload matcher in infra/proxy/Caddyfile
 
     def __init__(self, app) -> None:

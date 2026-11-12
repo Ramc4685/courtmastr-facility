@@ -193,6 +193,27 @@ def create_relationship(session: Session, principal: Principal, client_id: UUID,
     return relationship_view(session, rel, client.id, types)
 
 
+def import_link(session: Session, client_id: UUID, head_client_id: UUID, type_code: str) -> bool:
+    """Internal (imports): link a household member to its head as "member is <type> of head", active at once.
+    Idempotent: False when the pair already has a live relationship (of any type)."""
+    types = _types(session)
+    kind = next((t for t in types.values() if t.code == type_code and t.is_active), None)
+    if kind is None:
+        raise ValidationFailed("Unknown relationship type.", pointer="/relationship_type")
+    pair = {client_id, head_client_id}
+    for rel in relationships_of(session, client_id, live_only=True):
+        if {rel.from_client_id, rel.to_client_id} == pair:
+            return False
+    rel = ClientRelationship(
+        from_client_id=client_id, to_client_id=head_client_id, relationship_type_id=kind.id, status="active",
+        created_via="import", confirmed_at=clock.now(),
+    )  # fmt: skip
+    session.add(rel)
+    session.flush()
+    _changed(session, rel, _MANAGE, {"relationship_type_id": [None, str(kind.id)], "status": [None, "active"]})
+    return True
+
+
 def _live_rel(session: Session, principal: Principal, rel_id: UUID) -> ClientRelationship:
     """The relationship, 404 unless the caller may manage relationships of both parties."""
     rel = session.get(ClientRelationship, rel_id)

@@ -40,6 +40,7 @@ import { StaffUsersPage } from '../features/platform/StaffUsersPage'
 import { PrivacyPage } from '../features/platform/PrivacyPage'
 import { SecuritySettingsPage } from '../features/platform/SecuritySettingsPage'
 import { PlanUsagePage } from '../features/platform/PlanUsagePage'
+import { ImportDataPage } from '../features/imports/ImportDataPage'
 import { SupportPage } from '../features/platform/SupportPage'
 import { AccountSecurityPage } from '../features/platform/AccountSecurityPage'
 import { TenantSettingsPage } from '../features/platform/TenantSettingsPage'
@@ -133,6 +134,7 @@ export function AppRoutes() {
         <Route path="account/security" element={<AccountSecurityPage />} />
         <Route path="settings/security" element={<RequirePermission permission="platform.security.manage"><SecuritySettingsPage /></RequirePermission>} />
         <Route path="settings/plan" element={<RequirePermission permission="platform.tenant.update"><PlanUsagePage /></RequirePermission>} />
+        <Route path="settings/import" element={<RequirePermission permission="platform.import_job.read"><ImportDataPage /></RequirePermission>} />
         <Route path="settings/privacy" element={<RequirePermission permission={['platform.security.manage', 'platform.tenant.export']}><PrivacyPage /></RequirePermission>} />
         <Route path="support" element={<RequirePermission permission="platform.support_request.create"><SupportPage /></RequirePermission>} />
         <Route path="billing" element={<RequirePermission permission="billing.charge.read"><BillingLayout /></RequirePermission>}>

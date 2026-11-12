@@ -93,6 +93,11 @@ Rules a caller must know:
 - Events emitted: `billing.charge.created|reversed|voided|adjusted`, `billing.invoice.issued|paid|voided|past_due`,
   `billing.payment.processing|succeeded|failed|refunded|voided|disputed|dispute_closed`, `billing.payment_method.expiring`.
 
+Imports (Phase 8 I1): `post_opening_balance` posts an opening balance as ledger entries, never a balance write:
+owed is a charge (`source_context` imports, `source_type` opening_balance, default revenue category, no tax) on a
+system invoice; credit is an external payment that becomes account credit. Both are idempotent on the key the
+importer passes (job id plus the row's natural key). `tax_ids_by_code` resolves tax codes without case.
+
 ## Jobs
 
 `webhooks.process_provider_event` (enqueued by the webhook route), `webhooks.billing_daily` (per tenant:

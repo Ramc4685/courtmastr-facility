@@ -44,6 +44,6 @@ register(
     _p("data_subject_request.export", T, "Export a person's data", "G X", _AD),
     _p("data_subject_request.erase", T, "Erase a person's data", "G D OD +"),
     _p("import_job.read", T, "View imports", "", _AD_MG),
-    _p("import_job.run", T, "Run imports", "D", _AD),
+    _p("import_job.run", T, "Run imports", "D +", _AD),
     _p("support_request.create", T, "Contact support", "", _AD_MG),
 )  # fmt: skip

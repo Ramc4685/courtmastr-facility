@@ -14,7 +14,7 @@ unique (kind, source) key makes a replay a no-op.
 from collections.abc import Callable, Iterable, Sequence
 from datetime import date
 from decimal import Decimal
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from sqlalchemy import func, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -1213,6 +1213,40 @@ def void_payment(session: Session, payment_id: UUID, *, reason: str) -> Payment:
     events.publish(session, PaymentVoided(payment_id=payment.id, client_id=payment.client_id), payment.id)
     _settle_projections(session, payment, ())
     return payment
+
+
+def post_opening_balance(
+    session: Session, *, client_id: UUID, location_id: UUID, amount_minor: int, kind: str, as_of: date,
+    description: str, key: str,
+) -> tuple[str, UUID]:  # fmt: skip
+    """Internal (imports): a balance carried over from another system, as ledger entries, never a written
+    balance. `owed`: an untaxed charge on the uncategorised revenue category with revenue on `as_of`, on its own
+    invoice. `credit`: an `external` payment allocated to nothing, which is the client's account credit.
+    Idempotent by `key`: it is the charge's origin and the payment's idempotency key. Returns (entity, id)."""
+    if amount_minor <= 0:
+        raise ValidationFailed("The amount must be greater than zero.", pointer="/amount_minor")
+    if kind == "credit":
+        payment = take_payment(
+            session, client_id=client_id, location_id=location_id, amount_minor=amount_minor, tender_kind="external",
+            idempotency_key=f"import:{key}", memo=description,
+        )  # fmt: skip
+        return "payment", payment.id
+    charge = post_charge(
+        session, client_id=client_id, location_id=location_id, description=description,
+        unit_price_minor=amount_minor, source_context="imports", source_type="opening_balance",
+        source_id=uuid5(NAMESPACE_URL, f"import:{key}"), revenue_category_id=default_revenue_category(session).id,
+        revenue_on=as_of, tax_ids=(),
+    )  # fmt: skip
+    if charge.invoice_id is None:
+        create_invoice_for_charges(session, [charge.id], origin="system")
+    return "charge", charge.id
+
+
+def tax_ids_by_code(session: Session, codes: Iterable[str]) -> dict[str, UUID]:
+    """Internal (pos import): tax ids by code, compared without case; unknown codes are absent."""
+    wanted = {code.lower() for code in codes}
+    rows = session.execute(select(Tax.code, Tax.id).where(func.lower(Tax.code).in_(wanted)))
+    return {code.lower(): tax_id for code, tax_id in rows}
 
 
 def credit_balance(session: Session, client_id: UUID) -> int:

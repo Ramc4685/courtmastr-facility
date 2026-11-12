@@ -32,6 +32,12 @@ client_id, capability)`, `households.actable_client_ids`, `activity.active_alert
 - `PrincipalOut.client_ids` is filled by the resolver this package registers with platform.
 - Opt-in to marketing lives in the `engagement` slice; ask `engagement.service.is_subscribed` before sending.
 
+Imports (Phase 8 I1): `service.import_client` refuses a new record that the duplicate rule pairs with an existing
+client (409 `possible-duplicate`; the importer reports the row as skipped, never merged), and matches by member
+number without case. `service.find_by_primary_email` and `households.import_link` (member linked to its head,
+`created_via` import, idempotent) are internal for the `imports` context, which carries the gate. An imported
+client's `clients.client.created` event carries `source: "import"` and `import_job_id`.
+
 ## Not built
 
 Webcam capture and portal photo edit for CLI-12, CSV export (`createClientExport`),

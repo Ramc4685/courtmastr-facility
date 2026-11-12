@@ -382,3 +382,23 @@ allow_indirect_imports = true
 ignore_imports = [
     "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
 ]
+
+[[tool.importlinter.contracts]]
+name = "imports imports only its allowed contexts"
+type = "forbidden"
+source_modules = ["app.modules.imports"]
+forbidden_modules = ["app.modules.resources", "app.modules.scheduling", "app.modules.documents", "app.modules.packages", "app.modules.rentals", "app.modules.programs", "app.modules.access", "app.modules.leagues", "app.modules.staff", "app.modules.assessments", "app.modules.reporting", "app.modules.integrations"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]
+
+[[tool.importlinter.contracts]]
+name = "no context imports the imports context (it sits on top)"
+type = "forbidden"
+source_modules = ["app.modules.platform", "app.modules.resources", "app.modules.clients", "app.modules.scheduling", "app.modules.billing", "app.modules.documents", "app.modules.memberships", "app.modules.packages", "app.modules.rentals", "app.modules.programs", "app.modules.pos", "app.modules.access", "app.modules.leagues", "app.modules.staff", "app.modules.assessments", "app.modules.engagement", "app.modules.reporting", "app.modules.integrations"]
+forbidden_modules = ["app.modules.imports"]
+allow_indirect_imports = true
+ignore_imports = [
+    "app.modules.*.tests.** -> app.**",  # pytest modules may import anything
+]

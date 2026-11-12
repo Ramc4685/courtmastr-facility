@@ -11,6 +11,7 @@ tenant export bundles (`platform.tenant_export.purge_expired_exports`), webhook 
 events (their owning contexts; not built yet).
 """
 
+from collections.abc import Callable
 from datetime import timedelta
 from uuid import UUID
 
@@ -33,6 +34,15 @@ _PAST_RETENTION = {
     "outbox_event": "published_at < :outbox",  # NULL (unpublished) never matches
     "processed_event": "processed_at < :processed",
 }
+
+
+# name -> purge(session) -> rows handled: other contexts' expiring data (imports: source files and error reports),
+# registered from their own package so platform imports none of them (overview section 2).
+_PURGERS: dict[str, Callable[[Session], int]] = {}
+
+
+def register_purge(name: str, purger: Callable[[Session], int]) -> None:
+    _PURGERS[name] = purger
 
 
 def purge(session: Session) -> dict[str, int]:
@@ -66,6 +76,8 @@ def purge(session: Session) -> dict[str, int]:
     for file_id in unused:
         files.remove(session, file_id)
     deleted["support_screenshot"] = len(unused)
+    for name, purger in _PURGERS.items():
+        deleted[name] = purger(session)
     return deleted
 
 
