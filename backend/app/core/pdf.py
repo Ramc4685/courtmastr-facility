@@ -8,6 +8,7 @@ Output is deterministic and uncompressed (fixed creation date, no random ids), s
 the bytes. Every value is placed as plain text: the engine reads no file, URL or markup.
 """
 
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -17,6 +18,7 @@ from zoneinfo import ZoneInfo
 from fpdf import FPDF
 
 _EPOCH = datetime(2000, 1, 1, tzinfo=UTC)
+_log = logging.getLogger(__name__)
 # shortcut: the built-in PDF fonts cover Latin-1 only; other characters print as "?". Embed a Unicode TTF font
 # when a tenant needs non-Latin scripts.
 _ASCII = str.maketrans({"‘": "'", "’": "'", "“": '"', "”": '"', "–": "-", "—": "-", "…": "...",
@@ -24,12 +26,19 @@ _ASCII = str.maketrans({"‘": "'", "’": "'", "“": '"', "”": '"', "–": "
 
 
 def latin(text: object) -> str:
-    return str(text).translate(_ASCII).encode("latin-1", "replace").decode("latin-1")
+    plain = str(text).translate(_ASCII)
+    out = plain.encode("latin-1", "replace").decode("latin-1")
+    if out != plain:
+        _log.warning(
+            "pdf: %d character(s) outside Latin-1 printed as '?'", sum(a != b for a, b in zip(plain, out, strict=True))
+        )
+    return out
 
 
 def money(amount_minor: int, currency: str) -> str:
     """12345, "USD" -> "123.45 USD". Exact (no float); minus sign for negatives."""
-    # shortcut: assumes a two-decimal currency; use the tenant locale formatter when one exists.
+    # shortcut: assumes a two-decimal currency, so zero-decimal ones (JPY, KRW, VND, CLP) and three-decimal ones
+    # (BHD, KWD) print wrongly; use the tenant locale formatter when such a tenant exists.
     return f"{Decimal(amount_minor).scaleb(-2):,.2f} {currency}"
 
 
@@ -79,6 +88,7 @@ class Document:
             pdf.multi_cell(0, 5, latin(subtitle), new_x="LMARGIN", new_y="NEXT")
         pdf.ln(3)
         self._pdf = pdf
+        self._done = False
 
     def heading(self, text: str) -> "Document":
         self._pdf.ln(2)
@@ -126,14 +136,20 @@ class Document:
                 header()
             for column, width, value in zip(columns, widths, row, strict=True):
                 text = latin(value if value is not None else "")
-                while text and pdf.get_string_width(text) > width - 2:
-                    text = text[:-1]
+                if pdf.get_string_width(text) > width - 2:
+                    while text and pdf.get_string_width(text + "...") > width - 2:
+                        text = text[:-1]
+                    text += "..."
                 pdf.cell(width, 6, text, align=column.align)
             pdf.ln()
         pdf.ln(2)
         return self
 
     def output(self) -> bytes:
+        """The finished bytes; a document is output once (a second call would repeat the footer text)."""
+        if self._done:
+            raise RuntimeError("Document.output() was already called")
+        self._done = True
         if self._footer:
             self.text(self._footer, size=8)
         return bytes(self._pdf.output())

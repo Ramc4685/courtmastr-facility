@@ -13,8 +13,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core import audit, clock, events
-from app.core.auth import Principal, authorize, scope_query
-from app.core.errors import DomainError, ValidationFailed
+from app.core.auth import Principal, authorize, scope_query, system_principal
+from app.core.db import tenant_session
+from app.core.errors import Conflict, DomainError, ValidationFailed
 from app.core.jobs import tenant_actor
 from app.core.pagination import ListQuery, paginate
 from app.modules import clients, platform
@@ -83,20 +84,25 @@ def _run_or_enqueue(session: Session, batch: StatementBatch, count: int) -> None
 
 
 def run_batch(session: Session, batch_id: UUID) -> None:
-    """Send every queued recipient. Idempotent: a rerun only touches rows still queued."""
+    """Send every queued recipient. Idempotent: a rerun only touches rows still queued, and a redelivered job
+    that finds none leaves the finished batch (and its event) alone."""
     batch = service._get(session, StatementBatch, batch_id, lock=True)
-    batch.status = "running"
     queued = session.scalars(
         select(StatementRecipient)
         .where(StatementRecipient.statement_batch_id == batch.id, StatementRecipient.status == "queued")
         .order_by(StatementRecipient.id)
     ).all()
+    if not queued and batch.status == "completed":
+        return
+    batch.status = "running"
     for recipient in queued:
         try:
             with session.begin_nested():
                 _send(session, batch, recipient)
         except DomainError as error:
             recipient.status, recipient.failure_message = "failed", error.detail or error.code
+        except Exception as error:  # noqa: BLE001 (one recipient's fault must not stop the others)
+            recipient.status, recipient.failure_message = "failed", f"Could not send: {type(error).__name__}"
     counts = dict(
         session.execute(
             select(StatementRecipient.status, func.count())
@@ -133,7 +139,14 @@ def _send(session: Session, batch: StatementBatch, recipient: StatementRecipient
 
 @tenant_actor(max_retries=3)
 def run_statement_batch(session: Session, statement_batch_id: str) -> None:
-    run_batch(session, UUID(statement_batch_id))
+    try:
+        run_batch(session, UUID(statement_batch_id))
+    except Exception:
+        # The job's own transaction rolls back; record the failure apart so the batch never sits queued.
+        # A retry sets it running again and finishes the rows still queued.
+        with tenant_session(session.info["tenant_id"], actor=system_principal("run_statement_batch")) as other:
+            other.get(StatementBatch, UUID(statement_batch_id)).status = "failed"
+        raise
 
 
 def _load(session: Session, principal: Principal, batch_id: UUID) -> StatementBatch:
@@ -146,6 +159,8 @@ def resend(session: Session, principal: Principal, batch_id: UUID, data: dict) -
     """Send again to the given recipients, or to every failed and skipped one (an address may have been
     added since)."""
     batch = _load(session, principal, batch_id)
+    if batch.status not in ("completed", "failed"):
+        raise Conflict("The batch is still sending; resend once it has finished.")
     stmt = select(StatementRecipient).where(StatementRecipient.statement_batch_id == batch.id)
     ids = data.get("statement_recipient_ids")
     stmt = stmt.where(StatementRecipient.id.in_(ids)) if ids else stmt.where(StatementRecipient.status.in_(_RETRY))

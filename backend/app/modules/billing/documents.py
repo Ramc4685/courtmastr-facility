@@ -498,10 +498,16 @@ def statement(session: Session, client_id: UUID, from_on: date, to_on: date, bas
     }  # fmt: skip
 
 
-def get_statement(session: Session, principal: Principal, client_id: UUID, from_on: date, to_on: date, basis: str):
+def get_statement(
+    session: Session, principal: Principal, client_id: UUID, from_on: date | None, to_on: date | None, basis: str
+):
+    """Default period: the 30 days up to today at the client's home location."""
     authorize(principal, "billing.invoice.read")
-    clients.service.get(session, client_id)
-    return statement(session, client_id, from_on, to_on, basis)
+    home = clients.service.get(session, client_id).home_location_id
+    to_on = to_on or (
+        platform.service.location_today(session, home) if home else platform.service.earliest_today(session)
+    )
+    return statement(session, client_id, from_on or to_on - timedelta(days=30), to_on, basis)
 
 
 def statement_pdf(session: Session, document: dict) -> bytes:
@@ -549,7 +555,7 @@ def statement_name(document: dict) -> str:
 
 
 def get_statement_pdf(
-    session: Session, principal: Principal, client_id: UUID, from_on: date, to_on: date, basis: str
+    session: Session, principal: Principal, client_id: UUID, from_on: date | None, to_on: date | None, basis: str
 ) -> tuple[str, bytes]:
     document = get_statement(session, principal, client_id, from_on, to_on, basis)
     return statement_name(document), statement_pdf(session, document)
@@ -607,7 +613,9 @@ def receivables_ageing(
     "payments up to" cut). It is aged from its invoice's due date, or from its bill date while uninvoiced.
     """
     authorize(principal, "billing.invoice.read")
-    as_of = as_of or platform.service.earliest_today(session)
+    if as_of is None:
+        as_of = (platform.service.location_today(session, location_id) if location_id
+                 else platform.service.earliest_today(session))  # fmt: skip
     # The day ends at midnight on each charge's location's wall clock.
     locations = session.scalars(select(Charge.location_id).distinct()).all()
     cut = case(

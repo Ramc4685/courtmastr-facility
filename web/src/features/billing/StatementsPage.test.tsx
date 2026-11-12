@@ -55,6 +55,7 @@ describe('StatementsPage', { timeout: 20_000 }, () => {
     await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Only clients who still owe' }))
     await userEvent.click(within(dialog).getByRole('button', { name: 'Send statements' }))
     expect(posts[0]?.body).toMatchObject({ location_id: 'l1', date_basis: 'invoice_date', is_open_only: true })
+    expect(posts[0]?.headers['idempotency-key']).toMatch(/^[0-9a-f-]{36}$/)
 
     const table = await screen.findByRole('table', { name: 'Statement recipients' })
     expect(within(table).getByText('Mailbox unavailable')).toBeInTheDocument()

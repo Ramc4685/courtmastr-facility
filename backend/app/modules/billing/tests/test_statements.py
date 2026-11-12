@@ -13,7 +13,8 @@ from app.core.errors import NotFound, ValidationFailed
 from app.core.events import OutboxEvent
 from app.modules import clients, platform
 from app.modules.billing import documents, statements
-from app.modules.billing.models import BillingDocumentDelivery, Invoice, StatementRecipient
+from app.modules.billing import subject as documents_subject
+from app.modules.billing.models import BillingDocumentDelivery, Invoice, StatementBatch, StatementRecipient
 from app.modules.billing.tests.test_autopay import drain
 from app.modules.billing.tests.test_billing import cash, charge, work
 from app.modules.billing.tests.test_money import NOON
@@ -25,6 +26,7 @@ LATE = datetime(2026, 11, 11, 5, 30, tzinfo=UTC)
 AFTER = datetime(2026, 11, 11, 6, 30, tzinfo=UTC)  # 00:30 on 11 November there
 NOV10 = date(2026, 11, 10)
 MONTH = {"period_from_on": "2026-11-01", "period_to_on": "2026-11-30"}
+MONTH_RANGE = {"from_on": "2026-11-01", "to_on": "2026-11-30"}
 
 
 def _is_pdf(response, name_prefix: str) -> bytes:
@@ -125,11 +127,38 @@ def test_sending_a_document_stores_its_pdf_and_links_to_it(api, shop, mailbox):
             "application/pdf", "billing.invoice", f"invoice-{invoice['number']}.pdf",
         )  # fmt: skip
         assert f"Invoice {invoice['number']}".encode() in data
-        emailed_id = UUID(emailed["id"])
-        # Erasure purges the PDFs sent to the client; the invoice itself is the retained record.
-        assert platform.privacy.HANDLERS["billing"].erase(session, emailed_id)["purged_documents"] == 2
-        with pytest.raises(NotFound):
-            platform.files.read(session, row.stored_file_id)
+
+
+def test_erasure_purges_every_pdf_sent_to_the_client(api, shop, mailbox):
+    """Invoice and receipt deliveries carry only the invoice or payment; all of the client's PDFs go."""
+    emailed = new_client(api.client, shop.owner, shop.location_id, primary_email=f"gone@{shop.tenant.slug}.example.com")
+    with clock.freeze(NOON):
+        invoice = _invoice(api, shop, client_id=emailed["id"])
+        payment = api("POST", "/payments", {"client_id": emailed["id"], "location_id": str(shop.location_id),
+                                            "amount_minor": 500, "tender_kind": "cash", "invoice_id": invoice["id"]},
+                      201)  # fmt: skip
+        api("POST", f"/invoices/{invoice['id']}/deliveries", {"channel": "email"}, 201)
+        api("POST", f"/payments/{payment['id']}/receipt-deliveries", {"channel": "email"}, 201)
+        api("POST", f"/clients/{emailed['id']}/statement/deliveries", MONTH_RANGE, 201)
+        api("POST", "/statement-batches", {"location_id": str(shop.location_id), "client_ids": [emailed["id"]]} | MONTH,
+            201)  # fmt: skip
+    with work(shop.tenant) as session:
+        client_id = UUID(emailed["id"])
+        mine = BillingDocumentDelivery.invoice_id == UUID(invoice["id"])
+        mine |= BillingDocumentDelivery.payment_id == UUID(payment["id"])
+        mine |= BillingDocumentDelivery.client_id == client_id
+        files = list(session.scalars(select(BillingDocumentDelivery.stored_file_id).where(mine)))
+        files += session.scalars(
+            select(StatementRecipient.stored_file_id).where(StatementRecipient.client_id == client_id)
+        )
+        kinds = {platform.files.read(session, f)[0].purpose for f in files}
+        assert kinds == {"billing.invoice", "billing.receipt", "billing.statement"} and len(files) == 4
+        assert platform.privacy.HANDLERS["billing"].erase(session, client_id)["purged_documents"] == 4
+        for stored_file_id in files:
+            with pytest.raises(NotFound):
+                platform.files.read(session, stored_file_id)
+        addresses = set(session.scalars(select(BillingDocumentDelivery.to_email).where(mine)))
+        assert addresses == {documents_subject.ERASED_EMAIL}
 
 
 @pytest.fixture
@@ -203,3 +232,60 @@ def test_statement_batch_open_only_and_unknown_location(api, shop, payers):
     batch = api("POST", "/statement-batches", body, 201)
     assert [row["client_id"] for row in batch["recipients"]] == [payers[0]]
     api("POST", "/statement-batches", body | {"location_id": str(shop.client_id)}, 422)
+
+
+def test_staff_defaults_are_the_locations_today(api, shop):
+    """23:30 on 10 November in Chicago is 11 November in UTC: the defaults say the 10th."""
+    with clock.freeze(LATE):
+        staff = api("GET", f"/clients/{shop.client_id}/statement")
+        assert (staff["from_on"], staff["to_on"]) == ("2026-10-11", "2026-11-10")
+        ageing = api("GET", f"/receivables-ageing?location_id={shop.location_id}")
+        assert ageing["as_of"] == "2026-11-10"
+
+
+def test_a_rerun_or_redelivered_batch_changes_nothing(api, shop, payers):
+    batch = api("POST", "/statement-batches", {"location_id": str(shop.location_id)} | MONTH, 201)
+    with work(shop.tenant) as session:
+        finished = session.get(StatementBatch, UUID(batch["id"])).finished_at
+        statements.run_batch(session, UUID(batch["id"]))  # a redelivered job
+        assert session.get(StatementBatch, UUID(batch["id"])).finished_at == finished
+        completed = select(OutboxEvent).where(OutboxEvent.event_type == "billing.statement_batch.completed")
+        assert len(session.scalars(completed).all()) == 1
+
+
+def test_the_same_idempotency_key_makes_one_batch(api, shop, payers, mailbox):
+    body = {"location_id": str(shop.location_id)} | MONTH
+    headers = shop.owner | {"Idempotency-Key": "statement-run-november"}
+    first = api.client.post("/api/v1/statement-batches", json=body, headers=headers)
+    sent = len(mailbox)
+    again = api.client.post("/api/v1/statement-batches", json=body, headers=headers)
+    assert (first.status_code, again.status_code) == (201, 201) and again.json()["id"] == first.json()["id"]
+    assert len(mailbox) == sent and len(api("GET", "/statement-batches")["data"]) == 1
+
+
+def test_an_unexpected_error_fails_only_its_recipient(api, shop, payers, monkeypatch):
+    def broken(*args, **kwargs):
+        raise RuntimeError("smtp exploded")
+
+    monkeypatch.setattr(documents, "email_statement", broken)
+    batch = api("POST", "/statement-batches", {"location_id": str(shop.location_id)} | MONTH, 201)
+    assert (batch["status"], batch["failed_count"], batch["skipped_count"]) == ("completed", 1, 1)
+    row = next(row for row in batch["recipients"] if row["status"] == "failed")
+    assert row["failure_message"] == "Could not send: RuntimeError"  # the type, never the error text
+
+
+def test_resend_waits_for_the_batch_and_a_failed_job_marks_it_failed(api, shop, payers, monkeypatch):
+    monkeypatch.setattr(statements, "IN_REQUEST_LIMIT", 0)
+    queued = api("POST", "/statement-batches", {"location_id": str(shop.location_id)} | MONTH, 201)
+    api("POST", f"/statement-batches/{queued['id']}/resend", {}, 409, code="invalid-state-transition")
+
+    def crash(session, batch_id):
+        raise RuntimeError("worker died")
+
+    monkeypatch.setattr(statements, "run_batch", crash)
+    with pytest.raises(Exception):  # noqa: B017, PT011 (the test broker re-raises the job's error)
+        drain()
+    assert api("GET", f"/statement-batches/{queued['id']}")["status"] == "failed"
+    monkeypatch.undo()
+    retried = api("POST", f"/statement-batches/{queued['id']}/resend", {}, 200)
+    assert retried["status"] in ("queued", "completed")

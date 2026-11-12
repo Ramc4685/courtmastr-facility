@@ -168,12 +168,17 @@ scheduler or per-tenant fan-out. Until it does, autopay runs when staff start a 
 - **Statement periods and the AR "as at" cut use the location's day.** A statement's dates are read in the
   client's home location's zone; ageing cuts each charge at the end of the "as at" day in its own location's
   zone (UTC only when a location has no zone). The default "as at" is the earliest local today of the tenant.
+- **A payment's day can differ between statement and receipt.** A statement reads every date in the payer's
+  home location's zone, a receipt in the payment's location's zone; for a tenant whose locations span zones a
+  payment near midnight shows on a different day on each. Revisit if an owner asks.
 - **Erasure purges the sent PDFs.** The client's invoice, receipt and statement PDFs are blanked and marked
   purged (`platform.files.purge`, empty bytes until the storage port can delete); an emailed delivery's
   address becomes `erased@erased.invalid` because the row must keep one. Invoices and payments stay.
 - **A statement batch belongs to one location** (`location_id` NOT NULL, where the data model allows null), so
   the location gate applies; its requester is null when an API key asked. Recipients are the payers of non-void
-  invoices at that location in the period; `message_id` stays null until engagement returns a message id.
+  invoices at that location in the period. A recipient row keeps no message id: engagement returns none
+  yet, so a sent row cannot be traced to its message (add the column when it does). Resend is refused while
+  a batch is still sending.
 - **AR ageing ages a charge from its invoice's due date**, not instalment by instalment.
 - **Staff `Idempotency-Key`s are scoped to the caller** before they reach `take_payment` and `refund`.
 - Tender types, the two system revenue categories and (with `payments.provider = fake`) the provider account

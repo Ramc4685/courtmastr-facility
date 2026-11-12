@@ -37,8 +37,10 @@ function NewBatchDialog({ onClose, onCreated }: { onClose: () => void; onCreated
     date_basis: 'invoice_date' as 'invoice_date' | 'due_date',
     is_open_only: false,
   })
+  // One key per dialog: a double submit replays the first batch instead of sending statements twice.
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
   const create = useMutation({
-    mutationFn: () => api.post('/api/v1/statement-batches', { body: form }),
+    mutationFn: () => api.post('/api/v1/statement-batches', { body: form, idempotencyKey }),
     onSuccess: (b) => {
       void qc.invalidateQueries({ queryKey: ['billing', 'statement-batches'] })
       toast('success', b.status === 'completed' ? `Statements sent: ${b.sent_count} sent, ${b.skipped_count} without email, ${b.failed_count} failed.` : `${b.recipient_count} statements queued.`)

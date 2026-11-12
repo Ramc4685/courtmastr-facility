@@ -2710,7 +2710,7 @@ export interface paths {
         };
         /**
          * Get Client Statement
-         * @description Default period: the 30 days up to today. Days are the client's home location's days.
+         * @description Default period: the 30 days up to today at the client's home location, whose days the dates are.
          */
         get: operations["getClientStatement"];
         put?: never;

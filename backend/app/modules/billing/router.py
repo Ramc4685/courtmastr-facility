@@ -1,7 +1,7 @@
 """billing HTTP surface (docs/api/openapi-money.yaml, tag billing): staff routes, the client portal, the
 public pay link and the provider webhook. Handlers are named after the spec's operationIds."""
 
-from datetime import date, timedelta
+from datetime import date
 from typing import Annotated
 from uuid import UUID
 
@@ -10,7 +10,6 @@ from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core import clock
 from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, current_ctx, public_session, require
 from app.core.idempotency import KEY_PATTERN, idempotency
@@ -558,11 +557,8 @@ def get_client_statement(
     date_basis: Annotated[str, Query(pattern="^(invoice_date|due_date)$")] = "invoice_date",
     ctx: Ctx = Depends(require("billing.invoice.read")),
 ):
-    """Default period: the 30 days up to today. Days are the client's home location's days."""
-    to_on = to_on or clock.now().date()
-    return documents.get_statement(
-        ctx.session, ctx.principal, client_id, from_on or to_on - timedelta(days=30), to_on, date_basis
-    )
+    """Default period: the 30 days up to today at the client's home location, whose days the dates are."""
+    return documents.get_statement(ctx.session, ctx.principal, client_id, from_on, to_on, date_basis)
 
 
 @router.get("/clients/{client_id}/statement/pdf", response_class=Response, responses=PDF)
@@ -573,9 +569,8 @@ def get_client_statement_pdf(
     date_basis: Annotated[str, Query(pattern="^(invoice_date|due_date)$")] = "invoice_date",
     ctx: Ctx = Depends(require("billing.invoice.read")),
 ):
-    to_on = to_on or clock.now().date()
     return _pdf(documents.get_statement_pdf(
-        ctx.session, ctx.principal, client_id, from_on or to_on - timedelta(days=30), to_on, date_basis
+        ctx.session, ctx.principal, client_id, from_on, to_on, date_basis
     ))  # fmt: skip
 
 

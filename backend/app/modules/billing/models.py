@@ -908,8 +908,8 @@ class StatementBatch(TenantOwned, Timestamps, Base):
     )
 
     location_id: Mapped[UUID]
-    period_from_on: Mapped[date | None]
-    period_to_on: Mapped[date | None]
+    period_from_on: Mapped[date]
+    period_to_on: Mapped[date]
     date_basis: Mapped[str] = enum_column()
     is_open_only: Mapped[bool] = mapped_column(server_default=text("false"))
     client_filter: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'"))
@@ -933,6 +933,5 @@ class StatementRecipient(TenantOwned, Timestamps, Base):
     to_email: Mapped[str | None] = mapped_column(CITEXT)
     status: Mapped[str] = enum_column(server_default=text("'queued'"))
     stored_file_id: Mapped[UUID | None]
-    message_id: Mapped[UUID | None]
     failure_message: Mapped[str | None]
     sent_at: Mapped[datetime | None]
