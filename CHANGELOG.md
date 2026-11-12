@@ -7,6 +7,7 @@ under `Unreleased` in the same change that makes the behaviour visible.
 ## [Unreleased]
 
 ### Added
+- Reports: export to Excel or PDF as well as CSV, print the results, filter by category, type, trainer or staff, chart revenue against the goal, and email saved reports on a schedule; the home page shows at-a-glance tiles.
 - Collections: tag clients in collections, keep notes on their billing page, and see a collections report with what each owes.
 - The portal refuses online buying and booking while an account is past due, when the billing setting is on; paying unlocks it.
 - Billing notices and expiring-cards screens, and a staff daily digest of failed and upcoming autopay.
