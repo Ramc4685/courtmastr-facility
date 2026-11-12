@@ -132,6 +132,7 @@ def create_api_key(session: Session, principal: Principal, data: dict) -> tuple[
     lie inside the creator's. Returns the row and the raw secret, which is never stored or shown again."""
     authorize(principal, "integrations.api_key.manage")
     _require_person(principal)
+    platform.entitlements.require_feature(session, "api_access")
     scopes = sorted(set(data["scopes"]))
     for index, key in enumerate(scopes):
         permission = PERMISSIONS.get(key)
@@ -165,6 +166,7 @@ def rotate_api_key(session: Session, principal: Principal, api_key_id: UUID, dat
     authorize(principal, "integrations.api_key.manage")
     _require_person(principal)
     row = _load_key(session, principal, api_key_id)
+    platform.entitlements.require_feature(session, "api_access")
     if row.status != ApiKeyStatus.ACTIVE:
         raise Conflict("A revoked key cannot be rotated")
     _check_can_hold(principal, row.scopes)

@@ -83,3 +83,5 @@ storage:
   scanner: noop                       # noop | clamd. Refused outside dev and test: production must scan uploads
   clamd_host: 127.0.0.1
   clamd_port: 53310                   # docker compose --profile scan (ClamAV)
+entitlements:
+  default_plan: complete              # subscription_plan.code for new tenants and tenants with none (PLT-14)

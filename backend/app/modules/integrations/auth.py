@@ -86,6 +86,7 @@ def authenticate(session: Session, token: str) -> Principal:
     key = _find(session, token)
     if platform.service.get_tenant(session).status != "active":
         raise PermissionDenied("This account is not active.", code="tenant-suspended")
+    platform.entitlements.require_feature(session, "api_access")  # PLT-14: keys stop when the plan drops it
     creator = platform.staff.principal_for(session, key.created_by_staff_user_id)
     if creator is None:  # the person behind the key can no longer act, so neither can the key
         raise Unauthenticated(_INVALID)

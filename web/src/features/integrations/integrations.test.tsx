@@ -18,7 +18,7 @@ const me = (permissions: string[]) => ({
   has_all_location_access: true,
   locations: [{ id: 'l1', name: 'Courtside Downtown', slug: 'downtown', time_zone: 'America/Chicago' }],
   primary_location_id: 'l1',
-  entitlements: [],
+  entitlements: { plan: { code: 'complete', name: 'Complete' }, features: ['api_access', 'branded_app'], limits: [] },
 })
 const perm = (key: string, label: string, flags: string[] = []) => ({ key, context: key.split('.')[0], label, scope: 'location', flags, accepts_own_reach: false, subject_type: null, entitlement: null })
 const page = (data: unknown[]) => ({ data, page: { next_cursor: null, has_more: false } })

@@ -20157,6 +20157,29 @@
         "title": "FacilityHoursReplace",
         "type": "object"
       },
+      "FeatureState": {
+        "properties": {
+          "included": {
+            "title": "Included",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "included"
+        ],
+        "title": "FeatureState",
+        "type": "object"
+      },
       "FieldPolicies": {
         "additionalProperties": false,
         "properties": {
@@ -23604,6 +23627,49 @@
         "title": "LegendType",
         "type": "object"
       },
+      "LimitUsage": {
+        "description": "`limit` null = unlimited. `used` is counted for capped limits (all of them on the plan screen).",
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "used": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Used"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "limit",
+          "used"
+        ],
+        "title": "LimitUsage",
+        "type": "object"
+      },
       "LinkInvoice": {
         "properties": {
           "balance_minor": {
@@ -24743,12 +24809,7 @@
       "Me": {
         "properties": {
           "entitlements": {
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "title": "Entitlements",
-            "type": "array"
+            "$ref": "#/components/schemas/MeEntitlements"
           },
           "has_all_location_access": {
             "anyOf": [
@@ -24834,9 +24895,39 @@
           "principal",
           "tenant",
           "role",
-          "permissions"
+          "permissions",
+          "entitlements"
         ],
         "title": "Me",
+        "type": "object"
+      },
+      "MeEntitlements": {
+        "description": "What the tenant's plan includes (PLT-14). `limits` is empty for anyone but staff.",
+        "properties": {
+          "features": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "limits": {
+            "items": {
+              "$ref": "#/components/schemas/LimitUsage"
+            },
+            "title": "Limits",
+            "type": "array"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/PlanRef"
+          }
+        },
+        "required": [
+          "plan",
+          "features",
+          "limits"
+        ],
+        "title": "MeEntitlements",
         "type": "object"
       },
       "MemberNumberAssign": {
@@ -35186,6 +35277,24 @@
         "title": "PlanAddonsReplace",
         "type": "object"
       },
+      "PlanRef": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "PlanRef",
+        "type": "object"
+      },
       "PlanSale": {
         "additionalProperties": false,
         "properties": {
@@ -35236,6 +35345,51 @@
           "client_id"
         ],
         "title": "PlanSale",
+        "type": "object"
+      },
+      "PlanUsage": {
+        "description": "Plan, features, every limit with its current use, every known feature with whether the tenant has it, and\nthe operator's overrides in date order.",
+        "properties": {
+          "feature_catalogue": {
+            "items": {
+              "$ref": "#/components/schemas/FeatureState"
+            },
+            "title": "Feature Catalogue",
+            "type": "array"
+          },
+          "features": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "limits": {
+            "items": {
+              "$ref": "#/components/schemas/LimitUsage"
+            },
+            "title": "Limits",
+            "type": "array"
+          },
+          "overrides": {
+            "items": {
+              "$ref": "#/components/schemas/TenantEntitlementOut"
+            },
+            "title": "Overrides",
+            "type": "array"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/PlanRef"
+          }
+        },
+        "required": [
+          "plan",
+          "features",
+          "limits",
+          "feature_catalogue",
+          "overrides"
+        ],
+        "title": "PlanUsage",
         "type": "object"
       },
       "PortalAcceptanceSubmit": {
@@ -56990,6 +57144,51 @@
         "title": "StockTransferCreate",
         "type": "object"
       },
+      "SubscriptionPlanOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "features": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "limits": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Limits",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "is_active",
+          "features",
+          "limits"
+        ],
+        "title": "SubscriptionPlanOut",
+        "type": "object"
+      },
       "SupplierOut": {
         "properties": {
           "account_reference": {
@@ -58340,6 +58539,141 @@
         "title": "TeamGenerate",
         "type": "object"
       },
+      "TenantEntitlementCreate": {
+        "additionalProperties": false,
+        "description": "A feature key turns a feature on (is_enabled true: add-on, flag) or off (false); a limit key replaces that\nlimit with limit_value (null = unlimited). starts_on defaults to today.",
+        "properties": {
+          "ends_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends On"
+          },
+          "is_enabled": {
+            "default": true,
+            "title": "Is Enabled",
+            "type": "boolean"
+          },
+          "key": {
+            "maxLength": 63,
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "limit_value": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Value"
+          },
+          "source": {
+            "default": "manual",
+            "enum": [
+              "addon",
+              "promo",
+              "flag",
+              "manual"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "starts_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts On"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "title": "TenantEntitlementCreate",
+        "type": "object"
+      },
+      "TenantEntitlementOut": {
+        "properties": {
+          "ends_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends On"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_enabled": {
+            "title": "Is Enabled",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "limit_value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Value"
+          },
+          "source": {
+            "enum": [
+              "addon",
+              "promo",
+              "flag",
+              "manual"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "starts_on": {
+            "format": "date",
+            "title": "Starts On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "is_enabled",
+          "limit_value",
+          "source",
+          "starts_on",
+          "ends_on"
+        ],
+        "title": "TenantEntitlementOut",
+        "type": "object"
+      },
       "TenantOnboard": {
         "additionalProperties": false,
         "properties": {
@@ -58508,6 +58842,22 @@
           "settings"
         ],
         "title": "TenantOut",
+        "type": "object"
+      },
+      "TenantPlanChange": {
+        "additionalProperties": false,
+        "properties": {
+          "plan_code": {
+            "maxLength": 63,
+            "minLength": 1,
+            "title": "Plan Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_code"
+        ],
+        "title": "TenantPlanChange",
         "type": "object"
       },
       "TenantUpdate": {
@@ -91678,6 +92028,54 @@
         ]
       }
     },
+    "/api/v1/operator/plans": {
+      "get": {
+        "description": "The plan catalogue (global data, maintained by migrations).",
+        "operationId": "listSubscriptionPlans",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-operator-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Operator-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SubscriptionPlanOut"
+                  },
+                  "title": "Response Listsubscriptionplans",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Subscription Plans",
+        "tags": [
+          "operator"
+        ]
+      }
+    },
     "/api/v1/operator/tenants": {
       "post": {
         "description": "Create a tenant and its first Owner. Guarded by the FH_OPERATOR_TOKEN secret; absent when unset.",
@@ -91727,6 +92125,241 @@
           }
         },
         "summary": "Onboard Tenant",
+        "tags": [
+          "operator"
+        ]
+      }
+    },
+    "/api/v1/operator/tenants/{tenant_id}/entitlements": {
+      "get": {
+        "operationId": "getOperatorTenantEntitlements",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-operator-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Operator-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanUsage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Operator Tenant Entitlements",
+        "tags": [
+          "operator"
+        ]
+      },
+      "post": {
+        "description": "Add an add-on, a feature flag (PLT-09) or a limit override. Errors: unknown-entitlement, already-exists.",
+        "operationId": "createOperatorTenantEntitlement",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-operator-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Operator-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantEntitlementCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanUsage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Operator Tenant Entitlement",
+        "tags": [
+          "operator"
+        ]
+      }
+    },
+    "/api/v1/operator/tenants/{tenant_id}/entitlements/{entitlement_id}": {
+      "delete": {
+        "operationId": "deleteOperatorTenantEntitlement",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entitlement_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entitlement Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-operator-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Operator-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Operator Tenant Entitlement",
+        "tags": [
+          "operator"
+        ]
+      }
+    },
+    "/api/v1/operator/tenants/{tenant_id}/plan": {
+      "put": {
+        "description": "Move the tenant to another plan; audited. Errors: unknown-plan. No charge is made (entitlements only).",
+        "operationId": "changeOperatorTenantPlan",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-operator-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Operator-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantPlanChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanUsage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change Operator Tenant Plan",
         "tags": [
           "operator"
         ]
@@ -120879,6 +121512,28 @@
           }
         },
         "summary": "Update Tenant",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/v1/tenant/entitlements": {
+      "get": {
+        "description": "Settings, Plan and usage (Owner and Admin): the plan, its features and limits with current use.",
+        "operationId": "listTenantEntitlements",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanUsage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Tenant Entitlements",
         "tags": [
           "platform"
         ]

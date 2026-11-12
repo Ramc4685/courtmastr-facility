@@ -14,6 +14,7 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Activity log', to: '/audit', permission: 'platform.audit.read', icon: 'list' },
   { label: 'Settings', to: '/settings', permission: 'platform.tenant.update', icon: 'gear' },
   { label: 'Security', to: '/settings/security', permission: 'platform.security.manage', icon: 'shield' },
+  { label: 'Plan and usage', to: '/settings/plan', permission: 'platform.tenant.update', icon: 'chart' },
   { label: 'Billing & payments', to: '/billing', permission: 'billing.charge.read', icon: 'cash' },
   { label: 'Point of sale', to: '/pos', permission: 'pos.sale.read', icon: 'cart' },
   { label: 'Clients', to: '/clients', permission: 'clients.client.read', icon: 'person' },
