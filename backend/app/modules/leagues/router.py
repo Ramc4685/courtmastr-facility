@@ -1,21 +1,24 @@
 """leagues HTTP surface (docs/api/openapi-programs.yaml, tag leagues). Routed: the P0 operations for sports, age
 groups, seasons, competitions, divisions, teams, team entries, rosters, standings, schedule runs, games, results,
 officials, brackets and the public schedule and standings. `billCompetitionTeam` is ours (the YAML has no
-command for billing a team fee). Not routed (P1/P2, see README): scheduling preferences, stat tables and player
-stats, game cards, league site and alert settings, public brackets and team pages, portal games."""
+command for billing a team fee). Phase 14 chip B1 (ours, `depth`): venues, team preferences, league staff,
+ladders, stat tables and player stats, the team fee split, publishing a program group, game-card PDFs and the
+captain's portal roster. Not routed (see README): league site and alert settings, public brackets and team pages,
+portal games."""
 
-from typing import Annotated
+from datetime import date
+from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 from app.core.api import TxRoute, camel_id
-from app.core.auth.deps import Ctx, public_session, require
+from app.core.auth.deps import Ctx, current_ctx, public_session, require
 from app.core.idempotency import idempotency
 from app.core.pagination import ListQuery, list_query
+from app.modules.leagues import depth, service
 from app.modules.leagues import schemas as s
-from app.modules.leagues import service
 
 staff = APIRouter(
     route_class=TxRoute, tags=["leagues"], generate_unique_id_function=camel_id, dependencies=[Depends(idempotency)]
@@ -34,6 +37,18 @@ Results = Depends(require(service.RESULTS))
 Amend = Depends(require(service.AMEND))
 Adjust = Depends(require(service.ADJUST))
 Officials = Depends(require(service.OFFICIALS))
+Cards = Depends(require(service.CARDS))
+Portal = Annotated[Ctx, Depends(current_ctx)]
+PDF: dict[int | str, dict[str, Any]] = {200: {"content": {"application/pdf": {}}, "description": "The PDF."}}
+
+
+def _pdf(named: tuple[str, bytes]) -> Response:
+    name, data = named
+    return Response(
+        data, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{name}"', "X-Content-Type-Options": "nosniff",
+                 "Cache-Control": "private, no-store"},
+    )  # fmt: skip
 
 
 def _patch(body) -> dict:
@@ -501,6 +516,214 @@ def list_public_standings(competition_id: UUID, session: Public):
     return service.list_public_standings(session, competition_id)
 
 
+# --- Phase 14 chip B1: venues (RES-06) --------------------------------------------------------------------------
+
+
+@staff.get("/league-venues", response_model=s.Page[s.VenueOut])
+def list_venues(query: Lists, ctx: Ctx = Manage):
+    """Filters: location_id, is_active. Sort: name. q searches the name."""
+    return depth.list_venues(ctx.session, ctx.principal, query)
+
+
+@staff.post("/league-venues", response_model=s.VenueOut, status_code=201)
+def create_venue(body: s.VenueCreate, ctx: Ctx = Manage):
+    return depth.create_venue(ctx.session, ctx.principal, body.model_dump())
+
+
+@staff.get("/league-venues/{venue_id}", response_model=s.VenueOut)
+def get_venue(venue_id: UUID, ctx: Ctx = Manage):
+    return depth.get_venue(ctx.session, ctx.principal, venue_id)
+
+
+@staff.patch("/league-venues/{venue_id}", response_model=s.VenueOut)
+def update_venue(venue_id: UUID, body: s.VenueUpdate, ctx: Ctx = Manage):
+    return depth.update_venue(ctx.session, ctx.principal, venue_id, _patch(body))
+
+
+@staff.delete("/league-venues/{venue_id}", status_code=204)
+def delete_venue(venue_id: UUID, ctx: Ctx = Manage):
+    depth.delete_venue(ctx.session, ctx.principal, venue_id)
+
+
+# --- team preferences (LGE-10), league staff (LGE-26), ladder (LGE-28) ------------------------------------------
+
+
+@staff.get("/competition-teams/{competition_team_id}/preferences", response_model=list[s.TeamPreferenceOut])
+def list_team_preferences(competition_team_id: UUID, ctx: Ctx = Generate):
+    return depth.list_team_preferences(ctx.session, ctx.principal, competition_team_id)
+
+
+@staff.put("/competition-teams/{competition_team_id}/preferences", response_model=list[s.TeamPreferenceOut])
+def replace_team_preferences(competition_team_id: UUID, body: s.TeamPreferencesPut, ctx: Ctx = Generate):
+    """Soft inputs to the schedule generator: wanted dates, weekdays, times and courts score up, unavailable
+    ones score far down. Never a hard block."""
+    return depth.replace_team_preferences(ctx.session, ctx.principal, competition_team_id, body.model_dump())
+
+
+@staff.get("/competitions/{competition_id}/staff", response_model=list[s.CompetitionStaffOut])
+def list_competition_staff(competition_id: UUID, ctx: Ctx = Manage):
+    return depth.list_competition_staff(ctx.session, ctx.principal, competition_id)
+
+
+@staff.get("/competitions/{competition_id}/staff-candidates", response_model=list[s.StaffCandidateOut])
+def list_staff_candidates(competition_id: UUID, ctx: Ctx = Manage):
+    """Staff who may be assigned to the competition: active and working at its location."""
+    return depth.list_staff_candidates(ctx.session, ctx.principal, competition_id)
+
+
+@staff.put("/competitions/{competition_id}/staff", response_model=list[s.CompetitionStaffOut])
+def replace_competition_staff(competition_id: UUID, body: s.CompetitionStaffPut, ctx: Ctx = Manage):
+    """League admins and scorekeepers of the competition. A scorekeeper-only role then reaches only the games
+    of the competitions it is assigned to."""
+    return depth.replace_competition_staff(ctx.session, ctx.principal, competition_id, body.model_dump())
+
+
+@staff.get("/competitions/{competition_id}/ladder", response_model=list[s.LadderRungOut])
+def get_ladder(competition_id: UUID, ctx: Ctx = GameReads):
+    return depth.get_ladder(ctx.session, ctx.principal, competition_id)
+
+
+@staff.put("/competitions/{competition_id}/ladder", response_model=list[s.LadderRungOut])
+def replace_ladder(competition_id: UUID, body: s.LadderPut, ctx: Ctx = Manage):
+    return depth.replace_ladder(ctx.session, ctx.principal, competition_id, body.model_dump())
+
+
+@staff.post("/competitions/{competition_id}/ladder-challenges", response_model=s.GameOut, status_code=201)
+def create_ladder_challenge(competition_id: UUID, body: s.LadderChallengeCreate, ctx: Ctx = Games):
+    """A challenge game, challenger at home. A challenger win swaps the two rungs when its result is recorded;
+    a corrected or removed result swaps them back."""
+    return depth.create_ladder_challenge(ctx.session, ctx.principal, competition_id, body.model_dump())
+
+
+# --- stat tables and player stats (LGE-07) ----------------------------------------------------------------------
+
+
+@staff.get("/sports/{sport_id}/stat-tables", response_model=list[s.StatTableOut])
+def list_stat_tables(sport_id: UUID, ctx: Ctx = Manage):
+    return depth.list_stat_tables(ctx.session, ctx.principal, sport_id)
+
+
+@staff.post("/sports/{sport_id}/stat-tables", response_model=s.StatTableOut, status_code=201)
+def create_stat_table(sport_id: UUID, body: s.StatTableWrite, ctx: Ctx = Manage):
+    return depth.create_stat_table(ctx.session, ctx.principal, sport_id, body.model_dump())
+
+
+@staff.patch("/stat-tables/{stat_table_id}", response_model=s.StatTableOut)
+def update_stat_table(stat_table_id: UUID, body: s.StatTableUpdate, ctx: Ctx = Manage):
+    return depth.update_stat_table(ctx.session, ctx.principal, stat_table_id, _patch(body))
+
+
+@staff.delete("/stat-tables/{stat_table_id}", status_code=204)
+def delete_stat_table(stat_table_id: UUID, ctx: Ctx = Manage):
+    depth.delete_stat_table(ctx.session, ctx.principal, stat_table_id)
+
+
+@staff.post("/stat-tables/{stat_table_id}/stats", response_model=s.StatDefinitionOut, status_code=201)
+def create_stat_definition(stat_table_id: UUID, body: s.StatDefinitionCreate, ctx: Ctx = Manage):
+    """An entry stat, or a formula over the sport's entry stat codes (+ - * / and brackets), checked on save."""
+    return depth.create_stat_definition(ctx.session, ctx.principal, stat_table_id, body.model_dump())
+
+
+@staff.patch("/stat-definitions/{stat_definition_id}", response_model=s.StatDefinitionOut)
+def update_stat_definition(stat_definition_id: UUID, body: s.StatDefinitionUpdate, ctx: Ctx = Manage):
+    return depth.update_stat_definition(ctx.session, ctx.principal, stat_definition_id, _patch(body))
+
+
+@staff.delete("/stat-definitions/{stat_definition_id}", status_code=204)
+def delete_stat_definition(stat_definition_id: UUID, ctx: Ctx = Manage):
+    depth.delete_stat_definition(ctx.session, ctx.principal, stat_definition_id)
+
+
+@staff.get("/games/{game_id}/player-stats", response_model=list[s.PlayerStatOut])
+def list_game_player_stats(game_id: UUID, ctx: Ctx = Results):
+    return depth.list_game_player_stats(ctx.session, ctx.principal, game_id)
+
+
+@staff.put("/games/{game_id}/player-stats", response_model=list[s.PlayerStatOut])
+def replace_game_player_stats(game_id: UUID, body: s.PlayerStatsPut, ctx: Ctx = Results):
+    return depth.replace_game_player_stats(ctx.session, ctx.principal, game_id, body.model_dump())
+
+
+@staff.get("/competitions/{competition_id}/player-stats", response_model=list[s.PlayerTotalsOut])
+def list_competition_player_stats(competition_id: UUID, ctx: Ctx = GameReads):
+    """Season totals per player, formula stats computed on the totals (null on a division by zero)."""
+    return depth.list_competition_player_stats(ctx.session, ctx.principal, competition_id)
+
+
+# --- team fee split (REG-26), publish a program group (REG-14) --------------------------------------------------
+
+
+@staff.get("/competition-teams/{competition_team_id}/fee-shares", response_model=list[s.TeamFeeShareOut])
+def list_team_fee_shares(competition_team_id: UUID, ctx: Ctx = Teams):
+    return depth.list_team_fee_shares(ctx.session, ctx.principal, competition_team_id)
+
+
+@staff.post(
+    "/competition-teams/{competition_team_id}/fee-shares", response_model=list[s.TeamFeeShareOut], status_code=201
+)
+def split_team_fee(competition_team_id: UUID, body: s.TeamFeeSplit, ctx: Ctx = Teams):
+    """Bill the unbilled team fee as shares across rostered players, one charge and invoice each; whatever the
+    shares leave is billed to `bill_to_client_id`."""
+    return depth.split_team_fee(ctx.session, ctx.principal, competition_team_id, body.model_dump())
+
+
+@staff.post("/competitions/from-program-group", response_model=s.CompetitionOut, status_code=201)
+def create_competition_from_program_group(body: s.ProgramGroupPublish, ctx: Ctx = Manage):
+    """A league or tournament from a program group: each subgroup becomes a team, its enrolled clients the
+    roster. Needs the programs read key too."""
+    return depth.publish_program_group(ctx.session, ctx.principal, body.model_dump())
+
+
+# --- game cards (LGE-16) ----------------------------------------------------------------------------------------
+
+
+@staff.get("/games/{game_id}/card", response_class=Response, responses=PDF)
+def get_game_card(game_id: UUID, ctx: Ctx = Cards):
+    return _pdf(depth.game_card_pdf(ctx.session, ctx.principal, game_id))
+
+
+@staff.get("/competitions/{competition_id}/blank-game-card", response_class=Response, responses=PDF)
+def get_blank_game_card(competition_id: UUID, ctx: Ctx = Cards):
+    return _pdf(depth.manual_game_card_pdf(ctx.session, ctx.principal, competition_id))
+
+
+@staff.get("/game-cards", response_class=Response, responses=PDF)
+def get_game_cards(sport_id: UUID, from_on: date, to_on: date, ctx: Ctx = Cards):
+    """Cards for every scheduled game of a sport in the date range (at most 31 days, 200 games)."""
+    return _pdf(depth.game_cards_pdf(ctx.session, ctx.principal, sport_id, from_on, to_on))
+
+
+# --- captain portal roster (REG-26) -----------------------------------------------------------------------------
+
+portal = APIRouter(
+    route_class=TxRoute, tags=["leagues"], generate_unique_id_function=camel_id, dependencies=[Depends(idempotency)]
+)
+
+
+@portal.get("/portal/league-teams", response_model=list[s.PortalLeagueTeamOut])
+def list_portal_league_teams(ctx: Portal):
+    """Teams the signed-in client (or someone they act for) captains."""
+    return depth.portal_list_league_teams(ctx.session, ctx.principal)
+
+
+@portal.get("/portal/league-teams/{competition_team_id}/roster", response_model=list[s.PortalRosterEntryOut])
+def list_portal_team_roster(competition_team_id: UUID, ctx: Portal):
+    return depth.portal_list_team_roster(ctx.session, ctx.principal, competition_team_id)
+
+
+@portal.post(
+    "/portal/league-teams/{competition_team_id}/roster", response_model=s.PortalRosterEntryOut, status_code=201
+)
+def create_portal_roster_entry(competition_team_id: UUID, body: s.PortalRosterEntryCreate, ctx: Portal):
+    return depth.portal_add_roster_entry(ctx.session, ctx.principal, competition_team_id, body.model_dump())
+
+
+@portal.delete("/portal/league-roster-entries/{roster_entry_id}", status_code=204)
+def delete_portal_roster_entry(roster_entry_id: UUID, ctx: Portal):
+    depth.portal_remove_roster_entry(ctx.session, ctx.principal, roster_entry_id)
+
+
 router = APIRouter()
 router.include_router(staff)
+router.include_router(portal)
 router.include_router(public)

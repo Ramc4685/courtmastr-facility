@@ -515,10 +515,45 @@ def _time_clock(session: Session, p: TimeClockParams, scope: Scope) -> dict:
     return {"rows": rows, "totals": totals, "details": details}
 
 
+# --- league game cards (RPT-36, Phase 14 chip B1) ------------------------------------------------------------
+
+
+class LeagueCardParams(RangeParams):
+    sport_ids: list[UUID] | None = None
+
+
+def _league_game_cards(session: Session, p: LeagueCardParams, scope: Scope) -> dict:
+    g = v.league_game.c
+    where = [g.game_on.between(p.from_on, p.to_on)]
+    if p.sport_ids:
+        where.append(g.sport_id.in_(p.sport_ids))
+    rows = [dict(r._mapping) | {"group_key": _key(r.game_id)} for r in session.execute(_loc(
+        select(g.game_id, g.game_on, g.game_time, g.sport_name, g.competition_name, g.round_label, g.venue_name,
+               g.home_name, g.away_name, g.status)
+        .where(*where).order_by(g.game_on, g.game_time, g.venue_name, g.game_id), v.league_game, scope,
+    ))]  # fmt: skip
+    return {"rows": rows, "totals": {"game_count": len(rows)}, "details": None}
+
+
+class LeagueTeamParams(Params):
+    competition_ids: list[UUID] | None = None
+
+
+def _league_manual_cards(session: Session, p: LeagueTeamParams, scope: Scope) -> dict:
+    t = v.league_team.c
+    where = [t.competition_id.in_(p.competition_ids)] if p.competition_ids else []
+    rows = [dict(r._mapping) | {"group_key": _key(r.competition_team_id)} for r in session.execute(_loc(
+        select(t.competition_team_id, t.competition_name, t.sport_name, t.team_name)
+        .where(*where).order_by(t.competition_name, t.team_name, t.competition_team_id), v.league_team, scope,
+    ))]  # fmt: skip
+    return {"rows": rows, "totals": {"team_count": len(rows)}, "details": None}
+
+
 # --- the registry --------------------------------------------------------------------------------------------
 
 FINANCIAL, MEMBERSHIP, ATTENDANCE = "reporting.financial.run", "reporting.membership.run", "reporting.attendance.run"
 POS, TIME_CLOCK = "reporting.pos.run", "reporting.time_clock.run"
+LEAGUE = "reporting.league.run"
 
 _SPECS = (
     ReportSpec(
@@ -798,6 +833,44 @@ _SPECS = (
             Col("is_edited", "Edited", "bool"),
         ),
         ("RPT-37",),
+    ),  # fmt: skip
+    ReportSpec(
+        "league_game_cards",
+        "Game cards by sport",
+        "Scheduled league games in the period by sport, in start order, ready to print as game cards (one card "
+        "per game from the leagues screen).",
+        "league",
+        LEAGUE,
+        "game_date",
+        LeagueCardParams,
+        (
+            Col("game_on", "Date", "date"),
+            Col("game_time", "Time"),
+            Col("sport_name", "Sport"),
+            Col("competition_name", "Competition"),
+            Col("round_label", "Round"),
+            Col("venue_name", "Court"),
+            Col("home_name", "Home"),
+            Col("away_name", "Away"),
+        ),
+        (Col("game_count", "Games", "count"),),
+        _league_game_cards,
+        None,
+        ("RPT-36", "LGE-16"),
+    ),  # fmt: skip
+    ReportSpec(
+        "league_manual_game_cards",
+        "Manual game cards",
+        "Active teams of each competition, for writing up game cards by hand (pickup and makeup games).",
+        "league",
+        LEAGUE,
+        "none",
+        LeagueTeamParams,
+        (Col("competition_name", "Competition"), Col("sport_name", "Sport"), Col("team_name", "Team")),
+        (Col("team_count", "Teams", "count"),),
+        _league_manual_cards,
+        None,
+        ("RPT-36", "LGE-16"),
     ),  # fmt: skip
 )
 REGISTRY: dict[str, ReportSpec] = {spec.key: spec for spec in _SPECS}

@@ -350,6 +350,22 @@ _BODIES = {
     "putGameOfficials": lambda ids: {"assignments": [{"official_id": ids.official_id}]},
     "generateBracket": {"bracket_type": "single_elimination", "seed_source": "seeds"},
     "updateBracketSlot": {},
+    # leagues depth (Phase 14 chip B1)
+    "updateVenue": {"name": "Renamed"},
+    "replaceTeamPreferences": {"preferences": []},
+    "replaceCompetitionStaff": {"staff": []},
+    "replaceLadder": {"competition_team_ids": []},
+    "createLadderChallenge": lambda ids: {
+        "challenger_id": ids.competition_team_id,
+        "defender_id": ids.competition_team_id,
+    },
+    "createStatTable": {"name": "Other"},
+    "updateStatTable": {"name": "Renamed"},
+    "createStatDefinition": {"code": "A", "name": "Assists"},
+    "updateStatDefinition": {"name": "Renamed"},
+    "replaceGamePlayerStats": {"stats": []},
+    "splitTeamFee": lambda ids: {"shares": [{"roster_entry_id": ids.roster_entry_id, "amount_minor": 1}]},
+    "createPortalRosterEntry": {"first_name": "Walk", "last_name": "On"},
     # integrations (module 16)
     "rotateApiKey": {},
     "updateWebhookEndpoint": {"description": "Renamed"},

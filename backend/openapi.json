@@ -5802,6 +5802,19 @@
       "BracketGenerate": {
         "additionalProperties": false,
         "properties": {
+          "advance_per_pool": {
+            "anyOf": [
+              {
+                "maximum": 16.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advance Per Pool"
+          },
           "bracket_type": {
             "enum": [
               "single_elimination",
@@ -5839,6 +5852,11 @@
             ],
             "title": "Division Id"
           },
+          "has_reset_game": {
+            "default": false,
+            "title": "Has Reset Game",
+            "type": "boolean"
+          },
           "has_third_place_game": {
             "default": false,
             "title": "Has Third Place Game",
@@ -5855,7 +5873,8 @@
             "enum": [
               "seeds",
               "standings",
-              "manual"
+              "manual",
+              "pools"
             ],
             "title": "Seed Source",
             "type": "string"
@@ -5890,6 +5909,10 @@
               }
             ],
             "title": "Division Id"
+          },
+          "has_reset_game": {
+            "title": "Has Reset Game",
+            "type": "boolean"
           },
           "has_third_place_game": {
             "title": "Has Third Place Game",
@@ -5928,6 +5951,7 @@
           "bracket_type",
           "size",
           "has_third_place_game",
+          "has_reset_game",
           "status",
           "slots"
         ],
@@ -6149,6 +6173,18 @@
               }
             ],
             "title": "Starts At"
+          },
+          "venue_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue Id"
           }
         },
         "title": "BracketSlotUpdate",
@@ -13580,7 +13616,8 @@
               "pool_play",
               "single_elimination",
               "double_elimination",
-              "three_games_guaranteed"
+              "three_games_guaranteed",
+              "ladder"
             ],
             "title": "Format",
             "type": "string"
@@ -13616,6 +13653,19 @@
             ],
             "title": "Kind",
             "type": "string"
+          },
+          "ladder_challenge_range": {
+            "anyOf": [
+              {
+                "maximum": 20.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ladder Challenge Range"
           },
           "location_id": {
             "format": "uuid",
@@ -14019,6 +14069,17 @@
             "title": "Kind",
             "type": "string"
           },
+          "ladder_challenge_range": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ladder Challenge Range"
+          },
           "location_id": {
             "format": "uuid",
             "title": "Location Id",
@@ -14099,6 +14160,18 @@
           "points_win": {
             "title": "Points Win",
             "type": "string"
+          },
+          "program_group_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Program Group Id"
           },
           "registration_url": {
             "anyOf": [
@@ -14247,6 +14320,55 @@
           "created_at"
         ],
         "title": "CompetitionOut",
+        "type": "object"
+      },
+      "CompetitionStaffOut": {
+        "properties": {
+          "competition_id": {
+            "format": "uuid",
+            "title": "Competition Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "staff_user_id": {
+            "format": "uuid",
+            "title": "Staff User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "competition_id",
+          "staff_user_id",
+          "role"
+        ],
+        "title": "CompetitionStaffOut",
+        "type": "object"
+      },
+      "CompetitionStaffPut": {
+        "additionalProperties": false,
+        "properties": {
+          "staff": {
+            "items": {
+              "$ref": "#/components/schemas/StaffMemberIn"
+            },
+            "maxItems": 50,
+            "title": "Staff",
+            "type": "array"
+          }
+        },
+        "required": [
+          "staff"
+        ],
+        "title": "CompetitionStaffPut",
         "type": "object"
       },
       "CompetitionTeamCreate": {
@@ -14555,7 +14677,8 @@
                   "pool_play",
                   "single_elimination",
                   "double_elimination",
-                  "three_games_guaranteed"
+                  "three_games_guaranteed",
+                  "ladder"
                 ],
                 "type": "string"
               },
@@ -14588,6 +14711,19 @@
               }
             ],
             "title": "Is Public"
+          },
+          "ladder_challenge_range": {
+            "anyOf": [
+              {
+                "maximum": 20.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ladder Challenge Range"
           },
           "max_defaults": {
             "anyOf": [
@@ -22313,6 +22449,28 @@
         "title": "FeatureState",
         "type": "object"
       },
+      "FeeShareIn": {
+        "additionalProperties": false,
+        "properties": {
+          "amount_minor": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 100000000.0,
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "roster_entry_id": {
+            "format": "uuid",
+            "title": "Roster Entry Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "roster_entry_id",
+          "amount_minor"
+        ],
+        "title": "FeeShareIn",
+        "type": "object"
+      },
       "FieldPolicies": {
         "additionalProperties": false,
         "properties": {
@@ -22748,6 +22906,18 @@
               }
             ],
             "title": "Starts At"
+          },
+          "venue_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue Id"
           }
         },
         "required": [
@@ -22874,6 +23044,17 @@
             "title": "Competition Id",
             "type": "string"
           },
+          "competition_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competition Name"
+          },
           "conflict_note": {
             "anyOf": [
               {
@@ -22968,6 +23149,11 @@
             "title": "Is Bye",
             "type": "boolean"
           },
+          "ladder_swapped": {
+            "default": false,
+            "title": "Ladder Swapped",
+            "type": "boolean"
+          },
           "length_min": {
             "title": "Length Min",
             "type": "integer"
@@ -23034,6 +23220,18 @@
             ],
             "title": "Schedule Run Id"
           },
+          "sport_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sport Id"
+          },
           "starts_at": {
             "anyOf": [
               {
@@ -23049,6 +23247,18 @@
           "status": {
             "title": "Status",
             "type": "string"
+          },
+          "venue_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue Id"
           },
           "version": {
             "title": "Version",
@@ -23110,6 +23320,18 @@
               }
             ],
             "title": "Starts At"
+          },
+          "venue_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue Id"
           }
         },
         "title": "GamePostpone",
@@ -23132,18 +23354,36 @@
             "title": "Length Min"
           },
           "resource_id": {
-            "format": "uuid",
-            "title": "Resource Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id"
           },
           "starts_at": {
             "format": "date-time",
             "title": "Starts At",
             "type": "string"
+          },
+          "venue_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue Id"
           }
         },
         "required": [
-          "resource_id",
           "starts_at"
         ],
         "title": "GameReschedule",
@@ -26091,6 +26331,125 @@
           }
         },
         "title": "KioskSettingsWrite",
+        "type": "object"
+      },
+      "LadderChallengeCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "challenger_id": {
+            "format": "uuid",
+            "title": "Challenger Id",
+            "type": "string"
+          },
+          "defender_id": {
+            "format": "uuid",
+            "title": "Defender Id",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id"
+          },
+          "starts_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts At"
+          },
+          "venue_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue Id"
+          }
+        },
+        "required": [
+          "challenger_id",
+          "defender_id"
+        ],
+        "title": "LadderChallengeCreate",
+        "type": "object"
+      },
+      "LadderPut": {
+        "additionalProperties": false,
+        "properties": {
+          "competition_team_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "title": "Competition Team Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "competition_team_ids"
+        ],
+        "title": "LadderPut",
+        "type": "object"
+      },
+      "LadderRungOut": {
+        "properties": {
+          "competition_team_id": {
+            "format": "uuid",
+            "title": "Competition Team Id",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "team_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Name"
+          }
+        },
+        "required": [
+          "competition_team_id",
+          "position",
+          "team_name"
+        ],
+        "title": "LadderRungOut",
         "type": "object"
       },
       "LeagueRosterEntryOut": {
@@ -37004,6 +37363,26 @@
         "title": "Page[TypeOut]",
         "type": "object"
       },
+      "Page_VenueOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/VenueOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[VenueOut]",
+        "type": "object"
+      },
       "Page_VideoOut_": {
         "properties": {
           "data": {
@@ -39167,6 +39546,136 @@
           "overrides"
         ],
         "title": "PlanUsage",
+        "type": "object"
+      },
+      "PlayerStatIn": {
+        "additionalProperties": false,
+        "properties": {
+          "roster_entry_id": {
+            "format": "uuid",
+            "title": "Roster Entry Id",
+            "type": "string"
+          },
+          "stat_definition_id": {
+            "format": "uuid",
+            "title": "Stat Definition Id",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "maximum": 99999999.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "roster_entry_id",
+          "stat_definition_id",
+          "value"
+        ],
+        "title": "PlayerStatIn",
+        "type": "object"
+      },
+      "PlayerStatOut": {
+        "properties": {
+          "game_id": {
+            "format": "uuid",
+            "title": "Game Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "roster_entry_id": {
+            "format": "uuid",
+            "title": "Roster Entry Id",
+            "type": "string"
+          },
+          "stat_definition_id": {
+            "format": "uuid",
+            "title": "Stat Definition Id",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "game_id",
+          "roster_entry_id",
+          "stat_definition_id",
+          "value"
+        ],
+        "title": "PlayerStatOut",
+        "type": "object"
+      },
+      "PlayerStatsPut": {
+        "additionalProperties": false,
+        "properties": {
+          "stats": {
+            "items": {
+              "$ref": "#/components/schemas/PlayerStatIn"
+            },
+            "maxItems": 2000,
+            "title": "Stats",
+            "type": "array"
+          }
+        },
+        "required": [
+          "stats"
+        ],
+        "title": "PlayerStatsPut",
+        "type": "object"
+      },
+      "PlayerTotalsOut": {
+        "properties": {
+          "competition_team_id": {
+            "format": "uuid",
+            "title": "Competition Team Id",
+            "type": "string"
+          },
+          "player_name": {
+            "title": "Player Name",
+            "type": "string"
+          },
+          "roster_entry_id": {
+            "format": "uuid",
+            "title": "Roster Entry Id",
+            "type": "string"
+          },
+          "stats": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Stats",
+            "type": "object"
+          }
+        },
+        "required": [
+          "roster_entry_id",
+          "competition_team_id",
+          "player_name",
+          "stats"
+        ],
+        "title": "PlayerTotalsOut",
         "type": "object"
       },
       "PortalAcceptanceSubmit": {
@@ -41598,6 +42107,36 @@
         "title": "PortalInvoiceOut",
         "type": "object"
       },
+      "PortalLeagueTeamOut": {
+        "properties": {
+          "competition_name": {
+            "title": "Competition Name",
+            "type": "string"
+          },
+          "competition_team_id": {
+            "format": "uuid",
+            "title": "Competition Team Id",
+            "type": "string"
+          },
+          "starts_on": {
+            "format": "date",
+            "title": "Starts On",
+            "type": "string"
+          },
+          "team_name": {
+            "title": "Team Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "competition_team_id",
+          "team_name",
+          "competition_name",
+          "starts_on"
+        ],
+        "title": "PortalLeagueTeamOut",
+        "type": "object"
+      },
       "PortalMissingDocument": {
         "properties": {
           "client_id": {
@@ -43364,6 +43903,99 @@
           "role"
         ],
         "title": "PortalRentalResourceOut",
+        "type": "object"
+      },
+      "PortalRosterEntryCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "first_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Name"
+          },
+          "jersey_number": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jersey Number"
+          },
+          "last_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Name"
+          }
+        },
+        "title": "PortalRosterEntryCreate",
+        "type": "object"
+      },
+      "PortalRosterEntryOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "jersey_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jersey Number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "role",
+          "jersey_number"
+        ],
+        "title": "PortalRosterEntryOut",
         "type": "object"
       },
       "PortalSessionListing": {
@@ -48177,6 +48809,85 @@
           "updated_at"
         ],
         "title": "ProgramGroupOut",
+        "type": "object"
+      },
+      "ProgramGroupPublish": {
+        "additionalProperties": false,
+        "properties": {
+          "ends_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends On"
+          },
+          "format": {
+            "default": "round_robin",
+            "enum": [
+              "round_robin",
+              "pool_play",
+              "single_elimination",
+              "double_elimination",
+              "three_games_guaranteed",
+              "ladder"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "include_players": {
+            "default": true,
+            "title": "Include Players",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "league",
+              "tournament"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "program_group_id": {
+            "format": "uuid",
+            "title": "Program Group Id",
+            "type": "string"
+          },
+          "sport_id": {
+            "format": "uuid",
+            "title": "Sport Id",
+            "type": "string"
+          },
+          "starts_on": {
+            "format": "date",
+            "title": "Starts On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "program_group_id",
+          "kind",
+          "sport_id",
+          "starts_on"
+        ],
+        "title": "ProgramGroupPublish",
         "type": "object"
       },
       "ProgramGroupUpdate": {
@@ -56978,12 +57689,12 @@
             "type": "boolean"
           },
           "resource_ids": {
+            "default": [],
             "items": {
               "format": "uuid",
               "type": "string"
             },
             "maxItems": 50,
-            "minItems": 1,
             "title": "Resource Ids",
             "type": "array"
           },
@@ -57018,7 +57729,6 @@
         "required": [
           "location_id",
           "competition_ids",
-          "resource_ids",
           "time_slots",
           "starts_on",
           "ends_on"
@@ -57089,6 +57799,11 @@
             "format": "uuid",
             "title": "Location Id",
             "type": "string"
+          },
+          "progress": {
+            "additionalProperties": true,
+            "title": "Progress",
+            "type": "object"
           },
           "removes_previous_games": {
             "title": "Removes Previous Games",
@@ -57164,6 +57879,7 @@
           "bye_mode",
           "removes_previous_games",
           "stats",
+          "progress",
           "committed_at"
         ],
         "title": "ScheduleRunOut",
@@ -60728,6 +61444,25 @@
         "title": "StaffAlertOut",
         "type": "object"
       },
+      "StaffCandidateOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "StaffCandidateOut",
+        "type": "object"
+      },
       "StaffHourlyRateCreate": {
         "additionalProperties": false,
         "properties": {
@@ -60791,6 +61526,30 @@
           "effective_from_on"
         ],
         "title": "StaffHourlyRateOut",
+        "type": "object"
+      },
+      "StaffMemberIn": {
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "default": "scorekeeper",
+            "enum": [
+              "league_admin",
+              "scorekeeper"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "staff_user_id": {
+            "format": "uuid",
+            "title": "Staff User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "staff_user_id"
+        ],
+        "title": "StaffMemberIn",
         "type": "object"
       },
       "StaffPayeeCreate": {
@@ -61897,6 +62656,292 @@
           "metric"
         ],
         "title": "StandingsSort",
+        "type": "object"
+      },
+      "StatDefinitionCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,19}$",
+            "title": "Code",
+            "type": "string"
+          },
+          "decimal_places": {
+            "default": 0,
+            "maximum": 4.0,
+            "minimum": 0.0,
+            "title": "Decimal Places",
+            "type": "integer"
+          },
+          "formula": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formula"
+          },
+          "kind": {
+            "default": "entry",
+            "enum": [
+              "entry",
+              "formula"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "sort_order": {
+            "default": 0,
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Sort Order",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "StatDefinitionCreate",
+        "type": "object"
+      },
+      "StatDefinitionOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "decimal_places": {
+            "title": "Decimal Places",
+            "type": "integer"
+          },
+          "formula": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formula"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          },
+          "sport_id": {
+            "format": "uuid",
+            "title": "Sport Id",
+            "type": "string"
+          },
+          "stat_table_id": {
+            "format": "uuid",
+            "title": "Stat Table Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "stat_table_id",
+          "sport_id",
+          "code",
+          "name",
+          "kind",
+          "formula",
+          "decimal_places",
+          "sort_order"
+        ],
+        "title": "StatDefinitionOut",
+        "type": "object"
+      },
+      "StatDefinitionUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z][A-Za-z0-9_]{0,19}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "decimal_places": {
+            "anyOf": [
+              {
+                "maximum": 4.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decimal Places"
+          },
+          "formula": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formula"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "sort_order": {
+            "anyOf": [
+              {
+                "maximum": 1000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort Order"
+          }
+        },
+        "title": "StatDefinitionUpdate",
+        "type": "object"
+      },
+      "StatTableOut": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          },
+          "sport_id": {
+            "format": "uuid",
+            "title": "Sport Id",
+            "type": "string"
+          },
+          "stats": {
+            "items": {
+              "$ref": "#/components/schemas/StatDefinitionOut"
+            },
+            "title": "Stats",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "sport_id",
+          "name",
+          "sort_order",
+          "stats"
+        ],
+        "title": "StatTableOut",
+        "type": "object"
+      },
+      "StatTableUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "sort_order": {
+            "anyOf": [
+              {
+                "maximum": 1000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort Order"
+          }
+        },
+        "title": "StatTableUpdate",
+        "type": "object"
+      },
+      "StatTableWrite": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "sort_order": {
+            "default": 0,
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Sort Order",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "StatTableWrite",
         "type": "object"
       },
       "StatementBatchCreate": {
@@ -64138,6 +65183,94 @@
         "title": "TeamFeeBill",
         "type": "object"
       },
+      "TeamFeeShareOut": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "charge_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Id"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "competition_team_id": {
+            "format": "uuid",
+            "title": "Competition Team Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "roster_entry_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roster Entry Id"
+          }
+        },
+        "required": [
+          "id",
+          "competition_team_id",
+          "roster_entry_id",
+          "client_id",
+          "amount_minor",
+          "charge_id"
+        ],
+        "title": "TeamFeeShareOut",
+        "type": "object"
+      },
+      "TeamFeeSplit": {
+        "additionalProperties": false,
+        "properties": {
+          "bill_to_client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bill To Client Id"
+          },
+          "shares": {
+            "items": {
+              "$ref": "#/components/schemas/FeeShareIn"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Shares",
+            "type": "array"
+          }
+        },
+        "required": [
+          "shares"
+        ],
+        "title": "TeamFeeSplit",
+        "type": "object"
+      },
       "TeamGenerate": {
         "additionalProperties": false,
         "properties": {
@@ -64171,6 +65304,101 @@
           "count"
         ],
         "title": "TeamGenerate",
+        "type": "object"
+      },
+      "TeamPreferenceIn": {
+        "additionalProperties": false,
+        "properties": {
+          "is_priority": {
+            "default": false,
+            "title": "Is Priority",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "date",
+              "weekday",
+              "time",
+              "resource"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          },
+          "wants": {
+            "default": false,
+            "title": "Wants",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "value"
+        ],
+        "title": "TeamPreferenceIn",
+        "type": "object"
+      },
+      "TeamPreferenceOut": {
+        "properties": {
+          "competition_team_id": {
+            "format": "uuid",
+            "title": "Competition Team Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_priority": {
+            "title": "Is Priority",
+            "type": "boolean"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          },
+          "wants": {
+            "title": "Wants",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "competition_team_id",
+          "kind",
+          "value",
+          "wants",
+          "is_priority"
+        ],
+        "title": "TeamPreferenceOut",
+        "type": "object"
+      },
+      "TeamPreferencesPut": {
+        "additionalProperties": false,
+        "properties": {
+          "preferences": {
+            "items": {
+              "$ref": "#/components/schemas/TeamPreferenceIn"
+            },
+            "maxItems": 50,
+            "title": "Preferences",
+            "type": "array"
+          }
+        },
+        "required": [
+          "preferences"
+        ],
+        "title": "TeamPreferencesPut",
         "type": "object"
       },
       "TenantEntitlementCreate": {
@@ -65173,14 +66401,33 @@
             "type": "string"
           },
           "resource_id": {
-            "format": "uuid",
-            "title": "Resource Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id"
           },
           "starts_at": {
             "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
             "title": "Starts At",
             "type": "string"
+          },
+          "venue_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Venue Id"
           },
           "weekday": {
             "maximum": 7.0,
@@ -65192,8 +66439,7 @@
         "required": [
           "weekday",
           "starts_at",
-          "ends_at",
-          "resource_id"
+          "ends_at"
         ],
         "title": "TimeWindow",
         "type": "object"
@@ -66120,6 +67366,167 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VenueCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "resource_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Resource Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "location_id",
+          "name",
+          "resource_ids"
+        ],
+        "title": "VenueCreate",
+        "type": "object"
+      },
+      "VenueOut": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "resource_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Resource Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "name",
+          "description",
+          "resource_ids",
+          "is_active"
+        ],
+        "title": "VenueOut",
+        "type": "object"
+      },
+      "VenueUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "resource_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Ids"
+          }
+        },
+        "title": "VenueUpdate",
         "type": "object"
       },
       "VideoCreate": {
@@ -84706,6 +86113,288 @@
         ]
       }
     },
+    "/api/v1/competition-teams/{competition_team_id}/fee-shares": {
+      "get": {
+        "operationId": "listTeamFeeShares",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "competition_team_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Competition Team Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TeamFeeShareOut"
+                  },
+                  "title": "Response Listteamfeeshares",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Team Fee Shares",
+        "tags": [
+          "leagues"
+        ]
+      },
+      "post": {
+        "description": "Bill the unbilled team fee as shares across rostered players, one charge and invoice each; whatever the\nshares leave is billed to `bill_to_client_id`.",
+        "operationId": "splitTeamFee",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "competition_team_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Competition Team Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeamFeeSplit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TeamFeeShareOut"
+                  },
+                  "title": "Response Splitteamfee",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Split Team Fee",
+        "tags": [
+          "leagues"
+        ]
+      }
+    },
+    "/api/v1/competition-teams/{competition_team_id}/preferences": {
+      "get": {
+        "operationId": "listTeamPreferences",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "competition_team_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Competition Team Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TeamPreferenceOut"
+                  },
+                  "title": "Response Listteampreferences",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Team Preferences",
+        "tags": [
+          "leagues"
+        ]
+      },
+      "put": {
+        "description": "Soft inputs to the schedule generator: wanted dates, weekdays, times and courts score up, unavailable\nones score far down. Never a hard block.",
+        "operationId": "replaceTeamPreferences",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "competition_team_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Competition Team Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeamPreferencesPut"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TeamPreferenceOut"
+                  },
+                  "title": "Response Replaceteampreferences",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Replace Team Preferences",
+        "tags": [
+          "leagues"
+        ]
+      }
+    },
     "/api/v1/competition-teams/{competition_team_id}/roster": {
       "get": {
         "operationId": "listTeamRoster",
@@ -85042,6 +86731,69 @@
         ]
       }
     },
+    "/api/v1/competitions/from-program-group": {
+      "post": {
+        "description": "A league or tournament from a program group: each subgroup becomes a team, its enrolled clients the\nroster. Needs the programs read key too.",
+        "operationId": "createCompetitionFromProgramGroup",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgramGroupPublish"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompetitionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Competition From Program Group",
+        "tags": [
+          "leagues"
+        ]
+      }
+    },
     "/api/v1/competitions/{competition_id}": {
       "delete": {
         "operationId": "deleteCompetition",
@@ -85346,6 +87098,64 @@
           }
         },
         "summary": "Archive Competition",
+        "tags": [
+          "leagues"
+        ]
+      }
+    },
+    "/api/v1/competitions/{competition_id}/blank-game-card": {
+      "get": {
+        "operationId": "getBlankGameCard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "competition_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Competition Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The PDF."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Blank Game Card",
         "tags": [
           "leagues"
         ]
@@ -85686,6 +87496,286 @@
         ]
       }
     },
+    "/api/v1/competitions/{competition_id}/ladder": {
+      "get": {
+        "operationId": "getLadder",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "competition_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Competition Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LadderRungOut"
+                  },
+                  "title": "Response Getladder",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ladder",
+        "tags": [
+          "leagues"
+        ]
+      },
+      "put": {
+        "operationId": "replaceLadder",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "competition_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Competition Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LadderPut"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LadderRungOut"
+                  },
+                  "title": "Response Replaceladder",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Replace Ladder",
+        "tags": [
+          "leagues"
+        ]
+      }
+    },
+    "/api/v1/competitions/{competition_id}/ladder-challenges": {
+      "post": {
+        "description": "A challenge game, challenger at home. A challenger win swaps the two rungs when its result is recorded;\na corrected or removed result swaps them back.",
+        "operationId": "createLadderChallenge",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "competition_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Competition Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LadderChallengeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Ladder Challenge",
+        "tags": [
+          "leagues"
+        ]
+      }
+    },
+    "/api/v1/competitions/{competition_id}/player-stats": {
+      "get": {
+        "description": "Season totals per player, formula stats computed on the totals (null on a division by zero).",
+        "operationId": "listCompetitionPlayerStats",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "competition_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Competition Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PlayerTotalsOut"
+                  },
+                  "title": "Response Listcompetitionplayerstats",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Competition Player Stats",
+        "tags": [
+          "leagues"
+        ]
+      }
+    },
     "/api/v1/competitions/{competition_id}/reopen": {
       "post": {
         "operationId": "reopenCompetition",
@@ -85819,6 +87909,214 @@
           }
         },
         "summary": "Put Competition Seeding",
+        "tags": [
+          "leagues"
+        ]
+      }
+    },
+    "/api/v1/competitions/{competition_id}/staff": {
+      "get": {
+        "operationId": "listCompetitionStaff",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "competition_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Competition Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CompetitionStaffOut"
+                  },
+                  "title": "Response Listcompetitionstaff",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Competition Staff",
+        "tags": [
+          "leagues"
+        ]
+      },
+      "put": {
+        "description": "League admins and scorekeepers of the competition. A scorekeeper-only role then reaches only the games\nof the competitions it is assigned to.",
+        "operationId": "replaceCompetitionStaff",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "competition_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Competition Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompetitionStaffPut"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CompetitionStaffOut"
+                  },
+                  "title": "Response Replacecompetitionstaff",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Replace Competition Staff",
+        "tags": [
+          "leagues"
+        ]
+      }
+    },
+    "/api/v1/competitions/{competition_id}/staff-candidates": {
+      "get": {
+        "description": "Staff who may be assigned to the competition: active and working at its location.",
+        "operationId": "listStaffCandidates",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "competition_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Competition Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StaffCandidateOut"
+                  },
+                  "title": "Response Liststaffcandidates",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Staff Candidates",
         "tags": [
           "leagues"
         ]
@@ -91542,6 +93840,85 @@
         ]
       }
     },
+    "/api/v1/game-cards": {
+      "get": {
+        "description": "Cards for every scheduled game of a sport in the date range (at most 31 days, 200 games).",
+        "operationId": "getGameCards",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sport_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sport Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from_on",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "From On",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to_on",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "title": "To On",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The PDF."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Game Cards",
+        "tags": [
+          "leagues"
+        ]
+      }
+    },
     "/api/v1/games": {
       "get": {
         "description": "Filters: location_id, competition_id, division_id, status, resource_id, schedule_run_id, game_type.",
@@ -91935,6 +94312,64 @@
         ]
       }
     },
+    "/api/v1/games/{game_id}/card": {
+      "get": {
+        "operationId": "getGameCard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "game_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Game Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The PDF."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Game Card",
+        "tags": [
+          "leagues"
+        ]
+      }
+    },
     "/api/v1/games/{game_id}/officials": {
       "get": {
         "operationId": "listGameOfficials",
@@ -92071,6 +94506,146 @@
           }
         },
         "summary": "Put Game Officials",
+        "tags": [
+          "leagues"
+        ]
+      }
+    },
+    "/api/v1/games/{game_id}/player-stats": {
+      "get": {
+        "operationId": "listGamePlayerStats",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "game_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Game Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PlayerStatOut"
+                  },
+                  "title": "Response Listgameplayerstats",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Game Player Stats",
+        "tags": [
+          "leagues"
+        ]
+      },
+      "put": {
+        "operationId": "replaceGamePlayerStats",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "game_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Game Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayerStatsPut"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PlayerStatOut"
+                  },
+                  "title": "Response Replacegameplayerstats",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Replace Game Player Stats",
         "tags": [
           "leagues"
         ]
@@ -95866,6 +98441,390 @@
         "summary": "Pair Kiosk",
         "tags": [
           "access"
+        ]
+      }
+    },
+    "/api/v1/league-venues": {
+      "get": {
+        "description": "Filters: location_id, is_active. Sort: name. q searches the name.",
+        "operationId": "listVenues",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_VenueOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Venues",
+        "tags": [
+          "leagues"
+        ]
+      },
+      "post": {
+        "operationId": "createVenue",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VenueCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VenueOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Venue",
+        "tags": [
+          "leagues"
+        ]
+      }
+    },
+    "/api/v1/league-venues/{venue_id}": {
+      "delete": {
+        "operationId": "deleteVenue",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "venue_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Venue Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Venue",
+        "tags": [
+          "leagues"
+        ]
+      },
+      "get": {
+        "operationId": "getVenue",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "venue_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Venue Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VenueOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Venue",
+        "tags": [
+          "leagues"
+        ]
+      },
+      "patch": {
+        "operationId": "updateVenue",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "venue_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Venue Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VenueUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VenueOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Venue",
+        "tags": [
+          "leagues"
         ]
       }
     },
@@ -108349,6 +111308,254 @@
         "summary": "Get Portal Invoice Pdf",
         "tags": [
           "billing"
+        ]
+      }
+    },
+    "/api/v1/portal/league-roster-entries/{roster_entry_id}": {
+      "delete": {
+        "operationId": "deletePortalRosterEntry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "roster_entry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Roster Entry Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Portal Roster Entry",
+        "tags": [
+          "leagues"
+        ]
+      }
+    },
+    "/api/v1/portal/league-teams": {
+      "get": {
+        "description": "Teams the signed-in client (or someone they act for) captains.",
+        "operationId": "listPortalLeagueTeams",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PortalLeagueTeamOut"
+                  },
+                  "title": "Response Listportalleagueteams",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Portal League Teams",
+        "tags": [
+          "leagues"
+        ]
+      }
+    },
+    "/api/v1/portal/league-teams/{competition_team_id}/roster": {
+      "get": {
+        "operationId": "listPortalTeamRoster",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "competition_team_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Competition Team Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PortalRosterEntryOut"
+                  },
+                  "title": "Response Listportalteamroster",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Portal Team Roster",
+        "tags": [
+          "leagues"
+        ]
+      },
+      "post": {
+        "operationId": "createPortalRosterEntry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "competition_team_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Competition Team Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalRosterEntryCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalRosterEntryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Portal Roster Entry",
+        "tags": [
+          "leagues"
         ]
       }
     },
@@ -129512,6 +132719,142 @@
         ]
       }
     },
+    "/api/v1/sports/{sport_id}/stat-tables": {
+      "get": {
+        "operationId": "listStatTables",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sport_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sport Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StatTableOut"
+                  },
+                  "title": "Response Liststattables",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Stat Tables",
+        "tags": [
+          "leagues"
+        ]
+      },
+      "post": {
+        "operationId": "createStatTable",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sport_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Sport Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatTableWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatTableOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Stat Table",
+        "tags": [
+          "leagues"
+        ]
+      }
+    },
     "/api/v1/staff-payees": {
       "get": {
         "description": "Filters: kind, location_id, is_active, staff_user_id; q searches the display name.",
@@ -132034,6 +135377,329 @@
           }
         },
         "summary": "Adjust Standing",
+        "tags": [
+          "leagues"
+        ]
+      }
+    },
+    "/api/v1/stat-definitions/{stat_definition_id}": {
+      "delete": {
+        "operationId": "deleteStatDefinition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stat_definition_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Stat Definition Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Stat Definition",
+        "tags": [
+          "leagues"
+        ]
+      },
+      "patch": {
+        "operationId": "updateStatDefinition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stat_definition_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Stat Definition Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatDefinitionUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatDefinitionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Stat Definition",
+        "tags": [
+          "leagues"
+        ]
+      }
+    },
+    "/api/v1/stat-tables/{stat_table_id}": {
+      "delete": {
+        "operationId": "deleteStatTable",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stat_table_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Stat Table Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Stat Table",
+        "tags": [
+          "leagues"
+        ]
+      },
+      "patch": {
+        "operationId": "updateStatTable",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stat_table_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Stat Table Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatTableUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatTableOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Stat Table",
+        "tags": [
+          "leagues"
+        ]
+      }
+    },
+    "/api/v1/stat-tables/{stat_table_id}/stats": {
+      "post": {
+        "description": "An entry stat, or a formula over the sport's entry stat codes (+ - * / and brackets), checked on save.",
+        "operationId": "createStatDefinition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stat_table_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Stat Table Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatDefinitionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatDefinitionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Stat Definition",
         "tags": [
           "leagues"
         ]

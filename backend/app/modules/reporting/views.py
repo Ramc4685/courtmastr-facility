@@ -79,5 +79,15 @@ time_entry = _view(
     job_name clock_in_at clock_out_at work_on clock_in_time clock_out_time source is_edited minutes""",
 )
 
+league_game = _view(  # migration 1421 (leagues chip B1): scheduled league games for game cards
+    "rpt_league_game",
+    """game_id location_id competition_id competition_name sport_id sport_name game_on game_time venue_name
+    home_name away_name status round_label""",
+)
+league_team = _view(  # migration 1421: active team entries, for blank game cards
+    "rpt_league_team", "competition_team_id location_id competition_id competition_name sport_name team_name"
+)
+
 ALL = (charge, payment, refund, invoice, allocation, contract, attendance, sale_line, sale, tender, pos_return, drawer,
-       time_entry)  # fmt: skip
+       time_entry,
+       league_game, league_team)  # fmt: skip

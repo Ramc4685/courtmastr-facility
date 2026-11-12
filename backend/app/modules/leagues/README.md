@@ -70,16 +70,18 @@ games to score.
   set on team create and update, which are `team.manage` commands, and the front desk holds `roster.manage`
   without `team.manage`.
 
-- **The generator runs in the request, not as a job.** A league of 20 teams is about 190 games, which
-  generates in well under a second. The run is still persisted (`schedule_run` with state and stats), so a
-  job can wrap it later without changing the API.
+- **The generator runs as a job (Phase 14, LGE-08).** `generate` sets the run to `generating` and enqueues
+  `leagues.jobs.generate_schedule`, a `core.jobs.chunked_actor` that plans one competition per chunk; the run
+  row carries progress and the predicted finish, and a dead-lettered job marks it `failed`. A redelivered chunk
+  re-plans its competition from scratch, so a crash never doubles games.
 - **Schedule-run inputs are stored as arrays and JSON** on the run (`competition_ids`, `resource_ids`,
   `time_slots`, `excluded_dates`), not as child tables. The API calls the excluded dates `blackout_dates`.
-- **Byes:** `hidden` and `occupy_slot` are built. `fold_last_round` and `rotate_extra_game` return
-  `422 not-supported` (LGE-09 is partial).
-- **Brackets:** single elimination only. Double elimination and three-games-guaranteed return
-  `422 not-supported` (LGE-12 partial, LGE-13 not built). Bracket rounds are columns on `bracket_slot`
-  (`round_no`, `round_name`), not a table of their own.
+- **Byes:** all four modes. `fold_last_round` drops the last round and gives its pairs to the teams that sat
+  out, so with five teams two byes remain; `rotate_extra_game` gives the team with the bye an extra game
+  against a team already playing that round (a doubleheader), picked in rotation so extras spread evenly.
+- **Brackets:** single and double elimination and three games guaranteed (exactly 8 teams). Double
+  elimination has a grand final and a reset game; the reset is cancelled automatically when the winners-side
+  team wins the first final. Bracket rounds are columns on `bracket_slot` (`side`, `round_no`, `round_name`).
 - **Officials are their own table**, with an optional `staff_user_id`, sport and age-group qualifications
   stored as `uuid[]`, and a `location_id`. The matrix says "officials are staff users"; most referees are not
   staff, so the link is optional. A qualification can't be overridden.
@@ -87,16 +89,39 @@ games to score.
   key. There is no price key in rbac-matrix 6.13 for it.
 - **`billCompetitionTeam`** (`POST /competition-teams/{id}/bill`) is our own operation. The YAML has no
   command for billing a fee after a team has entered.
-- **No per-competition subject grants** (`subj:competition`): keys apply to every competition at the granted
-  locations.
+- **Per-competition staff (LGE-26, PLT-11).** `competition_staff` lists league admins and scorekeepers per
+  competition. A principal with `leagues.result.enter` but not `leagues.game.manage` (the scorekeeper role) is
+  narrowed strictly to the games of the competitions it is assigned to; other keys still apply to every
+  competition at the granted locations. The assignable staff are active staff who work at the competition's
+  location (`staff-candidates`, names only, so a league admin needs no staff read key).
 - **Forfeits:** when either side forfeits or defaults, the other side needs no score, and standings use the
   competition's `forfeit_score_for`.
-- **Not routed (P1/P2):** scheduling preferences, stat tables and player stats, game cards, league site and
-  alert settings, public brackets and team pages, portal games, classifieds, ladders and sponsors.
+- **Scheduling preferences are soft (LGE-10).** "Prefers" and "cannot play" by date, weekday, time of day or
+  court or venue; a priority weighs double, and a "cannot" costs ten times a "prefers". The generator picks
+  the best-scoring slot that fits and never leaves a game unscheduled because of a preference.
+- **Venues book all their courts (RES-06).** A venue groups courts at one location; a generator window on a
+  venue books every court of it for the game.
+- **Pools are divisions (LGE-11).** Pool play schedules a round robin per division; a crossover bracket seeds
+  rank-major from the pool standings (all pool winners, then all runners-up, alternating pool order).
+- **Ladders (LGE-28).** The challenger is home; a challenger win swaps the two rungs when the result is
+  recorded, and a corrected or removed result swaps them back. A challenge from the screen is a proposed game
+  with no court or time.
+- **Stat tables are tenant-wide (LGE-07).** Writes need tenant-wide `leagues.competition.manage`, like sports.
+  Formula stats are `+ - * /` and brackets over the sport's entry stat codes, checked on save; division by zero
+  shows as empty.
+- **Publish from a program group (REG-14)** is a one-off copy: each sub-group becomes a team and its enrolled
+  players its roster; the group needs at least two sub-groups. Later program changes do not flow over.
+- **Fee split (REG-26).** Each share is a charge to its player through `billing.service`; any remainder bills to
+  a named client through the same path as the team fee. A captain manages the roster in the portal ("My
+  teams"), clients of the household or walk-ons.
+- **Game cards (LGE-16, RPT-36)** are PDFs through `core/pdf.py`: one game per card section, no page break per
+  game (`core/pdf.py` has no `new_page()`); a run is capped at 31 days and 200 games.
+- **Not routed (P1/P2):** league site and alert settings, public brackets and team pages, portal games,
+  classifieds and sponsors (chip B2 and later).
 
 ## Web
 
-Staff: `/leagues` (competition list, new competition) and `/leagues/:id` (Teams, Schedule & results,
-Standings, Bracket). Public: `/leagues/public` and `/leagues/public/:id`. The screens are gated on
-`leagues.competition.manage`; a scorekeeper-only screen is not built yet, though the scorekeeper's API
-access is.
+Staff: `/leagues` (competition list, new competition, publish from a program) and `/leagues/:id` (Teams,
+Schedule & results, Standings, Bracket, Ladder, Player stats, Staff), `/leagues/venues`, `/leagues/stats`, and
+the scorekeeper's `/leagues/scores` (gated on `leagues.result.enter`). Portal: `/portal/teams` for captains.
+Public: `/leagues/public` and `/leagues/public/:id`.

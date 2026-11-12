@@ -9,4 +9,4 @@ Public interface: `service`.
 from app.modules.leagues import handlers, models, permissions, service
 
 __all__ = ["handlers", "models", "permissions", "service"]
-from app.modules.leagues import subject  # noqa: E402, F401  (registers the merge and data-subject handlers)
+from app.modules.leagues import jobs, subject  # noqa: E402, F401  (registers the job and the merge handlers)

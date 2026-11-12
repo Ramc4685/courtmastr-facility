@@ -601,6 +601,18 @@ def staff_user_names(session: Session, staff_user_ids) -> dict[UUID, str]:
     return {row[0]: f"{row[1]} {row[2]}" for row in rows}
 
 
+def staff_users_at(session: Session, location_id: UUID) -> list[tuple[UUID, str]]:
+    """Internal: (id, display name) of the active staff users who may work at a location, by name (leagues'
+    competition staff picker, for league admins without the staff read key)."""
+    users = session.scalars(
+        select(StaffUser).where(StaffUser.is_active).order_by(StaffUser.first_name, StaffUser.last_name)
+    )
+    return [
+        (u.id, f"{u.first_name} {u.last_name}") for u in users
+        if u.has_all_location_access or location_id in u.location_ids
+    ]  # fmt: skip
+
+
 def location_time_zone(session: Session, location_id: UUID) -> str:
     """IANA zone of a location (overview 3.7). Internal: every "day" and wall-time rule of a context uses it."""
     zone = session.scalar(select(Location.time_zone).where(Location.id == location_id))

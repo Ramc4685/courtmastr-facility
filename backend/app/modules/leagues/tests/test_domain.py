@@ -1,4 +1,5 @@
-"""The pure league rules: round-robin pairing and slot placement, standings with tie-breaks, bracket layout."""
+"""The pure league rules: round-robin pairing, bye modes and slot placement with preferences, standings with
+tie-breaks, bracket layouts (single, double elimination, three games guaranteed) and formula stats."""
 
 from collections import Counter
 from datetime import date, time
@@ -7,7 +8,7 @@ from itertools import combinations
 
 import pytest
 
-from app.modules.leagues.domain import bracket, roundrobin, standings
+from app.modules.leagues.domain import bracket, formula, roundrobin, standings
 from app.modules.leagues.models import DEFAULT_SORT
 
 SCORING = {
@@ -135,3 +136,93 @@ def test_single_elimination_layout(teams, size, byes):
     assert bracket.seed_order(8) == [1, 8, 4, 5, 2, 7, 3, 6]
     with pytest.raises(ValueError):
         bracket.single_elimination(1)
+
+
+# --- Phase 14 chip B1 ------------------------------------------------------------------------------------------
+
+
+def _games(rounds):
+    return [p for r in rounds for p in r if p[1] is not roundrobin.BYE]
+
+
+@pytest.mark.parametrize("n", [3, 5, 7])
+def test_fold_last_round_plays_everyone_once_in_one_round_less(n):
+    rounds = roundrobin.pairings(list(range(n)))
+    folded = roundrobin.fold_last_round(rounds)
+    assert len(folded) == len(rounds) - 1
+    pairs = Counter(frozenset(p[:2]) for p in _games(folded))
+    assert pairs == Counter(frozenset(p) for p in combinations(range(n), 2))  # nothing lost, nothing doubled
+    assert any(len(p) == 3 for p in _games(folded))  # the folded games are doubleheaders
+    assert roundrobin.fold_last_round(roundrobin.pairings([1, 2, 3, 4])) == roundrobin.pairings([1, 2, 3, 4])
+
+
+def test_rotate_extra_games_gives_the_bye_team_a_game_and_spreads_extras():
+    rounds = roundrobin.rotate_extra_games(roundrobin.pairings(list(range(5))))
+    assert all(p[1] is not roundrobin.BYE for r in rounds for p in r)  # nobody sits out
+    extras = Counter(t for r in rounds for p in r if len(p) == 3 for t in p[:2])
+    assert set(extras) == set(range(5)) and max(extras.values()) - min(extras.values()) <= 1
+
+
+def test_assign_prefers_wanted_slots_and_avoids_unavailable_ones():
+    day = date(2031, 5, 7)
+    free = [roundrobin.Slot(day, time(18), "c1"), roundrobin.Slot(day, time(19), "c1"),
+            roundrobin.Slot(day, time(20), "c1")]  # fmt: skip
+    rounds = [[("a", "b")]]
+    assert roundrobin.assign(rounds, free)[0]["slot"].start == time(18)  # no preferences: first fit
+    prefs = {"a": [{"kind": "time", "value": "18:00-19:30", "wants": False}],
+             "b": [{"kind": "time", "value": "20:00-21:00", "wants": True, "is_priority": True}]}  # fmt: skip
+    assert roundrobin.assign(rounds, list(free), prefs=prefs)[0]["slot"].start == time(20)
+    weekday = {"a": [{"kind": "weekday", "value": "3", "wants": False}]}
+    assert roundrobin.score(free[0], {"a"}, weekday) == -10  # 2031-05-07 is a Wednesday
+    assert roundrobin.score(free[0], {"a"}, {"a": [{"kind": "resource", "value": "c1", "wants": True}]}) == 1
+    assert roundrobin.score(free[0], {"a"}, {"a": [{"kind": "date", "value": "2031-05-07", "wants": True}]}) == 1
+
+
+def test_assign_places_a_doubleheader_without_overlap():
+    day = date(2031, 5, 7)
+    free = [roundrobin.Slot(day, time(18), "c1"), roundrobin.Slot(day, time(18), "c2"),
+            roundrobin.Slot(day, time(19), "c1")]  # fmt: skip
+    placed = roundrobin.assign([[("a", "b"), ("a", "c", True)]], free, length_min=60)
+    assert placed[0]["slot"].start == time(18) and placed[1]["slot"].start == time(19) and placed[1]["double"]
+
+
+@pytest.mark.parametrize(("teams", "slots"), [(3, 5), (4, 6), (8, 14), (13, 27), (16, 30)])
+def test_double_elimination_layout(teams, slots):
+    size, layout = bracket.double_elimination(teams, reset=False)
+    keys = {(s["side"], s["round_no"], s["position"]) for s in layout}
+    assert len(layout) == slots and len(keys) == len(layout)
+    for slot in layout:  # every source points at an earlier slot that exists
+        for side in ("home", "away"):
+            source = slot[f"{side}_source"]
+            assert source is None or source[:3] in keys
+    final = [s for s in layout if s["side"] == "final"]
+    assert [s["round_name"] for s in final] == ["Grand final"]
+    played = [s for s in layout if not s["is_bye"]]
+    assert len(played) == 2 * teams - 2  # every team but the champion loses twice, the grand final included
+    _, with_reset = bracket.double_elimination(teams, reset=True)
+    assert with_reset[-1]["round_name"] == "Grand final reset" and len(with_reset) == slots + 1
+    with pytest.raises(ValueError):
+        bracket.double_elimination(2)
+
+
+def test_three_games_guaranteed_gives_every_team_three_games():
+    size, layout = bracket.three_games_guaranteed(8)
+    assert size == 8 and len(layout) == 12
+    assert [s["round_name"] for s in layout if s["round_no"] == 3] == [
+        "Final", "Third place", "Fifth place", "Seventh place"
+    ]  # fmt: skip
+    with pytest.raises(ValueError):
+        bracket.three_games_guaranteed(6)
+
+
+def test_formula_parses_validates_and_evaluates_without_eval():
+    tree = formula.validate("(G + A) / GP * 100", {"G", "A", "GP"})
+    assert formula.names(tree) == {"G", "A", "GP"}
+    assert formula.evaluate(tree, {"G": Decimal(3), "A": Decimal(1), "GP": Decimal(8)}) == Decimal(50)
+    assert formula.evaluate(tree, {"G": Decimal(3)}) is None  # GP is 0: blank, not a crash
+    assert formula.evaluate(formula.parse("-G + 2 * 3"), {"G": Decimal(1)}) == Decimal(5)
+    for bad, message in [("G +", "ends too early"), ("(G A", "not closed"), ("G ** 2", "Unexpected"),
+                         ("__import__('os')", "Unexpected"), ("G; A", "Unexpected character"), ("", "empty"),
+                         ("X + 1", "Unknown stat: X"), ("G" + "+G" * 150, "at most"), ("(" * 40 + "G" + ")" * 40, "deeply")]:  # fmt: skip
+        with pytest.raises(formula.FormulaError, match=message):
+            formula.validate(bad, {"G", "A"})

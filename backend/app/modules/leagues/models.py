@@ -8,7 +8,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, Date, Index, Numeric, UniqueConstraint, text
+from sqlalchemy import BigInteger, CheckConstraint, Date, Index, Numeric, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import ARRAY, TSTZRANGE, ExcludeConstraint
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -27,6 +27,7 @@ class Format(StrEnum):
     SINGLE_ELIMINATION = "single_elimination"
     DOUBLE_ELIMINATION = "double_elimination"
     THREE_GAMES_GUARANTEED = "three_games_guaranteed"
+    LADDER = "ladder"
 
 
 class CompetitionStatus(StrEnum):
@@ -227,10 +228,12 @@ class Competition(_Scoring, TenantOwned, Timestamps, Base):
         *tfk("age_group_id", "age_group"),
         *tfk("season_id", "season"),
         *tfk("revenue_category_id", "revenue_category"),
+        *tfk("program_group_id", "program_group"),
         enum_check("kind", Kind),
         enum_check("format", Format),
         enum_check("status", CompetitionStatus),
-        CheckConstraint("kind <> 'league' OR format = 'round_robin'", name="league_format"),
+        CheckConstraint("kind <> 'league' OR format IN ('round_robin', 'ladder')", name="league_format"),
+        CheckConstraint("ladder_challenge_range IS NULL OR ladder_challenge_range > 0", name="ladder_range"),
         CheckConstraint("ends_on IS NULL OR ends_on >= starts_on", name="dates"),
         CheckConstraint("game_length_min > 0", name="game_length"),
         CheckConstraint("team_fee_minor IS NULL OR team_fee_minor >= 0", name="team_fee"),
@@ -261,6 +264,8 @@ class Competition(_Scoring, TenantOwned, Timestamps, Base):
     color: Mapped[str | None] = mapped_column(info={"audit": "value"})
     team_fee_minor: Mapped[int | None] = mapped_column(info={"audit": "value"})
     revenue_category_id: Mapped[UUID | None]
+    program_group_id: Mapped[UUID | None]  # REG-14: the program group this competition was published from
+    ladder_challenge_range: Mapped[int | None] = mapped_column(info={"audit": "value"})  # LGE-28, rungs up
 
 
 class Division(TenantOwned, Timestamps, Base):
@@ -411,6 +416,7 @@ class ScheduleRun(TenantOwned, Timestamps, Base):
     bye_mode: Mapped[str] = enum_column(server_default=text("'hidden'"))
     removes_previous_games: Mapped[bool] = mapped_column(server_default=text("false"))
     result_stats: Mapped[dict | None] = mapped_column(JsonDict)
+    progress: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))  # LGE-08 job cursor
     created_by_staff_user_id: Mapped[UUID | None]
     committed_at: Mapped[datetime | None]
 
@@ -426,6 +432,7 @@ class Game(TenantOwned, Timestamps, Base):
         *tfk("away_team_id", "competition_team", index=False),
         *tfk("booking_id", "booking", index=False),
         *tfk("resource_id", "resource", index=False),
+        *tfk("venue_id", "venue"),
         enum_check("status", GameStatus),
         enum_check("game_type", GameType),
         CheckConstraint(
@@ -456,6 +463,7 @@ class Game(TenantOwned, Timestamps, Base):
     away_label: Mapped[str | None] = mapped_column(info={"audit": "value"})
     booking_id: Mapped[UUID | None]
     resource_id: Mapped[UUID | None] = mapped_column(info={"audit": "value"})
+    venue_id: Mapped[UUID | None] = mapped_column(info={"audit": "value"})
     starts_at: Mapped[datetime | None] = mapped_column(info={"audit": "value"})
     ends_at: Mapped[datetime | None] = mapped_column(info={"audit": "value"})
     length_min: Mapped[int] = mapped_column(info={"audit": "value"})
@@ -467,6 +475,7 @@ class Game(TenantOwned, Timestamps, Base):
     conflict_note: Mapped[dict | None] = mapped_column(JsonDict)
     notes: Mapped[str | None]
     version: Mapped[int] = mapped_column(server_default=text("1"))
+    ladder_swapped: Mapped[bool] = mapped_column(server_default=text("false"))  # LGE-28: the result swapped rungs
 
 
 class GameOfficial(TenantOwned, Timestamps, Base):
@@ -567,6 +576,7 @@ class Bracket(TenantOwned, Timestamps, Base):
     bracket_type: Mapped[str] = enum_column()
     size: Mapped[int] = mapped_column(info={"audit": "value"})
     has_third_place_game: Mapped[bool] = mapped_column(server_default=text("false"))
+    has_reset_game: Mapped[bool] = mapped_column(server_default=text("false"))  # double elimination
     status: Mapped[str] = enum_column(server_default=text("'draft'"))
 
 
@@ -609,3 +619,169 @@ class BracketSlot(TenantOwned, Timestamps, Base):
     away_source_outcome: Mapped[str | None]
     is_bye: Mapped[bool] = mapped_column(server_default=text("false"))
     winner_competition_team_id: Mapped[UUID | None]
+
+
+# --- Phase 14 B1: league depth -----------------------------------------------------------------------------------
+
+
+class Venue(TenantOwned, Timestamps, Base):
+    """RES-06: a league venue mapped to one or more facility resources; a game at a venue books all of them."""
+
+    __tablename__ = "venue"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", index=False),
+        Index("uq_venue_name", "tenant_id", "location_id", text("lower(name)"), unique=True),
+        CheckConstraint("cardinality(resource_ids) > 0", name="resources"),
+    )
+
+    location_id: Mapped[UUID]
+    name: Mapped[str] = mapped_column(info={"audit": "value"})
+    description: Mapped[str | None]
+    resource_ids: Mapped[list[UUID]] = _ids()
+    is_active: Mapped[bool] = mapped_column(server_default=text("true"))
+
+
+class PreferenceKind(StrEnum):
+    DATE = "date"
+    WEEKDAY = "weekday"
+    TIME = "time"
+    RESOURCE = "resource"
+
+
+class TeamPreference(TenantOwned, Timestamps, Base):
+    """LGE-10: a soft scheduling wish of one team entry. `wants` false marks a date, weekday, time range or
+    court the team cannot use; true one it prefers. `value` is an ISO date, an ISO weekday 1-7, 'HH:MM-HH:MM'
+    or a resource id, validated on write."""
+
+    __tablename__ = "team_preference"
+    __table_args__ = tenant_args(
+        *tfk("competition_team_id", "competition_team", ondelete="CASCADE"),
+        enum_check("kind", PreferenceKind),
+    )
+
+    competition_team_id: Mapped[UUID]
+    kind: Mapped[str] = enum_column()
+    value: Mapped[str] = mapped_column(info={"audit": "value"})
+    wants: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
+    is_priority: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
+
+
+class StatTable(TenantOwned, Timestamps, Base):
+    """LGE-07: a named group of player stats for a sport (tenant-wide, like sports)."""
+
+    __tablename__ = "stat_table"
+    __table_args__ = tenant_args(
+        *tfk("sport_id", "sport", ondelete="CASCADE"),
+        Index("uq_stat_table_name", "tenant_id", "sport_id", text("lower(name)"), unique=True),
+    )
+
+    sport_id: Mapped[UUID]
+    name: Mapped[str] = mapped_column(info={"audit": "value"})
+    sort_order: Mapped[int] = mapped_column(server_default=text("0"))
+
+
+class StatKind(StrEnum):
+    ENTRY = "entry"
+    FORMULA = "formula"
+
+
+class StatDefinition(TenantOwned, Timestamps, Base):
+    """One stat. `code` names it in formulas (unique per sport); a formula stat is computed, never entered."""
+
+    __tablename__ = "stat_definition"
+    __table_args__ = tenant_args(
+        *tfk("stat_table_id", "stat_table", ondelete="CASCADE"),
+        *tfk("sport_id", "sport", index=False),
+        enum_check("kind", StatKind),
+        UniqueConstraint("tenant_id", "sport_id", "code", name="uq_stat_definition_code"),
+        CheckConstraint("(kind = 'formula') = (formula IS NOT NULL)", name="formula"),
+        CheckConstraint("decimal_places BETWEEN 0 AND 4", name="decimal_places"),
+    )
+
+    stat_table_id: Mapped[UUID]
+    sport_id: Mapped[UUID]
+    code: Mapped[str] = mapped_column(info={"audit": "value"})
+    name: Mapped[str] = mapped_column(info={"audit": "value"})
+    kind: Mapped[str] = enum_column(server_default=text("'entry'"))
+    formula: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    decimal_places: Mapped[int] = mapped_column(server_default=text("0"))
+    sort_order: Mapped[int] = mapped_column(server_default=text("0"))
+
+
+class PlayerStat(TenantOwned, Timestamps, Base):
+    """One entered stat value for one roster place in one game."""
+
+    __tablename__ = "player_stat"
+    __table_args__ = tenant_args(
+        *tfk("game_id", "game", ondelete="CASCADE", index=False),
+        *tfk("roster_entry_id", "roster_entry", ondelete="CASCADE"),
+        *tfk("stat_definition_id", "stat_definition", ondelete="CASCADE"),
+        UniqueConstraint("tenant_id", "game_id", "roster_entry_id", "stat_definition_id", name="uq_player_stat"),
+    )
+
+    game_id: Mapped[UUID]
+    roster_entry_id: Mapped[UUID]
+    stat_definition_id: Mapped[UUID]
+    value: Mapped[Decimal] = mapped_column(Numeric(10, 2), info={"audit": "value"})
+
+
+class StaffRole(StrEnum):
+    LEAGUE_ADMIN = "league_admin"
+    SCOREKEEPER = "scorekeeper"
+
+
+class CompetitionStaff(TenantOwned, Timestamps, Base):
+    """LGE-26, PLT-11: a staff user assigned to one competition. A scorekeeper-only caller (result key without
+    the game key) reaches only the competitions they are assigned to."""
+
+    __tablename__ = "competition_staff"
+    __table_args__ = tenant_args(
+        *tfk("competition_id", "competition", ondelete="CASCADE", index=False),
+        *tfk("staff_user_id", "staff_user"),
+        enum_check("role", StaffRole),
+        UniqueConstraint("tenant_id", "competition_id", "staff_user_id", name="uq_competition_staff_user"),
+    )
+
+    competition_id: Mapped[UUID]
+    staff_user_id: Mapped[UUID]
+    role: Mapped[str] = enum_column(server_default=text("'scorekeeper'"))
+
+
+class LadderPosition(TenantOwned, Timestamps, Base):
+    """LGE-28: one rung of a ladder competition; 1 is the top. Swapped when a challenger wins."""
+
+    __tablename__ = "ladder_position"
+    __table_args__ = tenant_args(
+        *tfk("competition_id", "competition", ondelete="CASCADE", index=False),
+        *tfk("competition_team_id", "competition_team", ondelete="CASCADE"),
+        UniqueConstraint("tenant_id", "competition_team_id", name="uq_ladder_position_team"),
+        UniqueConstraint(
+            "tenant_id", "competition_id", "position", name="uq_ladder_position_rung", deferrable=True,
+            initially="DEFERRED",
+        ),
+        CheckConstraint("position > 0", name="position"),
+    )  # fmt: skip
+
+    competition_id: Mapped[UUID]
+    competition_team_id: Mapped[UUID]
+    position: Mapped[int] = mapped_column(info={"audit": "value"})
+
+
+class TeamFeeShare(TenantOwned, Timestamps, Base):
+    """REG-26: a part of a team fee assigned to one rostered player and charged to them through billing."""
+
+    __tablename__ = "team_fee_share"
+    __table_args__ = tenant_args(
+        *tfk("competition_team_id", "competition_team", ondelete="CASCADE", index=False),
+        *tfk("roster_entry_id", "roster_entry"),
+        *tfk("client_id", "client"),
+        *tfk("charge_id", "charge"),
+        UniqueConstraint("tenant_id", "competition_team_id", "client_id", name="uq_team_fee_share_client"),
+        CheckConstraint("amount_minor > 0", name="amount"),
+    )
+
+    competition_team_id: Mapped[UUID]
+    roster_entry_id: Mapped[UUID | None]
+    client_id: Mapped[UUID] = mapped_column(info={"audit": "flag"})
+    amount_minor: Mapped[int] = mapped_column(BigInteger, info={"audit": "value"})
+    charge_id: Mapped[UUID | None]

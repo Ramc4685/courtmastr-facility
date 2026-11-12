@@ -7,6 +7,11 @@ under `Unreleased` in the same change that makes the behaviour visible.
 ## [Unreleased]
 
 ### Added
+- Leagues: the schedule generator runs in the background over several weekly windows, with all four bye modes and live progress.
+- Leagues: double elimination with a reset game, three games guaranteed, and pool-to-bracket crossover.
+- Leagues: league venues, per-team scheduling preferences, ladders, player stat tables with formula stats, and game card PDFs.
+- Leagues: per-competition league staff and a scorekeeper screen that shows only the scorekeeper's games.
+- Leagues: publish a program as a league or tournament; captains manage their roster in the portal ("My teams"); split a team fee across players.
 - Phase 8 (platform, security and operations) is in progress; the entries below have landed.
 - File storage in a cloud bucket with malware scanning and expiring download links.
 - Background jobs retry automatically, and failed jobs land in a dead-letter list an operator can requeue.

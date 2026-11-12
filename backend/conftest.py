@@ -289,7 +289,12 @@ def populate(client, tenant) -> SimpleNamespace:
     space |= _populate_access_rules(client, headers, post, location["id"], person["id"], people["membership_type_id"])
     _populate_pos_desk(client, headers, post, tenant, location["id"], billing_ids["product_category_id"])
     space |= _populate_engagement(client, tenant, post, location["id"], person["id"], identity_id)
-    leagues = _populate_leagues(client, headers, post, location["id"], person["id"], space["resource_id"], category_id)
+    leagues = _populate_leagues(
+        client, headers, post, tenant, location["id"], person["id"], space["resource_id"], category_id
+    )
+    leagues |= _populate_league_depth(
+        client, headers, post, tenant, location["id"], person["id"], space["resource_id"], leagues
+    )
     integration = _populate_integrations(client, headers, tenant, post, location, person)
     reporting = _populate_reporting(post, location["id"])
     reporting |= _populate_imports(client, headers, tenant, location["id"])
@@ -947,7 +952,7 @@ def _populate_staff(client, headers, post, location_id, staff_user_id, trainer_r
     }  # fmt: skip
 
 
-def _populate_leagues(client, headers, post, location_id, client_id, court_id, category_id) -> dict:
+def _populate_leagues(client, headers, post, tenant, location_id, client_id, court_id, category_id) -> dict:
     """Build module 11: a row in every leagues table. A fee-paying league with four teams (one billed), a
     roster place, an official, a committed schedule run (booked games), a result (standings) with the official
     assigned, and a draft bracket."""
@@ -977,6 +982,7 @@ def _populate_leagues(client, headers, post, location_id, client_id, court_id, c
         "starts_on": "2031-04-02", "ends_on": "2031-06-25",
     })  # fmt: skip
     post(f"/schedule-runs/{run['id']}/generate", {})
+    _run_schedule_job(tenant, run["id"])
     post(f"/schedule-runs/{run['id']}/commit", {})
     games = client.get(f"/api/v1/schedule-runs/{run['id']}/games?status=scheduled", headers=headers).json()["data"]
     game = games[0]
@@ -996,6 +1002,61 @@ def _populate_leagues(client, headers, post, location_id, client_id, court_id, c
         "game_id": game["id"], "standing_id": standing["id"], "bracket_id": bracket["id"],
         "bracket_slot_id": bracket["slots"][0]["id"],
     }  # fmt: skip
+
+
+def _run_schedule_job(tenant, run_id: str) -> None:
+    """The generator is a chunked job (LGE-08): run its chunks in line, as the worker would."""
+    from app.modules.leagues import service as leagues
+
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        while leagues.generate_schedule_chunk(session, UUID(run_id)):
+            pass
+
+
+def _populate_league_depth(client, headers, post, tenant, location_id, client_id, court_id, ids) -> dict:
+    """Phase 14 chip B1: a row in every league-depth table. A venue, a team preference, a scorekeeper, a stat
+    table with an entry and a formula stat and a player stat, a ladder, and a team fee split across a player."""
+
+    def put(path: str, body: dict):
+        response = client.put(f"/api/v1{path}", headers=headers, json=body)
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    venue = post("/league-venues", {"location_id": location_id, "name": "Twin courts", "resource_ids": [court_id]})
+    put(f"/competition-teams/{ids['competition_team_id']}/preferences",
+        {"preferences": [{"kind": "weekday", "value": "3", "wants": True}]})  # fmt: skip
+    staff_id = client.get("/api/v1/staff-users", headers=headers).json()["data"][0]["id"]
+    put(f"/competitions/{ids['competition_id']}/staff", {"staff": [{"staff_user_id": staff_id}]})
+    table = post(f"/sports/{ids['sport_id']}/stat-tables", {"name": "Scoring"})
+    goals = post(f"/stat-tables/{table['id']}/stats", {"code": "G", "name": "Goals"})
+    post(
+        f"/stat-tables/{table['id']}/stats",
+        {"code": "GD2", "name": "Half goals", "kind": "formula", "formula": "G / 2"},
+    )
+    game = client.get(f"/api/v1/games/{ids['game_id']}", headers=headers).json()
+    scorer = post(f"/competition-teams/{game['home_team_id']}/roster", {"first_name": "Top", "last_name": "Scorer"})
+    put(f"/games/{ids['game_id']}/player-stats",
+        {"stats": [{"roster_entry_id": scorer["id"], "stat_definition_id": goals["id"], "value": "2"}]})  # fmt: skip
+    ladder = post("/competitions", {
+        "location_id": location_id, "kind": "league", "format": "ladder", "name": "Squash ladder",
+        "sport_id": ids["sport_id"], "starts_on": "2031-04-01",
+    })  # fmt: skip
+    rungs = post(f"/competitions/{ladder['id']}/teams/generate", {"count": 2})
+    put(f"/competitions/{ladder['id']}/ladder", {"competition_team_ids": [r["id"] for r in rungs]})
+    unbilled = next(
+        t
+        for t in client.get(f"/api/v1/competitions/{ids['competition_id']}/teams", headers=headers).json()
+        if t["fee_status"] == "unbilled"
+    )
+    payer = post(f"/competition-teams/{unbilled['id']}/roster", {"client_id": client_id})
+    post(f"/competition-teams/{unbilled['id']}/fee-shares",
+         {"shares": [{"roster_entry_id": payer["id"], "amount_minor": 30000}]})  # fmt: skip
+    return {
+        "venue_id": venue["id"],
+        "stat_table_id": table["id"],
+        "stat_definition_id": goals["id"],
+        "ladder_competition_id": ladder["id"],
+    }
 
 
 @pytest.fixture(scope="session")

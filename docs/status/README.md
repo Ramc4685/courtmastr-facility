@@ -72,7 +72,7 @@ Lane detail: `02-resources-scheduling.md`, `02-resources-scheduling-web.md`.
 | RES-03 Venues and sub-venues | P0 | done |  |
 | RES-04 Schedule groups | P0 | done |  |
 | RES-05 Linked multi-resource reservations | P0 | done |  |
-| RES-06 League venues mapping | P1 | not built | League module (later). |
+| RES-06 League venues mapping | P1 | done | Phase 14 B1: `/league-venues`; a generator window on a venue books all its courts (`11-leagues.md`). |
 | RES-07 Locker rooms | P1 | not built | No API. |
 | RES-08 Locker terms | P1 | not built | No API. |
 | RES-09 Padlock inventory | P2 | not built | No API. |
@@ -366,9 +366,9 @@ Lane detail: `09-pos-inventory.md`.
 | POS-23 partner POS lines | v2-adapter | not built |  |
 ## Module 11: Leagues and tournaments
 
-Built to P0 on its own lane (`11-leagues.md` has the feature table). P0 11: 8 done, 3 partial (LGE-08 runs in
-the request and the screen offers one weekly window; LGE-09 has two of four bye modes; LGE-12 is single
-elimination only). Courts are booked only through `scheduling.service`; team fees bill through
+Built on its own lane (`11-leagues.md` has the feature table). P0 11: all done after Phase 14 B1 (the generator
+runs as a job over several windows, all four bye modes, single and double elimination). B1 also built LGE-07,
+LGE-10, LGE-11, LGE-13, LGE-16, LGE-26, LGE-28, PLT-11, REG-14, REG-26 and RPT-36. Courts are booked only through `scheduling.service`; team fees bill through
 `billing.service`; the public schedule and standings have their own schemas.
 
 ## Module 1 and Wave 7: platform, security and operations
@@ -521,7 +521,7 @@ Phase 8 (from the chip notes; owner in brackets):
   `clients.service.check_capture`.
 - **Check-in (10):** `memberships.service.eligibility` and `record_visit`, `documents.service.has_valid_waiver`
   and `status_for`, client alerts, `billing` balance. `membership_visit.check_in_id` has no foreign key yet.
-- **Leagues (11):** RES-06 (league venues), RNT-13 (public feed flag is stored), `scheduling.service.book` for
+- **Leagues (11):** RNT-13 (public feed flag is stored), `scheduling.service.book` for
   fixtures.
 - **Staff time and pay (12):** trainer resources link to staff users (`platform.service.linked_resource_id`);
   floor-shift blocks are bookings with `block_kind = floor_shift`; POS drawers and sales carry the cashier.

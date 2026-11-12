@@ -24,6 +24,7 @@ import { UnsubscribePage } from '../features/engagement/UnsubscribePage'
 import { PublicSignPage } from '../features/documents/PublicSignPage'
 import { TemplateEditorPage } from '../features/documents/TemplateEditorPage'
 import { TemplatesPage } from '../features/documents/TemplatesPage'
+import { ScoresPage, StatsPage, VenuesPage } from '../features/leagues/depth'
 import { LeaguePage, LeaguesPage } from '../features/leagues/LeaguesPage'
 import { PublicLeaguesPage } from '../features/leagues/PublicLeaguesPage'
 import { MembershipsPage } from '../features/memberships/MembershipsPage'
@@ -210,6 +211,9 @@ export function AppRoutes() {
         <Route path="check-in/desk-setup" element={<DeskSetupPage />} />
         <Route path="check-in/card/:id" element={<RequirePermission permission="access.credential.assign"><MemberCardPage /></RequirePermission>} />
         <Route path="leagues" element={<RequirePermission permission="leagues.competition.manage"><LeaguesPage /></RequirePermission>} />
+        <Route path="leagues/venues" element={<RequirePermission permission="leagues.competition.manage"><VenuesPage /></RequirePermission>} />
+        <Route path="leagues/stats" element={<RequirePermission permission="leagues.competition.manage"><StatsPage /></RequirePermission>} />
+        <Route path="leagues/scores" element={<RequirePermission permission="leagues.result.enter"><ScoresPage /></RequirePermission>} />
         <Route path="leagues/:id" element={<RequirePermission permission="leagues.competition.manage"><LeaguePage /></RequirePermission>} />
         {import.meta.env.DEV && (
           <Route path="dev/client-picker" element={<RequirePermission permission="clients.client.read"><ClientPickerDemo /></RequirePermission>} />

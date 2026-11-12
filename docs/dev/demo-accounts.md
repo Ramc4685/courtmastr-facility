@@ -87,3 +87,7 @@ teams: Morgan Member captains **Downtown Strikers**, whose $300 team fee is bill
 Wednesdays 18:00-22:00 on Court 3, and its 15 games are booked on the calendar. The first game has a 4-2 result,
 so the standings are filled in. Rita Referee is the futsal official. The public schedule and standings are at
 `/api/v1/public/competitions` (send `X-Tenant-Slug: courtside-demo`) and on the web at `/leagues/public`.
+Sam Scorekeeper (`scorekeeper@courtside-demo.example.com`) is assigned to the league, so `/leagues/scores` lists
+its games; futsal has a "Scoring" stat table (G, A, and PTS = G + A). Morgan manages the Strikers roster in the
+portal at `/portal/teams`. Lanes seeded before Phase 14 lack the assignment and the stat table (the seed skips an
+existing league); assign Sam in the league's Staff tab.
