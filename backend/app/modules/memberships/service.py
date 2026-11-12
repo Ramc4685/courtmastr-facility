@@ -579,7 +579,9 @@ def import_contract(session: Session, data: dict) -> tuple[MembershipContract, b
     `next_bill_on` is scheduled (the old system billed it), so a contract without one is record-only; no
     enrolment fee, add-ons, shares or document gate; an expired contract does not renew. A contract with the same
     owner, plan and start already exists: returned with created False. `status`, when given, must be what the
-    dates say (never guessed). Caller runs it in a savepoint and authorizes the import."""
+    dates say (never guessed). Refused, never adjusted: a start date other than the plan's fixed start
+    (`plan-fixed-start`), and a schedule whose first bill (due date less the billing lead) falls before
+    `next_bill_on` (`bills-before-next-bill-date`). Caller runs it in a savepoint and authorizes the import."""
     matches = list(session.scalars(
         select(MembershipPlan).where(func.lower(MembershipPlan.name) == data["plan_name"].lower(),
                                      MembershipPlan.is_active).limit(2)
@@ -594,6 +596,9 @@ def import_contract(session: Session, data: dict) -> tuple[MembershipContract, b
     ))  # fmt: skip
     if existing is not None:
         return existing, False
+    if plan.fixed_start_on and plan.fixed_start_on != data["start_on"]:  # never silently replace the file's date
+        raise ValidationFailed("This plan starts every membership on its own fixed date, not this start date.",
+                               pointer="/start_on", code="plan-fixed-start")  # fmt: skip
     custom = {} if data.get("term_fee_minor") is None else {"term_fee_minor": data["term_fee_minor"]}
     draft = {"location_id": data["location_id"], "client_id": data["client_id"], "membership_plan_id": plan.id,
              "start_on": data["start_on"], "customize": custom}  # fmt: skip
@@ -609,6 +614,13 @@ def import_contract(session: Session, data: dict) -> tuple[MembershipContract, b
     if data.get("status") and data["status"] != status:
         raise ValidationFailed(f"The dates make this membership {status}.", pointer="/status", code="status-mismatch")
     keep = [p for p in periods if p.kind == "dues" and next_bill is not None and next_bill <= p.starts_on <= end]
+    lead = timedelta(days=settings_row(session).billing_lead_days)
+    if next_bill is not None and any(max(p.due_on - lead, today) < next_bill for p in keep):  # as _add_periods
+        raise ValidationFailed(
+            "This membership would first bill before its next bill date, because billing runs ahead of each due "
+            "date here. Make the next bill date that much earlier than the period it pays for.",
+            pointer="/next_bill_on", code="bills-before-next-bill-date",
+        )  # fmt: skip
     renews = status != "expired" and fields["is_auto_renew"]
     fields |= {
         "end_on": end, "original_end_on": end, "initiation_fee_minor": 0, "is_auto_renew": renews,
