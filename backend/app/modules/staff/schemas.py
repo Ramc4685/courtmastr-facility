@@ -6,7 +6,7 @@ from ipaddress import IPv4Network, IPv6Network
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field, StringConstraints
+from pydantic import Field, StringConstraints, model_validator
 
 from app.core.schemas import In, Out, Page  # noqa: F401
 
@@ -58,6 +58,7 @@ class PayRateOut(Out):
     id: UUID
     staff_payee_id: UUID
     reservation_type_id: UUID | None
+    membership_type_id: UUID | None
     pay_basis: Literal["per_attendee", "per_session"]
     rate_60_minor: int
     rate_45_minor: int
@@ -79,6 +80,49 @@ class PayRateWrite(In):
     program_instruction_rate_minor: Minor | None = None
     non_training_rate_minor: Minor | None = None
     floor_rate_minor: Minor | None = None
+
+
+class BonusRuleIn(In):
+    """`trained_hours` needs threshold_minutes; `off_hours` needs from_minute, to_minute (minutes after local
+    midnight, up to 1440) and weekdays (0 = Monday). amount_minor is a flat bonus, or per hour for off hours."""
+
+    kind: Literal["trained_hours", "off_hours"]
+    amount_minor: Minor
+    threshold_minutes: Annotated[int, Field(gt=0, le=100_000)] | None = None
+    from_minute: Annotated[int, Field(ge=0, le=1439)] | None = None
+    to_minute: Annotated[int, Field(ge=1, le=1440)] | None = None
+    weekdays: Annotated[list[Annotated[int, Field(ge=0, le=6)]], Field(min_length=1, max_length=7)] | None = None
+
+    @model_validator(mode="after")
+    def _shape(self):
+        window = (self.from_minute, self.to_minute, self.weekdays)
+        if self.kind == "trained_hours":
+            if self.threshold_minutes is None or any(v is not None for v in window):
+                raise ValueError("A trained-hours bonus needs threshold_minutes and no window.")
+        elif self.threshold_minutes is not None or any(v is None for v in window) or self.to_minute <= self.from_minute:
+            raise ValueError("An off-hours bonus needs weekdays and a window that ends after it starts.")
+        if self.weekdays is not None:
+            self.weekdays = sorted(set(self.weekdays))
+        return self
+
+
+class BonusRuleOut(Out):
+    id: UUID
+    kind: Literal["trained_hours", "off_hours"]
+    amount_minor: int
+    threshold_minutes: int | None
+    from_minute: int | None
+    to_minute: int | None
+    weekdays: list[int] | None
+
+
+class BonusRulesPut(In):
+    rules: Annotated[list[BonusRuleIn], Field(max_length=50)]
+
+
+class BonusRuleSet(Out):
+    staff_payee_id: UUID
+    rules: list[BonusRuleOut]
 
 
 class CommissionRuleIn(In):
@@ -272,6 +316,32 @@ class ShiftPublish(In):
 
 class ShiftPublishResult(Out):
     published_count: int
+
+
+class ShiftCopy(In):
+    location_id: UUID
+    from_starts_on: date = Field(description="First local date of the seven days to copy")
+    to_starts_on: date = Field(description="First local date of the seven days to copy onto")
+
+
+class ShiftCopyResult(Out):
+    copied_count: int
+    skipped_count: int
+
+
+class ShiftVarianceOut(Out):
+    shift_id: UUID
+    staff_user_id: UUID
+    location_id: UUID
+    display_name: str
+    starts_at: datetime
+    ends_at: datetime
+    state: Literal["upcoming", "no_show", "short", "met"]
+    scheduled_minutes: int
+    worked_minutes: int
+    variance_minutes: int
+    first_in_at: datetime | None
+    last_out_at: datetime | None
 
 
 # --- instructors -------------------------------------------------------------------------------------------

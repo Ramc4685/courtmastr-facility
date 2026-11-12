@@ -266,6 +266,14 @@ class CapacityChanged(Out):
     changed_count: int
 
 
+class HoursWarning(Out):
+    """A dismissible notice: the booking was made, but outside the facility hours (owner decision, question 19)."""
+
+    code: Literal["outside-opening-hours"]
+    detail: str
+    count: int
+
+
 class BookingOut(Out):
     id: UUID
     location_id: UUID
@@ -299,6 +307,7 @@ class BookingOut(Out):
     version: int
     created_at: datetime
     updated_at: datetime
+    warnings: list[HoursWarning] = []
 
 
 class OccurrenceResult(Out):
@@ -320,6 +329,7 @@ class BookingCreated(Out):
     conflict_count: int
     results: list[OccurrenceResult]
     status_url: str | None = None
+    warnings: list[HoursWarning] = []
 
 
 class SeriesPreview(Out):
@@ -328,6 +338,7 @@ class SeriesPreview(Out):
     conflict_count: int
     occurrences: list[OccurrenceResult]
     status_url: str | None = None
+    warnings: list[HoursWarning] = []
 
 
 class SeriesRuleOut(Out):
@@ -389,6 +400,23 @@ class SeriesRuleAdded(BookingCreated):
     conflict_count: int = 0
     results: list[OccurrenceResult] = []
     booking: BookingOut | None = None
+
+
+class SeriesRuleChange(In):
+    """A new pattern for an existing pass, taking over from `start_on` (today or later)."""
+
+    start_on: date
+    start_time: Wall
+    end_time: Wall
+    end_day_offset: Annotated[int, Field(ge=0, le=6)] = 0
+    rule: RecurrenceRule
+    on_conflict: OnConflict = "abort"
+    preview: bool = False
+    override_policy: bool = False
+
+
+class SeriesRuleChanged(SeriesRuleAdded):
+    cancelled_count: int
 
 
 class SeriesScope(In):
@@ -476,12 +504,26 @@ class Legend(Out):
     fill_states: list[str]
 
 
+class OpenRange(Out):
+    starts_at: datetime
+    ends_at: datetime
+
+
+class ResourceHours(Out):
+    """When a resource with availability windows (a trainer) is available; the rest of its column is shaded."""
+
+    resource_id: UUID
+    open: list[OpenRange]
+
+
 class CalendarView(Out):
     location_id: UUID
     time_zone: str
     from_: datetime = Field(serialization_alias="from", validation_alias="from")
     to: datetime
     calendar_slot_min: int
+    drag_drop_default: Literal["ask", "reschedule", "move_enrollment"]
+    resource_hours: list[ResourceHours]
     facility_hours: list[HoursDay]
     resources: list[ResourceOut]
     entries: list[CalendarEntry]
@@ -505,3 +547,80 @@ class Availability(Out):
     from_: datetime = Field(serialization_alias="from", validation_alias="from")
     to: datetime
     resources: list[ResourceFree]
+
+
+class TypeGrants(Out):
+    """Staff allowed to book a reservation type (SCH-05). Not restricted = every staff user with the keys."""
+
+    reservation_type_id: UUID
+    is_restricted: bool
+    staff_user_ids: list[UUID]
+
+
+class TypeGrantsReplace(In):
+    staff_user_ids: Annotated[list[UUID], Field(max_length=500)]
+
+
+SlotMinutes = Annotated[int, Field(ge=5, le=480, multiple_of=5)]
+SlotCapacity = Annotated[int, Field(ge=1, le=1000)]
+ExtraResources = Annotated[list[UUID], Field(max_length=10)]
+
+
+class SlotOfferCreate(In):
+    availability_window_id: UUID
+    reservation_type_id: UUID
+    slot_min: SlotMinutes
+    capacity: SlotCapacity = 1
+    title: Title | None = None
+    public_title: Title | None = None
+    is_self_bookable: bool = True
+    allows_free_booking: bool = False
+    additional_resource_ids: ExtraResources = []
+    is_active: bool = True
+
+
+class SlotOfferUpdate(In):
+    reservation_type_id: UUID | None = None
+    slot_min: SlotMinutes | None = None
+    capacity: SlotCapacity | None = None
+    title: Title | None = None
+    public_title: Title | None = None
+    is_self_bookable: bool | None = None
+    allows_free_booking: bool | None = None
+    additional_resource_ids: ExtraResources | None = None
+    is_active: bool | None = None
+
+
+class SlotOfferOut(Out):
+    id: UUID
+    location_id: UUID
+    availability_window_id: UUID
+    resource_id: UUID
+    reservation_type_id: UUID
+    slot_min: int
+    capacity: int
+    title: str
+    public_title: str | None
+    is_self_bookable: bool
+    allows_free_booking: bool
+    additional_resource_ids: list[UUID]
+    is_active: bool
+
+
+class Slot(Out):
+    starts_at: datetime
+    ends_at: datetime
+    status: Literal["free", "booked", "full", "unavailable"]
+    session_id: UUID | None
+    booking_id: UUID | None
+    capacity: int
+    booked_count: int
+
+
+class SlotList(Out):
+    slot_offer_id: UUID
+    slots: list[Slot]
+
+
+class SlotBook(In):
+    starts_at: AwareDatetime

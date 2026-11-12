@@ -32,7 +32,7 @@ from app.modules.pos.models import (
 
 SETTINGS_FIELDS = (
     "is_email_receipt_enabled", "is_auto_print_receipt", "is_drawer_session_required", "low_stock_alert_email",
-    "is_negative_stock_allowed", "allowed_networks",
+    "is_negative_stock_allowed", "allowed_networks", "receipt_footer",
 )  # fmt: skip
 
 
@@ -98,11 +98,19 @@ def get_settings(session: Session, principal: Principal, location_id: UUID | Non
     return settings_out(session, settings_for(session, location_id), location_id)
 
 
+def receipt_footer(session: Session, location_id: UUID | None) -> str | None:
+    """The footer a receipt prints (POS-14): the POS settings in force here, else billing's tenant footer."""
+    return (
+        settings_for(session, location_id).receipt_footer
+        or billing.catalogue.settings_for(session, location_id).receipt_footer
+    )
+
+
 def settings_out(session: Session, row: PosSettings, location_id: UUID | None) -> dict:
-    footer = billing.catalogue.settings_for(session, location_id).receipt_footer
     return {
         **{name: getattr(row, name) for name in SETTINGS_FIELDS}, "location_id": location_id,
-        "is_override": row.location_id is not None, "receipt_footer": footer,
+        "is_override": row.location_id is not None,
+        "effective_receipt_footer": row.receipt_footer or billing.catalogue.settings_for(session, location_id).receipt_footer,
     }  # fmt: skip
 
 

@@ -7,12 +7,13 @@ from datetime import date, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field, StringConstraints
+from pydantic import AwareDatetime, Field, StringConstraints
 
 from app.core.schemas import In, Out, Page  # noqa: F401  (Page is used by the router as s.Page)
 
 Value = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+Pin = Annotated[str, StringConstraints(pattern=r"^[0-9]{6,8}$")]
 Reason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 Code = Literal[
     "client_disabled", "access_denied", "membership_suspended", "membership_frozen", "membership_expired",
@@ -31,6 +32,7 @@ class CheckInCreate(In):
     channel: Literal["staff_window", "client_profile", "pos", "api"]
     override: bool = False
     override_reason: Reason | None = None
+    check_in_station_id: UUID | None = None
 
 
 class AccessEvaluateRequest(In):
@@ -41,6 +43,7 @@ class AccessEvaluateRequest(In):
 
 class CheckInAlertOut(Out):
     code: Code
+    action: Literal["take_payment", "renew_membership", "sign_waiver", "update_payment_method", "none"]
 
 
 class StaffAlertOut(Out):
@@ -96,6 +99,8 @@ class CheckInOut(Out):
     is_visit_consumed: bool
     alert_codes: list[str]
     attended: list[AttendedOut]
+    check_in_station_id: UUID | None
+    checked_out_at: datetime | None
 
 
 class CheckInRowOut(CheckInOut):
@@ -169,6 +174,7 @@ class KioskSettingsOut(Out):
     welcome_message: str | None
     displayed_alert_codes: list[str]
     confirmation_timeout_seconds: int
+    has_exit_pin: bool
 
 
 class KioskSettingsWrite(In):
@@ -178,6 +184,103 @@ class KioskSettingsWrite(In):
     welcome_message: Annotated[str, StringConstraints(max_length=500)] | None = None
     displayed_alert_codes: list[Code] | None = None
     confirmation_timeout_seconds: int | None = Field(None, ge=3, le=300)
+    exit_pin: Pin | None = None  # write-only; stored as an argon2id hash
+
+
+class KioskExitRequest(In):
+    staff_pin: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=16)]
+
+
+# --- access settings, rules, schedules (CHK-02, CHK-08, CHK-09, CHK-10) --------------------------------------
+
+DetailField = Literal["balance_due", "membership_dates", "visit_counts", "staff_notes"]
+Condition = Literal["frozen", "suspended", "depleted", "over_daily_limit"]
+Wall = Annotated[str, StringConstraints(pattern=r"^(([01][0-9]|2[0-3]):[0-5][0-9]|24:00)$")]
+
+
+class AccessSettingsOut(Out):
+    location_id: UUID
+    hidden_detail_fields: list[DetailField]
+    staff_early_minutes: int
+    staff_late_minutes: int
+
+
+class AccessSettingsWrite(In):
+    hidden_detail_fields: list[DetailField] | None = None
+    staff_early_minutes: int | None = Field(None, ge=0, le=1440)
+    staff_late_minutes: int | None = Field(None, ge=0, le=1440)
+
+
+class AccessRuleIn(In):
+    condition: Condition
+    outcome: Literal["allow", "deny"]
+
+
+class AccessRuleOut(Out):
+    condition: Condition
+    outcome: Literal["allow", "deny"]
+    is_default: bool
+
+
+class AccessRulesOut(Out):
+    location_id: UUID
+    rules: list[AccessRuleOut]
+
+
+class AccessRulesWrite(In):
+    rules: list[AccessRuleIn] = Field(max_length=4)
+
+
+class ClientAccessOut(Out):
+    client_id: UUID
+    access_mode: Literal["normal", "always_admit", "always_deny"]
+
+
+class ClientAccessWrite(In):
+    access_mode: Literal["normal", "always_admit", "always_deny"]
+    reason: Reason
+
+
+class AccessScheduleRangeIn(In):
+    weekday: int = Field(ge=1, le=7)
+    starts_time: Wall
+    ends_time: Wall
+
+
+class AccessScheduleRangeOut(Out):
+    weekday: int
+    starts_time: str
+    ends_time: str
+
+
+class AccessScheduleCreate(In):
+    name: Name
+    is_active: bool = True
+    ranges: list[AccessScheduleRangeIn] = Field(max_length=70)
+
+
+class AccessScheduleUpdate(In):
+    name: Name | None = None
+    is_active: bool | None = None
+    ranges: list[AccessScheduleRangeIn] | None = Field(None, max_length=70)
+
+
+class AccessScheduleOut(Out):
+    id: UUID
+    name: str
+    is_active: bool
+    ranges: list[AccessScheduleRangeOut]
+
+
+class MembershipTypeAccessWrite(In):
+    access_schedule_id: UUID | None = None
+    location_ids: list[UUID] = Field(default_factory=list, max_length=200)
+
+
+class MembershipTypeAccessOut(Out):
+    membership_type_id: UUID
+    access_schedule_id: UUID | None
+    location_ids: list[UUID]
 
 
 class KioskDeviceCreate(In):
@@ -199,6 +302,99 @@ class KioskPairingCode(Out):
     kiosk_device_id: UUID
     pairing_code: str
     expires_at: datetime
+
+
+# --- check-in desk: stations, check-out, occupancy, booking, ID cards (CHK-04, CHK-07, CHK-12, MEM-19) --------
+
+CardField = Literal["name", "membership_number", "membership_type", "expires_on", "date_of_birth"]
+
+
+class CheckInStationCreate(In):
+    location_id: UUID
+    name: Name
+    is_active: bool = True
+
+
+class CheckInStationUpdate(In):
+    name: Name | None = None
+    is_active: bool | None = None
+
+
+class CheckInStationOut(Out):
+    id: UUID
+    location_id: UUID
+    name: str
+    is_active: bool
+
+
+class CheckOutRequest(In):
+    checked_out_at: AwareDatetime | None = None  # default now; between the check-in and now
+
+
+class CheckInAttendanceCreate(In):
+    session_id: UUID
+    client_package_id: UUID | None = None
+
+
+class OccupancyPersonOut(Out):
+    check_in_id: UUID
+    client_id: UUID
+    client_name: str
+    checked_in_at: datetime
+    check_in_station_id: UUID | None
+    station_name: str | None
+
+
+class OccupancyStationOut(Out):
+    check_in_station_id: UUID | None
+    station_name: str | None
+    count: int
+
+
+class OccupancyOut(Out):
+    location_id: UUID
+    local_on: date
+    count: int
+    by_station: list[OccupancyStationOut]
+    present: list[OccupancyPersonOut]  # the newest OCCUPANCY_LIMIT people in
+    is_capped: bool  # true when count is larger than present
+
+
+class IdCardTemplateCreate(In):
+    location_id: UUID | None = None  # none: every location
+    name: Name
+    shown_fields: list[CardField] = Field(min_length=1, max_length=5)
+    has_photo: bool = True
+    is_default: bool = False
+
+
+class IdCardTemplateUpdate(In):
+    name: Name | None = None
+    shown_fields: list[CardField] | None = Field(None, min_length=1, max_length=5)
+    has_photo: bool | None = None
+    is_default: bool | None = None
+
+
+class IdCardTemplateOut(Out):
+    id: UUID | None  # none: the built-in card
+    location_id: UUID | None
+    name: str
+    shown_fields: list[CardField]
+    has_photo: bool
+    is_default: bool
+
+
+class IdCardFieldOut(Out):
+    field: CardField
+    value: str | None
+
+
+class ClientIdCardOut(Out):
+    client_id: UUID
+    template: IdCardTemplateOut
+    fields: list[IdCardFieldOut]
+    code_value: str | None
+    photo_url: str | None
 
 
 # --- the kiosk -----------------------------------------------------------------------------------------------

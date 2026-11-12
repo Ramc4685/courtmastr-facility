@@ -376,7 +376,12 @@ class _Notifier:
         if session.info.get("tenant_id") is None or session.info.get("actor") is None:
             send_after_commit(session, EmailMessage(to, subject, body))
             return
-        _deliver(session, category="transactional", topic=None, subject=subject, body=body, to_address=to)
+        row = _deliver(session, category="transactional", topic=None, subject=subject, body=body, to_address=to)
+        # Link the notice to its subject so erasure and export find it; a shared address stays unlinked.
+        # A staff address is operational mail (shifts, reminders, digests), never a client's record.
+        owners = [] if platform.service.is_staff_address(session, to) else clients.client_ids_for_address(session, to)
+        if row.client_id is None and len(owners) == 1:
+            row.client_id = owners[0]
 
 
 def install_notifier() -> None:

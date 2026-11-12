@@ -2,7 +2,7 @@
 portal inbox and devices, reminders, automations, staff alerts, settings and videos, and the data-subject side."""
 
 from datetime import timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import func, select
@@ -21,6 +21,7 @@ from app.modules.engagement.models import (
     Suppression,
 )
 from app.modules.platform.models import Identity
+from app.ports import notifications
 from conftest import add_staff, link_token, login, new_client, verify_email
 
 API = "/api/v1"
@@ -350,7 +351,9 @@ def test_automation_sends_on_its_trigger_and_stops_on_an_exit_event(client, tena
     mailbox.clear()
     with tenant_session(tenant.id, actor=SYSTEM) as session:
         svc.on_trigger(session, "programs.waitlist.promoted", payload | {"client_id": opted_out["id"]})
-        sent = session.scalar(select(Message).where(Message.client_id == opted_out["id"]))
+        sent = session.scalar(
+            select(Message).where(Message.client_id == opted_out["id"], Message.category == "marketing")
+        )
         assert (sent.category, sent.skip_reason) == ("marketing", "unsubscribed")  # automations honour consent
     assert not mailbox
     activated = {"client_id": person["id"], "contract_id": str(uuid4())}
@@ -465,3 +468,17 @@ def test_w2_08_a_push_token_on_another_login_is_revoked_never_reassigned(client,
         old, new = session.get(DeviceRegistration, mine["id"]), session.get(DeviceRegistration, theirs["id"])
         assert old.revoked_at is not None and old.identity_id != new.identity_id and old.client_id != new.client_id
     refused(client.delete(f"{API}/portal/devices/{theirs['id']}", headers=first), 404)
+
+
+def test_a_notice_is_logged_on_its_client_but_never_on_a_staff_address(client, tenant, owner, site):
+    member = new_client(client, owner, site, primary_email="member-only@example.com")
+    with tenant_session(tenant.id) as session:
+        staff_email = session.scalar(select(Identity.email).where(Identity.kind == "staff"))
+    coach = new_client(client, owner, site, primary_email=staff_email)  # a staff member who is also a client
+    notifications.TEMPLATES.setdefault("tests.link", notifications.NotificationTemplate("s", "b"))
+    with tenant_session(tenant.id, actor=SYSTEM) as session:
+        notifications.send(session, "tests.link", "member-only@example.com", {})
+        notifications.send(session, "tests.link", staff_email, {})
+    with tenant_session(tenant.id) as session:
+        linked = session.scalars(select(Message.client_id).where(Message.subject == "s")).all()
+        assert set(linked) == {UUID(member["id"]), None} and UUID(coach["id"]) not in linked

@@ -26,7 +26,7 @@ test('client list, profile tabs and merge flow pass the axe WCAG 2.1 AA scan', a
     await scan(page, `${colorScheme} list`)
     await page.getByRole('link', { name: 'Morgan Member' }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Morgan Member' })).toBeVisible()
-    await expect(page.getByRole('note')).toContainText('Asthma')
+    await expect(page.getByRole('note').filter({ hasText: 'Asthma' })).toBeVisible()
     await scan(page, `${colorScheme} overview`)
     await page.getByRole('tab', { name: 'Family' }).click()
     await expect(page.getByRole('link', { name: 'Mia Member' })).toBeVisible()

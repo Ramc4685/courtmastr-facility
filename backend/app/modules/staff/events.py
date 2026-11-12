@@ -26,3 +26,11 @@ class PayrollRunFinalized(Event):
     aggregate_type: ClassVar[str] = "payroll_run"
     type: Literal["staff.payroll_run.finalized"] = "staff.payroll_run.finalized"
     payroll_run_id: UUID
+
+
+class ShiftPublished(Event):
+    aggregate_type: ClassVar[str] = "shift"
+    type: Literal["staff.shift.published"] = "staff.shift.published"
+    shift_id: UUID
+    staff_user_id: UUID
+    location_id: UUID

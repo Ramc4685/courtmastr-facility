@@ -315,6 +315,12 @@ def adjust_membership_visits(
     return service.adjust_visits(ctx.session, ctx.principal, contract_id, body.model_dump())
 
 
+@router.get("/clients/{client_id}/system-alerts", response_model=list[s.SystemAlertOut])
+def list_client_system_alerts(client_id: UUID, ctx: Annotated[Ctx, Depends(require("clients.client.read"))]):
+    """Derived alerts (CLI-20): balance due, membership expiring or expired, waiver missing. Staff only."""
+    return service.client_alerts(ctx.session, ctx.principal, client_id)
+
+
 # --- portal ------------------------------------------------------------------------------------------------------
 
 

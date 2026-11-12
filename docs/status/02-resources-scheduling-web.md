@@ -16,7 +16,7 @@ Tests:
 
 | Feature | Priority | Status | Where | Tests | Notes |
 |---|---|---|---|---|---|
-| RES-01 Location profile and operational settings | P0 | partial | Setup › Calendar settings | e2e axe sweep | Edits calendar increment, default buffers, checkout clock and series limit. The profile itself is module 1's Locations screen. The drag-and-drop default is stored but the calendar does not read it: dragging is always on for editable bookings. |
+| RES-01 Location profile and operational settings | P0 | done | Setup › Calendar settings; calendar drag | e2e axe sweep | Edits calendar increment, default buffers, checkout clock and series limit; the profile itself is module 1's Locations screen. The calendar reads the stored drag-and-drop default (phase 10): move at once, confirm first, or drag off. |
 | RES-02 Facility hours | P0 | done | calendar viewport; Setup › Closures | `layout.test.ts` (`visibleSpan`), e2e | Facility hours set the visible span of the day and week grids, which still widen to show bookings outside hours. Closures are entered in location time, listed, and drawn as hatched bands. After saving, the bookings that overlap a closure are listed. Hours are edited in module 1. |
 | RES-03 Venues and sub-venues | P0 | done | `/resources` | `ResourcesPage.test.tsx` (tree, create sub-resource, read-only view) | Tree up to three levels. The parent picker leaves out the resource's own subtree. Archive and restore, with a status filter. |
 | RES-04 Schedule groups | P0 | done | `/resources` group cards; calendar group filter | `ResourcesPage.test.tsx`, e2e | Create, rename, reorder and deactivate groups. |
@@ -27,22 +27,22 @@ Tests:
 | RES-09 Padlock inventory | P2 | not built | | | No API. |
 | SCH-01 Calendar views and navigation | P0 | done | `/schedule` | `TimeGrid.test.tsx`, e2e | Day view has one column per resource. Week view has one column per day, with resource names on each entry. Month view is a 42-day grid whose day buttons open that day. Navigation: Previous, Today, Next and go to date. Filters cover location, schedule group, resources and types. The header shows the time zone, e.g. "America/Chicago (CST)". |
 | SCH-02 Reservation types | P0 | done | Setup › Reservation types | `SetupPage.test.tsx` | Colour, category, length, capacity, buffers, flags, active. |
-| SCH-03 Type online-booking options | P0 | partial | type dialog; session panel flags | `SetupPage.test.tsx` | Per-type defaults and per-session flags. The API has no full online-policy row yet (API partial). |
+| SCH-03 Type online-booking options | P0 | done | type dialog; session panel flags; link to booking policies | `SetupPage.test.tsx` | Per-type defaults and per-session flags here; the full online policy per type (listing mode, booking window, cut-offs, allowed packages) is programs' booking policy (location default plus type override), linked from the types tab. |
 | SCH-04 Reservation categories | P1 | done | Setup › Categories | e2e axe sweep | Two levels. |
-| SCH-05 Type permissions per staff user | P1 | not built | | | No API. |
+| SCH-05 Type permissions per staff user | P1 | done | Setup › types › Who can book | `SetupPage.test.tsx`, e2e | Phase 10: `reservation_type_grant`; "Who can book" on each type. No rows = open to all who may book; owners exempt. Checked on every booking write, not on reads or programs enrolment. |
 | SCH-06 Colour coding, fill and legend | P1 | done | calendar entries and legend | e2e | A colour stripe plus the type name. Fill shows as text ("3/12 filling", "full"), never colour alone. |
-| SCH-07 Create a bookable session | P0 | partial | drawer, "Session" | `BookingDrawer.test.tsx` | Single or repeating, with capacity and flags. Splitting a session into slots is not built (API partial). |
+| SCH-07 Create a bookable session | P0 | done | drawer, "Session"; Availability › Offer as slots, Show slots | `BookingDrawer.test.tsx`, e2e | Single or repeating, with capacity and flags. Phase 10: an availability window can be offered as fixed-length slots (`slot_offer`); taking a slot creates its session. Portal slot booking is programs' to wire. |
 | SCH-08 Time blocks | P0 | done | drawer, "Time block" | e2e (keyboard block create) | Four block kinds. |
-| SCH-09 Recurrence with preview | P0 | partial | drawer recurrence editor, "Check availability" | `SetupPage.test.tsx` (`describeRule`), e2e | Supports daily, weekly, monthly (by date or weekday) and yearly, with an interval, ending by count or by date. The preview lists each occurrence as free, conflicting or closed. Changing an existing series rule (`POST /booking-series/{id}/rules`) has no screen. |
-| SCH-10 Edit and mass-edit a series | P0 | partial | drawer "When and where" and "Details"; scope prompt | `BookingDrawer.test.tsx` (series move) | Scopes this, following and all, with "skip conflicts". The API's `selected` and `date_range` scopes have no screen. |
-| SCH-11 Delete with series scopes | P0 | partial | drawer "Cancel booking" | e2e | Cancels this, following or all. There is no multi-select delete mode on the calendar. |
+| SCH-09 Recurrence with preview | P0 | done | drawer recurrence editor; drawer "Change pattern" | `SetupPage.test.tsx` (`describeRule`), e2e | Daily, weekly, monthly (date or weekday) and yearly, with interval and end; per-occurrence preview. Phase 10: "Change pattern" replaces a series rule from a chosen day, with the same preview (cancelled count plus new occurrences). |
+| SCH-10 Edit and mass-edit a series | P0 | done | drawer; scope prompt (picked, date range) | `BookingDrawer.test.tsx`, `parts.test.tsx` | Scopes this, following, all, picked occurrences and a date range (phase 10), with "skip conflicts". |
+| SCH-11 Delete with series scopes | P0 | done | drawer "Cancel booking"; calendar "Select to cancel" | `parts.test.tsx`, `TimeGrid.test.tsx`, e2e | Cancels this, following, all, picked or a date range; phase 10 adds "Select to cancel" on the calendar (pick several, cancel together). |
 | SCH-12 Conflicts and drag rescheduling | P0 | done | grid drag move and resize; drawer | `TimeGrid.test.tsx`, `BookingDrawer.test.tsx` (409), e2e | The server decides. A 409 shows each rival booking by number, title, resource and time. Keyboard users get the same result from the drawer fields. |
 | SCH-13 Multi-resource reservations | P0 | done | drawer resource picker | `BookingDrawer.test.tsx` | One primary resource plus any number of additional ones. |
 | SCH-14 Buffer times | P1 | done | drawer buffer line and override; dashed bands on the grid | `BookingDrawer.test.tsx` | The drawer says where the buffer comes from: the type, the location default, or this booking. |
 | SCH-15 Sub-venues | P1 | done | resources tree; calendar | e2e | A parent's booking appears on each child column as a non-interactive "held" band. |
 | SCH-16 Direct registration link | P1 | not built | | | No API. |
 | SCH-17 Shared bookings | P1 | not built | | | Needs modules 4 and 5. |
-| SCH-18 Trainer availability | P0 | partial | Resources › Availability dialog | e2e axe sweep | Add, pause, resume and remove weekly windows. The calendar does not shade a trainer's off-hours (API partial). |
+| SCH-18 Trainer availability | P0 | done | Resources › Availability dialog; day view off-hours | `TimeGrid.test.tsx`, e2e | Weekly windows; phase 10 shades a trainer's off-hours on the day view and offers windows as bookable slots (with an optional extra resource). |
 | SCH-19 Staff calendar sync | P1 | not built | | | |
 | SCH-20 Embedded public schedule | P1 | not built | | | |
 | SCH-21 Merge series | P2 | not built | | | |

@@ -543,11 +543,11 @@ def test_remove_reverses_or_keeps_billing_and_releases_open_reservations(w, clie
             409, "invalid-state-transition")  # fmt: skip
 
     quote = ok(client.post(f"{API}/client-packages/{used['id']}/removal-quote", headers=owner))
-    assert (quote["can_reverse_billing"], quote["sessions_consumed_count"], quote["open_reservations_count"]) == (
-        False,
+    assert (quote["needs_override_reason"], quote["sessions_consumed_count"], quote["open_reservations_count"]) == (
+        True,
         1,
         1,
-    )
+    )  # the owner holds the override (question 16), so can_reverse_billing is true; without a reason it is refused
     refused(client.post(f"{API}/client-packages/{used['id']}/remove", headers=owner, json={"removal_mode": "billing_reversed"}),
             409, "package-in-use")  # fmt: skip
     kept = ok(
@@ -797,3 +797,41 @@ def test_expiring_packages_filter_uses_the_last_valid_day_and_skips_never_expiri
 
     assert listed("2025-02-08") == [] and listed("2025-02-09") == [str(a.id)]
     refused(client.get(f"{API}/client-packages?expires_on_or_before=soon", headers=owner), 422, "validation-failed")
+
+
+def test_manager_override_reverses_billing_after_sessions_were_used(w, client, owner):
+    """Question 16: reversing the billing of a used package needs packages.package.remove_override at its location
+    and a reason, which the audit keeps; without either it stays 409 package-in-use / 403."""
+    plan = package_plan(client, owner, w.tenant, session_count=4, fee_minor=8000)
+    paid = {"payment": {"amount_minor": 8000, "tender_kind": "cash"}}
+    used = ok(client.post(f"{API}/client-packages", headers=owner, json=pack(w, plan, **paid)), 201)
+    person, attended = w.person["id"], uuid4()
+    reserve(w.tenant, UUID(used["id"]), person, attended)
+    settle(w.tenant, attended, "attended")
+    url = f"{API}/client-packages/{used['id']}/remove"
+    reverse = {"removal_mode": "billing_reversed", "override_reason": "Injured, refund agreed by manager"}
+
+    email, user_id = add_staff(w.tenant, "manager", location_ids=[w.location_id])
+    deny = {"grants": [{"permission_key": "packages.package.remove_override", "is_allowed": False}]}
+    ok(client.put(f"{API}/staff-users/{user_id}/permission-overrides", headers=owner, json=deny))
+    plain = login(client, w.tenant, email)
+    quote = ok(client.post(f"{API}/client-packages/{used['id']}/removal-quote", headers=plain))
+    assert (quote["can_reverse_billing"], quote["needs_override_reason"]) == (False, True)
+    assert client.post(url, headers=plain, json=reverse).status_code == 403
+    elsewhere = add_staff(w.tenant, "manager", location_ids=[location_of_other_site(client, owner)])[0]
+    assert client.post(url, headers=login(client, w.tenant, elsewhere), json=reverse).status_code == 404
+    refused(client.post(url, headers=owner, json={"removal_mode": "billing_reversed"}), 409, "package-in-use")
+    assert client.post(url, headers=owner, json={**reverse, "override_reason": "  "}).status_code == 422
+    assert package(w.tenant, UUID(used["id"])).status == "active"
+
+    removed = ok(client.post(url, headers=owner, json=reverse))
+    assert (removed["status"], removed["removal_mode"]) == ("removed", "billing_reversed")
+    assert account_credit(w.tenant, person) == 8000 and open_balance(w.tenant, person) == 0
+    reason = scalar(w.tenant, select(AuditEvent.reason).where(
+        AuditEvent.entity_id == UUID(used["id"]), AuditEvent.action == "packages.package.remove"))  # fmt: skip
+    assert reason == "Injured, refund agreed by manager"
+
+
+def location_of_other_site(client, owner) -> str:
+    body = {"name": f"Other {uuid4().hex[:6]}", "time_zone": "America/Chicago", "country_code": "US"}
+    return ok(client.post(f"{API}/locations", headers=owner, json=body), 201)["id"]
