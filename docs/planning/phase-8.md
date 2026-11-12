@@ -146,6 +146,8 @@ Playwright helpers that read cookies by name must use the shared sign-in helper.
 | 2026-11-11 | I1 fixes | merged: 11 review findings and the system tender (migration 1272) | `523b4f6` |
 | 2026-11-11 | S5 | merged: OIDC step-up after an hour, startup refusal without `api.trusted_proxies` or with example keys, change-password lockout, allow-list before emailed-link state changes, generated files not scanned, retention for suspended tenants, dead `ip_policy` control removed; no migration | `73102cf` |
 | 2026-11-11 | web-e2e | first full run on the merged branch: 43 of 45; `checkin-desk.spec.ts` and `clients.spec.ts` failed in the parallel run and passed alone twice each | |
+| 2026-11-12 | e2e fixes | merged `fbeed17`: POS register no longer scrolls sideways at 320 px with a cart open (real defect); the skip-link contrast check waits for the focus style; the check-in desk spec uses its own client | `7b4f212` |
+| 2026-11-12 | FINAL GATE | at `fbeed17`, lane databases rebuilt from scratch: migrations 1081 to 1272 down and up, one head, `alembic check` clean; lint, typecheck (mypy), boundaries (21 contracts) clean; no OpenAPI drift; web-check clean; web-test 198 of 198; backend 4,895 passed, 884 skipped (contract sample), 0 failed, domain coverage 94%; web-e2e 51 of 51 | `fbeed17` |
 
 Incidents and findings from the last day of the phase:
 - A build agent's `make lane-db` ran against the shared `facilityhub` and `facilityhub_test` databases (its `.env`
