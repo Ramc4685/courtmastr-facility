@@ -32,3 +32,17 @@ export function formatCell(value: unknown, type: string, currency: string): stri
 }
 
 export const isNumeric = (type: string) => ['money', 'pct', 'count', 'minutes', 'number'].includes(type)
+
+export const DASHBOARD_KEY = 'reporting.dashboard.read'
+export const FORMATS = [{ value: 'csv', label: 'CSV' }, { value: 'xlsx', label: 'Excel (XLSX)' }, { value: 'pdf', label: 'PDF' }]
+export type Option = { value: string; label: string }
+
+/** Where an id-list parameter finds its choices. A source the caller may not list (403) hides the filter. */
+export const ID_SOURCES: Record<string, () => Promise<Option[]>> = {
+  revenue_category_ids: async () => (await api.get('/api/v1/revenue-categories')).data.map((c) => ({ value: c.id, label: c.label })),
+  membership_type_ids: async () => (await api.get('/api/v1/membership-types', { query: { limit: 100 } })).data.map((t) => ({ value: t.id, label: t.name })),
+  reservation_type_ids: async () => (await api.get('/api/v1/reservation-types', { query: { limit: 200 } })).data.map((t) => ({ value: t.id, label: t.name })),
+  trainer_resource_ids: async () => (await api.get('/api/v1/resources', { query: { kind: 'trainer', limit: 200 } })).data.map((r) => ({ value: r.id, label: r.name })),
+  staff_user_ids: async () =>
+    (await api.get('/api/v1/staff-users', { query: { sort: 'last_name,first_name', limit: 200 } })).data.map((s) => ({ value: s.id, label: `${s.first_name} ${s.last_name}` })),
+}
