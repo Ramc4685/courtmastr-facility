@@ -64,6 +64,11 @@ def create_app() -> FastAPI:
         app.include_router(each, prefix=API_PREFIX)
     app.include_router(leagues_router, prefix=API_PREFIX)
     app.include_router(files_router, prefix=API_PREFIX)
+    from app.modules.platform.branding_router import router as branding_router
+    from app.modules.platform.onboarding_router import router as onboarding_router
+
+    for each in (branding_router, onboarding_router):
+        app.include_router(each, prefix=API_PREFIX)
     app.include_router(integrations_router, prefix=API_PREFIX)
     app.include_router(reporting_router, prefix=API_PREFIX)
     _document_auth(app)

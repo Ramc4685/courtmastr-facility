@@ -21,6 +21,7 @@ EVERY_MINUTE = ("expire_checkout_holds", "expire_registration_holds", "send_due_
 EVERY_HOUR = (
     "billing_daily", "run_membership_day", "run_package_day", "sweep_documents", "auto_archive_programs",
     "abandon_stale_drafts", "purge_expired", "purge_files",
+    "purge_expired_results", "purge_expired_exports",
 )  # fmt: skip
 
 

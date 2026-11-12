@@ -132,6 +132,9 @@ class Retention(BaseModel):
     outbox_days: int = 30  # published events only; unpublished rows are never purged
     processed_event_days: int = 45  # must exceed outbox retention plus the retry window
     batch_rows: int = 10_000  # per table per run; the hourly clock drains any backlog
+    gdpr_auth_session_days: int = 30  # a tenant in GDPR mode (PLT-16) keeps ended sessions and links shorter
+    gdpr_auth_token_days: int = 7
+    tenant_export_days: int = 7  # a tenant export bundle stays downloadable this long (IMP-04)
 
 
 class S3(BaseModel):
@@ -151,6 +154,13 @@ class Storage(BaseModel):
     scanner: Literal["noop", "clamd"] = "noop"  # noop is refused outside dev and test
     clamd_host: str = "127.0.0.1"
     clamd_port: int = 53310
+    # Origin serving the public prefix t/*/public/* (logos) straight from the bucket or a CDN; None means the
+    # app's /public/objects route serves them (platform.branding).
+    public_base_url: str | None = None
+
+
+class Support(BaseModel):
+    operator_email: str = "support@facilityhub.localhost"  # ONB-03 support requests go here
 
 
 class Settings(BaseModel):
@@ -169,6 +179,7 @@ class Settings(BaseModel):
     integrations: Integrations = Integrations()
     storage: Storage = Storage()
     retention: Retention = Retention()
+    support: Support = Support()
 
     def db_url(self, role: str) -> str:
         """role is owner, app or platform; the password comes from FH_DB_<ROLE>_PASSWORD."""

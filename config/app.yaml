@@ -75,6 +75,9 @@ retention:                            # purge periods in days (ADR 0007 section 
   outbox_days: 30                     # published events only
   processed_event_days: 45            # longer than the outbox plus the retry window
   batch_rows: 10000                   # per table per hourly run
+  gdpr_auth_session_days: 30          # the shorter periods a tenant in GDPR mode gets (PLT-16)
+  gdpr_auth_token_days: 7
+  tenant_export_days: 7               # a tenant export bundle is downloadable this long, then purged (IMP-04)
 storage:
   local_dir: var/storage              # relative to the repository root (git-ignored)
   max_upload_bytes: 20971520          # the one route that takes file bytes (scanned documents, 20 MiB)
@@ -83,3 +86,6 @@ storage:
   scanner: noop                       # noop | clamd. Refused outside dev and test: production must scan uploads
   clamd_host: 127.0.0.1
   clamd_port: 53310                   # docker compose --profile scan (ClamAV)
+  public_base_url: null               # bucket or CDN origin serving t/*/public/* (logos); null: the app's /public/objects route
+support:
+  operator_email: support@facilityhub.localhost  # ONB-03: where staff "Contact support" requests are emailed

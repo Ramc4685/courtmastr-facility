@@ -33,6 +33,7 @@ _MAGIC = {PDF: (b"%PDF-",), JPEG: (b"\xff\xd8\xff",), PNG: (b"\x89PNG\r\n\x1a\n"
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._ -]+")
 URL_TTL_SECONDS = 300  # signed download URLs (8.3: 5 minutes)
 DOWNLOAD_PATH = "/api/v1/files"  # the local adapter's signed route (files_router)
+PUBLIC_PURPOSES = frozenset({"tenant_logo", "location_logo"})  # the only files ever stored public (PLT-08)
 
 
 def sniff(data: bytes) -> str | None:
@@ -89,6 +90,8 @@ def store(
     """Scan and write already-checked bytes and their row; a malware hit is a 422. `public` puts a processed
     image rendition (a logo) under the public prefix; nothing else is ever public (8.3). Bytes written for a
     transaction that later rolls back are orphans with no row: unreachable, and reported by `purge_files`."""
+    if public and (purpose not in PUBLIC_PURPOSES or content_type not in (JPEG, PNG)):
+        raise ValueError("only logo image renditions may be stored public")  # a programming error, not user input
     if signature := scanner.scan(data):
         log.warning("upload refused by the malware scanner", extra={"signature": signature, "purpose": purpose})
         raise ValidationFailed("The file failed the malware scan.", code="file-infected")

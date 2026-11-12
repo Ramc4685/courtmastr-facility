@@ -151,7 +151,7 @@ def test_signed_route_serves_once_signed_and_refuses_expired_or_forged(client, t
 def test_image_renditions_are_served_inline(client, tenant):
     data, kind = files.clean(png(), files.PNG, allowed=(files.PNG,), max_bytes=10_000)
     with tenant_session(tenant.id) as session:
-        row = files.store(session, data, purpose="test.logo", content_type=kind, uploaded_by=STAFF, public=True)
+        row = files.store(session, data, purpose="tenant_logo", content_type=kind, uploaded_by=STAFF, public=True)
         url = files.download_url(session, row.id)
     assert row.object_key == f"t/{tenant.id}/public/{row.id}"
     served = client.get(url.removeprefix(get_settings().app.web_base_url))

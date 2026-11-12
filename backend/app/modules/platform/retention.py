@@ -3,10 +3,12 @@
 Every table here is tenant-owned, so the purge is a @tenant_actor run hourly per tenant by the clock: RLS keeps
 each delete inside its tenant and fh_platform gains nothing (ADR 0007 open question 4, second option). Each table
 loses at most `retention.batch_rows` rows per run; a backlog drains over later ticks. Idempotent: a repeat
-deletes only what became eligible in between. Periods are in config `retention`.
+deletes only what became eligible in between. Periods are in config `retention`; a tenant in GDPR mode (PLT-16)
+gets the shorter `gdpr_*` periods for sessions and sign-in links. Audit rows keep their fixed retain_until_on.
 
-Not purged here: unpublished outbox rows (never), report result bytes (deferred to K1's `files.remove`),
-webhook deliveries and inbound provider events (their owning contexts; not built yet).
+Not purged here: unpublished outbox rows (never), report result bytes (`reporting.jobs.purge_expired_results`),
+tenant export bundles (`platform.tenant_export.purge_expired_exports`), webhook deliveries and inbound provider
+events (their owning contexts; not built yet).
 """
 
 from datetime import timedelta
@@ -19,7 +21,7 @@ from app.core import audit, clock
 from app.core.errors import Conflict, NotFound
 from app.core.jobs import broker, tenant_actor
 from app.core.settings import get_settings
-from app.modules.platform.models import FailedJob, FailedJobResolution
+from app.modules.platform.models import FailedJob, FailedJobResolution, Tenant
 
 # table -> rows past retention. shortcut: outbox published_at and processed_event processed_at have no index, so
 # each run scans the tenant's rows; add partial indexes when the purge shows up in the slow-query log.
@@ -36,10 +38,11 @@ def purge(session: Session) -> dict[str, int]:
     """Delete one batch per table in the session's tenant; returns rows deleted per table."""
     cfg = get_settings().retention
     now = clock.now()
+    gdpr = session.scalar(select(Tenant.is_gdpr_mode).where(Tenant.id == session.info["tenant_id"]))  # PLT-16
     params = {
         "now": now,
-        "sessions": now - timedelta(days=cfg.auth_session_days),
-        "tokens": now - timedelta(days=cfg.auth_token_days),
+        "sessions": now - timedelta(days=cfg.gdpr_auth_session_days if gdpr else cfg.auth_session_days),
+        "tokens": now - timedelta(days=cfg.gdpr_auth_token_days if gdpr else cfg.auth_token_days),
         "outbox": now - timedelta(days=cfg.outbox_days),
         "processed": now - timedelta(days=cfg.processed_event_days),
         "n": cfg.batch_rows,

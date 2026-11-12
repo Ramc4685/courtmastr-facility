@@ -269,7 +269,38 @@ def populate(client, tenant) -> SimpleNamespace:
         **integration, **reporting,
         **_populate_files(tenant),
         **_populate_mfa(tenant),
+        **_populate_t2(client, headers, tenant, location["id"]),
     )  # fmt: skip
+
+
+def png_bytes(size: tuple[int, int] = (4, 4)) -> bytes:
+    import io
+
+    from PIL import Image
+
+    out = io.BytesIO()
+    Image.new("RGB", size, (200, 30, 30)).save(out, "PNG")
+    return out.getvalue()
+
+
+def _populate_t2(client, headers, tenant, location_id) -> dict:
+    """Logos, a support request and a tenant export row (Phase 8 T2)."""
+    from sqlalchemy import select
+
+    from app.modules.platform.models import TenantExport
+
+    image = headers | {"Content-Type": "image/png", "X-File-Name": "logo.png"}
+    for path in ("/api/v1/branding/logo", f"/api/v1/locations/{location_id}/logo"):
+        assert client.put(path, headers=image, content=png_bytes()).status_code == 200
+    request = client.post("/api/v1/support-requests", headers=headers, json={"category": "question", "message": "Hi"})
+    assert request.status_code == 201, request.text
+    with tenant_session(tenant.id) as session:
+        owner_id = session.scalar(select(StaffUser.id).order_by(StaffUser.created_at).limit(1))
+        export = TenantExport(requested_by_staff_user_id=owner_id, status="failed", error="populate")
+        session.add(export)
+        session.flush()
+        export_id = export.id
+    return {"support_request_id": request.json()["id"], "tenant_export_id": export_id}
 
 
 def _populate_mfa(tenant) -> dict:

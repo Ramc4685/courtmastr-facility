@@ -73,6 +73,7 @@ CLIENT_OR_TENANT_ROUTES = {
         updateRentalPlan updateRentalRate updateRentalType updateReservationCategory updateReservationType
         updateRevenueCategory updateRole updateStaffUser updateTag updateTax updateTaxRate updateTenderType
         addStaffHourlyRate deleteStaffHourlyRate getCommissionRules listPayRates listStaffHourlyRates
+        closeSupportRequest getSupportRequest createTenantExportDownloadUrl getTenantExport
         putCommissionRules putDefaultPayRate
         createAssessmentField updateAssessmentField updateAssessmentTemplate
     """.split())
