@@ -18,7 +18,7 @@ from app.core.pagination import ListQuery, paginate
 from app.core.settings import get_settings
 from app.modules import clients, platform
 from app.modules.billing import service
-from app.modules.billing.models import PaymentMethod, ProviderAccount, ProviderCustomer
+from app.modules.billing.models import Payment, PaymentMethod, ProviderAccount, ProviderCustomer
 from app.ports import payment_provider
 from app.ports.payment_provider import AccountState, MethodState
 
@@ -185,6 +185,13 @@ def attach_method(session: Session, client_id: UUID, method_token: str, *, is_au
         )  # fmt: skip
     except ValueError as error:
         raise ValidationFailed(str(error), pointer="/method_token", code="payment-method-rejected") from None
+    return _store(session, account, client_id, state, is_autopay)
+
+
+def _store(
+    session: Session, account: ProviderAccount, client_id: UUID, state: MethodState, is_autopay: bool | None
+) -> PaymentMethod:
+    """The row for a method the provider holds on the client's customer (found again by its provider ref)."""
     method = session.execute(
         select(PaymentMethod).where(
             PaymentMethod.provider_account_id == account.id,
@@ -207,6 +214,33 @@ def attach_method(session: Session, client_id: UUID, method_token: str, *, is_au
     if wants and method.status == "active" and not method.is_autopay:
         _make_autopay(session, method)
     return method
+
+
+def ensure_customer(session: Session, client_id: UUID) -> None:
+    """Make sure the payer has a provider customer, so a charge can save its method (save during payment)."""
+    _customer_ref(session, service._provider_account(session), client_id)
+
+
+def save_from_payment(
+    session: Session, client_id: UUID, payment: Payment, *, is_autopay: bool | None = None
+) -> PaymentMethod | None:
+    """Record the method a secured payment saved on the customer (`take_payment(save_method=True)`, Stripe's
+    setup_future_usage). Saving with the charge, not attaching first, keeps the payment's pre-provider row
+    committable, so a processor timeout stays recoverable. The provider is re-read, which also covers a
+    payment recovered after a timeout. None when the charge saved nothing."""
+    if payment.provider_payment_ref is None or payment.provider_account_id is None:
+        return None
+    account = session.get(ProviderAccount, payment.provider_account_id)
+    provider = payment_provider.get(account.provider)
+    state = provider.get_payment(
+        account_ref=account.provider_account_ref, provider_payment_ref=payment.provider_payment_ref
+    )
+    if state.provider_method_ref is None:
+        return None
+    method = provider.get_method(
+        account_ref=account.provider_account_ref, provider_method_ref=state.provider_method_ref
+    )
+    return _store(session, account, client_id, method, is_autopay)
 
 
 def _live(session: Session, method_id: UUID) -> PaymentMethod:

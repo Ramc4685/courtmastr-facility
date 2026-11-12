@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Stop hook: before an agent finishes, every module whose code it changed must have a fresh
-# EGM drift report (docs/egm/drift/<module>.md newer than the newest change in that module).
+# PreToolUse(Bash) hook: before an agent runs `git commit`, every module whose code the branch changed
+# must have a fresh EGM drift report (docs/egm/drift/<module>.md newer than the newest change in that module).
 # Off switch: EGM_DRIFT_GATE=off. Reports list divergences only; fixing is a separate task.
 set -euo pipefail
 
 [ "${EGM_DRIFT_GATE:-on}" = "off" ] && exit 0
 input=$(cat)
-# Already blocked once this turn: let it stop rather than loop.
-[ "$(jq -r '.stop_hook_active // false' <<<"$input")" = "true" ] && exit 0
+# Only commits; also matches the RTK-rewritten `rtk git commit`.
+jq -r '.tool_input.command // ""' <<<"$input" | grep -Eq '(^|[;&|[:space:]])git[[:space:]]+commit' || exit 0
 
 root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 cd "$root"
@@ -31,10 +31,11 @@ done
 [ ${#stale[@]} -eq 0 ] && exit 0
 
 mods="${stale[*]}"
-reason="EGM drift check needed before finishing. Module code changed without a fresh drift report: ${mods}. \
+reason="EGM drift check needed before this commit. Module code changed without a fresh drift report: ${mods}. \
 For each, spawn ONE fresh general-purpose subagent (a goldfish: give it no conversation context) that follows \
 ~/.claude/plugins/cache/egm/egm/*/skills/egm-drift-report/SKILL.md on backend/app/modules/<module>/README.md, \
 reports ONLY divergences with README line + code file:line, tags each bullet [stale-not-built]|[missing]|[contract]|[undocumented]|[wording], \
 and overwrites docs/egm/drift/<module>.md. Do not fix the README or code. Then add the new items to docs/egm/DRIFT_BACKLOG.md \
-and mention the counts in your final message. Skip with EGM_DRIFT_GATE=off only if the user says so."
-jq -n --arg r "$reason" '{decision: "block", reason: $r}'
+and stage docs/egm with the commit, then retry it and mention the counts in your final message. \
+Skip with EGM_DRIFT_GATE=off only if the user says so."
+jq -n --arg r "$reason" '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $r}}'

@@ -13,6 +13,8 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Memberships can suspend automatically when an invoice stays past due (a billing setting, off by default) and resume when it is paid.
 - Membership preferences for payment-method capture, online card saving and freeze resume billing now take effect; the portal can ask to save the card.
 - Autopay at sale follows the plan, then the billing setting for the sales channel.
+- An autopay membership bought online keeps the card it was paid with, saved with the payment so a processor timeout is still recovered safely.
+- A pending bank debit pauses an invoice's past-due clock instead of restarting it.
 - Phase 8 (platform, security and operations) is in progress; the entries below have landed.
 - File storage in a cloud bucket with malware scanning and expiring download links.
 - Background jobs retry automatically, and failed jobs land in a dead-letter list an operator can requeue.

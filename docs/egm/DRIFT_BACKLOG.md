@@ -8,8 +8,8 @@ Tags: `[stale-not-built]` doc says missing, code has it · `[missing]` doc says 
 `[contract]` API, permission or event mismatch · `[undocumented]` code exists, doc silent · `[wording]`.
 Resources and assessments were checked before tags existed, so their items are untagged.
 
-The Stop hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`) re-runs a module's report
-whenever an agent changes that module's code, so new drift lands here instead of piling up.
+A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`) stops an agent's
+`git commit` until each module it changed has a fresh report, so new drift lands here instead of piling up.
 
 ## Decide first (code, not just docs)
 

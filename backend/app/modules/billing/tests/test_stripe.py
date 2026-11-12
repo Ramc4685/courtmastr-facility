@@ -191,6 +191,14 @@ def test_payment_is_a_direct_charge_on_the_connected_account_with_our_key(stripe
     )
     assert "off_session" not in http.last["params"] and "customer" not in http.last["params"]
     assert http.last["params"]["use_stripe_sdk"] == ["true"]  # 3-D Secure runs in the browser (handleNextAction)
+    assert "setup_future_usage" not in http.last["params"]
+    http.reply(200, intent(payment_method="pm_card"))  # save during payment: kept on the customer with the charge
+    saved = stripe.create_payment(
+        account_ref=ACCOUNT, amount_minor=5, currency="USD", method_token="pm_card", idempotency_key="k3",
+        customer_ref="cus_1", save_method=True,
+    )  # fmt: skip
+    assert http.last["params"]["setup_future_usage"] == ["off_session"]
+    assert saved.provider_method_ref == "pm_card"
 
 
 @pytest.mark.parametrize(
