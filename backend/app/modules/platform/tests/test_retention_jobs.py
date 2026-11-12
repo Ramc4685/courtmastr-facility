@@ -67,9 +67,10 @@ def test_purge_removes_only_rows_past_retention_in_its_own_tenant_and_is_idempot
     other = make_tenant()
     _seed(client, tenant), _seed(client, other)
     before = _left(tenant)
-    assert _purge(tenant) == dict.fromkeys(before, 1)  # one expired row each
+    no_screenshots = {"support_screenshot": 0}  # its own test: test_t2_branding_onboarding
+    assert _purge(tenant) == dict.fromkeys(before, 1) | no_screenshots  # one expired row each
     assert _left(tenant) == {name: count - 1 for name, count in before.items()}
-    assert _purge(tenant) == dict.fromkeys(before, 0)  # a repeat finds nothing
+    assert _purge(tenant) == dict.fromkeys(before, 0) | no_screenshots  # a repeat finds nothing
     assert _left(other) == before  # the other tenant's expired rows are untouched
     with tenant_session(tenant.id) as session:  # an unpublished event survives any age
         unpublished = select(func.count()).where(OutboxEvent.event_type == MARK, OutboxEvent.published_at.is_(None))

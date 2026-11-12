@@ -16,7 +16,7 @@ from uuid import UUID
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
-from app.core import audit, clock
+from app.core import audit, clock, ratelimit
 from app.core.auth import Principal, authorize
 from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
@@ -117,10 +117,17 @@ def _mine(session: Session, principal: Principal, request_id: UUID) -> SupportRe
     return row
 
 
+def _throttle(session: Session, principal: Principal) -> None:
+    """Each request mails the operator and each screenshot is stored: one bucket per staff user caps both."""
+    ratelimit.hit("support-request", str(principal.staff_user_id), tenant=session.info["tenant_id"])
+
+
 def upload_screenshot(session: Session, principal: Principal, data: bytes, content_type: str, name: str | None):
-    """Store a screenshot before the request that carries it (JPEG or PNG); returns the stored file."""
+    """Store a screenshot before the request that carries it (JPEG or PNG); returns the stored file. One never
+    attached to a request is purged after a day (`retention.purge`)."""
     authorize(principal, SUPPORT_KEY)
     _me(session, principal)
+    _throttle(session, principal)
     cleaned, kind = files.clean(data, content_type, allowed=SCREENSHOT_TYPES, max_bytes=MAX_SCREENSHOT_BYTES)
     row = files.store(session, cleaned, purpose="support_screenshot", content_type=kind,
                       uploaded_by=("staff", principal.staff_user_id), original_name=name)  # fmt: skip
@@ -131,6 +138,7 @@ def upload_screenshot(session: Session, principal: Principal, data: bytes, conte
 def create_request(session: Session, principal: Principal, data: dict) -> SupportRequest:
     authorize(principal, SUPPORT_KEY)
     me = _me(session, principal)
+    _throttle(session, principal)
     screenshot_id = data.get("screenshot_file_id")
     if screenshot_id is not None:
         try:
