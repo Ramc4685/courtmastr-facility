@@ -7,6 +7,7 @@ under `Unreleased` in the same change that makes the behaviour visible.
 ## [Unreleased]
 
 ### Added
+- Reports: receivables by instalment due date, unapplied payments, income and balances, underpaid items, accrued and unused session value, package pipeline and sales, and membership revenue, deferred revenue, actions, attrition, expiry and referrals.
 - Collections: tag clients in collections, keep notes on their billing page, and see a collections report with what each owes.
 - The portal refuses online buying and booking while an account is past due, when the billing setting is on; paying unlocks it.
 - Billing notices and expiring-cards screens, and a staff daily digest of failed and upcoming autopay.
