@@ -130,3 +130,18 @@ backup-drill: .env  ## back up this lane's database via the dev Postgres contain
 backup-drill-fresh: backup-drill  ## the same drill against a throwaway Postgres with no fh_* roles (the lost-host case)
 	set -a; . ./.env; set +a; export FH_BACKUP_PASSPHRASE=lane-drill-passphrase FH_EXPECTED_HEAD="$$(cd backend && uv run alembic heads | cut -d' ' -f1)"; \
 	infra/backup/drill-fresh.sh "$$(ls -t var/backups/*.enc | head -1)"
+
+# --- Performance (chip O2): load test and budget. See docs/ops/performance-budget.md. Not part of test or CI. ---
+.PHONY: perf-seed perf perf-profile perf-check
+
+perf-seed: .env     ## grow the demo tenant to the load-test data set (5,000 clients, a month of bookings, ...); after make seed
+	cd backend && FH_CONFIG_DIR="$$PWD/../perf/config" uv run python -m seeds.perf
+
+perf: .env          ## start the lane API (prod shape, perf/config overlay), run the front-desk load test, stop it; ARGS="--users 20"
+	perf/run.sh $(ARGS)
+
+perf-profile: .env  ## query count, slowest SQL and its EXPLAIN ANALYZE per request, in process; LABELS="calendar.week report.run"
+	cd backend && FH_CONFIG_DIR="$$PWD/../perf/config" PYTHONPATH=. uv run python ../perf/profile.py $(LABELS)
+
+perf-check:         ## fail when a p95 in the newest perf/results run exceeds perf/budget.json by the margin (MARGIN=0.25)
+	$(UV) python ../perf/loadtest.py --check "$$(ls -t ../perf/results/run-*.json | head -1)" --margin $${MARGIN:-0.25}
