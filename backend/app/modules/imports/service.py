@@ -417,6 +417,7 @@ def _write_report(session: Session, job: ImportJob, kind: Kind, phase: str) -> N
     stored = platform.files.store(
         session, csvio.write(lines), purpose="import_report", content_type="text/csv; charset=utf-8",
         uploaded_by=("system", None), original_name=f"import-{job.kind}-{phase}-report.csv",
+        generated=True,  # built by us from an already-scanned source: a scanner outage must not fail the job
     )  # fmt: skip
     job.report_file_id = stored.id
 
