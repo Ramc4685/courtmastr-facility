@@ -154,21 +154,25 @@ def _stored(tenant, client_id: str) -> list[PaymentMethod]:
 
 
 @pytest.mark.parametrize(
-    ("mode", "save", "kept"),
-    [("always", None, True), ("ask", None, False), ("ask", True, True), ("when_nothing_due", True, False)],
-)
-def test_the_card_that_pays_online_is_kept_by_the_save_mode(w, client, owner, mode, save, kept):
+    ("mode", "save", "autopay", "kept"),
+    [
+        ("always", None, False, True), ("ask", None, False, False), ("ask", True, False, True),
+        ("when_nothing_due", True, False, False),
+        ("ask", None, True, False),  # not forced for autopay (README: timeout recovery needs the token path)
+    ],
+)  # fmt: skip
+def test_the_card_that_pays_online_is_kept_by_the_save_mode(w, client, owner, mode, save, autopay, kept):
     run(w.tenant, JAN1, service.update_settings, {"online_card_save_mode": mode})
-    online = membership_plan(client, owner, w.tenant, is_sold_online=True)
+    online = membership_plan(client, owner, w.tenant, is_sold_online=True, is_autopay_default=autopay)
     person = new_client(client, owner, w.location_id)
     member = _member(w.tenant, person["id"])
     buy = {"membership_plan_id": UUID(online["id"]), "location_id": UUID(w.location_id), "method_token": "tok_card_ok"}
     with tx(w.tenant) as session:
         session.info["actor"] = member
         bought = service.portal_buy(session, member, buy | {"save_method": save}, f"k-{uuid4().hex}")
-    assert bought["payment_status"] == "succeeded" and bought["is_autopay"] is True  # BIL-17: the portal default
-    cards = [(c.kind, c.is_autopay) for c in _stored(w.tenant, person["id"])]
-    assert cards == ([("card", True)] if kept else [])
+    assert bought["payment_status"] == "succeeded" and bought["is_autopay"] is autopay
+    cards = [c.kind for c in _stored(w.tenant, person["id"])]
+    assert cards == (["card"] if kept else [])
 
 
 def test_an_open_plan_default_follows_the_channel_setting(w, client, owner):

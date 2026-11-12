@@ -477,6 +477,10 @@ class MembershipSuspension(TenantOwned, Timestamps, Base):
             "uq_membership_suspension_past_due", "tenant_id", "membership_contract_id", "past_due_invoice_id",
             unique=True, postgresql_where=text("past_due_invoice_id IS NOT NULL"),
         ),
+        Index(  # invoice_settled looks suspensions up by invoice alone
+            "ix_membership_suspension_past_due_invoice", "tenant_id", "past_due_invoice_id",
+            postgresql_where=text("past_due_invoice_id IS NOT NULL"),
+        ),
     )  # fmt: skip
 
     membership_contract_id: Mapped[UUID]

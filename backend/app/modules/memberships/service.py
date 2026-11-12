@@ -2018,9 +2018,12 @@ def portal_buy(session: Session, principal: Principal, data: dict, idempotency_k
     token, method_id, tender = data.get("method_token"), None, data.get("tender_kind") or "card"
     mode = settings_row(session).online_card_save_mode
     paying_now = invoice is not None and invoice.balance_minor > 0
-    if token and tender == "card" and paying_now and (mode == "always" or (mode == "ask" and data.get("save_method"))):
+    keep = mode == "always" or (mode == "ask" and data.get("save_method"))
+    if token and tender == "card" and paying_now and keep:
         # MEM-05: keep the card that pays now (with nothing due now checkout always stores it). Attached first, so
         # the processor charges a saved card rather than a one-time token that cannot be saved afterwards.
+        # Not forced for autopay: an attached card cannot get billing's pre-provider row committed, so a
+        # processor timeout would not be recoverable on retry (README, MEM-05 limits).
         method = billing.methods.attach_method(
             session, contract.owner_client_id, token, is_autopay=True if contract.is_autopay else None
         )
@@ -2276,23 +2279,42 @@ _AUTO_REMARK = "Suspended automatically: invoice past due"
 _LIFT_REMARK = "Lifted automatically: the invoice was settled"
 
 
-def _lift_settled(session: Session, suspensions: list[MembershipSuspension]) -> int:
-    """Lift automatic suspensions whose invoice no longer owes (paid, reversed or voided)."""
+def _open_auto(session: Session, *where) -> list[MembershipSuspension]:
+    """Automatic suspensions still in force somewhere: not removed and not ended before yesterday (any
+    location's day), so lifted or finished ones are not rescanned and relocked every hour."""
+    s = MembershipSuspension
+    since = platform.service.earliest_today(session) - _ONE_DAY
+    return list(session.scalars(select(s).where(
+        s.past_due_invoice_id.is_not(None), s.removed_at.is_(None),
+        or_(func.upper(s.during).is_(None), func.upper(s.during) > since), *where,
+    )))  # fmt: skip
+
+
+def _lift_settled(session: Session, suspensions: list[MembershipSuspension], failed: list | None = None) -> int:
+    """Lift automatic suspensions whose invoice no longer owes (paid, reversed or voided), each in its own
+    savepoint so one refusal does not stop the others (it lands in `failed`)."""
     owing = billing.collections.still_owing(session, [row.past_due_invoice_id for row in suspensions])
     lifted = 0
     for suspension in suspensions:
         if suspension.past_due_invoice_id in owing:
             continue
-        contract = _get(session, MembershipContract, suspension.membership_contract_id, lock=True)
-        today = _today(session, contract.location_id)
-        if suspension.removed_at is not None or (suspension.during.upper and suspension.during.upper <= today):
-            continue
-        _lift(session, contract, suspension, today, staff_id=None, remarks=_LIFT_REMARK)
-        contract.version += 1
-        audit.record(session, _SUSPEND, contract, location_id=contract.location_id, reason=_LIFT_REMARK,
-                     changes={"suspension_removed": [None, str(suspension.id)]})  # fmt: skip
-        _converge(session, contract, today)
-        lifted += 1
+        try:
+            with session.begin_nested():
+                contract = _get(session, MembershipContract, suspension.membership_contract_id, lock=True)
+                session.refresh(suspension)  # loaded before the contract lock: staff may have changed it since
+                today = _today(session, contract.location_id)
+                if suspension.removed_at is not None or (suspension.during.upper and suspension.during.upper <= today):
+                    continue
+                _lift(session, contract, suspension, today, staff_id=None, remarks=_LIFT_REMARK)
+                contract.version += 1
+                audit.record(session, _SUSPEND, contract, location_id=contract.location_id, reason=_LIFT_REMARK,
+                             changes={"suspension_removed": [None, str(suspension.id)]})  # fmt: skip
+                _converge(session, contract, today)
+                lifted += 1
+        except (DomainError, IntegrityError) as exc:
+            if failed is None:
+                raise
+            failed.append({"suspension_id": str(suspension.id), "error": getattr(exc, "code", "integrity-error")})
     return lifted
 
 
@@ -2325,10 +2347,7 @@ def sweep_past_due(session: Session) -> dict:
     suspension per contract and invoice, ever (unique index): once lifted, by payment or by staff, that invoice
     never suspends the contract again; another overdue invoice can. Each contract in its own savepoint."""
     result = {"suspended": 0, "lifted": 0, "failed": []}
-    open_auto = list(session.scalars(select(MembershipSuspension).where(
-        MembershipSuspension.past_due_invoice_id.is_not(None), MembershipSuspension.removed_at.is_(None),
-    )))  # fmt: skip
-    result["lifted"] = _lift_settled(session, open_auto)
+    result["lifted"] = _lift_settled(session, _open_auto(session), result["failed"])
     if not billing.collections.is_suspension_rule_on(session):
         return result
     c = MembershipContract
@@ -2358,9 +2377,7 @@ def sweep_past_due(session: Session) -> dict:
 
 def invoice_settled(session: Session, invoice_id: UUID) -> int:
     """Lift, now, the automatic suspensions an invoice caused once it is paid or voided (event handler)."""
-    rows = list(session.scalars(select(MembershipSuspension).where(
-        MembershipSuspension.past_due_invoice_id == invoice_id, MembershipSuspension.removed_at.is_(None),
-    )))  # fmt: skip
+    rows = _open_auto(session, MembershipSuspension.past_due_invoice_id == invoice_id)
     return _lift_settled(session, rows) if rows else 0
 
 
