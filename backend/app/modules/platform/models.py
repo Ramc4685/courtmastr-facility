@@ -441,10 +441,16 @@ class MfaFactor(TenantOwned, Timestamps, Base):
     secret_encrypted: Mapped[str] = mapped_column(info={"audit": "never"})
     confirmed_at: Mapped[datetime | None]
     last_used_step: Mapped[int | None] = mapped_column(BigInteger)  # a used 30 s step is never accepted again
+    # Wrong codes have their own lockout, apart from the password one, so password guessing cannot lock the
+    # second factor and redeeming a link cannot reset code guessing (same thresholds as the password lockout).
+    failed_attempt_count: Mapped[int] = mapped_column(server_default=text("0"))
+    failed_window_started_at: Mapped[datetime | None]
+    locked_until_at: Mapped[datetime | None]
+    lockout_count: Mapped[int] = mapped_column(server_default=text("0"))
 
 
 class MfaRecoveryCode(TenantOwned, Timestamps, Base):
-    """One of ten single-use recovery codes; SHA-256 only (high-entropy secret, baseline 5.1)."""
+    """One of ten single-use recovery codes, stored as a keyed HMAC bound to the identity (core.crypto.mac)."""
 
     __tablename__ = "mfa_recovery_code"
     __table_args__ = tenant_args(
