@@ -113,10 +113,10 @@ function BuyDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
           {q && q.due_now_minor > 0 && <CouponField subtotalMinor={q.due_now_minor} onChange={setCoupon} />}
           <FormError error={buy.error} />
           {needsCard && <NewCardField value={token} onChange={setToken} />}
-          {needsCard && q && q.due_now_minor > 0 && q.card_save_mode === 'ask' && (
+          {needsCard && q && q.due_now_minor > 0 && q.card_save_mode === 'ask' && !q.is_autopay && (
             <Checkbox label="Save this card for future payments" hint="It becomes your card on file; you can remove it under payment methods." checked={saveCard} onChange={(e) => setSaveCard(e.target.checked)} />
           )}
-          {needsCard && q && q.due_now_minor > 0 && q.card_save_mode === 'always' && <p className="text-sm text-muted">The club keeps this card on file for future payments.</p>}
+          {needsCard && q && q.due_now_minor > 0 && (q.card_save_mode === 'always' || q.is_autopay) && <p className="text-sm text-muted">The club keeps this card on file for future payments.</p>}
           {errors.method_token && (
             <p role="alert" className="text-sm text-danger">
               {errors.method_token}

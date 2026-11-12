@@ -328,15 +328,15 @@ handlers re-read the object from the provider.
   and pay invoices, edit their profile and sign documents; paying the past-due invoice unlocks at once.
 - **The digest's "previous day" is the location's local day,** and payments count by `received_at`.
   The expiring-cards month is compared in UTC (cards carry a month, not a zone).
-- **Known limits of the non-payment rule and lockout (MEM-14, BIL-22).** A pending bank debit clears
-  `past_due_since_on` (in `service.py`, outside this chip), so a debit that keeps failing restarts
-  the N-day clock each time and unlocks the portal while it is pending. An invoice that reopens after an
-  automatic lift never suspends that contract again (one automatic suspension per contract and invoice).
-- **Online card save is not forced for autopay (MEM-05).** In `ask` and `when_nothing_due` an autopay
-  membership bought online with money due now keeps the card only when the member asks; otherwise its later
-  dues wait for a stored method and go through the decline notices. Saving means attaching the card before
-  the charge, and a charge on a card attached in the same transaction cannot get billing's pre-provider row
-  committed, so a processor timeout would not be recoverable on retry. The `always` mode accepts that limit.
-  The fix is saving after the charge in `checkout.py` (outside this chip).
+- **A pending bank debit pauses the dunning clock; it does not restart it (MEM-14, BIL-22).** While a debit
+  covers what is overdue the invoice is `payment_pending`: no reminders, no portal lockout, no non-payment
+  suspension. `past_due_since_on` keeps the first overdue day, so if the debit is returned dunning resumes
+  from that day (no second past-due notice), as Stripe Billing and Chargebee do. Known limit: an invoice
+  that reopens after an automatic lift never suspends that contract again (one per contract and invoice).
+- **Saving the card that pays online is "save during payment" (MEM-05).** The processor keeps the method on
+  the customer with the charge (`take_payment(save_method=True)`, Stripe `setup_future_usage=off_session`)
+  and `methods.save_from_payment` records it once the payment is secured, including after a timeout is
+  recovered. Nothing is attached before the charge, so the payment's pre-provider row still commits and a
+  timeout stays recoverable. An autopay membership always keeps the card; `ask` asks otherwise.
 - **BIL-17 order replaces "portal always autopay".** Plans whose default was `false` became null in 1331,
   so they follow the channel setting; a plan set to `false` explicitly still wins.

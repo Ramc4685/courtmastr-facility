@@ -151,7 +151,7 @@ class FakeProvider:
 
     def create_payment(
         self, *, account_ref: str, amount_minor: int, currency: str, method_token: str, idempotency_key: str,
-        customer_ref: str | None = None, off_session: bool = False,
+        customer_ref: str | None = None, off_session: bool = False, save_method: bool = False,
     ) -> PaymentState:  # fmt: skip
         if ref := self._by_key.get(idempotency_key):
             return self._payments[ref][0]
@@ -173,6 +173,11 @@ class FakeProvider:
             client_secret=f"{ref}_secret" if outcome == "requires_action" else None,
             **(_CARD if token.startswith("tok_card") else {}),
         )  # fmt: skip
+        if save_method and customer_ref and not stored and outcome in ("succeeded", "processing", "unknown"):
+            # Save during payment, as Stripe's setup_future_usage does: the method lands on the customer with
+            # the charge (an `unknown` charge did go through, so its method was saved too).
+            saved = self.attach_method(account_ref=account_ref, customer_ref=customer_ref, method_token=token)
+            state = replace(state, provider_method_ref=saved.provider_method_ref)
         self._by_key[idempotency_key] = ref
         self._payments[ref] = (state, token, amount_minor, account_ref)
         return state

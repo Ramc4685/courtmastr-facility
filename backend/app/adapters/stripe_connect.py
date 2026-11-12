@@ -283,15 +283,18 @@ class StripeConnectProvider:
         return PaymentState(
             ref, outcome, card_brand=card.get("brand"), card_last4=card.get("last4"), card_funding=card.get("funding"),
             client_secret=payload.get("client_secret") if outcome == "requires_action" else None,
+            provider_method_ref=method if isinstance(method := payload.get("payment_method"), str) else None,
         )  # fmt: skip
 
     def create_payment(
         self, *, account_ref: str, amount_minor: int, currency: str, method_token: str, idempotency_key: str,
-        customer_ref: str | None = None, off_session: bool = False,
+        customer_ref: str | None = None, off_session: bool = False, save_method: bool = False,
     ) -> PaymentState:  # fmt: skip
         params = {
             "amount": amount_minor, "currency": currency.lower(), "payment_method": method_token, "confirm": True,
             "customer": customer_ref, "off_session": True if off_session else None,
+            # Save during payment: Stripe attaches the method to the customer once the charge succeeds.
+            "setup_future_usage": "off_session" if save_method and customer_ref else None,
             "automatic_payment_methods": _NO_REDIRECTS, "metadata": {"fh_key": idempotency_key},
             "expand": ["latest_charge"],
             # The payer is present: 3-D Secure comes back as a next action Stripe.js handleNextAction() runs.
