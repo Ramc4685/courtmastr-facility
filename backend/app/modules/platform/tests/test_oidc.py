@@ -11,6 +11,8 @@ emailed confirmation in the same browser (`_connect`). The issuer's email claim 
 import base64
 import hashlib
 import json
+import socket
+import threading
 import time
 from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
@@ -406,7 +408,8 @@ def test_mfa_challenge_unless_the_provider_asserts_it_and_the_token_shows_it(cli
     assert "mfa_token" in sign_in(acr="urn:x:loa1").json()
     trusted = sign_in(amr=["pwd", "otp"])
     assert trusted.status_code == 200 and trusted.json()["mfa_verified_at"] is not None
-    assert sign_in(acr="mfa").status_code == 200
+    assert "mfa_token" in sign_in(amr=["hwk"]).json()  # one factor, however strong
+    assert sign_in(acr="http://schemas.openid.net/pape/policies/2007/06/multi-factor").status_code == 200
 
 
 def test_ip_allowlist_applies(client, tenant, idp, mailbox):
@@ -615,7 +618,13 @@ def test_microsoft_and_google_email_claims():
 def test_mfa_needs_evidence_in_the_token():
     assert oidc.shows_mfa({}) is False  # neither amr nor acr: no evidence
     assert oidc.shows_mfa({"amr": ["pwd"]}) is False and oidc.shows_mfa({"amr": "otp"}) is False
-    assert oidc.shows_mfa({"amr": ["pwd", "hwk"]}) is True and oidc.shows_mfa({"acr": "mfa"}) is True
+    # One method alone is one factor, however strong: a passkey, a code, a text message.
+    for single in (["hwk"], ["swk"], ["fido"], ["sms"], ["tel"], ["otp", "sms"]):
+        assert oidc.shows_mfa({"amr": single}) is False, single
+    assert oidc.shows_mfa({"amr": ["pwd", "hwk"]}) is True and oidc.shows_mfa({"amr": ["mfa"]}) is True
+    assert oidc.shows_mfa({"amr": ["hwk", "fpt"]}) is True  # something you have + something you are
+    assert oidc.shows_mfa({"acr": "mfa"}) is False  # not a standard level
+    assert oidc.shows_mfa({"acr": "http://schemas.openid.net/pape/policies/2007/06/multi-factor"}) is True
 
 
 def test_google_issuer_variants(monkeypatch):
@@ -646,19 +655,79 @@ def test_a_failed_discovery_is_cached_briefly(idp, monkeypatch):
     assert oidc.discover(idp.issuer)["issuer"] == idp.issuer  # retried once the failure expires
 
 
-def test_the_cache_is_bounded(idp, monkeypatch):
+def test_the_cache_is_bounded_least_recently_used_out(idp, monkeypatch):
     monkeypatch.setattr(oidc, "_CACHE_MAX", 2)
-    for name in ("a", "b", "c"):
-        oidc._remember(f"https://{name}.test/x", 60, {"n": name})
-    assert list(oidc._cache) == ["https://b.test/x", "https://c.test/x"]
+    oidc._remember("https://a.test/x", 60, {"n": "a"})
+    oidc._remember("https://b.test/x", 60, {"n": "b"})
+    assert oidc._cached("https://a.test/x") == {"n": "a"}  # a is used, so b is now the least recent
+    oidc._remember("https://c.test/x", 60, {"n": "c"})
+    assert list(oidc._cache) == ["https://a.test/x", "https://c.test/x"]
 
 
-def test_the_deadline_covers_the_whole_body():
+def test_the_size_cap():
+    assert b"".join(oidc._capped(iter([b"a", b"b"]))) == b"ab"
     with pytest.raises(oidc.ProviderError):
-        list(oidc._capped(iter([b"a", b"b"]), time.monotonic() - 1))
-    assert b"".join(oidc._capped(iter([b"a", b"b"]), time.monotonic() + 5)) == b"ab"
+        list(oidc._capped(iter([b"x" * (oidc._MAX_BYTES + 1)])))
+
+
+@pytest.mark.parametrize(
+    "drip",
+    [
+        [b"H", b"T", b"T", b"P", b"/", b"1", b".", b"1", b" ", b"2"] * 20,  # one header byte at a time
+        [b"HTTP/1.1 100 Continue\r\n\r\n"] * 200,  # informational responses forever
+    ],
+    ids=["slow-headers", "endless-100-continue"],
+)
+def test_the_deadline_bounds_headers_and_1xx_on_a_real_socket(drip):
+    """A real local server that answers slowly: the fetch ends at its wall-clock deadline, not one timeout per
+    read (each drip comes well inside the per-read wait)."""
+    server = socket.socket()
+    server.bind(("127.0.0.1", 0))
+    server.listen(1)
+    port = server.getsockname()[1]
+
+    def serve():
+        conn, _ = server.accept()
+        with conn:
+            conn.recv(65536)
+            for piece in drip:
+                try:
+                    conn.sendall(piece)
+                except OSError:
+                    return  # the client hung up: what we want
+                time.sleep(0.05)
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    transport = oidc._PinnedTransport("127.0.0.1")
+    started = time.monotonic()
+    # http here only because the transport is driven directly; the guard in _fetch allows https alone.
+    request = httpx.Request("GET", f"http://localhost:{port}/x", extensions={"fh_deadline": started + 0.5})
+    try:
+        with pytest.raises(oidc.ProviderError):
+            transport.handle_request(request)
+        assert time.monotonic() - started < 2  # the drip would last 10 s
+    finally:
+        transport.close()
+        server.close()
+        thread.join(5)
+
+
+def test_malformed_issuer_documents_are_provider_errors(idp):
+    doc = {
+        "issuer": idp.issuer, "authorization_endpoint": f"{idp.issuer}/authorize",
+        "token_endpoint": f"{idp.issuer}/token", "jwks_uri": f"{idp.issuer}/jwks",
+    }  # fmt: skip
+    for methods in ("S256", 7, {"S256": True}):
+        oidc._cache.clear()
+        idp.discovery = httpx.Response(200, json=doc | {"code_challenge_methods_supported": methods})
+        with pytest.raises(oidc.ProviderError):
+            oidc.discover(idp.issuer)
+    oidc._remember(f"{idp.issuer}/jwks", 60, {"keys": {"kid": "k1"}})
     with pytest.raises(oidc.ProviderError):
-        list(oidc._capped(iter([b"x" * (oidc._MAX_BYTES + 1)]), time.monotonic() + 5))
+        oidc._signing_key(f"{idp.issuer}/jwks", "k1", "RS256")
+    with pytest.raises(oidc.ProviderError):
+        oidc._fetch("GET", f"{idp.issuer}/jw\x01ks")  # httpx.InvalidURL, not an HTTPError
 
 
 def test_connection_errors_become_provider_errors():

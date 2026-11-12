@@ -59,14 +59,22 @@ _STATE_TTL = timedelta(minutes=10)
 _LINK_TTL = timedelta(minutes=15)
 _CACHE_SEC = 3600
 _FAILED_CACHE_SEC = 30  # a failed discovery is not retried for this long: no hammering a dead or hostile host
-_CACHE_MAX = 256  # entries (discovery documents and key sets); the oldest goes first
+_CACHE_MAX = 256  # entries (discovery documents and key sets); the least recently used goes first
 _TIMEOUT_SEC = 5.0  # for the whole fetch: connect, TLS, request and body together
 _MAX_BYTES = 1 << 20
 _LEEWAY_SEC = 60
 _ALGORITHMS = {"RS256", "PS256", "ES256"}
-# RFC 8176 methods that are a factor beyond a password; "mfa" is the provider saying so itself.
-_MFA_AMR = {"mfa", "otp", "hwk", "swk", "sms", "tel", "fido"}
-_MFA_ACR = {"http://schemas.openid.net/pape/policies/2007/06/multi-factor", "mfa"}
+# RFC 8176 `amr` values by factor class. A token shows MFA when its amr says "mfa" itself or names methods from
+# two different classes; one method alone (a passkey, a code) is not a second factor.
+_FACTOR_CLASS = {
+    **dict.fromkeys(("pwd", "pin", "kba"), "know"),
+    **dict.fromkeys(("otp", "hwk", "swk", "sms", "tel", "sc"), "have"),
+    **dict.fromkeys(("fpt", "face", "iris", "retina", "vbm"), "are"),
+}
+_MFA_ACR = {
+    "http://schemas.openid.net/pape/policies/2007/06/multi-factor",
+    "http://schemas.openid.net/pape/policies/2007/06/multi-factor-physical",
+}
 GOOGLE_ISSUER = "https://accounts.google.com"
 # A single Entra ID directory. The multi-tenant endpoints (common, organizations, consumers) publish a templated
 # issuer that never equals the token's, and would admit any directory's users: refused.
@@ -123,12 +131,43 @@ def _checked_address(url: str) -> str:
     return addresses[0]
 
 
+class _DeadlineStream(httpcore.NetworkStream):
+    """Every socket wait gets only what is left of the fetch's deadline, so a peer dripping header bytes or
+    sending endless `100 Continue` is cut off at the deadline, not after one timeout per read."""
+
+    def __init__(self, stream: httpcore.NetworkStream, deadline: float) -> None:
+        self._stream, self._deadline = stream, deadline
+
+    def _left(self) -> float:
+        left = self._deadline - time.monotonic()
+        if left <= 0:
+            raise httpcore.ReadTimeout("deadline")
+        return left
+
+    def read(self, max_bytes, timeout=None):
+        return self._stream.read(max_bytes, self._left())
+
+    def write(self, buffer, timeout=None):
+        self._stream.write(buffer, self._left())
+
+    def close(self):
+        self._stream.close()
+
+    def start_tls(self, ssl_context, server_hostname=None, timeout=None):
+        return _DeadlineStream(self._stream.start_tls(ssl_context, server_hostname, self._left()), self._deadline)
+
+    def get_extra_info(self, info):
+        return self._stream.get_extra_info(info)
+
+
 class _PinnedBackend(httpcore.SyncBackend):
     def __init__(self, address: str) -> None:
         self.address = address
+        self.deadline = time.monotonic() + _TIMEOUT_SEC  # set per request; one transport serves one fetch
 
     def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
-        return super().connect_tcp(self.address, port, timeout, local_address, socket_options)
+        stream = super().connect_tcp(self.address, port, _left(self.deadline), local_address, socket_options)
+        return _DeadlineStream(stream, self.deadline)
 
 
 _HTTPCORE_ERRORS = (
@@ -141,24 +180,24 @@ _HTTPCORE_ERRORS = (
 
 class _PinnedTransport(httpx.BaseTransport):
     """Connects only to the address the guard checked; TLS still verifies the certificate for the URL's host.
-    Every socket wait is capped by what is left of the fetch's deadline, and the body is read raw (identity
-    encoding only), so the size cap counts the bytes that are actually held."""
+    The whole exchange (connect, TLS, request, headers, 1xx responses, body) is bounded by one wall-clock
+    deadline through `_DeadlineStream`, and the body is read raw (identity encoding only), so the size cap counts
+    the bytes that are actually held."""
 
     def __init__(self, address: str) -> None:
-        self._pool = httpcore.ConnectionPool(network_backend=_PinnedBackend(address))
+        self._backend = _PinnedBackend(address)
+        self._pool = httpcore.ConnectionPool(network_backend=self._backend)
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
-        deadline = request.extensions.get("fh_deadline", time.monotonic() + _TIMEOUT_SEC)
-        left = _left(deadline)
+        self._backend.deadline = request.extensions.get("fh_deadline", time.monotonic() + _TIMEOUT_SEC)
         try:
             with self._pool.stream(
-                request.method, str(request.url), headers=request.headers.raw, content=request.read(),
-                extensions={"timeout": dict.fromkeys(("connect", "read", "write", "pool"), left)},
-            ) as response:  # fmt: skip
+                request.method, str(request.url), headers=request.headers.raw, content=request.read()
+            ) as response:
                 headers = httpx.Headers(response.headers)
                 if headers.get("content-encoding", "identity").strip().lower() != "identity":
                     raise ProviderError("encoded response")
-                body = b"".join(_capped(response.iter_stream(), deadline))
+                body = b"".join(_capped(response.iter_stream()))
         except _HTTPCORE_ERRORS as exc:
             raise ProviderError(type(exc).__name__) from None
         return httpx.Response(response.status, headers=headers, content=body)
@@ -174,13 +213,12 @@ def _left(deadline: float) -> float:
     return left
 
 
-def _capped(chunks: Iterator[bytes], deadline: float) -> Iterator[bytes]:
+def _capped(chunks: Iterator[bytes]) -> Iterator[bytes]:
     size = 0
     for chunk in chunks:
         size += len(chunk)
         if size > _MAX_BYTES:
             raise ProviderError("response too large")
-        _left(deadline)  # a trickling body is cut at the deadline, not per read
         yield chunk
 
 
@@ -201,7 +239,7 @@ def _fetch(method: str, url: str, **kwargs: Any) -> dict:
             raise ProviderError("encoded response")
         _left(deadline)
         data = response.json()
-    except (httpx.HTTPError, ValueError) as exc:
+    except (httpx.HTTPError, httpx.InvalidURL, ValueError) as exc:  # InvalidURL: a hostile jwks_uri
         raise ProviderError(type(exc).__name__) from None
     if response.status_code != 200 or not isinstance(data, dict):
         raise ProviderError(f"status {response.status_code}")
@@ -223,6 +261,7 @@ def _remember(url: str, ttl: float, value: dict | ProviderError) -> None:
 def _cached(url: str, *, refresh: bool = False, remember_failure: bool = False) -> dict:
     hit = _cache.get(url)
     if hit and hit[0] > time.monotonic() and (not refresh or isinstance(hit[1], ProviderError)):
+        _cache.move_to_end(url)  # least recently used goes first
         if isinstance(hit[1], ProviderError):
             raise hit[1]
         return hit[1]
@@ -244,7 +283,8 @@ def discover(issuer: str) -> dict:
     for key in ("authorization_endpoint", "token_endpoint", "jwks_uri"):
         if not isinstance(doc.get(key), str) or not doc[key].startswith("https://"):
             raise ProviderError(f"no {key}")
-    if "S256" not in doc.get("code_challenge_methods_supported", ["S256"]):
+    methods = doc.get("code_challenge_methods_supported", ["S256"])
+    if not isinstance(methods, list) or "S256" not in methods:
         raise ProviderError("no PKCE S256")
     return doc
 
@@ -252,7 +292,10 @@ def discover(issuer: str) -> dict:
 def _signing_key(jwks_uri: str, kid: str | None, alg: str) -> Any:
     """The JWK for `kid`; an unknown kid refetches the set once (the provider rotated its keys)."""
     for refresh in (False, True):
-        keys = [k for k in _cached(jwks_uri, refresh=refresh).get("keys", []) if isinstance(k, dict)]
+        keys = _cached(jwks_uri, refresh=refresh).get("keys", [])
+        if not isinstance(keys, list):
+            raise ProviderError("keys is not a list")
+        keys = [k for k in keys if isinstance(k, dict)]
         keys = [k for k in keys if k.get("use", "sig") == "sig" and (kid is None or k.get("kid") == kid)]
         if len(keys) == 1:
             return jwt.PyJWK(keys[0], algorithm=alg).key
@@ -308,12 +351,15 @@ def verified_email(config: IdentityProviderConfig, claims: dict) -> str | None:
 
 
 def shows_mfa(claims: dict) -> bool:
-    """Whether the token says a second factor was used: `amr` names one or `acr` a multi-factor level. A token
-    with neither (Google; Microsoft by default) shows nothing, so the tenant's `asserts_mfa` flag alone never
-    skips our code step."""
+    """Whether the token says more than one factor was used: `amr` contains "mfa" or methods from two factor
+    classes (know, have, are), or `acr` is an OpenID PAPE multi-factor policy. A token with neither claim
+    (Google; Microsoft by default) shows nothing, so the tenant's `asserts_mfa` flag alone never skips our code
+    step."""
     amr, acr = claims.get("amr"), claims.get("acr")
-    if isinstance(amr, list) and _MFA_AMR & {str(v) for v in amr}:
-        return True
+    if isinstance(amr, list):
+        methods = {str(v) for v in amr}
+        if "mfa" in methods or len({_FACTOR_CLASS[m] for m in methods if m in _FACTOR_CLASS}) >= 2:
+            return True
     return isinstance(acr, str) and acr in _MFA_ACR
 
 
@@ -600,7 +646,7 @@ def _finish_step_up(
     return auth.rotate_for_step_up(session, identity, current, mfa_verified=mfa_ok, reason="oidc")
 
 
-# --- provider configuration (Security settings; platform.security.manage, a `+` key) ---------------------------------
+# --- provider configuration (read: platform.security.manage; change: platform.identity_provider.manage) ---------
 
 
 def provider_view(config: IdentityProviderConfig) -> dict:

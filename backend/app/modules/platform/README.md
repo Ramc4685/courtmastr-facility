@@ -228,14 +228,18 @@ in-process fake provider).
   and checks the ID token: signature (RS256, PS256 or ES256 from the JWKS; `none` and HMAC refused), `iss`,
   `aud` (and `azp` when there are several audiences), `exp`, `iat`, `nonce`, and a `sub`. A spent or foreign
   state is refused and stays spent. Rate limited by the `oidc` bucket.
-- **Outbound fetches** (discovery, JWKS, token): https only, one 5 s deadline for the whole fetch (every socket
-  wait gets what is left, and a trickling body is cut at the deadline), `Accept-Encoding: identity` with
-  encoded responses refused so the 1 MiB cap counts real bytes, no redirects, and the SSRF guard
+- **Outbound fetches** (discovery, JWKS, token): https only, one 5 s wall-clock deadline for the whole exchange
+  (the socket wrapper gives every connect, TLS, write and read only what is left, so dripped header bytes,
+  endless `100 Continue` or a trickling body end at the deadline), `Accept-Encoding: identity` with encoded
+  responses refused so the 1 MiB cap counts real bytes, no redirects, malformed discovery fields or key sets
+  and invalid URLs refused as provider errors, and the SSRF guard
   (`core.networks.blocked_reason`) checked on the resolved address, which the connection is pinned to. A host
   that does not resolve and one that resolves to a private address get the same answer. Connection and
   timeout errors become `oidc-failed` or `oidc-unavailable`, never a 500. Discovery and JWKS are cached per
-  process for an hour in a bounded cache (256 entries, oldest out); a failed discovery is remembered for 30 s;
-  an unknown `kid` refetches the JWKS once (key rotation).
+  process for an hour in a bounded cache (256 entries, least recently used out); a failed discovery is remembered
+  for 30 s; an unknown `kid` refetches the JWKS once (key rotation). The callback holds the state row lock (it
+  makes a state single use) across its fetches, so that lock lasts at most about 20 s (discovery, token, two
+  JWKS fetches, 5 s each), usually under a second since discovery and keys are cached.
 - **Email claims.** Only a verified email can lead to a link: `email_verified` must be true. Microsoft Entra ID
   often omits it, so for the `microsoft` preset `xms_edov` (email domain owner verified, an optional claim the
   owner adds) counts as well. Google's issuer appears with and without `https://`; both are accepted.
@@ -252,9 +256,10 @@ in-process fake provider).
   identities. A linked account whose user is disabled or outside the allowed domains gets the neutral
   `401 oidc-sign-in-refused`.
 - **Sessions**: through `auth._second_factor` and `auth._start_session` like every other sign-in. MFA counts as
-  done only when the provider is marked `asserts_mfa` and the token shows a second factor (`amr` contains
-  `mfa`, `otp`, `hwk`, `swk`, `sms`, `tel` or `fido`, or `acr` names a multi-factor level). A token with
-  neither claim shows nothing, so the user's own factor is asked for (`202`), or enrolment when required.
+  done only when the provider is marked `asserts_mfa` and the token shows more than one factor: `amr`
+  contains `mfa`, or RFC 8176 methods from two classes (know: `pwd`, `pin`, `kba`; have: `otp`, `hwk`, `swk`,
+  `sms`, `tel`, `sc`; are: `fpt`, `face`, `iris`, `retina`, `vbm`), or `acr` is an OpenID PAPE multi-factor
+  policy URI. One method alone (a passkey, a code) is one factor. A token with neither claim shows nothing, so the user's own factor is asked for (`202`), or enrolment when required.
   Forced enrolment is allowed after an OIDC sign-in (method `oidc`), since the account was linked through an
   emailed link. An OIDC sign-in is not elevated. The IP allow-list applies before anything else; the password
   lockout does not, since no password is involved.
