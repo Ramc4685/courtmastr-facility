@@ -6,7 +6,7 @@ import io
 import json
 import zipfile
 from datetime import datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import func, select
@@ -14,8 +14,10 @@ from sqlalchemy import func, select
 from app.core import clock
 from app.core.audit import AuditEvent
 from app.core.auth import system_principal
+from app.core.db import Base
 from app.core.db.session import tenant_session
 from app.core.errors import NotFound
+from app.core.jobs import FailedJobRecorder, broker
 from app.modules.platform import files, privacy, retention, tenant_export
 from app.modules.platform.models import AuthToken, DataSubjectRequest, StoredFile, TenantExport
 from app.modules.reporting.tests.test_reporting import drain
@@ -132,3 +134,49 @@ def test_export_cells_cannot_run_as_spreadsheet_formulas():
     assert tenant_export._cell("=SUM(A1)") == "'=SUM(A1)" and tenant_export._cell("Ok") == "Ok"
     assert tenant_export._cell(None) == "" and tenant_export._cell({"a": 1}) == '{"a": 1}'
     assert tenant_export._cell(-5) == "-5"  # numbers are not text a spreadsheet would evaluate
+
+
+def test_a_dead_lettered_export_says_failed_and_a_stalled_one_frees_the_slot(client, tenant, owner):
+    made = ok(client.post(f"{API}/tenant-exports", headers=owner), 202)
+    with tenant_session(tenant.id) as session:  # one chunk ran: the row holds a partial zip
+        assert tenant_export.export_chunk(session, UUID(made["id"]))
+    proxy = type("Proxy", (), {"args": (str(tenant.id), made["id"]), "actor_name": "run_tenant_export",
+                               "queue_name": "default", "message_id": uuid4().hex, "options": {},
+                               "_exception": RuntimeError("boom")})()  # fmt: skip
+    FailedJobRecorder().after_nack(broker, proxy)
+    with tenant_session(tenant.id) as session:
+        row = session.get(TenantExport, made["id"])
+        assert (row.status, row.partial) == ("failed", None) and row.error and row.finished_at
+
+    second = ok(client.post(f"{API}/tenant-exports", headers=owner), 202)  # a failed export no longer blocks
+    with tenant_session(tenant.id) as session:
+        tenant_export.export_chunk(session, UUID(second["id"]))
+    with clock.freeze(clock.now() + tenant_export.STALE_AFTER + timedelta(minutes=1)):
+        tenant_export.purge_expired_exports.fn(str(tenant.id))
+    with tenant_session(tenant.id) as session:
+        row = session.get(TenantExport, second["id"])
+        assert (row.status, row.partial) == ("failed", None)
+    drain()  # the queued messages find failed rows and stop
+    ok(client.post(f"{API}/tenant-exports", headers=owner), 202)
+
+
+def test_export_pages_a_big_table_by_key_into_numbered_files(client, tenant, owner, monkeypatch):
+    location = _location(client, owner)
+    people = {new_client(client, owner, location)["id"] for _ in range(3)}
+    monkeypatch.setattr(tenant_export, "CHUNK_ROWS", 2)
+    made = ok(client.post(f"{API}/tenant-exports", headers=owner), 202)
+    drain()
+    with tenant_session(tenant.id) as session:
+        _, data = files.read(session, session.get(TenantExport, made["id"]).file_id)
+    archive = zipfile.ZipFile(io.BytesIO(data))
+    rows = [r for name in ("client.csv", "client.2.csv")
+            for r in csv.DictReader(io.StringIO(archive.read(name).decode()))]  # fmt: skip
+    assert {r["id"] for r in rows} == people and len(rows) == 3  # every row once, none repeated across pages
+
+
+def test_no_never_audited_or_door_opening_column_is_exported():
+    leaked = [f"{t.name}.{c.name}" for t in Base.metadata.tables.values() for c in tenant_export.columns(t)
+              if c.info.get("audit") == "never"]  # fmt: skip
+    assert leaked == []
+    names = {t.name: {c.name for c in tenant_export.columns(t)} for t in Base.metadata.tables.values()}
+    assert not {"key_prefix", "previous_key_prefix"} & names["api_key"] and "value" not in names["credential"]
