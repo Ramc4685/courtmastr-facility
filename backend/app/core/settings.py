@@ -252,11 +252,11 @@ def get_settings() -> Settings:
         raise RuntimeError("outside dev and test, payments.stripe.test_onboarding must be hosted")
     if env not in ("dev", "test") and settings.payments.provider == "fake":
         raise RuntimeError("outside dev and test, payments.provider must not be fake: it takes no real money")
-    if env not in ("dev", "test") and settings.storage.scanner == "noop":
-        raise RuntimeError("outside dev and test, storage.scanner must not be noop: uploads must be malware-scanned")
     if env not in PRODUCTION_ENVS and any(
         os.environ.get(name, "").startswith(_LIVE_KEY_PREFIXES) for name in STRIPE_KEY_VARS
     ):
         # A live Stripe key moves real money: only a production deployment may hold one.
         raise RuntimeError(f"a live Stripe key is set but FH_ENV is {env!r}: use test-mode keys outside production")
+    if env not in ("dev", "test") and settings.storage.scanner == "noop":
+        raise RuntimeError("outside dev and test, storage.scanner must not be noop: uploads must be malware-scanned")
     return settings
