@@ -101,6 +101,7 @@ BIL-23 public API (wave 8). The XLSX engine is Phase 12's; B builds PDF only.
 | 2026-11-11 | C | Fable review: 1 blocking (a guardian could spend a ward's credit and remove a ward's card), fixed with 8 smaller items in 9c38427; merged; no migrations | e863420 |
 | 2026-11-12 | gate | C merged tree: lint, web-check, web-test (162), test 4255 passed + 2 reporting failures (earliest-local-today flake 05:00-06:00 UTC, test pinned in 8e81bfb, file re-run green); lane p9c removed | 8e81bfb |
 | 2026-11-12 | main | Phase 8 (4533c0d) merged in; 1301 now revises 1272, head 1310; lane rebuilt; new gates typecheck (4 billing files on the debt list, 3 small fixes) and boundaries pass; purge deletes bytes via `files.remove`; test 5038 passed + 3 imports failures (chip A `_draft` now returns `addons`, Phase 8 `import_contract` passed it to the model), fixed and imports + memberships re-run green; web-test 207 | e6975b7 |
+| 2026-11-12 | gate | full gate on beb892c: lint, typecheck, boundaries (21 kept), web-check, web-test 207, test 5041 passed (907 skipped), coverage 95% (domain gate 94%); handed to Phase 0 for the interim merge of A, B, C into main; D follows as a second merge | beb892c |
 
 Follow-ups noted: a test asserting `catalog.list_sales` is client-following (no location scope, like `list_charges`);
 the clients privacy sentinel test is order-dependent (an email-verification message without client_id keeps the
