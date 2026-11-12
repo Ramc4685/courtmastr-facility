@@ -22,7 +22,7 @@ from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFail
 from app.core.ids import new_id
 from app.core.pagination import ListQuery, paginate
 from app.core.settings import get_settings
-from app.modules.platform import staff
+from app.modules.platform import entitlements, staff
 from app.modules.platform.events import LocationCreated, TenantCreated
 from app.modules.platform.models import (
     FacilityHours,
@@ -70,6 +70,13 @@ def update_tenant(session: Session, principal: Principal, data: dict) -> Tenant:
     audit.record(session, "platform.tenant.update", tenant, changes=audit.diff(tenant))
     session.flush()
     return tenant
+
+
+def minor_age(session: Session) -> int:
+    """Internal: under this age a client is a minor (key `minor_age` in tenant.settings, default 18; owner
+    question 21). Written only through update_tenant; a missing or unusable value reads as 18."""
+    value = (get_tenant(session).settings or {}).get("minor_age", 18)
+    return value if type(value) is int and 1 <= value <= 99 else 18
 
 
 # --- security settings (PLT-07) -----------------------------------------------------------------------------
@@ -169,6 +176,7 @@ def get_location(session: Session, principal: Principal, location_id: UUID) -> L
 def create_location(session: Session, principal: Principal, data: dict) -> Location:
     """Create a location and its seven facility_hours rows."""
     authorize(principal, "platform.location.create")
+    entitlements.enforce_limit(session, "locations")
     check_time_zone(data["time_zone"], "/time_zone")
     data = {
         "public_name": data["name"],
@@ -338,7 +346,8 @@ def get_me(session: Session, principal: Principal) -> dict:
         "tenant": get_tenant(session),
         "role": None,
         "permissions": None,
-        "entitlements": [],
+        # Usage counts are tenant figures, so only staff see the limits; everyone sees the features.
+        "entitlements": entitlements.summary(session, limits=principal.kind == "staff"),
     }
     if principal.kind != "staff":
         if principal.kind == "client" and _client_ids_resolver is not None:
@@ -393,6 +402,7 @@ def onboard_tenant(
     )
     try:
         with tenant_session(tenant_id, actor=system_principal("platform.onboard_tenant")) as session:
+            get_tenant(session).subscription_plan_id = entitlements.default_plan(session).id
             roles = staff.ensure_system_roles(session)
             identity = Identity(kind="staff", email=owner_email, status="invited")
             if owner_password:
@@ -485,6 +495,14 @@ def enable_client_identity(session: Session, identity_id: UUID) -> None:
     identity = session.get(Identity, identity_id)
     if identity is not None and identity.kind == "client" and identity.status == "disabled":
         identity.status = "active" if identity.email_verified_at else "invited"
+
+
+def is_staff_address(session: Session, email: str) -> bool:
+    """Whether a staff login uses this address (internal: engagement keeps staff mail off client records)."""
+    return (
+        session.scalar(select(Identity.id).where(Identity.kind == "staff", Identity.email == email).limit(1))
+        is not None
+    )
 
 
 def find_client_identity(session: Session, email: str) -> Identity | None:

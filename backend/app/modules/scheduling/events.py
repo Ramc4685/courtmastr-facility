@@ -62,3 +62,22 @@ class SeriesGenerated(Event):
     booking_series_rule_id: UUID
     created_count: int
     conflict_count: int
+
+
+class SlotOfferSaved(Event):
+    """A slot offer was created or changed (SCH-07, SCH-18): portal schedules re-read its slots."""
+
+    aggregate_type: ClassVar[str] = "slot_offer"
+    type: Literal["scheduling.slot_offer.saved"] = "scheduling.slot_offer.saved"
+    slot_offer_id: UUID
+    location_id: UUID
+    is_active: bool
+
+
+class ReservationTypeGrantsReplaced(Event):
+    """The staff allowed to book a reservation type changed (SCH-05). Empty means open to all staff."""
+
+    aggregate_type: ClassVar[str] = "reservation_type"
+    type: Literal["scheduling.reservation_type.grants_replaced"] = "scheduling.reservation_type.grants_replaced"
+    reservation_type_id: UUID
+    staff_user_count: int

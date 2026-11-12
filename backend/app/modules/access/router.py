@@ -10,16 +10,17 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
 
+from app.core import clock
 from app.core.api import TxRoute, camel_id
 from app.core.auth import Principal, tokens
 from app.core.auth.deps import Ctx, _host_tenant, current_ctx, public_session, request_session, require
-from app.core.errors import NotFound, Unauthenticated
+from app.core.errors import DomainError, NotFound, Unauthenticated
 from app.core.idempotency import KEY_PATTERN, Replay, begin, idempotency
 from app.core.pagination import ListQuery, list_query
-from app.core.ratelimit import rate_limit
+from app.core.ratelimit import _redis, rate_limit
 from app.core.settings import get_settings
+from app.modules.access import desk, service
 from app.modules.access import schemas as s
-from app.modules.access import service
 from app.modules.access.models import KioskDevice
 
 router = APIRouter(
@@ -33,6 +34,8 @@ Assign = Annotated[Ctx, Depends(require("access.credential.assign"))]
 Launch = Annotated[Ctx, Depends(require("access.kiosk.launch"))]
 Manage = Annotated[Ctx, Depends(require("access.kiosk.manage"))]
 Settings = Annotated[Ctx, Depends(require("access.settings.manage"))]
+Rules = Annotated[Ctx, Depends(require("access.rule.manage"))]
+Mode = Annotated[Ctx, Depends(require("access.client.set_access_mode"))]
 Staff = Annotated[Ctx, Depends(current_ctx)]  # configuration reads: any staff at the location (rbac 1)
 Portal = Annotated[Ctx, Depends(current_ctx)]
 KIOSK_COOKIE = "fh_kiosk"
@@ -136,6 +139,144 @@ def revoke_kiosk_device(kiosk_device_id: UUID, ctx: Manage):
     return service.revoke_kiosk_device(ctx.session, ctx.principal, kiosk_device_id)
 
 
+# --- access settings, rules, client mode, schedules (CHK-02, CHK-08, CHK-09, CHK-10) -------------------------
+
+
+def _staff(ctx: Ctx) -> Ctx:
+    if ctx.principal.kind != "staff":
+        raise NotFound()
+    return ctx
+
+
+@router.get("/access-settings", response_model=s.AccessSettingsOut)
+def get_access_settings(location_id: Annotated[UUID, Query()], ctx: Staff):
+    """Staff check-in settings and the status-card fields hidden without full details (CHK-02)."""
+    return service.get_access_settings(ctx.session, _staff(ctx).principal, location_id)
+
+
+@router.put("/access-settings", response_model=s.AccessSettingsOut)
+def put_access_settings(location_id: Annotated[UUID, Query()], body: s.AccessSettingsWrite, ctx: Settings):
+    return service.put_access_settings(ctx.session, ctx.principal, location_id, body.model_dump(exclude_unset=True))
+
+
+@router.get("/access-rules", response_model=s.AccessRulesOut)
+def list_access_rules(location_id: Annotated[UUID, Query()], ctx: Staff):
+    """What each membership condition does at a location: allow or deny (CHK-08)."""
+    return service.list_access_rules(ctx.session, _staff(ctx).principal, location_id)
+
+
+@router.put("/access-rules", response_model=s.AccessRulesOut)
+def put_access_rules(location_id: Annotated[UUID, Query()], body: s.AccessRulesWrite, ctx: Rules):
+    return service.put_access_rules(ctx.session, ctx.principal, location_id, body.model_dump()["rules"])
+
+
+@router.get("/clients/{client_id}/access-mode", response_model=s.ClientAccessOut)
+def get_client_access_mode(client_id: UUID, ctx: Create):
+    return service.get_client_access_mode(ctx.session, ctx.principal, client_id)
+
+
+@router.put("/clients/{client_id}/access-mode", response_model=s.ClientAccessOut)
+def set_client_access_mode(client_id: UUID, body: s.ClientAccessWrite, ctx: Mode):
+    """Normal (the rules decide), always admit or always deny one client, with a reason (CHK-08)."""
+    return service.set_client_access_mode(ctx.session, ctx.principal, client_id, body.model_dump())
+
+
+@router.get("/access-schedules", response_model=s.Page[s.AccessScheduleOut])
+def list_access_schedules(query: Lists, ctx: Staff):
+    """Time-of-day schedules (CHK-09). Filter: is_active."""
+    return service.list_access_schedules(ctx.session, _staff(ctx).principal, query)
+
+
+@router.post("/access-schedules", response_model=s.AccessScheduleOut, status_code=201)
+def create_access_schedule(body: s.AccessScheduleCreate, ctx: Rules):
+    return service.create_access_schedule(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.patch("/access-schedules/{access_schedule_id}", response_model=s.AccessScheduleOut)
+def update_access_schedule(access_schedule_id: UUID, body: s.AccessScheduleUpdate, ctx: Rules):
+    return service.update_access_schedule(
+        ctx.session, ctx.principal, access_schedule_id, body.model_dump(exclude_unset=True)
+    )
+
+
+@router.get("/membership-type-access", response_model=s.Page[s.MembershipTypeAccessOut])
+def list_membership_type_access(ctx: Staff):
+    """Membership types limited to a schedule or admitting at further locations (CHK-09, CHK-10)."""
+    return {"data": service.list_membership_type_access(ctx.session, _staff(ctx).principal), "page": _EMPTY}
+
+
+@router.put("/membership-types/{membership_type_id}/access", response_model=s.MembershipTypeAccessOut)
+def put_membership_type_access(membership_type_id: UUID, body: s.MembershipTypeAccessWrite, ctx: Rules):
+    return service.put_membership_type_access(ctx.session, ctx.principal, membership_type_id, body.model_dump())
+
+
+# --- check-in desk (CHK-04, CHK-07, CHK-12, MEM-19) ----------------------------------------------------------
+
+CheckOut = Annotated[Ctx, Depends(require("access.checkin.check_out"))]
+Enroll = Annotated[Ctx, Depends(require("scheduling.enrollment.create"))]
+
+
+@router.get("/check-in-stations", response_model=s.Page[s.CheckInStationOut])
+def list_check_in_stations(location_id: Annotated[UUID, Query()], ctx: Staff):
+    """The named check-in points of a location (CHK-07)."""
+    return {"data": desk.list_stations(ctx.session, _staff(ctx).principal, location_id), "page": _EMPTY}
+
+
+@router.post("/check-in-stations", response_model=s.CheckInStationOut, status_code=201)
+def create_check_in_station(body: s.CheckInStationCreate, ctx: Settings):
+    return desk.create_station(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.patch("/check-in-stations/{check_in_station_id}", response_model=s.CheckInStationOut)
+def update_check_in_station(check_in_station_id: UUID, body: s.CheckInStationUpdate, ctx: Settings):
+    return desk.update_station(ctx.session, ctx.principal, check_in_station_id, body.model_dump(exclude_unset=True))
+
+
+@router.post("/check-ins/{check_in_id}/check-out", response_model=s.CheckInOut)
+def check_out(check_in_id: UUID, ctx: CheckOut, body: s.CheckOutRequest | None = None):
+    """End the client's visit at the location (CHK-07); a visit never checked out ends at local midnight."""
+    row = desk.check_out(ctx.session, ctx.principal, check_in_id, body.model_dump() if body else {})
+    return service.check_in_view(ctx.session, row)
+
+
+@router.post("/check-ins/{check_in_id}/attendances", response_model=s.CheckInOut, status_code=201)
+def create_check_in_attendance(check_in_id: UUID, body: s.CheckInAttendanceCreate, ctx: Enroll):
+    """Book the checked-in client into a session starting soon and mark it attended (CHK-04)."""
+    row = desk.book_session(ctx.session, ctx.principal, check_in_id, body.model_dump())
+    return service.check_in_view(ctx.session, row)
+
+
+@router.get("/occupancy", response_model=s.OccupancyOut)
+def get_occupancy(location_id: Annotated[UUID, Query()], ctx: Read):
+    """Who is in now, the count and the count per station, in the location's day (CHK-07)."""
+    return desk.occupancy(ctx.session, ctx.principal, location_id)
+
+
+@router.get("/id-card-templates", response_model=s.Page[s.IdCardTemplateOut])
+def list_id_card_templates(ctx: Staff):
+    """Member card layouts: tenant-wide and the caller's locations (CHK-12)."""
+    return {"data": desk.list_templates(ctx.session, _staff(ctx).principal), "page": _EMPTY}
+
+
+@router.post("/id-card-templates", response_model=s.IdCardTemplateOut, status_code=201)
+def create_id_card_template(body: s.IdCardTemplateCreate, ctx: Settings):
+    return desk.create_template(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.patch("/id-card-templates/{id_card_template_id}", response_model=s.IdCardTemplateOut)
+def update_id_card_template(id_card_template_id: UUID, body: s.IdCardTemplateUpdate, ctx: Settings):
+    return desk.update_template(ctx.session, ctx.principal, id_card_template_id, body.model_dump(exclude_unset=True))
+
+
+@router.get("/clients/{client_id}/id-card", response_model=s.ClientIdCardOut)
+def get_client_id_card(
+    client_id: UUID, ctx: Assign, location_id: Annotated[UUID | None, Query()] = None,
+    id_card_template_id: Annotated[UUID | None, Query()] = None,
+):  # fmt: skip
+    """The printable member card with the value its barcode encodes (MEM-19)."""
+    return desk.client_id_card(ctx.session, ctx.principal, client_id, location_id, id_card_template_id)
+
+
 # --- portal app cards (CHK-13) -------------------------------------------------------------------------------
 
 
@@ -191,6 +332,23 @@ def kiosk_idempotency(
 
 
 Device = Annotated[KioskDevice, Depends(kiosk_device)]
+KIOSK_CHECKINS_PER_MINUTE = 30  # one device, one queue: more than this is a script, not a line of people
+
+
+def kiosk_rate_limit(device: Device) -> None:
+    """Per device, not per IP: kiosks behind one NAT share an address. Fails open like rate_limit."""
+    if not get_settings().rate_limit.enabled:
+        return
+    key = f"rl:kiosk-check-in:{device.id}:{int(clock.now().timestamp() // 60)}"
+    try:
+        pipe = _redis().pipeline()
+        pipe.incr(key)
+        pipe.expire(key, 60)
+        count = pipe.execute()[0]
+    except Exception:  # noqa: BLE001 - a Redis outage must not stop check-in
+        return
+    if count > KIOSK_CHECKINS_PER_MINUTE:
+        raise DomainError("Too many requests", status=429, code="rate-limited", headers={"Retry-After": "60"})
 
 
 def _session(request: Request):
@@ -223,15 +381,15 @@ def kiosk_lookup(body: s.KioskLookupRequest, request: Request, device: Device):
 
 @kiosk.post(
     "/kiosk/check-ins", response_model=s.KioskCheckInResult, status_code=201,
-    dependencies=[Depends(kiosk_idempotency)],
+    dependencies=[Depends(kiosk_rate_limit), Depends(kiosk_idempotency)],
 )  # fmt: skip
 def create_kiosk_check_in(body: s.KioskCheckInCreate, request: Request, device: Device):
     """Self check-in (CHK-05): admitted or see staff, never amounts or reasons."""
     return service.kiosk_check_in(_session(request), device, body.model_dump())
 
 
-@kiosk.post("/kiosk/exit", status_code=204)
-def exit_kiosk(request: Request, response: Response, device: Device) -> None:
-    """Leave kiosk mode: the device token stops working until staff pair it again."""
-    service.kiosk_exit(_session(request), device)
+@kiosk.post("/kiosk/exit", status_code=204, dependencies=[Depends(rate_limit("kiosk-exit"))])
+def exit_kiosk(body: s.KioskExitRequest, request: Request, response: Response, device: Device) -> None:
+    """Leave kiosk mode with the location's exit PIN: the device token stops working until staff pair it again."""
+    service.kiosk_exit(_session(request), device, body.staff_pin)
     response.delete_cookie(KIOSK_COOKIE, path="/api/v1/kiosk")

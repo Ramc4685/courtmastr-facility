@@ -86,6 +86,17 @@ class PaymentVoided(_PaymentEvent):
     type: Literal["billing.payment.voided"] = "billing.payment.voided"
 
 
+class PaymentDisputed(_PaymentEvent):
+    type: Literal["billing.payment.disputed"] = "billing.payment.disputed"
+    dispute_id: UUID
+
+
+class PaymentDisputeClosed(_PaymentEvent):
+    type: Literal["billing.payment.dispute_closed"] = "billing.payment.dispute_closed"
+    dispute_id: UUID
+    outcome: Literal["won", "lost"]
+
+
 class PaymentMethodExpiring(Event):
     aggregate_type: ClassVar[str] = "payment_method"
     type: Literal["billing.payment_method.expiring"] = "billing.payment_method.expiring"

@@ -441,6 +441,28 @@ class StaffUserPermissions(Out):
     is_diverged_from_role: bool
 
 
+class PlanRef(Out):
+    code: str
+    name: str
+
+
+class LimitUsage(Out):
+    """`limit` null = unlimited. `used` is counted for capped limits (all of them on the plan screen)."""
+
+    key: str
+    label: str
+    limit: int | None
+    used: int | None
+
+
+class MeEntitlements(Out):
+    """What the tenant's plan includes (PLT-14). `limits` is empty for anyone but staff."""
+
+    plan: PlanRef
+    features: list[str]
+    limits: list[LimitUsage]
+
+
 class Me(Out):
     principal: PrincipalOut
     tenant: TenantOut
@@ -449,7 +471,7 @@ class Me(Out):
     has_all_location_access: bool | None = None
     locations: list[LocationRef] | None = None
     primary_location_id: UUID | None = None
-    entitlements: list[str] = []
+    entitlements: MeEntitlements
     linked_resource_id: UUID | None = None
 
 

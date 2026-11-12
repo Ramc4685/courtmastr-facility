@@ -25,14 +25,15 @@ def test_disabled_client_is_denied_first():
     assert d.alerts == ["client_disabled", "access_denied", "membership_frozen", "balance_due"]
 
 
-def test_frozen_suspended_cancelled_deny_and_others_alert():
+def test_frozen_suspended_cancelled_depleted_deny_and_others_alert():
     for reason, code in (("frozen", "membership_frozen"), ("suspended", "membership_suspended")):
         d = evaluate(Facts(client_active=True, membership_reason=reason, membership_contract_id=uuid4()))
         assert d.denial_reason == reason and "access_denied" in d.alerts and code in d.alerts
     assert evaluate(Facts(client_active=True, membership_reason="cancelled")).denial_reason == "cancelled"
-    for reason, code in (("depleted", "visits_depleted"), ("daily_limit_reached", "over_daily_limit")):
-        d = evaluate(Facts(client_active=True, membership_reason=reason, membership_contract_id=uuid4()))
-        assert d.would_grant and code in d.alerts and not d.counts_visit
+    d = evaluate(Facts(client_active=True, membership_reason="daily_limit_reached", membership_contract_id=uuid4()))
+    assert d.would_grant and "over_daily_limit" in d.alerts and not d.counts_visit
+    d = evaluate(Facts(client_active=True, membership_reason="depleted", membership_contract_id=uuid4()))
+    assert d.denial_reason == "depleted" and "visits_depleted" in d.alerts  # owner question 12
 
 
 def test_waiver_balance_and_staff_note_alerts_in_priority_order():

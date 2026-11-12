@@ -22,5 +22,10 @@ jest.mock('expo-local-authentication', () => ({
 
 jest.mock('expo-crypto', () => {
   let n = 0;
-  return { randomUUID: () => `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}` };
+  const { createHash } = require('node:crypto');
+  return {
+    randomUUID: () => `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}`,
+    CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
+    digest: async (_alg: string, data: Uint8Array) => new Uint8Array(createHash('sha256').update(data).digest()).buffer,
+  };
 });

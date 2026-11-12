@@ -11,6 +11,7 @@ async function scan(page: Page, label: string) {
 }
 
 test('client list, profile tabs and merge flow pass the axe WCAG 2.1 AA scan', async ({ page }) => {
+  test.setTimeout(120_000) // twelve axe scans across two colour schemes; over 30s on a loaded machine
   await page.goto('/clients')
   await page.getByRole('textbox', { name: 'Email' }).fill(OWNER.email)
   await page.getByRole('textbox', { name: 'Password' }).fill(OWNER.password)
@@ -25,7 +26,7 @@ test('client list, profile tabs and merge flow pass the axe WCAG 2.1 AA scan', a
     await scan(page, `${colorScheme} list`)
     await page.getByRole('link', { name: 'Morgan Member' }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Morgan Member' })).toBeVisible()
-    await expect(page.getByRole('note')).toContainText('Asthma')
+    await expect(page.getByRole('note').filter({ hasText: 'Asthma' })).toBeVisible()
     await scan(page, `${colorScheme} overview`)
     await page.getByRole('tab', { name: 'Family' }).click()
     await expect(page.getByRole('link', { name: 'Mia Member' })).toBeVisible()

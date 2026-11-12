@@ -106,14 +106,14 @@ per location, WCAG 2.1 AA, docs updated).
 |---|---|---|
 | 1 | Platform core (tenants, locations, staff, RBAC, auth, audit) | done; OIDC, MFA and step-up deferred |
 | - | Kernel: lanes, notification port, counters, storage port, scheduler, merge and erasure handlers | done: `docs/status/kernel-slice.md` |
-| 2 | Resources and scheduling | staff screens; P0 9 done, 7 partial; no lockers, slot offers |
+| 2 | Resources and scheduling | staff screens; P0 16 done (phase 10: slot offers, type grants); no lockers |
 | 3 | Rentals and events | staff screens; P0 8 done, 1 partial (no portal screen); no lockers, plan sharing |
-| 4 | Clients and households | P0 15 done, 1 partial; no photo, attachments, preference centre |
-| 5 | Memberships and packages | staff and portal screens; P0 10 done, 5 partial; no post-billed, reports |
+| 4 | Clients and households | P0 15 done, 2 partial (photo: no webcam or portal edit); attachments built |
+| 5 | Memberships and packages | staff and portal screens; P0 12 done, 3 partial; no post-billed, reports |
 | 6 | Programs and registration | staff and portal screens; P0 13 done, 2 partial; no deposits, instalments, guest checkout, coupons |
 | 7 | Waivers and documents (`documents`) | all P0 done; P1 all but DOC-07 bulk send |
-| 8 | Billing and payments | staff screens; P0 13 done, 13 partial; no pre-defined items, disputes, PDFs |
-| 9 | Point of sale and inventory | all P0 done bar 2 partial; packages sell at the till |
-| 10-17 | 10 check-in; 11 leagues; staff, assessments, reporting; 14 engagement; 16 integrations; 17 mobile (`mobile/`) | 10 P0 8 done, 1 partial; 11 P0 8 done, 3 partial; 12 staff P0 4 done, 5 partial; 13 assessments P0 2 done, 1 partial; 14 P0 5 done, 9 partial; 15 reporting P0 6 done, 4 partial; 16, 17 partial (17 demo adapter); details `docs/status/` |
+| 8 | Billing and payments | staff screens; P0 13 done, 13 partial; Stripe test mode, disputes by webhook; no pre-defined items, PDFs |
+| 9 | Point of sale and inventory | all P0 done bar 1 partial; packages sell at the till; quick-create client |
+| 10-17 | 10 check-in; 11 leagues; staff, assessments, reporting; 14 engagement; 16 integrations; 17 mobile (`mobile/`) | 10 P0 8 done, 1 partial, P1 access rules and desk built; 11 P0 8 done, 3 partial; 12 staff P0 6 done, 3 partial; 13 assessments P0 2 done, 1 partial; 14 P0 5 done, 9 partial; 15 reporting P0 6 done, 4 partial; 16, 17 partial (17 on the real portal API, 2 screens not available yet); details `docs/status/` |
 Per-feature state, known defects and notes for the next modules: `docs/status/README.md`; limits: module READMEs.
 Parallel lanes (worktrees), migration numbering and the kernel service APIs: top of `docs/dev/module-playbook.md`.

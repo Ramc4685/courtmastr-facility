@@ -19,11 +19,19 @@ from app.core.db.session import tenant_session  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
 from app.modules.platform import service, staff  # noqa: E402
 from app.modules.platform.models import Identity, StaffUser, UserLocationAccess  # noqa: E402
-from app.ports import email  # noqa: E402
+from app.ports import email, payment_provider  # noqa: E402
 
 PASSWORD = "correct-horse-battery"
 PUBLIC_IP = "93.184.215.14"  # a globally routable address the webhook SSRF guard accepts (tests never connect)
 WEEK = [{"weekday": d, "opens_time": "08:00", "closes_time": "20:00", "is_closed": False} for d in range(1, 8)]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _own_rate_limit_keys():
+    """Parallel lanes share one Redis and the tests share documentation IPs: keep each run's buckets apart."""
+    from app.core import ratelimit
+
+    ratelimit.PREFIX = f"rl-test-{uuid4().hex[:8]}"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -243,7 +251,17 @@ def populate(client, tenant) -> SimpleNamespace:
     )
     billing_ids = _populate_billing(client, headers, post, person, location, category_id, tax_id, payment)
     billing_ids |= _populate_pos(client, headers, post, person, location, category_id, tax_id)
+    disputed = post("/payments", {  # + dispute: a settled card payment the payer then disputes
+        "client_id": person["id"], "location_id": location["id"], "amount_minor": 300, "tender_kind": "card",
+        "method_token": "tok_card_ok",
+    }, key=f"populate-{uuid4().hex}")  # fmt: skip
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        paid = session.get(billing.models.Payment, disputed["id"])
+        account = session.get(billing.models.ProviderAccount, paid.provider_account_id)
+        ref = payment_provider.get("fake").open_dispute(paid.provider_payment_ref)
+        billing_ids["dispute_id"] = str(billing.service.sync_dispute(session, account, ref).id)
     people = _populate_people(client, headers, tenant, location["id"], person["id"])
+    people |= _populate_client_files(client, headers, person["id"], people["note_id"])
     documents = _populate_documents(client, headers, tenant, location["id"], person)
     space = _populate_space(client, tenant, headers, post, location["id"], person["id"])
     people |= _populate_memberships(
@@ -254,9 +272,12 @@ def populate(client, tenant) -> SimpleNamespace:
         client, headers, post, location["id"], person["id"], space["resource_id"], category_id, tax_id
     )
     space |= _populate_staff(client, headers, post, location["id"], invited["id"], space["trainer_resource_id"])
+    space |= _populate_slots(client, headers, post, location["id"], invited["id"], space)
     space |= _populate_assessments(client, headers, post, location["id"], person["id"])
     space |= _populate_programs(client, headers, post, location["id"], person["id"], space, category_id)
     space |= _populate_access(client, headers, post, tenant, location["id"], person["id"], space)
+    space |= _populate_access_rules(client, headers, post, location["id"], person["id"], people["membership_type_id"])
+    _populate_pos_desk(client, headers, post, tenant, location["id"], billing_ids["product_category_id"])
     space |= _populate_engagement(client, tenant, post, location["id"], person["id"], identity_id)
     leagues = _populate_leagues(client, headers, post, location["id"], person["id"], space["resource_id"], category_id)
     integration = _populate_integrations(client, headers, tenant, post, location, person)
@@ -269,18 +290,17 @@ def populate(client, tenant) -> SimpleNamespace:
         **integration, **reporting,
         **_populate_files(tenant),
         **_populate_mfa(tenant),
+        **_populate_entitlements(tenant),
         **_populate_t2(client, headers, tenant, location["id"]),
     )  # fmt: skip
 
 
-def png_bytes(size: tuple[int, int] = (4, 4)) -> bytes:
-    import io
+def _populate_entitlements(tenant) -> dict:
+    """An add-on row that changes nothing (the default plan already has the feature) (Phase 8 T1)."""
+    from app.modules.platform import entitlements
 
-    from PIL import Image
-
-    out = io.BytesIO()
-    Image.new("RGB", size, (200, 30, 30)).save(out, "PNG")
-    return out.getvalue()
+    detail = entitlements.add_entitlement(tenant.id, {"key": "branded_app", "source": "addon"})
+    return {"entitlement_id": detail["overrides"][0].id}
 
 
 def _populate_t2(client, headers, tenant, location_id) -> dict:
@@ -442,6 +462,25 @@ def _populate_pos(client, headers, post, person, location, category_id, tax_id) 
         "pos_sale_discount_id": sale["discounts"][0]["id"], "pos_sale_tender_id": sale["tenders"][0]["id"],
         "pos_return_id": pos_return["id"],
     }  # fmt: skip
+
+
+def png_bytes(size: tuple[int, int] = (4, 4)) -> bytes:
+    import io
+
+    from PIL import Image
+
+    out = io.BytesIO()
+    Image.new("RGB", size, (200, 40, 40)).save(out, "PNG")
+    return out.getvalue()
+
+
+def _populate_client_files(client, headers, person_id, note_id) -> dict:
+    """Phase 10 chip F: a client photo and one note attachment (client_note_attachment, stored_file)."""
+    png = headers | {"Content-Type": "image/png"}
+    assert client.put(f"/api/v1/clients/{person_id}/photo", headers=png, content=png_bytes()).status_code == 200
+    attachment = client.post(f"/api/v1/client-notes/{note_id}/attachments", headers=png, content=png_bytes())
+    assert attachment.status_code == 201, attachment.text
+    return {"attachment_id": attachment.json()["id"]}
 
 
 def _populate_people(client, headers, tenant, location_id, person_id) -> dict:
@@ -695,6 +734,22 @@ def _populate_space(client, tenant, headers, post, location_id, client_id) -> di
     }  # fmt: skip
 
 
+def _populate_slots(client, headers, post, location_id, staff_user_id, space) -> dict:
+    """Phase 10 chip A: a slot offer on the coach's window with an extra resource and one taken slot (a session
+    with slot_offer_id), and a reservation type restricted to one staff user (reservation_type_grant)."""
+    lesson = post("/reservation-types", {"location_id": location_id, "name": "Private lesson", "default_capacity": 1})
+    granted = client.put(
+        f"/api/v1/reservation-types/{lesson['id']}/grants", headers=headers, json={"staff_user_ids": [staff_user_id]}
+    )
+    assert granted.status_code == 200, granted.text
+    offer = post("/slot-offers", {
+        "availability_window_id": space["availability_window_id"], "reservation_type_id": lesson["id"], "slot_min": 30,
+        "additional_resource_ids": [space["resource_id"]],
+    })  # fmt: skip
+    post(f"/slot-offers/{offer['id']}/slots", {"starts_at": "2030-01-02T15:00:00Z"})
+    return {"slot_offer_id": offer["id"]}
+
+
 def _populate_programs(client, headers, post, location_id, client_id, space, category_id) -> dict:
     """Build module 6: a program with a subgroup, a fee, online registration (published), a linked session, a
     registration (charged and invoiced), a group waitlist entry, a basket holding a place, and booking policies."""
@@ -813,6 +868,8 @@ def _populate_staff(client, headers, post, location_id, staff_user_id, trainer_r
     trainer = post("/staff-payees", {"kind": "trainer", "display_name": "Coach Kim", "location_id": location_id,
                                      "resource_id": trainer_resource_id})  # fmt: skip
     put(f"/staff-payees/{trainer['id']}/pay-rates/default", {"pay_basis": "per_session", "rate_60_minor": 3000})
+    put(f"/staff-payees/{trainer['id']}/bonus-rules",
+        {"rules": [{"kind": "trained_hours", "threshold_minutes": 600, "amount_minor": 5000}]})  # fmt: skip
     seller = post("/staff-payees", {"kind": "salesperson", "display_name": "New Person", "location_id": location_id,
                                     "staff_user_id": staff_user_id})  # fmt: skip
     put(
@@ -890,7 +947,7 @@ def two_tenants():
 def _populate_access(client, headers, post, tenant, location_id, client_id, space) -> dict:
     """Module 10: a barcode, a staff check-in (its attendance row by hand: no session starts near now), kiosk
     settings and a registered kiosk device."""
-    from app.modules.access.models import CheckInAttendance
+    from app.modules.access.models import CheckInAttendance, KioskMatch
 
     credential = post(f"/clients/{client_id}/credentials", {"kind": "barcode", "value": f"POP-{uuid4().hex[:8]}"})
     checked = post("/check-ins", {"client_id": client_id, "location_id": location_id, "channel": "staff_window"})
@@ -904,10 +961,54 @@ def _populate_access(client, headers, post, tenant, location_id, client_id, spac
             check_in_id=checked["check_in"]["id"], target_id=space["enrollment_id"],
             session_id=space["schedule_session_id"],
         ))  # fmt: skip
+        session.add(KioskMatch(
+            kiosk_device_id=device["kiosk_device_id"], client_id=client_id, token_hash=f"pop-{uuid4().hex}",
+            expires_at=clock.now(),
+        ))  # fmt: skip
+    # check-in desk (phase 10 chip C): a station and a location's ID card template
+    station = post("/check-in-stations", {"location_id": location_id, "name": "Main desk"})
+    card = post("/id-card-templates", {"location_id": location_id, "name": "Member card",
+                                       "shown_fields": ["name", "membership_number"], "is_default": True})  # fmt: skip
     return {
         "credential_id": credential["id"], "check_in_id": checked["check_in"]["id"],
-        "kiosk_device_id": device["kiosk_device_id"],
+        "kiosk_device_id": device["kiosk_device_id"], "check_in_station_id": station["id"],
+        "id_card_template_id": card["id"],
     }  # fmt: skip
+
+
+def _populate_pos_desk(client, headers, post, tenant, location_id, product_category_id) -> None:
+    """Phase 10 chip E: a location footer and alert email, a product below its reorder level, one digest row."""
+    body = {"receipt_footer": "Thanks!", "low_stock_alert_email": "stock@example.com"}
+    assert client.put(f"/api/v1/pos-settings?location_id={location_id}", headers=headers, json=body).status_code == 200
+    low = post("/products", {"product_category_id": product_category_id, "name": "Grip tape", "product_code": "GT-1", "unit_price_minor": 300,
+                             "reorder_level": 5})  # fmt: skip
+    post("/stock-movements", {"product_id": low["id"], "location_id": location_id, "kind": "adjustment",
+                              "quantity_delta": 1, "reason": "new_stock"})  # fmt: skip
+    from app.modules.pos import inventory
+
+    with tenant_session(tenant.id, actor=system_principal("populate")) as session:
+        assert inventory.send_low_stock_digests(session) == 1
+
+
+def _populate_access_rules(client, headers, post, location_id, client_id, membership_type_id) -> dict:
+    """Phase 10 chip B: check-in settings, one rule, a client access mode, an always-open schedule mapped to the
+    membership type with its own location, and a kiosk exit PIN. None of it changes a decision."""
+    put = lambda path, body: client.put(f"/api/v1{path}", headers=headers, json=body)  # noqa: E731
+    for path, body in (
+        (f"/access-settings?location_id={location_id}", {"staff_early_minutes": 180}),
+        (
+            f"/access-rules?location_id={location_id}",
+            {"rules": [{"condition": "over_daily_limit", "outcome": "allow"}]},
+        ),
+        (f"/clients/{client_id}/access-mode", {"access_mode": "normal", "reason": "Populate"}),
+        (f"/kiosk-settings?location_id={location_id}", {"exit_pin": "246810"}),
+    ):
+        assert put(path, body).status_code == 200, path
+    week = [{"weekday": d, "starts_time": "00:00", "ends_time": "24:00"} for d in range(1, 8)]
+    schedule = post("/access-schedules", {"name": "Always open", "ranges": week})
+    body = {"access_schedule_id": schedule["id"], "location_ids": [location_id]}
+    assert put(f"/membership-types/{membership_type_id}/access", body).status_code == 200
+    return {"access_schedule_id": schedule["id"]}
 
 
 def _populate_integrations(client, headers, tenant, post, location, person) -> dict:

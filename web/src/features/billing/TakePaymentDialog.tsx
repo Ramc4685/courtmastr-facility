@@ -15,12 +15,13 @@ const newRow = (tenderTypeId: string, amount: string): Row => ({ id: crypto.rand
 const PROCESSED = new Set(['card', 'bank_debit'])
 const done = (r: Row) => r.result && !['failed', 'cancelled'].includes(r.result.status)
 
-type Props = { clientId: string; locationId: string; invoiceId?: string; balanceMinor: number; onClose: () => void }
+/** onPaid runs only after every tender went through, just before onClose (which Cancel also calls). */
+type Props = { clientId: string; locationId: string; invoiceId?: string; balanceMinor: number; onClose: () => void; onPaid?: () => void }
 
 /** Take one or more payments (split tender). Each tender is its own payment, posted in order; the first one
  * that fails stops the rest so nobody is charged twice for one balance. Each row keeps its idempotency key
  * while it is retried after a lost answer, and gets a fresh one after a decline (a new attempt). */
-export function TakePaymentDialog({ clientId, locationId, invoiceId, balanceMinor, onClose }: Props) {
+export function TakePaymentDialog({ clientId, locationId, invoiceId, balanceMinor, onClose, onPaid }: Props) {
   const qc = useQueryClient()
   const toast = useToast()
   const currency = useCurrency()
@@ -86,6 +87,7 @@ export function TakePaymentDialog({ clientId, locationId, invoiceId, balanceMino
     void qc.invalidateQueries({ queryKey: ['billing'] })
     if (next.every(done)) {
       toast('success', `${next.length === 1 ? 'Payment' : `${next.length} payments`} recorded.`)
+      onPaid?.()
       onClose()
     }
   }

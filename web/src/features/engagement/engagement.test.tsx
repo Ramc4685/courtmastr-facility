@@ -7,6 +7,7 @@ import { makeQueryClient, ROUTER_FUTURE } from '../../app/App'
 import { ToastProvider } from '../../components/Toast'
 import { mockFetch } from '../../test/fetchMock'
 import { InboxPage } from '../portal/InboxPage'
+import { makePortalValue, PortalProvider, type PortalClient } from '../portal/shared'
 import { CampaignsPage } from './CampaignsPage'
 import { SegmentsPage } from './LibraryPages'
 import { UnsubscribePage } from './UnsubscribePage'
@@ -94,8 +95,18 @@ describe('engagement', () => {
         return { status: 200, body: item('2026-11-10T10:00:00Z') }
       },
     })
-    wrap(<InboxPage />)
+    // Acting for a dependent: the inbox asks for that member's items only, never the household's merged.
+    const kid = { id: 'k1', first_name: 'Kit', last_name: 'Lee', preferred_name: null } as unknown as PortalClient
+    const self = { id: 'p1', first_name: 'Pat', last_name: 'Lee', preferred_name: null } as unknown as PortalClient
+    const portal = makePortalValue([self, kid], 'k1', () => {}, [], 'USD')
+    if (!portal) throw new Error('portal value expected')
+    wrap(
+      <PortalProvider value={portal}>
+        <InboxPage />
+      </PortalProvider>,
+    )
     expect(await screen.findByText('Court 3 is closed for resurfacing this week.')).toBeVisible()
+    expect(calls.find((c) => c.method === 'GET' && c.url.startsWith('/api/v1/portal/inbox?'))?.url).toContain('client_id=k1')
     await userEvent.click(screen.getByRole('button', { name: 'Mark as read: Court 3 closed' }))
     expect(await screen.findByText('Read')).toBeVisible()
     expect(calls.some((c) => c.method === 'POST' && c.url === '/api/v1/portal/inbox/i1/read')).toBe(true)

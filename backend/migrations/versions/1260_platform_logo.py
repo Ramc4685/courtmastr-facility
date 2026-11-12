@@ -11,7 +11,7 @@ from alembic import op
 from app.core.db.rls import enable_rls
 
 revision = "1260"
-down_revision = "1231"
+down_revision = "1250"
 
 
 def upgrade() -> None:

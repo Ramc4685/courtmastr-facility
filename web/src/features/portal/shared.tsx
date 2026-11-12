@@ -66,7 +66,7 @@ export function useAttemptKey() {
 export function useCheckoutProvider() {
   return useQuery({
     queryKey: ['portal', 'checkout-provider'],
-    queryFn: async () => (await api.post('/api/v1/portal/payment-methods/setup-intents', { body: { kinds: ['card'] } })).provider,
+    queryFn: () => api.post('/api/v1/portal/payment-methods/setup-intents', { body: { kinds: ['card'] } }),
     staleTime: Infinity,
     retry: false,
   })
@@ -76,8 +76,8 @@ export function useCheckoutProvider() {
 export function NewCardField({ value, onChange, label = 'Card' }: { value: string; onChange: (token: string) => void; label?: string }) {
   const provider = useCheckoutProvider()
   if (provider.isPending) return <LoadingState label="Preparing secure payment" />
-  const p = provider.data === 'fake' || provider.data === 'stripe' ? provider.data : null
-  return <PaymentMethodField kind="card" label={label} value={value} onChange={onChange} provider={p} />
+  const p = provider.data?.provider === 'fake' || provider.data?.provider === 'stripe' ? provider.data.provider : null
+  return <PaymentMethodField kind="card" label={label} value={value} onChange={onChange} provider={p} keys={provider.data} />
 }
 
 export function LocationPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {

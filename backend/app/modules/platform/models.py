@@ -83,7 +83,9 @@ def _false() -> Mapped[bool]:
 
 
 class SubscriptionPlan(Timestamps, Base):
-    """Global catalogue of our own tiers; fh_app has SELECT only. Entitlements arrive with PLT-14."""
+    """Global catalogue of our own tiers (PLT-14); no RLS, fh_app has SELECT only, rows come from migrations.
+    `limits` maps a limit key to a count (a missing key is unlimited); `features` are feature keys. Both are
+    validated against `platform.entitlements` in code."""
 
     __tablename__ = "subscription_plan"
     __table_args__ = (UniqueConstraint("code", name="uq_subscription_plan_code"),)
@@ -92,6 +94,8 @@ class SubscriptionPlan(Timestamps, Base):
     code: Mapped[str]
     name: Mapped[str]
     is_active: Mapped[bool] = mapped_column(server_default=text("true"))
+    features: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+    limits: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))
 
 
 class Tenant(Timestamps, Base):
@@ -626,6 +630,37 @@ class FailedJob(TenantOwned, Timestamps, Base):
     failed_at: Mapped[datetime] = mapped_column(server_default=text("now()"))
     resolved_at: Mapped[datetime | None]
     resolution: Mapped[str | None] = enum_column()
+
+
+# --- 2.1 Entitlements (PLT-14, PLT-09, PLT-13; platform/entitlements.py) --------------------------------------
+
+
+class EntitlementSource(StrEnum):
+    ADDON = "addon"  # bought on top of the plan
+    PROMO = "promo"  # time-limited offer
+    FLAG = "flag"  # per-tenant feature flag (PLT-09)
+    MANUAL = "manual"  # the operator's own adjustment
+
+
+class TenantEntitlement(TenantOwned, Timestamps, Base):
+    """A per-tenant override of the plan, set by the operator: a feature turned on (or off, `is_enabled` false)
+    or a limit replaced (`limit_value`, null = unlimited), in force from `starts_on` to `ends_on` inclusive.
+    Tenant data under RLS; written only by the operator functions in `platform.entitlements`."""
+
+    __tablename__ = "tenant_entitlement"
+    __table_args__ = tenant_args(
+        UniqueConstraint("tenant_id", "key", "source", "starts_on", name="uq_tenant_entitlement"),
+        enum_check("source", EntitlementSource),
+        CheckConstraint("ends_on IS NULL OR ends_on >= starts_on", name="dates"),
+        CheckConstraint("limit_value IS NULL OR limit_value >= 0", name="limit_value"),
+    )
+
+    key: Mapped[str] = mapped_column(info={"audit": "value"})
+    is_enabled: Mapped[bool] = mapped_column(server_default=text("true"), info={"audit": "value"})
+    limit_value: Mapped[int | None] = mapped_column(info={"audit": "value"})
+    source: Mapped[str] = enum_column()
+    starts_on: Mapped[date] = mapped_column(info={"audit": "value"})
+    ends_on: Mapped[date | None] = mapped_column(info={"audit": "value"})
 
 
 # --- Phase 8 T2: logos (PLT-08), the tenant export bundle (IMP-04), support requests (ONB-03) -----------------

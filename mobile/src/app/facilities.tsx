@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 
 import { portal } from '../adapters';
+import { NotAvailable } from '../adapters/types';
 import { ApiError } from '../api/errors';
 import { useApp } from '../lib/app-state';
 import { lookupTenant, normaliseSlug } from '../lib/tenant';
@@ -14,7 +15,7 @@ export default function Facilities() {
   const [slug, setSlug] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
-  const directory = useQuery({ queryKey: ['directory', q.trim()], queryFn: () => portal.searchDirectory(q) });
+  const directory = useQuery({ queryKey: ['directory', q.trim()], queryFn: () => portal.searchDirectory(q), retry: false });
 
   async function open(input: string) {
     const normalised = normaliseSlug(input);
@@ -44,6 +45,8 @@ export default function Facilities() {
       <Surface>
         {directory.isLoading ? (
           <Loading />
+        ) : directory.error instanceof NotAvailable ? (
+          <Empty text="Search by name is not available yet. Enter the facility code below." />
         ) : directory.error ? (
           <ErrorBox error={directory.error} />
         ) : directory.data?.length ? (

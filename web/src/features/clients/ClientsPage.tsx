@@ -12,6 +12,7 @@ import { Table, useKeysetQuery, type Column } from '../../components/Table'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { fullName } from '../../lib/format'
+import { ClientPhoto } from './ClientFiles'
 import { useDebounced } from '../../lib/useDebounced'
 
 type Client = Schemas['ClientListItem']
@@ -141,11 +142,14 @@ export function ClientsPage() {
     {
       header: 'Name',
       cell: (c) => (
-        <div>
-          <Link to={`/clients/${c.id}`} className="font-medium text-fg hover:text-primary hover:underline">
-            {fullName(c)}
-          </Link>
-          {c.primary_email && <p className="text-xs text-muted">{c.primary_email}</p>}
+        <div className="flex items-center gap-3">
+          <ClientPhoto clientId={c.id} photoFileId={c.photo_file_id} name={fullName(c)} size="sm" />
+          <div>
+            <Link to={`/clients/${c.id}`} className="font-medium text-fg hover:text-primary hover:underline">
+              {fullName(c)}
+            </Link>
+            {c.primary_email && <p className="text-xs text-muted">{c.primary_email}</p>}
+          </div>
         </div>
       ),
     },

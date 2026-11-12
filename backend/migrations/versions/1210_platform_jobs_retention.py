@@ -20,7 +20,7 @@ from sqlalchemy.dialects import postgresql
 from app.core.db.rls import enable_rls
 
 revision = "1210"
-down_revision = "0953"
+down_revision = "1081"
 
 PURGE_AUDIT_EVENT = """
 CREATE FUNCTION app.purge_audit_event(batch integer) RETURNS integer
