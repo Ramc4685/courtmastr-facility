@@ -25,7 +25,10 @@ type Stop = { tag: string; name: string; top: number; left: number; inMain: bool
 /** The focused element: where it is, whether a focus indicator is drawn, and that indicator's contrast against
  * the background behind it (WCAG 1.4.11, 3:1). */
 export function focused(page: Page): Promise<Stop | null> {
-  return page.evaluate(() => {
+  return page.evaluate(async () => {
+    // Read after two frames: under reduced motion every property transitions for 0.01ms (index.css), so in the
+    // frame of the key press the computed style still holds the pre-focus values (outline: medium currentColor).
+    await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))
     const el = document.activeElement as HTMLElement | null
     if (!el || el === document.body) return null
     const parse = (c: string) => (c.match(/[\d.]+/g) ?? []).map(Number)
