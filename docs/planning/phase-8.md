@@ -139,9 +139,33 @@ Playwright helpers that read cookies by name must use the shared sign-in helper.
 | 2026-11-11 | S3 | merged `b9e83c8` after two security reviews and a re-review (takeover closed; header deadline, MFA evidence rule and malformed-document fixes in `52e5638`); migrations 1240, 1241 | `179043d` |
 | 2026-11-11 | I1 | merged `44728c5` (chip to `13f6c30`): `imports` context, four import types, dry run, chunked commit; imports skip welcome automations and respect GDPR mode; migrations 1270, 1271; chip lane gate green on the merged tip (4,869 backend, 195 web); security review running | `13f6c30` |
 | 2026-11-11 | O2, flake fix | O2 (load test, budget, keyboard accessibility) building; a separate agent is finding the root cause of the load-sensitive `mfa.test.tsx` / `auth.test.tsx` web tests | |
+| 2026-11-11 | flake fix | merged `c6b2c98`: the load-sensitive web tests were a real sign-in redirect race (`web/src/lib/auth.tsx`), fixed with a regression test; vitest capped at half the cores | `5b1dd36` |
+| 2026-11-11 | O2 | merged `fca3a50`: `make perf` / `perf-check`, `docs/ops/performance-budget.md`, fewer round trips on POS writes, keyboard accessibility spec and five WCAG fixes; no migration | `bd0d7de` |
+| 2026-11-11 | D1 | merged `d657ed6`: CLAUDE.md, status index, rbac-matrix (256 keys match the code), overview, baseline, READMEs, changelog | `8eaa2ef` |
+| 2026-11-11 | cross-chip review | no critical or high seam defect; 3 medium, 5 low, all sent to S5 | |
+| 2026-11-11 | I1 fixes | merged: 11 review findings and the system tender (migration 1272) | `523b4f6` |
+| 2026-11-11 | S5 | merged: OIDC step-up after an hour, startup refusal without `api.trusted_proxies` or with example keys, change-password lockout, allow-list before emailed-link state changes, generated files not scanned, retention for suspended tenants, dead `ip_policy` control removed; no migration | `73102cf` |
+| 2026-11-11 | web-e2e | first full run on the merged branch: 43 of 45; `checkin-desk.spec.ts` and `clients.spec.ts` failed in the parallel run and passed alone twice each | |
+
+Incidents and findings from the last day of the phase:
+- A build agent's `make lane-db` ran against the shared `facilityhub` and `facilityhub_test` databases (its `.env`
+  edit missed commented lines) and migrated both to 1271. `facilityhub_test` was downgraded to 1081 and verified.
+  `facilityhub` was left at 1271 by agreement with the top coordinator (`make migrate` after the merge brings it
+  into line; until then Alembic in the main checkout fails on it). Every brief now requires checking the
+  uncommented `.env` lines before any `make` command.
+- A lane database that applied Phase 8 migrations before Phase 10's cannot be upgraded: Phase 10's migrations
+  sit below Phase 8's in the chain and are skipped. Drop and recreate it (dev and test database both).
+- `reporting/tests/test_reporting.py` (two tests) and `test_export_chunks.py` (one) fail between 23:00 and 24:00
+  Chicago time: the test's second location is in `America/New_York`, and `last_30_days` ends on the tenant's
+  "today", so a sale made at that location in its first hour of the day is left out. Pre-dates Phase 8 (module
+  15). Owner: the reporting phase. Decide whether the period should end on the latest location's today.
+- `tests/test_hardening.py::test_security_headers_on_every_kind_of_response` fails when run straight after
+  `test_signin_hardening.py` in isolation (order dependence); it passes in the full suite. Unassigned.
+- Two stash entries (`p8s5-tmp-check`, `p8s5-f6-check`) were left by the S5 agent; both are already applied
+  and can be dropped.
 
 Migration chain on the phase branch: ... 0953 ... 1081 (Phase 10 head) → 1210 → 1211 → 1220 → 1230 → 1231 → 1250
-→ 1260 → 1261 → 1262 → 1263 → 1264 → 1280 → 1240 → 1241 → 1270 → 1271 (head). Numbers are block labels, not order.
+→ 1260 → 1261 → 1262 → 1263 → 1264 → 1280 → 1240 → 1241 → 1270 → 1271 → 1272 (head). Numbers are block labels, not order.
 
 Decisions relayed by the top coordinator on 2026-11-11 under the owner's blanket approval (assumptions until the
 owner says otherwise): (1) remove the Owner and Admin bypass of the staff IP allow-list; (2) build "Owner or
