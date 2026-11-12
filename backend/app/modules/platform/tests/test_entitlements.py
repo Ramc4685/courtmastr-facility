@@ -83,19 +83,21 @@ def test_location_limit_is_enforced_and_an_override_raises_it(client, tenant, ow
     _location(client, owner)
 
 
-def test_staff_limit_on_invite_and_reactivate(client, tenant, owner, op):
+def test_staff_seats_are_not_metered(client, tenant, owner, op):
+    """Owner decision (phase 8 S4): no staff-seat limit on any plan, at invite or reactivate, nor on display."""
     location = _location(client, owner)
-    _, staff_id = add_staff(tenant, "front_desk", all_locations=True)
-    _grant(client, op, tenant, key="staff_users", limit_value=2)  # the owner and the front desk
+    _plan(client, op, tenant, "essentials")  # the smallest plan; it once allowed 5 staff users
+    ids = [add_staff(tenant, "front_desk", all_locations=True)[1] for _ in range(5)]
     invite = {"email": f"x@{tenant.slug}.example.com", "first_name": "X", "last_name": "Y",
               "role_id": str(role_id(tenant, "front_desk")), "location_ids": [location["id"]],
               "primary_location_id": location["id"]}  # fmt: skip
-    refused = client.post(f"{API}/staff-users", headers=owner, json=invite)
-    assert (refused.status_code, refused.json()["code"]) == (409, "plan-limit-reached")
-    assert client.post(f"{API}/staff-users/{staff_id}/deactivate", headers=owner).status_code == 200
     assert client.post(f"{API}/staff-users", headers=owner, json=invite).status_code == 201
-    again = client.post(f"{API}/staff-users/{staff_id}/reactivate", headers=owner)
-    assert (again.status_code, again.json()["code"]) == (409, "plan-limit-reached")
+    assert client.post(f"{API}/staff-users/{ids[0]}/deactivate", headers=owner).status_code == 200
+    assert client.post(f"{API}/staff-users/{ids[0]}/reactivate", headers=owner).status_code == 200
+    assert _grant(client, op, tenant, 422, key="staff_users", limit_value=2)["code"] == "unknown-entitlement"
+    for body in (client.get(f"{API}/me", headers=owner).json()["entitlements"],
+                 client.get(f"{API}/tenant/entitlements", headers=owner).json()):  # fmt: skip
+        assert "staff_users" not in _limits(body)
 
 
 def test_client_limit_counts_active_clients_on_create_and_enable(client, tenant, owner, op):
@@ -196,7 +198,6 @@ def test_plan_screen_is_for_owner_and_admin_and_counts_every_limit(client, tenan
     _grant(client, op, tenant, key="clients", limit_value=50, source="promo")
     body = client.get(f"{API}/tenant/entitlements", headers=owner).json()
     assert _limits(body)["locations"] == (None, 1) and _limits(body)["clients"] == (50, 0)
-    assert _limits(body)["staff_users"] == (None, 1)  # the owner
     assert [(o["key"], o["source"], o["limit_value"]) for o in body["overrides"]] == [("clients", "promo", 50)]
     assert [(f["key"], f["included"]) for f in body["feature_catalogue"]] == [
         ("api_access", True),

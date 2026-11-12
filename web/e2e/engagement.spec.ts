@@ -45,7 +45,7 @@ test('staff open campaigns, create a draft email campaign and every engagement s
   await expect(row.getByText('Draft', { exact: true })).toBeVisible()
 
   for (const colorScheme of ['light', 'dark'] as const) {
-    await page.emulateMedia({ colorScheme })
+    await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' }) // no colour transition mid-scan
     await page.getByRole('navigation', { name: 'Engagement' }).getByRole('link', { name: 'Campaigns' }).click()
     await expect(page.getByRole('link', { name })).toBeVisible()
     await scan(page, `${colorScheme} campaigns`)
@@ -93,7 +93,7 @@ test('a member opens the inbox, sees the Court 3 announcement and marks it read;
   await expect(page.getByRole('heading', { level: 1, name: 'Inbox' })).toBeVisible()
   await expect(page.getByText('Court 3 is closed for resurfacing this week.').first()).toBeVisible()
   for (const colorScheme of ['light', 'dark'] as const) {
-    await page.emulateMedia({ colorScheme })
+    await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' }) // no colour transition mid-scan
     await scan(page, `${colorScheme} inbox`)
   }
   const markRead = page.getByRole('button', { name: /^Mark as read/ }).first()

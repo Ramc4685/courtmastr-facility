@@ -36,9 +36,11 @@ import { RoleDetailPage } from '../features/platform/RoleDetailPage'
 import { RolesPage } from '../features/platform/RolesPage'
 import { StaffUserPage } from '../features/platform/StaffUserPage'
 import { StaffUsersPage } from '../features/platform/StaffUsersPage'
+import { PrivacyPage } from '../features/platform/PrivacyPage'
 import { SecuritySettingsPage } from '../features/platform/SecuritySettingsPage'
 import { PlanUsagePage } from '../features/platform/PlanUsagePage'
 import { ImportDataPage } from '../features/imports/ImportDataPage'
+import { SupportPage } from '../features/platform/SupportPage'
 import { AccountSecurityPage } from '../features/platform/AccountSecurityPage'
 import { TenantSettingsPage } from '../features/platform/TenantSettingsPage'
 import { RentalSetupPage } from '../features/rentals/RentalSetupPage'
@@ -81,6 +83,8 @@ import { CheckInPage } from '../features/access/CheckInPage'
 import { HistoryPage as CheckInHistoryPage } from '../features/access/HistoryPage'
 import { KioskPage } from '../features/access/KioskPage'
 import { KioskSetupPage } from '../features/access/KioskSetupPage'
+import { AccessRulesPage } from '../features/access/AccessRulesPage'
+import { DeskSetupPage, MemberCardPage, OccupancyPage } from '../features/access/DeskPages'
 import { AppFrame } from './AppFrame'
 import { RequireClient, RequirePermission, RequireStaff } from './guards'
 
@@ -128,6 +132,8 @@ export function AppRoutes() {
         <Route path="settings/security" element={<RequirePermission permission="platform.security.manage"><SecuritySettingsPage /></RequirePermission>} />
         <Route path="settings/plan" element={<RequirePermission permission="platform.tenant.update"><PlanUsagePage /></RequirePermission>} />
         <Route path="settings/import" element={<RequirePermission permission="platform.import_job.read"><ImportDataPage /></RequirePermission>} />
+        <Route path="settings/privacy" element={<RequirePermission permission={['platform.security.manage', 'platform.tenant.export']}><PrivacyPage /></RequirePermission>} />
+        <Route path="support" element={<RequirePermission permission="platform.support_request.create"><SupportPage /></RequirePermission>} />
         <Route path="billing" element={<RequirePermission permission="billing.charge.read"><BillingLayout /></RequirePermission>}>
           <Route index element={<WorkbenchPage />} />
           <Route path="clients" element={<ClientBillingLookupPage />} />
@@ -192,6 +198,10 @@ export function AppRoutes() {
         <Route path="check-in" element={<RequirePermission permission="access.checkin.create"><CheckInPage /></RequirePermission>} />
         <Route path="check-in/history" element={<RequirePermission permission="access.checkin.read"><CheckInHistoryPage /></RequirePermission>} />
         <Route path="check-in/kiosks" element={<KioskSetupPage />} />
+        <Route path="check-in/access" element={<AccessRulesPage />} />
+        <Route path="check-in/occupancy" element={<RequirePermission permission="access.checkin.read"><OccupancyPage /></RequirePermission>} />
+        <Route path="check-in/desk-setup" element={<DeskSetupPage />} />
+        <Route path="check-in/card/:id" element={<RequirePermission permission="access.credential.assign"><MemberCardPage /></RequirePermission>} />
         <Route path="leagues" element={<RequirePermission permission="leagues.competition.manage"><LeaguesPage /></RequirePermission>} />
         <Route path="leagues/:id" element={<RequirePermission permission="leagues.competition.manage"><LeaguePage /></RequirePermission>} />
         {import.meta.env.DEV && (

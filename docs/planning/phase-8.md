@@ -130,6 +130,18 @@ Playwright helpers that read cookies by name must use the shared sign-in helper.
 | 2026-11-11 | O1 | merged `50aa1ed`; ops review (4 required, 3 smaller) fixed and merged `ac21204` (chip `76fbd5e` to `26ddafa`); no migration; nothing deployed | `26ddafa` |
 | 2026-11-11 | gate after batch 2 | lint, typecheck, boundaries clean; 1220 to 1231 down and up clean; 4,290 backend tests passed (796 skipped are the Schemathesis sample, 1 xfail), domain coverage 93%; web-check clean; web-test 147 passed; no OpenAPI drift. `make web-e2e` not rerun | `ac21204` |
 | 2026-11-11 | T1, T2, S3 | started as background agents on Opus (the app refused new sessions on a Remote Control turn), each in its own worktree cut from `ac21204` | |
+| 2026-11-11 | T1 | merged `872f558` (chip `b953226` to `4815b0b`); migration 1250; chip lane gate green, phase gate not rerun yet | `4815b0b` |
+| 2026-11-11 | S3 | built (`11cab48`), held out: two security reviews found an Admin-to-Owner takeover through a tenant-configured issuer; fixes with the builder; merge only after a re-review | |
+| 2026-11-11 | I1 | started (background agent, Opus) | |
+
+Decisions relayed by the top coordinator on 2026-11-11 under the owner's blanket approval (assumptions until the
+owner says otherwise): (1) remove the Owner and Admin bypass of the staff IP allow-list; (2) build "Owner or
+Admin resets another user's lost authenticator" in this phase, behind step-up, audited, with an email to the
+affected user; (3) T1's plan names and limits (Essentials, Growth, Complete) are placeholders, to be marked so
+in the platform README; (4) no staff-seat metering for now: keep the hook (`entitlements` limit key
+`staff_users`), do not enforce it; (5) if S3 is not closed and re-reviewed when everything else is ready, hand
+over without it and list it as pending. Items 1 to 4 are chip S4 (follow-ups), queued behind the three running
+builders.
 
 Open from batch 2: six unbounded `sort_order` fields return 500 (K3 `KNOWN_FAILURES`; fix in D1 or hand to the
 owning phases); eight boundary breaches listed in `ignore_imports` need an owner decision each (K3 note); mypy

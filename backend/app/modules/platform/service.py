@@ -72,6 +72,13 @@ def update_tenant(session: Session, principal: Principal, data: dict) -> Tenant:
     return tenant
 
 
+def minor_age(session: Session) -> int:
+    """Internal: under this age a client is a minor (key `minor_age` in tenant.settings, default 18; owner
+    question 21). Written only through update_tenant; a missing or unusable value reads as 18."""
+    value = (get_tenant(session).settings or {}).get("minor_age", 18)
+    return value if type(value) is int and 1 <= value <= 99 else 18
+
+
 # --- security settings (PLT-07) -----------------------------------------------------------------------------
 
 
@@ -125,6 +132,19 @@ def update_security_settings(session: Session, principal: Principal, data: dict)
         audit.record(session, "platform.security.manage", tenant, changes=policy_changes)
     session.flush()
     return _security_view(tenant)
+
+
+def clear_staff_ip_allowlist(session: Session, principal: Principal) -> list[str]:
+    """Operator break-glass for a tenant locked out by its own allow-list (`python -m app.cli
+    clear-ip-allowlist`); no role bypasses the list. Returns the list it removed."""
+    authorize(principal, "platform.security.manage")
+    tenant = get_tenant(session)
+    before = [str(net) for net in tenant.staff_ip_allowlist]
+    if before:
+        tenant.staff_ip_allowlist = []
+        audit.record(session, "platform.security.manage", tenant, changes={"staff_ip_allowlist": [before, []]})
+        session.flush()
+    return before
 
 
 # --- locations ---------------------------------------------------------------------------------------------
@@ -488,6 +508,14 @@ def enable_client_identity(session: Session, identity_id: UUID) -> None:
     identity = session.get(Identity, identity_id)
     if identity is not None and identity.kind == "client" and identity.status == "disabled":
         identity.status = "active" if identity.email_verified_at else "invited"
+
+
+def is_staff_address(session: Session, email: str) -> bool:
+    """Whether a staff login uses this address (internal: engagement keeps staff mail off client records)."""
+    return (
+        session.scalar(select(Identity.id).where(Identity.kind == "staff", Identity.email == email).limit(1))
+        is not None
+    )
 
 
 def find_client_identity(session: Session, email: str) -> Identity | None:

@@ -389,3 +389,8 @@ def trainer_group(session: Session, location_id: UUID) -> UUID:
         audit.record(session, MANAGE, group, location_id=location_id, changes={"name": True})
         found = group.id
     return found
+
+
+def get_window(session: Session, window_id: UUID) -> AvailabilityWindow | None:
+    """Internal: one availability window by id (scheduling's slot offers sell windows)."""
+    return session.get(AvailabilityWindow, window_id)

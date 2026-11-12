@@ -23,7 +23,7 @@ from app.core import audit, clock, events
 from app.core.api import CONSTRAINT_CODES
 from app.core.audit import AuditEvent
 from app.core.auth import Principal, authorize
-from app.core.errors import Conflict, DomainError, NotFound, ValidationFailed
+from app.core.errors import Conflict, DomainError, NotFound, PermissionDenied, ValidationFailed
 from app.core.jobs import tenant_actor
 from app.core.pagination import ListQuery, paginate
 from app.modules import billing, clients, documents, platform
@@ -1624,11 +1624,16 @@ def _covering(session: Session, client_id: UUID, on: date | None) -> tuple[Membe
     )
     stmt = select(c).where(c.status.in_(LIVE), or_(c.owner_client_id == client_id, c.id.in_(shared)))
     order = {"active": 0, "suspended": 1, "frozen": 2, "upcoming": 3}
-    best = None
+    best, best_rank = None, None
     for contract in session.scalars(stmt.order_by(c.start_on, c.id)):
         status = effective_status(session, contract, on or _today(session, contract.location_id))
-        if status in order and (best is None or order[status] < order[best[1]]):
-            best = (contract, status, "owner" if contract.owner_client_id == client_id else "share")
+        if status not in order:
+            continue
+        # Same status: a contract with visits left beats an earlier used-up pass (an owner pass and a share).
+        used_up = contract.max_visits_count is not None and contract.visits_used_count >= contract.max_visits_count
+        rank = (order[status], used_up)
+        if best_rank is None or rank < best_rank:
+            best, best_rank = (contract, status, "owner" if contract.owner_client_id == client_id else "share"), rank
     return best
 
 
@@ -1699,6 +1704,10 @@ def record_visit(session: Session, *, client_id: UUID, check_in_id: UUID, locati
                 MembershipVisit.local_on == local_on, MembershipVisit.is_counted,
             )  # fmt: skip
             counted = session.scalar(earlier.limit(1)) is None
+        # A staff override past a used-up limit is recorded, never counted beyond the cap.
+        counted = counted and (
+            contract.max_visits_count is None or contract.visits_used_count < contract.max_visits_count
+        )
         seen = MembershipVisit(
             membership_contract_id=contract.id, client_id=client_id, check_in_id=check_in_id, location_id=location_id,
             visited_at=clock.now(), local_on=local_on, is_counted=counted,
@@ -1730,6 +1739,60 @@ def adjust_visits(session: Session, principal: Principal, contract_id: UUID, dat
                  changes={"visits_used_count": [was, contract.visits_used_count]})  # fmt: skip
     session.flush()
     return contract_view(session, contract)
+
+
+# --- derived client alerts (CLI-20) ------------------------------------------------------------------------------
+
+EXPIRING_SOON_DAYS = 14  # assumption (README): how early "membership expiring" shows
+
+
+def client_alerts(session: Session, principal: Principal, client_id: UUID) -> list[dict]:
+    """System alerts on a client, computed on read from their owners: balance due (billing), membership expiring or
+    expired (here), waiver missing (documents). Here and not in `clients`, which may not call those contexts
+    (overview section 2). Staff only; each alert shows only to a caller holding its owning context's read key."""
+    client = clients.service.load(session, principal, client_id, "clients.client.read")
+    today = platform.service.location_today(session, client.home_location_id)
+
+    def reaches(key: str) -> bool:  # the section's own key and reach (own = their clients), not mere possession
+        try:
+            clients.service.load(session, principal, client_id, key)
+        except (NotFound, PermissionDenied):
+            return False
+        return True
+
+    out = []
+    if reaches("billing.invoice.read"):
+        money = billing.documents.billing_summary(session, client.id)
+        due = money["open_balance_minor"] + money["uninvoiced_minor"]
+        if due > 0:
+            late = money["past_due_minor"] > 0
+            out.append({"code": "balance_due", "severity": "danger" if late else "warning", "amount_minor": due,
+                        "on": money["oldest_past_due_on"], "message": "Past-due balance" if late else "Balance due"})  # fmt: skip
+    if reaches(_READ):
+        standing = eligibility(session, client.id, today)
+        end_on = standing.get("end_on")
+        if standing["contract_id"] is not None:
+            if end_on is not None and end_on <= today + timedelta(days=EXPIRING_SOON_DAYS):
+                out.append({"code": "membership_expiring", "severity": "warning", "on": end_on, "amount_minor": None,
+                            "message": f"{standing['membership_name']} ends {end_on.isoformat()}"})  # fmt: skip
+        else:
+            c = MembershipContract
+            last = session.scalar(
+                select(c)
+                .where(c.owner_client_id == client.id, c.status == "expired")
+                .order_by(c.end_on.desc())
+                .limit(1)
+            )
+            if last is not None:
+                out.append({"code": "membership_expired", "severity": "warning", "on": last.end_on, "amount_minor": None,
+                            "message": f"{last.name} expired"})  # fmt: skip
+    if reaches("documents.document.read"):
+        rules = documents.service.settings_row(session)
+        required = rules.is_waiver_required_for_check_in or rules.is_waiver_required_for_booking
+        if required and not documents.service.has_valid_waiver(session, client.id):
+            out.append({"code": "waiver_missing", "severity": "danger", "on": None, "amount_minor": None,
+                        "message": "No valid waiver on file"})  # fmt: skip
+    return out
 
 
 # --- portal (MEM-10, MEM-18) -------------------------------------------------------------------------------------

@@ -41,6 +41,8 @@ from app.modules.billing.events import (
     InvoicePaid,
     InvoicePastDue,
     InvoiceVoided,
+    PaymentDisputeClosed,
+    PaymentDisputed,
     PaymentFailed,
     PaymentProcessing,
     PaymentRefunded,
@@ -50,6 +52,7 @@ from app.modules.billing.events import (
 from app.modules.billing.models import (
     Charge,
     ChargeTax,
+    Dispute,
     Invoice,
     LedgerEntry,
     LedgerTransaction,
@@ -1096,6 +1099,75 @@ def _post_refund(session: Session, row: Refund, payment: Payment) -> None:
         ),
         payment.id,
     )
+
+
+def sync_dispute(session: Session, account: ProviderAccount, provider_dispute_ref: str) -> Dispute | None:
+    """Mirror a processor dispute (ADR 0003 section 9). Opened: the payment becomes `disputed`, its allocations
+    are released (the invoices reopen) and the funds move to `disputed_funds`. Won: they come back as unapplied
+    credit on the same payment, for staff or autopay to re-apply. Lost: the payment is `charged_back` and the
+    credit is gone. A bank-debit dispute is lost on arrival. Re-reads the processor, so a replayed or
+    out-of-order webhook changes nothing; inquiries (no money withdrawn) are ignored.
+
+    shortcut: one dispute per payment for its whole disputed amount; a second dispute on a payment that is
+    already disputed or charged back is stored but moves no money. Partial disputes are rare; revisit with them.
+    """
+    state = payment_provider.get(account.provider).get_dispute(
+        account_ref=account.provider_account_ref, provider_dispute_ref=provider_dispute_ref
+    )
+    payment = session.execute(
+        select(Payment)
+        .where(Payment.provider_account_id == account.id, Payment.provider_payment_ref == state.provider_payment_ref)
+        .with_for_update()
+    ).scalar_one_or_none()
+    if state.status is None or payment is None or not state.provider_payment_ref:
+        return None
+    row = session.execute(
+        select(Dispute).where(Dispute.provider_dispute_ref == state.provider_dispute_ref).with_for_update()
+    ).scalar_one_or_none()
+    status = "lost" if payment.tender_kind == "bank_debit" else state.status
+    ref = {"payment_id": payment.id, "client_id": payment.client_id}
+    today = platform.service.location_today(session, payment.location_id)
+    if row is None:
+        if payment.status != "succeeded":  # only settled money can be disputed (section 7 transitions)
+            return None
+        row = Dispute(
+            payment_id=payment.id, provider_dispute_ref=state.provider_dispute_ref, amount_minor=state.amount_minor,
+            currency=platform.service.get_tenant(session).currency, reason_code=state.reason_code,
+            opened_at=clock.now(), evidence_due_at=state.evidence_due_at,
+        )  # fmt: skip
+        session.add(row)
+        session.flush()
+        payment.status = "disputed"
+        for allocation in session.scalars(_live_allocations(PaymentAllocation.payment_id == payment.id)):
+            _release(session, allocation, "dispute_opened")
+        _post(
+            session, "dispute_opened", "dispute", row.id, today, payment.location_id, payment.client_id,
+            [("disputed_funds", row.amount_minor, 0, {}), ("funds_received", 0, row.amount_minor, {})],
+            payment_id=payment.id,
+        )  # fmt: skip
+        audit.record(session, "billing.dispute.open", row, location_id=payment.location_id)
+        events.publish(session, PaymentDisputed(**ref, dispute_id=row.id), payment.id)
+    row.evidence_due_at = state.evidence_due_at or row.evidence_due_at
+    if status == "open" or row.status != "open":
+        _settle_projections(session, payment, ())
+        return row
+    row.status, row.closed_at = status, clock.now()
+    if status == "won":
+        lines = [("funds_received", row.amount_minor, 0, {}), ("disputed_funds", 0, row.amount_minor, {})]
+        payment.status = "succeeded"
+    else:
+        lines = [("client_credit", row.amount_minor, 0, {}), ("disputed_funds", 0, row.amount_minor, {})]
+        payment.status = "charged_back"
+    _post(
+        session, f"dispute_{status}", "dispute", row.id, today, payment.location_id, payment.client_id, lines,
+        payment_id=payment.id,
+    )  # fmt: skip
+    audit.record(
+        session, "billing.dispute.close", row, location_id=payment.location_id, changes={"status": ["open", status]}
+    )
+    events.publish(session, PaymentDisputeClosed(**ref, dispute_id=row.id, outcome=status), payment.id)
+    _settle_projections(session, payment, ())
+    return row
 
 
 def release_allocation(session: Session, payment_id: UUID, allocation_id: UUID) -> Payment:

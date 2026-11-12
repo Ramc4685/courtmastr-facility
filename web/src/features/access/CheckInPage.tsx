@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { api, ApiError } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
-import { Input } from '../../components/Field'
+import { Input, Select } from '../../components/Field'
 import { Card, PageHeader } from '../../components/PageHeader'
 import { ErrorState } from '../../components/States'
 import { Table, useKeysetQuery, type Column } from '../../components/Table'
@@ -13,8 +13,10 @@ import { useAuth } from '../../lib/auth'
 import { formatDateTime, formatMoney } from '../../lib/format'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { LocationSelect, useWorkingLocation } from '../scheduling/location'
-import { ALERT_LABEL, CHANNEL, RESULT, type CheckIn, type Decision } from './queries'
+import { LastCheckIn, RemedyActions, StationSelect } from './DeskPanels'
+import { ALERT_LABEL, CHANNEL, DENIAL_LABEL, MODE_LABEL, RESULT, type AccessMode, type CheckIn, type CheckInResult, type Decision } from './queries'
 import { useScanBurst } from './useScanBurst'
+import { ClientPhotoById } from '../clients/ClientFiles' // CLI-12 photo on the staff status card (never the kiosk)
 
 type Subject = { client_id: string } | { credential_value: string }
 
@@ -28,7 +30,10 @@ export function CheckInPage() {
   const [picked, setPicked] = useState<ClientSummary | null>(null)
   const [typed, setTyped] = useState('')
   const [reason, setReason] = useState('')
+  const [stationId, setStationId] = useState('')
+  const [last, setLast] = useState<CheckInResult | null>(null)
   const locationId = location?.id ?? ''
+  useEffect(() => setStationId(''), [locationId]) // a station belongs to one location
 
   const decision = useQuery({
     queryKey: ['check-in', 'evaluate', locationId, subject],
@@ -39,13 +44,18 @@ export function CheckInPage() {
   const checkIn = useMutation({
     mutationFn: (override: boolean) =>
       api.post('/api/v1/check-ins', {
-        body: { ...subject, location_id: locationId, channel: 'staff_window', override, override_reason: override ? reason : undefined },
+        body: {
+          ...subject, location_id: locationId, channel: 'staff_window', override, override_reason: override ? reason : undefined,
+          check_in_station_id: stationId || undefined,
+        },
       }),
     onSuccess: (done) => {
       const name = done.client.display_name
       const denied = done.check_in.result === 'denied'
       toast(denied ? 'error' : 'success', denied ? `${name}: entry denied and recorded.` : `${name} is checked in.`)
       qc.invalidateQueries({ queryKey: ['check-ins'] })
+      qc.invalidateQueries({ queryKey: ['occupancy'] })
+      setLast(done)
       clear()
     },
     onError: (e) => toast('error', e instanceof ApiError ? e.message : 'Check-in failed.'),
@@ -78,7 +88,10 @@ export function CheckInPage() {
         actions={
           <>
             <Link className="text-primary underline" to="/check-in/history">Client history</Link>
+            {can('access.checkin.read') && <Link className="text-primary underline" to="/check-in/occupancy">Who is in</Link>}
+            {can('access.settings.manage') && <Link className="text-primary underline" to="/check-in/desk-setup">Stations and cards</Link>}
             {(can('access.settings.manage') || can('access.kiosk.launch')) && <Link className="text-primary underline" to="/check-in/kiosks">Kiosks</Link>}
+            {(can('access.rule.manage') || can('access.settings.manage')) && <Link className="text-primary underline" to="/check-in/access">Access rules</Link>}
           </>
         }
       />
@@ -86,6 +99,7 @@ export function CheckInPage() {
         <Card title="Find the client">
           <div className="space-y-4">
             <LocationSelect className="w-full" />
+            <StationSelect locationId={locationId} value={stationId} onChange={setStationId} />
             <form onSubmit={submitTyped} className="flex items-end gap-2">
               <Input className="flex-1" label="Card or member number" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
               <Button type="submit" variant="secondary">Look up</Button>
@@ -111,6 +125,7 @@ export function CheckInPage() {
             <ErrorState error={decision.error} />
           ) : (
             <StatusCard
+              locationId={locationId}
               decision={decision.data}
               busy={checkIn.isPending}
               canOverride={can('access.checkin.override_denial')}
@@ -122,13 +137,14 @@ export function CheckInPage() {
           )}
         </Card>
       </div>
+      {last && locationId && <LastCheckIn key={last.check_in.id} result={last} locationId={locationId} timeZone={location?.time_zone} onDismiss={() => setLast(null)} />}
       {locationId && <RecentCheckIns locationId={locationId} timeZone={location?.time_zone} />}
     </>
   )
 }
 
-function StatusCard({ decision, busy, canOverride, reason, onReason, onCheckIn, onClear }: {
-  decision: Decision; busy: boolean; canOverride: boolean; reason: string
+function StatusCard({ locationId, decision, busy, canOverride, reason, onReason, onCheckIn, onClear }: {
+  locationId: string; decision: Decision; busy: boolean; canOverride: boolean; reason: string
   onReason: (v: string) => void; onCheckIn: (override: boolean) => void; onClear: () => void
 }) {
   const c = decision.client
@@ -136,7 +152,8 @@ function StatusCard({ decision, busy, canOverride, reason, onReason, onCheckIn, 
   return (
     <div className="space-y-4" aria-live="polite">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
+        <ClientPhotoById clientId={c.client_id} name={c.display_name} />
+        <div className="flex-1">
           <h3 className="text-lg font-semibold">
             <Link to={`/clients/${c.client_id}`}>{c.display_name}</Link>
           </h3>
@@ -144,6 +161,7 @@ function StatusCard({ decision, busy, canOverride, reason, onReason, onCheckIn, 
         </div>
         <Badge tone={decision.would_grant ? 'success' : 'danger'}>{decision.would_grant ? 'Entry allowed' : 'Entry denied'}</Badge>
       </div>
+      {decision.denial_reason && <p className="text-sm font-medium text-danger">Why: {DENIAL_LABEL[decision.denial_reason] ?? decision.denial_reason}</p>}
       <dl className="grid gap-3 text-sm sm:grid-cols-3">
         <div>
           <dt className="text-muted">Membership</dt>
@@ -176,6 +194,7 @@ function StatusCard({ decision, busy, canOverride, reason, onReason, onCheckIn, 
           ))}
         </ul>
       )}
+      <RemedyActions decision={decision} locationId={locationId} />
       <div className="flex flex-wrap items-end gap-2">
         {decision.would_grant ? (
           <Button onClick={() => onCheckIn(false)} loading={busy}>Check in</Button>
@@ -192,6 +211,45 @@ function StatusCard({ decision, busy, canOverride, reason, onReason, onCheckIn, 
         )}
         <Button variant="ghost" onClick={onClear}>Clear</Button>
       </div>
+      <AccessModeControl clientId={c.client_id} />
+    </div>
+  )
+}
+
+/** The client's access mode (CHK-08): read by the desk, changed only with its own permission and a reason. */
+function AccessModeControl({ clientId }: { clientId: string }) {
+  const { can } = useAuth()
+  const toast = useToast()
+  const qc = useQueryClient()
+  const canSet = can('access.client.set_access_mode')
+  const mode = useQuery({ queryKey: ['access-mode', clientId], queryFn: () => api.get('/api/v1/clients/{client_id}/access-mode', { path: { client_id: clientId } }) })
+  const [next, setNext] = useState<AccessMode | ''>('')
+  const [why, setWhy] = useState('')
+  const save = useMutation({
+    mutationFn: () => api.put('/api/v1/clients/{client_id}/access-mode', { path: { client_id: clientId }, body: { access_mode: next as AccessMode, reason: why.trim() } }),
+    onSuccess: (saved) => {
+      qc.setQueryData(['access-mode', clientId], saved)
+      qc.invalidateQueries({ queryKey: ['check-in', 'evaluate'] })
+      setNext('')
+      setWhy('')
+      toast('success', `Access mode: ${MODE_LABEL[saved.access_mode]}.`)
+    },
+    onError: (e) => toast('error', e instanceof ApiError ? e.message : 'Saving failed.'),
+  })
+  if (!mode.data) return null
+  const current = mode.data.access_mode
+  return (
+    <div className="border-t border-border pt-3 text-sm">
+      <p>
+        <span className="text-muted">Access mode:</span> {MODE_LABEL[current]}
+      </p>
+      {canSet && (
+        <form className="mt-2 flex flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); save.mutate() }}>
+          <Select label="Change access mode" value={next || current} onChange={(e) => setNext(e.target.value as AccessMode)} options={(Object.keys(MODE_LABEL) as AccessMode[]).map((m) => ({ value: m, label: MODE_LABEL[m] }))} />
+          <Input className="w-64" label="Reason for the change" value={why} maxLength={500} onChange={(e) => setWhy(e.target.value)} />
+          <Button type="submit" variant="secondary" disabled={!next || next === current || !why.trim()} loading={save.isPending}>Save mode</Button>
+        </form>
+      )}
     </div>
   )
 }

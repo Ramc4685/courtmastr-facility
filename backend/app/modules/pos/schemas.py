@@ -13,6 +13,7 @@ Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max
 LongText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
 Code = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
 Minor = Annotated[int, Field(ge=0, le=10**12)]
+Order = Annotated[int, Field(ge=0, le=10_000)]  # sort_order: bounded so it never overflows the INTEGER column
 PositiveMinor = Annotated[int, Field(gt=0, le=10**12)]
 Count = Annotated[int, Field(ge=1, le=100000)]
 Pct = Annotated[Decimal, Field(gt=0, le=100, decimal_places=2)]
@@ -72,7 +73,8 @@ class PosSettingsOut(Out):
     low_stock_alert_email: str | None
     is_negative_stock_allowed: bool
     allowed_networks: list[str]
-    receipt_footer: str | None
+    receipt_footer: str | None  # stored here (POS-14); blank prints billing's footer
+    effective_receipt_footer: str | None
 
 
 class PosSettingsWrite(In):
@@ -81,6 +83,7 @@ class PosSettingsWrite(In):
     is_drawer_session_required: bool | None = None
     low_stock_alert_email: EmailStr | None = None
     is_negative_stock_allowed: bool | None = None
+    receipt_footer: LongText | None = None
     allowed_networks: Annotated[list[Annotated[str, StringConstraints(max_length=64)]], Field(max_length=50)] | None = (
         None
     )
@@ -133,7 +136,7 @@ class ProductCategoryCreate(In):
     name: Text
     revenue_category_id: UUID | None = None
     tax_ids: Annotated[list[UUID], Field(max_length=20)] | None = None
-    sort_order: int = 0
+    sort_order: Order = 0
     is_active: bool = True
 
 
@@ -321,7 +324,7 @@ class DiscountPresetCreate(In):
     name: Text
     discount_pct: Pct | None = None
     discount_minor: PositiveMinor | None = None
-    sort_order: int = 0
+    sort_order: Order = 0
     is_active: bool = True
 
 
@@ -329,7 +332,7 @@ class DiscountPresetUpdate(In):
     name: Text | None = None
     discount_pct: Pct | None = None
     discount_minor: PositiveMinor | None = None
-    sort_order: int | None = None
+    sort_order: Order | None = None
     is_active: bool | None = None
 
 
@@ -345,14 +348,14 @@ class DiscountPresetOut(Out):
 class EquipmentCategoryCreate(In):
     name: Text
     revenue_category_id: UUID | None = None
-    sort_order: int = 0
+    sort_order: Order = 0
     is_active: bool = True
 
 
 class EquipmentCategoryUpdate(In):
     name: Text | None = None
     revenue_category_id: UUID | None = None
-    sort_order: int | None = None
+    sort_order: Order | None = None
     is_active: bool | None = None
 
 
@@ -377,7 +380,7 @@ class EquipmentItemCreate(In):
     replacement_fee_minor: Minor = 0
     revenue_category_id: UUID | None = None
     unit_count: Count = 1
-    sort_order: int = 0
+    sort_order: Order = 0
     is_active: bool = True
 
 
@@ -394,7 +397,7 @@ class EquipmentItemUpdate(In):
     replacement_fee_minor: Minor | None = None
     revenue_category_id: UUID | None = None
     unit_count: Count | None = None
-    sort_order: int | None = None
+    sort_order: Order | None = None
     is_active: bool | None = None
 
 
@@ -468,6 +471,19 @@ class PosSaleUpdate(In):
     version: int
     client_id: UUID | None = None
     note: LongText | None = None
+
+
+_PersonName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+
+
+class PosQuickClientCreate(In):
+    version: int
+    first_name: _PersonName
+    last_name: _PersonName
+    primary_email: EmailStr | None = None
+    phone_mobile: Annotated[str, StringConstraints(pattern=r"^\+[1-9][0-9]{6,14}$")] | None = None  # E.164, as clients
+    birth_on: date | None = None
+    confirm_new: bool = False  # the cashier saw the possible duplicates and this is someone else
 
 
 class PosSaleLineCreate(In):

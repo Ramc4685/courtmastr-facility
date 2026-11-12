@@ -5,9 +5,10 @@ from decimal import Decimal
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import EmailStr, Field, StringConstraints
+from pydantic import EmailStr, Field, StringConstraints, computed_field
 
 from app.core.schemas import In, Out, Page  # noqa: F401  (Page is used by the router as s.Page)
+from app.ports import payment_provider
 
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 Minor = Annotated[int, Field(ge=0, le=10**12)]  # minor units of the tenant currency
@@ -772,7 +773,14 @@ class SetupIntentRequest(In):
     kinds: Annotated[list[Literal["card", "bank_account"]], Field(min_length=1, max_length=2)] = ["card"]
 
 
-class SetupIntentOut(Out):
+class BrowserKeys(Out):
+    """Stripe.js needs these to tokenise a card on the tenant's connected account; both null for the fake."""
+
+    publishable_key: str | None = None
+    account_ref: str | None = None
+
+
+class SetupIntentOut(BrowserKeys):
     provider: str
     client_secret: str
 
@@ -835,6 +843,7 @@ class AutopayAttemptOut(Out):
 class ProviderAccountOut(Out):
     id: UUID
     provider: Literal["stripe", "fake"]
+    provider_account_ref: str
     status: Literal["pending", "restricted", "active", "disabled"]
     has_card: bool
     has_bank_debit: bool
@@ -842,6 +851,12 @@ class ProviderAccountOut(Out):
     requirements_due: list[str] | None
     connected_at: datetime | None
     disabled_at: datetime | None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def publishable_key(self) -> str | None:
+        """For Stripe.js on staff screens; null for the fake."""
+        return payment_provider.browser_keys(self.provider, self.provider_account_ref)["publishable_key"]
 
 
 class ProviderConnect(In):
@@ -870,7 +885,7 @@ class InvoiceLinkPayment(In):
     method_token: MethodToken
 
 
-class LinkInvoice(Out):
+class LinkInvoice(BrowserKeys):
     number: int
     status: str
     invoice_on: date

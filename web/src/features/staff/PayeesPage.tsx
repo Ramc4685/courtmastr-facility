@@ -9,10 +9,10 @@ import { EmptyState, ErrorState } from '../../components/States'
 import { useAuth, useMe } from '../../lib/auth'
 import { parseMoney, toMoneyInput } from '../billing/money'
 import { FormDialog, ListTable, LocationSelect, MoneyInput } from '../billing/shared'
+import { BonusDialog, RateDialog, TypeRatesDialog } from './PayRulesDialogs'
 import { useNames, usePayees, type Payee } from './shared'
 
-// session_completion commission is not calculated yet (staff README), so it is not offered.
-const APPLIES_TO: Record<string, string> = { package_sale: 'Package sale', membership_sale: 'Membership sale' }
+const APPLIES_TO: Record<string, string> = { package_sale: 'Package sale', membership_sale: 'Membership sale', session_completion: 'Completed session' }
 
 function PayeeDialog({ payee, onClose }: { payee: Payee | null; onClose: () => void }) {
   const qc = useQueryClient()
@@ -44,34 +44,6 @@ function PayeeDialog({ payee, onClose }: { payee: Payee | null; onClose: () => v
       <Input label="Name" required value={f.display_name} error={e.display_name} onChange={(ev) => setF({ ...f, display_name: ev.target.value })} />
       <Select label="Staff login" value={f.staff_user_id} placeholder="None" error={e.staff_user_id} onChange={(ev) => setF({ ...f, staff_user_id: ev.target.value })} options={names.userOptions} />
       {payee && <Checkbox label="Active" checked={f.is_active} onChange={(ev) => setF({ ...f, is_active: ev.target.checked })} />}
-    </FormDialog>
-  )
-}
-
-function RateDialog({ payee, onClose }: { payee: Payee; onClose: () => void }) {
-  const qc = useQueryClient()
-  const rates = useQuery({ queryKey: ['staff', 'payees', payee.id, 'rates'], queryFn: () => api.get('/api/v1/staff-payees/{staff_payee_id}/pay-rates', { path: { staff_payee_id: payee.id } }) })
-  const current = rates.data?.find((r) => r.reservation_type_id === null)
-  const [f, setF] = useState<{ pay_basis: 'per_session' | 'per_attendee'; r60: string; r45: string; r30: string } | null>(null)
-  const v = f ?? { pay_basis: current?.pay_basis ?? 'per_session', r60: toMoneyInput(current?.rate_60_minor ?? 0), r45: toMoneyInput(current?.rate_45_minor ?? 0), r30: toMoneyInput(current?.rate_30_minor ?? 0) }
-  const save = useMutation({
-    mutationFn: () =>
-      api.put('/api/v1/staff-payees/{staff_payee_id}/pay-rates/default', {
-        path: { staff_payee_id: payee.id },
-        body: { pay_basis: v.pay_basis, rate_60_minor: parseMoney(v.r60) ?? 0, rate_45_minor: parseMoney(v.r45) ?? 0, rate_30_minor: parseMoney(v.r30) ?? 0, session_commission_pct: current?.session_commission_pct ?? '0', comp_session_rate_minor: current?.comp_session_rate_minor ?? 0 },
-      }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['staff', 'payees', payee.id] })
-      onClose()
-    },
-  })
-  const e = fieldErrors(save.error)
-  return (
-    <FormDialog title={`Session pay for ${payee.display_name}`} description="The default rate; a session's length picks the 60, 45 or 30 minute rate." submitLabel="Save rate" busy={save.isPending} error={save.error} onClose={onClose} onSubmit={() => save.mutate()}>
-      <Select label="Paid" value={v.pay_basis} onChange={(ev) => setF({ ...v, pay_basis: ev.target.value as 'per_session' })} options={[{ value: 'per_session', label: 'Per session' }, { value: 'per_attendee', label: 'Per attendee' }]} />
-      <MoneyInput label="60 minute rate" value={v.r60} error={e.rate_60_minor} onChange={(ev) => setF({ ...v, r60: ev.target.value })} />
-      <MoneyInput label="45 minute rate" value={v.r45} error={e.rate_45_minor} onChange={(ev) => setF({ ...v, r45: ev.target.value })} />
-      <MoneyInput label="30 minute rate" value={v.r30} error={e.rate_30_minor} onChange={(ev) => setF({ ...v, r30: ev.target.value })} />
     </FormDialog>
   )
 }
@@ -120,7 +92,7 @@ export function PayeesPage() {
   const payees = usePayees()
   const names = useNames()
   const pay = useAuth().can('staff.pay_rate.manage')
-  const [dialog, setDialog] = useState<{ kind: 'edit' | 'rate' | 'commission'; payee: Payee } | 'new' | null>(null)
+  const [dialog, setDialog] = useState<{ kind: 'edit' | 'rate' | 'types' | 'bonus' | 'commission'; payee: Payee } | 'new' | null>(null)
   return (
     <>
       <PageHeader title="Trainers & salespeople" description="Who earns session pay and commission." actions={<Button onClick={() => setDialog('new')}>New payee</Button>} />
@@ -140,6 +112,8 @@ export function PayeesPage() {
             cell: (p) => (
               <div className="flex justify-end gap-1">
                 {pay && p.kind === 'trainer' && <Button size="sm" variant="ghost" aria-label={`Session pay for ${p.display_name}`} onClick={() => setDialog({ kind: 'rate', payee: p })}>Session pay</Button>}
+                {pay && p.kind === 'trainer' && <Button size="sm" variant="ghost" aria-label={`Type rates for ${p.display_name}`} onClick={() => setDialog({ kind: 'types', payee: p })}>Type rates</Button>}
+                {pay && p.kind === 'trainer' && <Button size="sm" variant="ghost" aria-label={`Bonuses for ${p.display_name}`} onClick={() => setDialog({ kind: 'bonus', payee: p })}>Bonuses</Button>}
                 {pay && <Button size="sm" variant="ghost" aria-label={`Commission for ${p.display_name}`} onClick={() => setDialog({ kind: 'commission', payee: p })}>Commission</Button>}
                 <Button size="sm" variant="ghost" aria-label={`Edit ${p.display_name}`} onClick={() => setDialog({ kind: 'edit', payee: p })}>Edit</Button>
               </div>
@@ -150,6 +124,8 @@ export function PayeesPage() {
       {dialog === 'new' && <PayeeDialog payee={null} onClose={() => setDialog(null)} />}
       {dialog && dialog !== 'new' && dialog.kind === 'edit' && <PayeeDialog payee={dialog.payee} onClose={() => setDialog(null)} />}
       {dialog && dialog !== 'new' && dialog.kind === 'rate' && <RateDialog payee={dialog.payee} onClose={() => setDialog(null)} />}
+      {dialog && dialog !== 'new' && dialog.kind === 'types' && <TypeRatesDialog payee={dialog.payee} onClose={() => setDialog(null)} />}
+      {dialog && dialog !== 'new' && dialog.kind === 'bonus' && <BonusDialog payee={dialog.payee} onClose={() => setDialog(null)} />}
       {dialog && dialog !== 'new' && dialog.kind === 'commission' && <CommissionDialog payee={dialog.payee} onClose={() => setDialog(null)} />}
     </>
   )

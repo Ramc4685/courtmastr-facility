@@ -24,6 +24,8 @@ def main() -> None:
     run_import = commands.add_parser("run-import", help="run an import job's chunks in this process (no worker)")
     run_import.add_argument("--tenant", required=True, help="tenant id")
     run_import.add_argument("--job", required=True, help="import job id")
+    clear = commands.add_parser("clear-ip-allowlist", help="break-glass: empty a tenant's staff IP allow-list")
+    clear.add_argument("--tenant", required=True, help="tenant id")
     args = parser.parse_args()
 
     if args.command == "serve":
@@ -42,6 +44,8 @@ def main() -> None:
         _failed_jobs(args)
     elif args.command == "run-import":
         _run_import(args)
+    elif args.command == "clear-ip-allowlist":
+        _clear_ip_allowlist(args.tenant)
     else:
         from app.bootstrap import bootstrap
         from app.modules.platform import service
@@ -92,6 +96,23 @@ def _run_import(args) -> None:
     while more:
         with tenant_session(UUID(args.tenant), actor=system_principal("run_import")) as session:
             more = imports.service.run_chunk(session, UUID(args.job))
+
+
+def _clear_ip_allowlist(tenant_id: str) -> None:
+    """Operator break-glass (PLT-07): no role bypasses the allow-list, so a tenant that locks itself out is
+    let back in from here. Audited as the system principal `operator-cli`."""
+    from uuid import UUID
+
+    from app.bootstrap import bootstrap
+    from app.core.auth import system_principal
+    from app.core.db.session import tenant_session
+    from app.modules.platform import service
+
+    bootstrap()
+    operator = system_principal("operator-cli")
+    with tenant_session(UUID(tenant_id), actor=operator) as session:
+        removed = service.clear_staff_ip_allowlist(session, operator)
+    print(json.dumps({"tenant_id": tenant_id, "removed": removed}))
 
 
 def _create_lane_databases() -> None:

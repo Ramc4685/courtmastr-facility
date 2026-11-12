@@ -71,3 +71,17 @@ test('front desk checks a client in by card, exports history, launches the kiosk
   await scan(kiosk, 'kiosk result')
   await device.close()
 })
+
+test('a manager reviews access rules, check-in settings, access hours and membership locations, and the screen passes axe', async ({ page }) => {
+  await page.goto('/check-in/access')
+  await page.getByRole('textbox', { name: 'Email' }).fill('manager@courtside-demo.example.com')
+  await page.getByRole('textbox', { name: 'Password' }).fill(DESK.password)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Access rules' })).toBeVisible()
+  await expect(page.getByLabel('No visits left')).toHaveValue('deny') // owner question 12: used-up visits are refused
+  await expect(page.getByRole('list', { name: 'Access schedules' })).toBeVisible()
+  await scan(page, 'access rules')
+  const saved = page.waitForResponse((r) => r.url().includes('/api/v1/access-rules') && r.request().method() === 'PUT')
+  await page.getByRole('button', { name: 'Save rules' }).click() // unchanged values: saving is a no-op
+  expect((await saved).status()).toBe(200)
+})

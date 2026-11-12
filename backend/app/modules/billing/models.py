@@ -53,6 +53,7 @@ LedgerKind = _values(
     "charge_posted", "payment_settled", "allocation_applied", "allocation_released", "refund_succeeded",
     "refund_returned", "payment_voided", "dispute_opened", "dispute_won", "dispute_lost", "correction",
 )  # fmt: skip
+DisputeStatus = _values("open", "won", "lost")
 LedgerSource = _values("charge", "payment", "payment_allocation", "refund", "dispute")
 LedgerAccount = _values("receivable", "revenue", "tax_payable", "funds_received", "client_credit", "disputed_funds")
 Provider = _values("stripe", "fake")
@@ -494,6 +495,29 @@ class Refund(TenantOwned, Timestamps, Base):
     refund_batch_id: Mapped[UUID | None]
     failure_message: Mapped[str | None]
     issued_by_staff_user_id: Mapped[UUID | None]
+
+
+class Dispute(TenantOwned, Timestamps, Base):
+    """A chargeback or a bank-debit return after settlement (PAY-17, ADR 0003 section 9). Mirrors the processor:
+    created and moved only by webhooks.apply_event through service.sync_dispute."""
+
+    __tablename__ = "dispute"
+    __table_args__ = tenant_args(
+        *tfk("payment_id", "payment"),
+        UniqueConstraint("tenant_id", "provider_dispute_ref", name="uq_dispute_provider_ref"),
+        enum_check("status", DisputeStatus),
+        CheckConstraint("amount_minor > 0", name="amount"),
+    )  # fmt: skip
+
+    payment_id: Mapped[UUID]
+    provider_dispute_ref: Mapped[str] = mapped_column(info={"audit": "value"})
+    amount_minor: Mapped[int] = _money()
+    currency: Mapped[str] = mapped_column(CHAR(3), info={"audit": "value"})
+    reason_code: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    status: Mapped[str] = enum_column(server_default=text("'open'"))
+    opened_at: Mapped[datetime]
+    evidence_due_at: Mapped[datetime | None]
+    closed_at: Mapped[datetime | None]
 
 
 class LedgerTransaction(TenantOwned, Base):

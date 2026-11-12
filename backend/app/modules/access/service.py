@@ -1,41 +1,57 @@
 """access service: check-in from the staff window, the client profile and the kiosk (CHK-01, CHK-03, CHK-05),
-credentials and app cards (CHK-11, CHK-13), kiosk devices and settings (CHK-05, CHK-06), and the check-in log
-(CHK-18, CHK-19). The decision itself is `domain.evaluate`; this file gathers its facts from other contexts and
+credentials and app cards (CHK-11, CHK-13), kiosk devices and settings (CHK-05, CHK-06), the check-in log
+(CHK-18, CHK-19), and the access rules that govern entry (CHK-02, CHK-08, CHK-09, CHK-10, MEM-20). The decision itself is `domain.evaluate`; this file gathers its facts from other contexts and
 writes the result.
 
 Internal functions (no principal): `resolve`, `kiosk_*`, `device_for_token`. Staff and portal commands carry
 both gates."""
 
-import hashlib
-import hmac
 import secrets
-import time
 from datetime import timedelta
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import column, delete, select, table
 from sqlalchemy.orm import Session
 
 from app.core import audit, clock, events
-from app.core.auth import Principal, authorize, scope_query, system_principal, tokens
+from app.core.auth import Principal, authorize, authorize_tenant_wide, scope_query, system_principal, tokens
+from app.core.auth.passwords import hash_password, verify_password
 from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
-from app.modules import billing, clients, documents, memberships, platform, programs
+from app.modules import billing, clients, documents, memberships, platform, programs, scheduling
+from app.modules.access import desk
 from app.modules.access import events as ev
 from app.modules.access.domain import cards
-from app.modules.access.domain.evaluate import STAFF_EARLY, STAFF_LATE, Decision, Facts, evaluate
-from app.modules.access.models import CheckIn, CheckInAttendance, Credential, KioskDevice, KioskSettings
+from app.modules.access.domain.evaluate import ALERT_ACTION, DEFAULT_RULES, Decision, Facts, evaluate, in_schedule
+from app.modules.access.models import (
+    AccessRule,
+    AccessSchedule,
+    AccessScheduleRange,
+    AccessSettings,
+    CheckIn,
+    CheckInAttendance,
+    ClientAccess,
+    Credential,
+    KioskDevice,
+    KioskMatch,
+    KioskSettings,
+    MembershipTypeAccess,
+    MembershipTypeLocation,
+)  # fmt: skip
 
 CREATE, READ, OVERRIDE = "access.checkin.create", "access.checkin.read", "access.checkin.override_denial"
 ASSIGN, LAUNCH, MANAGE, SETTINGS = (
     "access.credential.assign", "access.kiosk.launch", "access.kiosk.manage", "access.settings.manage",
 )  # fmt: skip
+RULES, MODE, FULL = "access.rule.manage", "access.client.set_access_mode", "access.checkin.read_full_details"
 PAIRING_TTL = timedelta(minutes=10)
-MATCH_TTL_SECONDS = 120
+MATCH_TTL = timedelta(seconds=120)
+# A second entry by the same client at the same location this soon is a repeat (double scan, kiosk then window):
+# it admits without counting another visit.
+REPEAT_WINDOW = timedelta(minutes=10)
+KIOSK_EXIT_ATTEMPTS = 5  # wrong exit PINs in a row before the device is revoked
 NAME_MATCHES = 5
-AGE_OF_MAJORITY = (
-    18  # shortcut: tenant setting `age_of_majority` is read only by households; use it here when kiosks need it
-)
 _CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I
 
 
@@ -86,17 +102,72 @@ def resolve(session: Session, value: str) -> tuple[clients.models.Client, Creden
     return client, None
 
 
+def _membership_access(session: Session, standing: dict, location_id: UUID) -> tuple[bool, bool]:
+    """(the membership admits at this location, entry is inside its schedule now) for the covering contract
+    (CHK-10, CHK-09). Without a contract neither applies."""
+    if standing["contract_id"] is None:
+        return True, True
+    type_id = standing.get("membership_type_id")
+    contract = memberships.service.get_contract(session, system_principal("access"), standing["contract_id"])
+    mapped = set(session.scalars(
+        select(MembershipTypeLocation.location_id).where(MembershipTypeLocation.membership_type_id == type_id)
+    ))  # fmt: skip
+    # No rows: every location, as before CHK-10; rows restrict to them and the contract's own location.
+    admits = not mapped or location_id in mapped or contract["location_id"] == location_id
+    schedule_id = session.scalar(
+        select(AccessSchedule.id)
+        .join(MembershipTypeAccess, MembershipTypeAccess.access_schedule_id == AccessSchedule.id)
+        .where(MembershipTypeAccess.membership_type_id == type_id, AccessSchedule.is_active)
+    )
+    if schedule_id is None:
+        return admits, True
+    ranges = session.execute(
+        select(AccessScheduleRange.weekday, AccessScheduleRange.starts_time, AccessScheduleRange.ends_time).where(
+            AccessScheduleRange.access_schedule_id == schedule_id
+        )
+    ).all()
+    local = clock.now().astimezone(ZoneInfo(platform.service.location_time_zone(session, location_id)))
+    return admits, in_schedule([tuple(r) for r in ranges], local.isoweekday(), local.strftime("%H:%M"))
+
+
+def access_mode(session: Session, client_id: UUID) -> str:
+    return session.scalar(select(ClientAccess.access_mode).where(ClientAccess.client_id == client_id)) or "normal"
+
+
+def _rules(session: Session, location_id: UUID) -> dict:
+    return dict(
+        session.execute(
+            select(AccessRule.condition, AccessRule.outcome).where(AccessRule.location_id == location_id)
+        ).all()
+    )
+
+
+def _is_repeat(session: Session, client_id: UUID, location_id: UUID) -> bool:
+    """A repeat follows straight on a counted entry here within the window: one repeat per counted visit, so a
+    repeat (or an uncounted override) never anchors another or restarts the window."""
+    last = session.scalar(
+        select(CheckIn.is_visit_consumed).where(
+            CheckIn.client_id == client_id, CheckIn.location_id == location_id, CheckIn.result != "denied",
+            CheckIn.checked_in_at >= clock.now() - REPEAT_WINDOW,
+            CheckIn.checked_out_at.is_(None),  # a checked-out visit is over: coming back is a new entry
+        ).order_by(CheckIn.checked_in_at.desc(), CheckIn.id.desc()).limit(1)
+    )  # fmt: skip
+    return bool(last)
+
+
 def _facts(session: Session, client, location_id: UUID) -> tuple[Facts, dict]:
     today = platform.service.location_today(session, location_id)
     standing = memberships.service.eligibility(session, client.id, today)
     money = billing.documents.billing_summary(session, client.id)
     notes = clients.activity.active_alerts(session, client.id, "check_in", today)
+    admits, open_now = _membership_access(session, standing, location_id)
     facts = Facts(
         client_active=client.status == "active", membership_reason=standing["reason"],
         membership_contract_id=standing["contract_id"],
         has_waiver=documents.service.has_valid_waiver(session, client.id),
         balance_due_minor=max(money["open_balance_minor"] + money["uninvoiced_minor"], 0),
-        has_staff_alert=bool(notes),
+        has_staff_alert=bool(notes), access_mode=access_mode(session, client.id), rules=_rules(session, location_id),
+        location_admits=admits, schedule_open=open_now, repeat_entry=_is_repeat(session, client.id, location_id),
     )  # fmt: skip
     card = {
         "client_id": client.id, "first_name": client.first_name, "last_name": client.last_name,
@@ -112,17 +183,26 @@ def _facts(session: Session, client, location_id: UUID) -> tuple[Facts, dict]:
     return facts, card
 
 
-def _visible(principal: Principal, card: dict) -> dict:
-    """Without access.checkin.read_full_details the card drops money and membership detail (rbac-matrix 6.12;
-    the per-location toggles of CHK-02 are deferred). The balance_due alert code still flags a balance."""
-    if principal.has("access.checkin.read_full_details"):  # the location was gated by _location
+def _visible(session: Session, principal: Principal, card: dict, location_id: UUID) -> dict:
+    """Without access.checkin.read_full_details the card drops the fields the location hides (CHK-02, rbac-matrix
+    6.12). Alert codes still flag a balance or a staff note."""
+    if principal.has(FULL):  # the location was gated by _location
         return card
-    membership = card["membership"] and {**card["membership"], "end_on": None, "visits_remaining_count": None}
-    return {**card, "balance_due_minor": None, "membership": membership}
+    hidden = set(access_settings_view(session, location_id)["hidden_detail_fields"])
+    membership = card["membership"] and {
+        **card["membership"],
+        **({"end_on": None} if "membership_dates" in hidden else {}),
+        **({"visits_remaining_count": None} if "visit_counts" in hidden else {}),
+    }  # fmt: skip
+    return {
+        **card, "membership": membership,
+        **({"balance_due_minor": None} if "balance_due" in hidden else {}),
+        **({"staff_alerts": []} if "staff_notes" in hidden else {}),
+    }  # fmt: skip
 
 
 def _alerts(decision: Decision) -> list[dict]:
-    return [{"code": code} for code in decision.alerts]
+    return [{"code": code, "action": ALERT_ACTION.get(code, "none")} for code in decision.alerts]
 
 
 # --- check in ------------------------------------------------------------------------------------------------
@@ -131,7 +211,8 @@ def _alerts(decision: Decision) -> list[dict]:
 def _check_in(
     session: Session, *, client, location_id: UUID, channel: str, identified_by: str, credential: Credential | None,
     staff_user_id: UUID | None = None, kiosk: KioskDevice | None = None, override: bool = False,
-    override_reason: str | None = None, window: tuple[timedelta, timedelta] = (STAFF_EARLY, STAFF_LATE),
+    override_reason: str | None = None, window: tuple[timedelta, timedelta] | None = None,
+    station_id: UUID | None = None,
 ) -> tuple[CheckIn, Decision, dict]:  # fmt: skip
     """Shared by every channel: decide, write the log row, count the visit and mark attendance, one transaction.
     The caller has already gated `override`."""
@@ -146,22 +227,29 @@ def _check_in(
         denial_reason=decision.denial_reason, override_by_staff_user_id=staff_user_id if result == "granted_override" else None,
         override_reason=override_reason if result == "granted_override" else None,
         membership_contract_id=facts.membership_contract_id, alert_codes=decision.alerts,
-        created_by_staff_user_id=staff_user_id,
+        created_by_staff_user_id=staff_user_id, check_in_station_id=station_id,
     )  # fmt: skip
     session.add(row)
     session.flush()
-    if result != "denied":
+    # A repeat entry records no visit. Two simultaneous check-ins on the last visit both pass the decision; the
+    # contract row lock in record_visit counts only one, so the second is admitted uncounted (accepted, README).
+    if result != "denied" and not facts.repeat_entry:
         visit = memberships.service.record_visit(
             session, client_id=client.id, check_in_id=row.id, location_id=location_id
         )
         row.is_visit_consumed = visit["is_counted"]
         row.membership_contract_id = visit["contract_id"] or row.membership_contract_id
+    if result != "denied":
+        if window is None:
+            staff = access_settings_view(session, location_id)
+            window = (timedelta(minutes=staff["staff_early_minutes"]), timedelta(minutes=staff["staff_late_minutes"]))
         early, late = window
         for enrollment_id, session_id in programs.service.mark_attended_by_check_in(
             session, client_id=client.id, location_id=location_id, at=now, early=early, late=late,
             source="kiosk" if kiosk else "check_in", staff_user_id=staff_user_id,
         ):  # fmt: skip
             session.add(CheckInAttendance(check_in_id=row.id, target_id=enrollment_id, session_id=session_id))
+        _mark_bookings(session, row, client.id, location_id, now - early, now + late)
     audit.record(
         session, CREATE, row, location_id=location_id,
         changes={"result": [None, result], "channel": [None, channel], "denial_reason": [None, decision.denial_reason]},
@@ -175,6 +263,20 @@ def _check_in(
     events.publish(session, event, row.id)
     session.flush()
     return row, decision, card
+
+
+def _mark_bookings(session: Session, row: CheckIn, client_id: UUID, location_id: UUID, start, end) -> None:
+    """Owner question 22: the client's court bookings and rentals starting in the window are marked arrived, once
+    per booking (an earlier check-in that marked it wins)."""
+    ids = scheduling.service.client_bookings_starting(
+        session, client_id=client_id, location_id=location_id, start=start, end=end
+    )
+    seen = set(session.scalars(select(CheckInAttendance.target_id).where(
+        CheckInAttendance.target_type == "booking", CheckInAttendance.target_id.in_(ids))))  # fmt: skip
+    for booking_id in ids:
+        if booking_id not in seen:
+            session.add(CheckInAttendance(check_in_id=row.id, target_type="booking", target_id=booking_id))
+    session.flush()
 
 
 def check_in_view(session: Session, row: CheckIn) -> dict:
@@ -203,13 +305,16 @@ def create_check_in(session: Session, principal: Principal, data: dict) -> dict:
     client, credential = _subject(session, principal, data)
     if data.get("override"):
         authorize(principal, OVERRIDE, location_id=location_id)
+        if not (data.get("override_reason") or "").strip():
+            raise ValidationFailed("Say why the denial is overridden.", pointer="/override_reason")
+    station_id = desk.station_for_check_in(session, data.get("check_in_station_id"), location_id)
     identified = "credential" if credential or data.get("credential_value") else "client_record"
     row, decision, card = _check_in(
         session, client=client, location_id=location_id, channel=data["channel"], identified_by=identified,
         credential=credential, staff_user_id=principal.staff_user_id, override=bool(data.get("override")),
-        override_reason=data.get("override_reason"),
+        override_reason=data.get("override_reason"), station_id=station_id,
     )  # fmt: skip
-    card = _visible(principal, card)
+    card = _visible(session, principal, card, location_id)
     return {"check_in": check_in_view(session, row), "alerts": _alerts(decision), "client": card}
 
 
@@ -218,7 +323,7 @@ def evaluate_check_in(session: Session, principal: Principal, data: dict) -> dic
     location_id = _location(session, principal, data["location_id"])
     client, _ = _subject(session, principal, data)
     facts, card = _facts(session, client, location_id)
-    card, decision = _visible(principal, card), evaluate(facts)
+    card, decision = _visible(session, principal, card, location_id), evaluate(facts)
     return {
         "client_id": client.id, "location_id": location_id, "would_grant": decision.would_grant,
         "denial_reason": decision.denial_reason, "membership_contract_id": facts.membership_contract_id,
@@ -254,6 +359,7 @@ def list_check_ins(session: Session, principal: Principal, query: ListQuery) -> 
         filter_fields={
             "location_id": CheckIn.location_id, "client_id": CheckIn.client_id, "result": CheckIn.result,
             "channel": CheckIn.channel, "local_on": CheckIn.local_on, "checked_in_at": CheckIn.checked_in_at,
+            "check_in_station_id": CheckIn.check_in_station_id,
         },
     )  # fmt: skip
     names = {}
@@ -419,7 +525,7 @@ _SETTING_DEFAULTS = {
 def settings_view(session: Session, location_id: UUID) -> dict:
     row = session.scalar(select(KioskSettings).where(KioskSettings.location_id == location_id))
     values = {key: getattr(row, key) for key in _SETTING_DEFAULTS} if row else dict(_SETTING_DEFAULTS)
-    return {"location_id": location_id, **values}
+    return {"location_id": location_id, **values, "has_exit_pin": bool(row and row.exit_pin_hash)}
 
 
 def get_kiosk_settings(session: Session, principal: Principal, location_id: UUID) -> dict:
@@ -438,9 +544,14 @@ def put_kiosk_settings(session: Session, principal: Principal, location_id: UUID
         row = KioskSettings(location_id=location_id, **_SETTING_DEFAULTS)
         session.add(row)
         session.flush()
+    pin = data.pop("exit_pin", None)
     for key, value in data.items():
         setattr(row, key, value)
-    audit.record(session, SETTINGS, row, location_id=location_id, changes=audit.diff(row))
+    changes = audit.diff(row)
+    if pin:
+        row.exit_pin_hash = hash_password(pin)
+        changes["exit_pin"] = True
+    audit.record(session, SETTINGS, row, location_id=location_id, changes=changes)
     session.flush()
     return settings_view(session, location_id)
 
@@ -540,26 +651,23 @@ def kiosk_config(session: Session, device: KioskDevice) -> dict:
     }  # fmt: skip
 
 
-def _match_mac(device: KioskDevice, client_id: UUID, expires: int) -> str:
-    return hmac.new(device.token_hash.encode(), f"{client_id}.{expires}".encode(), hashlib.sha256).hexdigest()[:32]
-
-
-def _match_token(device: KioskDevice, client_id: UUID) -> str:
-    expires = int(time.time()) + MATCH_TTL_SECONDS
-    return f"{client_id}.{expires}.{_match_mac(device, client_id, expires)}"
+def _match_token(session: Session, device: KioskDevice, client_id: UUID) -> str:
+    """An opaque, single-use token for one lookup result on this device (stored hashed, two minutes)."""
+    raw = secrets.token_urlsafe(24)
+    session.add(KioskMatch(
+        kiosk_device_id=device.id, client_id=client_id, token_hash=tokens.digest(raw), expires_at=clock.now() + MATCH_TTL
+    ))  # fmt: skip
+    return raw
 
 
 def _from_match(session: Session, device: KioskDevice, token: str):
-    try:
-        client_id, expires, mac = token.split(".")
-        client_id, expires = UUID(client_id), int(expires)
-    except ValueError:
-        raise ValidationFailed(
-            "Look the client up again.", code="match-token-expired", pointer="/match_token"
-        ) from None
-    if expires < time.time() or not hmac.compare_digest(mac, _match_mac(device, client_id, expires)):
+    row = session.scalar(
+        select(KioskMatch).where(KioskMatch.token_hash == tokens.digest(token), KioskMatch.kiosk_device_id == device.id)
+    )
+    if row is None or row.expires_at < clock.now():
         raise ValidationFailed("Look the client up again.", code="match-token-expired", pointer="/match_token")
-    return clients.service.get(session, client_id)
+    session.delete(row)  # used once
+    return clients.service.get(session, row.client_id)
 
 
 def _masked(client) -> dict:
@@ -586,20 +694,25 @@ def kiosk_lookup(session: Session, device: KioskDevice, data: dict) -> dict:
     elif data.get("last_name_prefix"):
         if method == "membership_number":
             raise ValidationFailed("Scan your card here.", code="lookup-method-disabled", pointer="/last_name_prefix")
-        today = platform.service.location_today(session, device.location_id)
+        today, minor = platform.service.location_today(session, device.location_id), platform.service.minor_age(session)
         found = [
             c
             for c in clients.service.find_by_last_name_prefix(session, data["last_name_prefix"], NAME_MATCHES * 3)
-            if not clients.service.is_minor(c, today, AGE_OF_MAJORITY)
+            if not clients.service.is_minor(c, today, minor)
         ][:NAME_MATCHES]
     else:
         raise ValidationFailed("Scan a card or type a name.", pointer="/credential_value")
-    return {"matches": [{"match_token": _match_token(device, c.id), **_masked(c)} for c in found]}
+    session.execute(
+        delete(KioskMatch).where(KioskMatch.kiosk_device_id == device.id, KioskMatch.expires_at < clock.now())
+    )
+    matches = [{"match_token": _match_token(session, device, c.id), **_masked(c)} for c in found]
+    session.flush()
+    return {"matches": matches}
 
 
 def kiosk_check_in(session: Session, device: KioskDevice, data: dict) -> dict:
-    """Self check-in (CHK-05). Never returns amounts, reasons or plan names: admitted or see staff, plus the
-    alert codes the location chose to display."""
+    """Self check-in (CHK-05). Never returns amounts, reasons or plan names: admitted with the alert codes the
+    location chose to display, or see staff and nothing else (owner: a refusal is explained at the desk)."""
     if data.get("card_payload"):
         card = _app_card(session, data["card_payload"])
         if card is None:
@@ -616,7 +729,7 @@ def kiosk_check_in(session: Session, device: KioskDevice, data: dict) -> dict:
         session, client=client, location_id=device.location_id, channel="kiosk", identified_by=identified,
         credential=credential, kiosk=device, window=window,
     )  # fmt: skip
-    shown = set(config["displayed_alert_codes"])
+    shown = set() if row.result == "denied" else set(config["displayed_alert_codes"])
     view = check_in_view(session, row)
     return {
         "check_in_id": row.id, "status": "see_staff" if row.result == "denied" else "admitted",
@@ -625,9 +738,252 @@ def kiosk_check_in(session: Session, device: KioskDevice, data: dict) -> dict:
     }  # fmt: skip
 
 
-def kiosk_exit(session: Session, device: KioskDevice) -> None:
-    """End kiosk mode on this device: the token stops working; staff launch it again with a new pairing code.
-    No staff session ever exists on a kiosk, so leaving it grants nothing."""
-    device.token_hash = None
+def kiosk_exit(session: Session, device: KioskDevice, pin: str) -> None:
+    """End kiosk mode on this device with the location's exit PIN (owner question 20): the token stops working;
+    staff launch it again with a new pairing code. Without a PIN set, staff end it by revoking the device."""
+    row = session.scalar(select(KioskSettings).where(KioskSettings.location_id == device.location_id))
+    if row is None or row.exit_pin_hash is None:
+        raise Conflict(
+            "No exit PIN is set for this location; a manager sets one in kiosk settings.", code="exit-pin-not-set"
+        )
+    if not verify_password(row.exit_pin_hash, pin):
+        device.exit_pin_failure_count += 1
+        revoke = device.exit_pin_failure_count >= KIOSK_EXIT_ATTEMPTS
+        if revoke:
+            device.revoked_at, device.token_hash = clock.now(), None
+        audit.record(
+            session, LAUNCH, device, location_id=device.location_id, reason="exit-pin-failed",
+            changes={"exit_pin_failure_count": device.exit_pin_failure_count, "revoked": revoke},
+        )  # fmt: skip
+        session.flush()
+        # persist: the count and the audit row survive the error (as failed sign-ins do).
+        raise ValidationFailed(
+            "That PIN is not right.", code="reauthentication-failed", pointer="/staff_pin", persist=True
+        )
+    device.token_hash, device.exit_pin_failure_count = None, 0
     audit.record(session, LAUNCH, device, location_id=device.location_id, changes={"paired": [True, False]})
     session.flush()
+
+
+# --- access settings, rules, client mode, schedules (CHK-02, CHK-08, CHK-09, CHK-10) -------------------------
+
+_ACCESS_DEFAULTS = {
+    "hidden_detail_fields": ["balance_due", "membership_dates", "visit_counts"], "staff_early_minutes": 180,
+    "staff_late_minutes": 300,
+}  # fmt: skip
+
+
+def _read_location(session: Session, principal: Principal, location_id: UUID) -> None:
+    """Configuration read at one location: any staff working there (rbac 1); elsewhere 404."""
+    if principal.location_ids is not None and location_id not in principal.location_ids:
+        raise NotFound()
+    platform.service.location_time_zone(session, location_id)
+
+
+def access_settings_view(session: Session, location_id: UUID) -> dict:
+    row = session.scalar(select(AccessSettings).where(AccessSettings.location_id == location_id))
+    values = {key: getattr(row, key) for key in _ACCESS_DEFAULTS} if row else dict(_ACCESS_DEFAULTS)
+    return {"location_id": location_id, **values}
+
+
+def get_access_settings(session: Session, principal: Principal, location_id: UUID) -> dict:
+    _read_location(session, principal, location_id)
+    return access_settings_view(session, location_id)
+
+
+def put_access_settings(session: Session, principal: Principal, location_id: UUID, data: dict) -> dict:
+    platform.service.location_time_zone(session, location_id)
+    authorize(principal, SETTINGS, location_id=location_id)
+    row = session.scalar(select(AccessSettings).where(AccessSettings.location_id == location_id))
+    if row is None:
+        row = AccessSettings(location_id=location_id, **_ACCESS_DEFAULTS)
+        session.add(row)
+        session.flush()
+    for key, value in data.items():
+        if value is not None:  # an explicit null leaves the value alone
+            setattr(row, key, sorted(set(value)) if key == "hidden_detail_fields" else value)
+    audit.record(session, SETTINGS, row, location_id=location_id, changes=audit.diff(row))
+    session.flush()
+    return access_settings_view(session, location_id)
+
+
+def _rules_view(session: Session, location_id: UUID) -> dict:
+    chosen = _rules(session, location_id)
+    rules = [
+        {"condition": c, "outcome": chosen.get(c, default), "is_default": c not in chosen}
+        for c, default in DEFAULT_RULES.items()
+    ]
+    return {"location_id": location_id, "rules": rules}
+
+
+def list_access_rules(session: Session, principal: Principal, location_id: UUID) -> dict:
+    _read_location(session, principal, location_id)
+    return _rules_view(session, location_id)
+
+
+def put_access_rules(session: Session, principal: Principal, location_id: UUID, rules: list[dict]) -> dict:
+    """Replace the location's outcomes; a condition left out goes back to its default."""
+    platform.service.location_time_zone(session, location_id)
+    authorize(principal, RULES, location_id=location_id)
+    wanted = {r["condition"]: r["outcome"] for r in rules}
+    rows = {r.condition: r for r in session.scalars(select(AccessRule).where(AccessRule.location_id == location_id))}
+    for condition in DEFAULT_RULES:
+        row, outcome = rows.get(condition), wanted.get(condition)
+        if row is None and outcome is None or row is not None and row.outcome == outcome:
+            continue
+        if row is None:
+            row = AccessRule(location_id=location_id, condition=condition, outcome=outcome)
+            session.add(row)
+            session.flush()
+        audit.record(session, RULES, row, location_id=location_id,
+                     changes={"condition": condition, "outcome": [rows[condition].outcome if condition in rows else None, outcome]})  # fmt: skip
+        if outcome is None:
+            session.delete(row)
+        else:
+            row.outcome = outcome
+    session.flush()
+    return _rules_view(session, location_id)
+
+
+def get_client_access_mode(session: Session, principal: Principal, client_id: UUID) -> dict:
+    client = clients.service.load(session, principal, client_id, CREATE)
+    return {"client_id": client.id, "access_mode": access_mode(session, client.id)}
+
+
+def set_client_access_mode(session: Session, principal: Principal, client_id: UUID, data: dict) -> dict:
+    """A privileged flag with its own key (CHK-08): always admit or always deny one client, with a reason."""
+    client = clients.service.load(session, principal, client_id, MODE)
+    row = session.scalar(select(ClientAccess).where(ClientAccess.client_id == client.id))
+    was = row.access_mode if row else "normal"
+    if row is None:
+        row = ClientAccess(client_id=client.id, access_mode=data["access_mode"])
+        session.add(row)
+    row.access_mode = data["access_mode"]
+    session.flush()
+    if was != row.access_mode:
+        audit.record(session, MODE, row, changes={"access_mode": [was, row.access_mode]}, reason=data["reason"])
+        events.publish(session, ev.ClientAccessModeChanged(client_id=client.id, access_mode=row.access_mode), row.id)
+    return {"client_id": client.id, "access_mode": row.access_mode}
+
+
+def schedule_view(session: Session, row: AccessSchedule) -> dict:
+    ranges = session.scalars(
+        select(AccessScheduleRange)
+        .where(AccessScheduleRange.access_schedule_id == row.id)
+        .order_by(AccessScheduleRange.weekday, AccessScheduleRange.starts_time)
+    )
+    return {
+        "id": row.id, "name": row.name, "is_active": row.is_active,
+        "ranges": [{"weekday": r.weekday, "starts_time": r.starts_time, "ends_time": r.ends_time} for r in ranges],
+    }  # fmt: skip
+
+
+def list_access_schedules(session: Session, principal: Principal, query: ListQuery) -> dict:
+    """Tenant-wide configuration: any staff may read (rbac 1)."""
+    page = paginate(
+        session, select(AccessSchedule), query, id_column=AccessSchedule.id,
+        sort_fields={"name": AccessSchedule.name}, default_sort="name", filter_fields={"is_active": AccessSchedule.is_active},
+    )  # fmt: skip
+    page["data"] = [schedule_view(session, row) for row in page["data"]]
+    return page
+
+
+def _set_ranges(session: Session, row: AccessSchedule, ranges: list[dict]) -> None:
+    for i, r in enumerate(ranges):
+        if r["ends_time"] <= r["starts_time"]:
+            raise ValidationFailed("A window must end after it starts; split one across midnight in two.",
+                                   pointer=f"/ranges/{i}/ends_time")  # fmt: skip
+    session.execute(delete(AccessScheduleRange).where(AccessScheduleRange.access_schedule_id == row.id))
+    session.add_all(AccessScheduleRange(access_schedule_id=row.id, **r) for r in ranges)
+
+
+def _schedule_name_free(session: Session, name: str, own_id: UUID | None = None) -> None:
+    other = session.scalar(select(AccessSchedule.id).where(AccessSchedule.name == name))
+    if other is not None and other != own_id:
+        raise Conflict("A schedule with this name exists.", code="already-exists")
+
+
+def create_access_schedule(session: Session, principal: Principal, data: dict) -> dict:
+    """Schedules are tenant-wide (they map to membership types, which are): managing one needs the key at every
+    location."""
+    authorize_tenant_wide(principal, RULES)
+    _schedule_name_free(session, data["name"])
+    row = AccessSchedule(name=data["name"], is_active=data["is_active"])
+    session.add(row)
+    session.flush()
+    _set_ranges(session, row, data["ranges"])
+    audit.record(session, RULES, row, changes={"name": [None, row.name], "ranges": True})
+    session.flush()
+    return schedule_view(session, row)
+
+
+def update_access_schedule(session: Session, principal: Principal, schedule_id: UUID, data: dict) -> dict:
+    authorize_tenant_wide(principal, RULES)
+    row = session.get(AccessSchedule, schedule_id)
+    if row is None:
+        raise NotFound()
+    if data.get("name") is not None:
+        _schedule_name_free(session, data["name"], row.id)
+    ranges = data.pop("ranges", None)
+    for key, value in data.items():
+        if value is not None:
+            setattr(row, key, value)
+    changes = audit.diff(row)
+    if ranges is not None:
+        _set_ranges(session, row, ranges)
+        changes["ranges"] = True
+    audit.record(session, RULES, row, changes=changes)
+    session.flush()
+    return schedule_view(session, row)
+
+
+_MEMBERSHIP_TYPE = table("membership_type", column("id"))
+
+
+def _type_access_view(session: Session, type_id: UUID) -> dict:
+    schedule = session.scalar(
+        select(MembershipTypeAccess.access_schedule_id).where(MembershipTypeAccess.membership_type_id == type_id)
+    )
+    places = session.scalars(
+        select(MembershipTypeLocation.location_id).where(MembershipTypeLocation.membership_type_id == type_id)
+    )
+    return {"membership_type_id": type_id, "access_schedule_id": schedule, "location_ids": sorted(places)}
+
+
+def list_membership_type_access(session: Session, principal: Principal) -> list[dict]:
+    """Every membership type with a schedule or extra locations (tenant-wide configuration read)."""
+    ids = set(session.scalars(select(MembershipTypeAccess.membership_type_id)))
+    ids |= set(session.scalars(select(MembershipTypeLocation.membership_type_id)))
+    return [_type_access_view(session, i) for i in sorted(ids)]
+
+
+def put_membership_type_access(session: Session, principal: Principal, type_id: UUID, data: dict) -> dict:
+    """The schedule a membership type is limited to and the further locations it admits at (CHK-09, CHK-10)."""
+    authorize_tenant_wide(principal, RULES)
+    # shortcut: existence read of memberships' table under RLS; memberships has no internal type getter yet.
+    if session.scalar(select(_MEMBERSHIP_TYPE.c.id).where(_MEMBERSHIP_TYPE.c.id == type_id)) is None:
+        raise NotFound()
+    if data["access_schedule_id"] is not None and session.get(AccessSchedule, data["access_schedule_id"]) is None:
+        raise ValidationFailed("Unknown schedule.", pointer="/access_schedule_id")
+    for i, location_id in enumerate(data["location_ids"]):
+        try:
+            platform.service.location_time_zone(session, location_id)
+        except NotFound:
+            raise ValidationFailed("Unknown location.", pointer=f"/location_ids/{i}") from None
+    before = _type_access_view(session, type_id)
+    row = session.scalar(select(MembershipTypeAccess).where(MembershipTypeAccess.membership_type_id == type_id))
+    if row is None:
+        row = MembershipTypeAccess(membership_type_id=type_id)
+        session.add(row)
+    row.access_schedule_id = data["access_schedule_id"]
+    session.execute(delete(MembershipTypeLocation).where(MembershipTypeLocation.membership_type_id == type_id))
+    session.add_all(
+        MembershipTypeLocation(membership_type_id=type_id, location_id=i) for i in set(data["location_ids"])
+    )
+    session.flush()
+    after = _type_access_view(session, type_id)
+    audit.record(session, RULES, row, changes={
+        "access_schedule_id": [str(before["access_schedule_id"] or "") or None, str(after["access_schedule_id"] or "") or None],
+        "location_ids": [[str(i) for i in before["location_ids"]], [str(i) for i in after["location_ids"]]],
+    })  # fmt: skip
+    return after

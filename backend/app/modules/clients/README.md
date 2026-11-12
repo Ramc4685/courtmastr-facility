@@ -10,6 +10,7 @@ Build module 4. Feature status: `docs/status/04-clients-households.md`. Migratio
 | `households.py` | Relationships, `can_act_for`, portal invitation and revocation, and every `/portal` function |
 | `activity.py` | Notes, subjects, tasks (`send_task_reminders`), alerts (`active_alerts`), timeline |
 | `merge.py` | Duplicates, precheck, merge, `register_merge_handler`; registers this context's erase and export handlers |
+| `files.py` | Client photo (CLI-12, `client.photo_file_id`) and note attachments (CLI-09, `client_note_attachment`) on `platform.files` |
 | `router.py` | Staff, portal and activity routes; a separate `public` router for emailed links |
 
 ## Internal interface (no permission check; ADR 0009 section 9)
@@ -38,7 +39,7 @@ number without case. `service.find_by_primary_email` and `households.import_link
 
 ## Not built
 
-Client photo (needs platform uploads and `stored_file`), note attachments, CSV export (`createClientExport`),
+Webcam capture and portal photo edit for CLI-12, CSV export (`createClientExport`),
 the portal member card, a scheduler for task reminders, derived system alerts, and the booking clause of the
 `own` reach predicate (waits for scheduling).
 
@@ -67,3 +68,38 @@ the portal member card, a scheduler for task reminders, derived system alerts, a
 - A portal-created record matches as a duplicate on email only through a verified address.
 - `client_merge.backfilled_fields` stores field names only (`{field: true}`): the table is append-only and
   erasure cannot clear values. Rows written before this change exist only in demo tenants.
+
+## Client files (phase 10 chip F: CLI-12 photo, CLI-09 note attachments)
+
+- Uploads are raw request bytes with their Content-Type (as `documents` paper scans), checked by
+  `platform.files.clean`: the type is sniffed from the magic bytes and must match the declared one; photos are
+  JPEG or PNG and re-encoded (EXIF and GPS dropped); attachments are PDF, JPEG or PNG. No SVG or HTML. The stored
+  key is generated; the user's filename is kept only as sanitised metadata for `Content-Disposition`.
+- Size caps: photo 5 MiB, attachment `storage.max_upload_bytes`, at most 5 attachments per note
+  (`too-many-attachments`). Both routes are in `core/api.py` `BodyLimitMiddleware.UPLOAD_PATHS` and the Caddy
+  `@upload` matcher, so the 1 MiB body cap does not apply to them.
+- Bytes are served by permission-checked routes (`getClientPhoto` inline, `getClientNoteAttachment` always as a
+  download) with `nosniff`, `no-store` and a sandboxing CSP. `files.read` is followed by a `purpose` check, so a
+  file of another purpose is 404.
+- Keys: photo upload/remove `clients.client.update`, photo read `clients.client.read` (with `own` reach);
+  attachments read `clients.activity.read`, add and remove `clients.activity.write` (removing an attachment is an
+  edit of the note, not a note deletion). Attachments follow their note's reach; notes carry no restricted flag
+  today, so a note's attachment is exactly as visible as the note. Nothing reaches the portal.
+- Audit is flag-only: `photo_file_id: true` on the client, `attachments: true` on the note; never names or ids of
+  files. Events: `ClientUpdated` for the photo, `NoteAttachmentChanged` (in `files.py`) for attachments.
+- Merge: `photo_file_id` is a backfill field (a survivor without a photo takes the loser's; its own wins).
+  Attachments ride on their notes, which merge re-points. Erasure first purges the photo's and the attachments'
+  `stored_file` rows and bytes (`platform.files.remove`) with `original_name` null (`files.purge_rows`), then
+  nulls `photo_file_id` and deletes the notes (which cascades `client_note_attachment`). Replacing or removing a
+  photo or attachment purges its file the same way; a photo only once no client points at it, since a merged
+  survivor and its tombstone can share one photo file.
+- Subject-access export lists each note's attachments (`file_name`, `content_type`, `size_bytes`), not bytes.
+- Uploads to a note lock the note row first, so concurrent uploads cannot exceed the per-note cap.
+- The check-in status card loads the photo route directly (`ClientPhotoById`) and hides the image on 404 or 403;
+  it never reads the profile, which would log a recent view. The kiosk never shows photos.
+
+## Phase 10 chip E (front desk)
+
+- `send_client_task_reminders` runs hourly (`scheduler.EVERY_HOUR`). Each due task is reminded once (`reminder_sent_at`, rows locked with `SKIP LOCKED` so overlapping runs never double-send), when its due date is reached on the client's home-location day.
+- `possible_duplicates(session, principal, data)` backs the register's quick-create. It matches on the same last name plus any of: first name, birth date (only for a caller holding `clients.client.read_sensitive`, within its reach), email (a portal record only through a verified address), or mobile number with a similar first name. It stays inside the caller's reach and skips merged and erased records.
+- Derived alerts (balance, membership expiry, waiver) are not here: this context is layer 1 and cannot read billing or documents. They live in memberships; see its README.

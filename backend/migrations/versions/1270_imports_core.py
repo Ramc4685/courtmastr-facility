@@ -4,7 +4,7 @@ Both tables are tenant data under forced RLS. A job keeps no cell values: rows a
 file, and `import_job_row` keeps the row number, the hash of its natural key, the outcome and plain-words errors.
 
 Revision ID: 1270
-Revises: 1250
+Revises: 1280 (chained after the phase branch head; the number is the chip's reserved range, not its order)
 """
 import sqlalchemy as sa
 from alembic import op
@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 from app.core.db.rls import enable_rls
 
 revision = '1270'
-down_revision = '1250'
+down_revision = '1280'
 
 
 def upgrade() -> None:

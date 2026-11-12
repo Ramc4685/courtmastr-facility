@@ -20,8 +20,8 @@ Module 1 (platform core) is done apart from OIDC, MFA and step-up (`backend/app/
 Module 14 (engagement) is built to P0 (5 done, 9 partial: `14-engagement.md`). Modules 16 and 17 are partial (`16-integrations.md`, `17-mobile.md`).
 Modules 12 (staff time and pay), 13 (assessments) and 15 (reporting) are built to P0 (`12-staff.md`, `13-assessments.md`,
 `15-reporting.md`). Modules 10 and 11 (check-in,
-leagues) and the rest of module 6 are reported by their own lanes or not started. The five P0 features not built are CLS-02, CLS-09, CLS-10
-(module 6 and the portal), CLI-12 (client photo) and BIL-14 (pre-defined items).
+leagues) and the rest of module 6 are reported by their own lanes or not started. The four P0 features not built are CLS-02, CLS-09, CLS-10
+(module 6 and the portal) and BIL-14 (pre-defined items); CLI-12 (client photo) is partial since phase 10.
 
 ## Checks on `main`
 
@@ -60,13 +60,13 @@ Lane detail: `02-resources-scheduling.md`, `02-resources-scheduling-web.md`.
 
 | Priority | Total | Done | Partial | Not built |
 |---|---|---|---|---|
-| P0 | 16 | 9 | 7 | 0 |
-| P1 | 12 | 4 | 0 | 8 |
+| P0 | 16 | 16 | 0 | 0 |
+| P1 | 12 | 5 | 0 | 7 |
 | P2 | 2 | 0 | 0 | 2 |
 
 | Feature | Priority | Status | What is missing, or where it changed at integration |
 |---|---|---|---|
-| RES-01 Location profile and operational settings | P0 | partial | Edits calendar increment, default buffers, checkout clock and series limit. The profile itself is module 1's Locations screen. The drag-and-drop default is stored but the calendar does not read it: dragging is always on for... |
+| RES-01 Location profile and operational settings | P0 | done | Edits calendar increment, default buffers, checkout clock and series limit; the profile itself is module 1's Locations screen. The calendar reads the stored drag-and-drop default (phase 10): move at once, confirm first, or drag off. |
 | RES-02 Facility hours | P0 | done |  |
 | RES-03 Venues and sub-venues | P0 | done |  |
 | RES-04 Schedule groups | P0 | done |  |
@@ -77,22 +77,22 @@ Lane detail: `02-resources-scheduling.md`, `02-resources-scheduling-web.md`.
 | RES-09 Padlock inventory | P2 | not built | No API. |
 | SCH-01 Calendar views and navigation | P0 | done |  |
 | SCH-02 Reservation types | P0 | done |  |
-| SCH-03 Type online-booking options | P0 | partial | Per-type defaults and per-session flags. The API has no full online-policy row yet (API partial). |
+| SCH-03 Type online-booking options | P0 | done | Per-type defaults and per-session flags here; the full online policy per type (listing mode, booking window, cut-offs, allowed packages) is programs' booking policy (location default plus type override), linked from the types tab. |
 | SCH-04 Reservation categories | P1 | done |  |
-| SCH-05 Type permissions per staff user | P1 | not built | No API. |
+| SCH-05 Type permissions per staff user | P1 | done | Phase 10: `reservation_type_grant`; "Who can book" on each type. No rows = open to all who may book; owners exempt. Checked on every booking write, not on reads or programs enrolment. |
 | SCH-06 Colour coding, fill and legend | P1 | done |  |
-| SCH-07 Create a bookable session | P0 | partial | Single or repeating, with capacity and flags. Splitting a session into slots is not built (API partial). |
+| SCH-07 Create a bookable session | P0 | done | Single or repeating, with capacity and flags. Phase 10: an availability window can be offered as fixed-length slots (`slot_offer`); taking a slot creates its session. Portal slot booking is programs' to wire. |
 | SCH-08 Time blocks | P0 | done |  |
-| SCH-09 Recurrence with preview | P0 | partial | Supports daily, weekly, monthly (by date or weekday) and yearly, with an interval, ending by count or by date. The preview lists each occurrence as free, conflicting or closed. Changing an existing series rule (`POST... |
-| SCH-10 Edit and mass-edit a series | P0 | partial | Scopes this, following and all, with "skip conflicts". The API's `selected` and `date_range` scopes have no screen. |
-| SCH-11 Delete with series scopes | P0 | partial | Cancels this, following or all. There is no multi-select delete mode on the calendar. |
+| SCH-09 Recurrence with preview | P0 | done | Daily, weekly, monthly (date or weekday) and yearly, with interval and end; per-occurrence preview. Phase 10: "Change pattern" replaces a series rule from a chosen day, with the same preview (cancelled count plus new occurrences). |
+| SCH-10 Edit and mass-edit a series | P0 | done | Scopes this, following, all, picked occurrences and a date range (phase 10), with "skip conflicts". |
+| SCH-11 Delete with series scopes | P0 | done | Cancels this, following, all, picked or a date range; phase 10 adds "Select to cancel" on the calendar (pick several, cancel together). |
 | SCH-12 Conflicts and drag rescheduling | P0 | done |  |
 | SCH-13 Multi-resource reservations | P0 | done |  |
 | SCH-14 Buffer times | P1 | done |  |
 | SCH-15 Sub-venues | P1 | done |  |
 | SCH-16 Direct registration link | P1 | not built | No API. |
 | SCH-17 Shared bookings | P1 | not built | Needs modules 4 and 5. |
-| SCH-18 Trainer availability | P0 | partial | Add, pause, resume and remove weekly windows. The calendar does not shade a trainer's off-hours (API partial). |
+| SCH-18 Trainer availability | P0 | done | Weekly windows; phase 10 shades a trainer's off-hours on the day view and offers windows as bookable slots (with an optional extra resource). |
 | SCH-19 Staff calendar sync | P1 | not built |  |
 | SCH-20 Embedded public schedule | P1 | not built |  |
 | SCH-21 Merge series | P2 | not built |  |
@@ -114,7 +114,7 @@ Lane detail: `03-rentals.md`.
 | RNT-03 Staff-booked rental, single or recurring, one or many resources | P0 | done |  |
 | RNT-04 Extend a rental and bill selected occurrences | P1 | done |  |
 | RNT-05 Online rental policy per rental type | P0 | done |  |
-| RNT-06 Client online rental search and booking | P0 | partial | Backend complete, including hold expiry and the paid-invoice handler. Portal Bookings screen: search by type, date and length, hold, pay by new card (test processor only; Stripe Elements not mounted), abandon, cancel. Confirm takes a new card token only, not a stored method. |
+| RNT-06 Client online rental search and booking | P0 | partial | Backend complete, including hold expiry and the paid-invoice handler. Portal Bookings screen: search by type, date and length, hold, pay by new card (fake processor, or Stripe Elements in Stripe test mode), abandon, cancel. Confirm takes a new card token only, not a stored method. |
 | RNT-07 Buffer times on rentals | P1 | done |  |
 | RNT-08 Remove a rental or recurring rental | P0 | done |  |
 | RNT-09 Rental plans | P1 | partial | Append-only ledger, full-coverage debit under lock, credit back on cancel. Not built: auto-renew and autopay, portal plan purchase, members-only sales (no memberships yet). |
@@ -147,10 +147,10 @@ Lane detail: `04-clients-households.md`.
 | CLI-06 Client categories | P0 | done |  |
 | CLI-07 Referral categories and source | P1 | done |  |
 | CLI-08 Tags (sports, seasons, custom) | P0 | done |  |
-| CLI-09 Activity log with attachments | P1 | partial | **Attachments not built**: they need platform uploads (`stored_file`) and object storage, which do not exist yet. |
+| CLI-09 Activity log with attachments | P1 | done | Attachments (PDF, JPEG, PNG; up to 5 per note) on notes, with the note's reach; served by a checked route, not a signed URL. Bodies over 1 MiB get 413 until Phase 8 widens `BodyLimitMiddleware`; bytes of removed files wait for K1 `files.remove`. |
 | CLI-10 Activity/task subject list | P1 | done |  |
-| CLI-11 Client tasks and task/activity report | P1 | partial | **Not built**: a dedicated task/activity report (the reporting module owns it) and a scheduler that calls the reminder function. Own reach means the assignee. |
-| CLI-12 Client photo | P0 | not built | Needs the platform uploads flow (security-baseline 8), `stored_file` and object storage. None exist, so `photo_file_id` and the photo routes are left out. |
+| CLI-11 Client tasks and task/activity report | P1 | partial | The hourly `send_client_task_reminders` job (scheduler `EVERY_HOUR`) emails each due task once, on the client's home-location day (phase 10 chip E). **Not built**: a dedicated task/activity report (the reporting module owns it). Own reach means the assignee. |
+| CLI-12 Client photo | P0 | partial | Staff upload, replace and remove (JPEG/PNG, re-encoded); shown on the profile, the client list and the check-in status card, never the kiosk. **Not built**: webcam capture and the portal photo edit (`is_portal_photo_edit_enabled`). Uploads over 1 MiB get 413 until Phase 8 widens `BodyLimitMiddleware`. |
 | CLI-13 Duplicate detection and merge | P1 | done |  |
 | CLI-14 Disable a client | P0 | done |  |
 | CLI-15 Self-service portal access provisioning | P0 | done |  |
@@ -158,7 +158,7 @@ Lane detail: `04-clients-households.md`.
 | CLI-17 Default trainer / salesperson ownership | P1 | done |  |
 | CLI-18 Emergency contacts | P0 | done |  |
 | CLI-19 Cross-location shared client record | P0 | done |  |
-| CLI-20 Staff-facing client alerts and notes | P1 | partial | **Not built**: derived system alerts (balance, expiry, waiver). Those contexts add them. |
+| CLI-20 Staff-facing client alerts and notes | P1 | done | Derived alerts on the profile from `GET /clients/{id}/system-alerts` (memberships context, the layer that may read billing and documents): balance due, membership expiring within 14 days or expired, missing required waiver. Each alert needs the owning context's read key. |
 | CLI-21 Client API surface | P1 | partial | **Not built**: public API keys and scopes (integrations module). `createClientExport` (CSV) is also not built. |
 | FAM-01 Typed client-to-client relationships | P0 | done |  |
 | FAM-02 Self-service relationship management | P0 | done |  |
@@ -173,7 +173,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 
 | Priority | Total | Done | Partial | Not built |
 |---|---|---|---|---|
-| P0 | 15 | 10 | 5 | 0 |
+| P0 | 15 | 11 | 4 | 0 |
 | P1 | 21 | 11 | 8 | 2 |
 | P2 | 3 | 1 | 0 | 2 |
 
@@ -187,18 +187,18 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | MEM-06 Simple (record-only) membership | P2 | done |  |
 | MEM-07 Staff sale of a membership contract | P0 | done |  |
 | MEM-08 Contract document acceptance at sale | P1 | done |  |
-| MEM-09 Online membership sales | P1 | partial | Portal Memberships screen quotes and buys with a new card (test processor only; Stripe Elements not mounted). No stored-method option: the buy endpoint takes a token only. |
+| MEM-09 Online membership sales | P1 | partial | Portal Memberships screen quotes and buys with a new card (fake processor, or Stripe Elements in Stripe test mode). No stored-method option: the buy endpoint takes a token only. |
 | MEM-10 Contract list, status views and edit | P0 | done |  |
 | MEM-11 Contract renewal | P0 | done |  |
 | MEM-12 Freeze a contract | P0 | done |  |
-| MEM-13 Edit or remove a freeze and re-bill | P1 | partial | Editing a freeze, repricing, editing a period and invoicing deferred periods are API only. |
-| MEM-14 Suspend and unsuspend a contract | P1 | partial | Editing a suspension is API only. Automatic suspension for non-payment is not built. |
+| MEM-13 Edit or remove a freeze and re-bill | P1 | done | Staff screens in the contract's Details dialog: freeze end date and removal, period edit, reprice, invoice deferred periods (phase 10 chip E). |
+| MEM-14 Suspend and unsuspend a contract | P1 | partial | Editing and removing a suspension on the Details dialog. Automatic suspension for non-payment is not built. |
 | MEM-15 Cancel a contract | P0 | done |  |
 | MEM-16 Cancel with full or partial refund | P1 | done |  |
 | MEM-17 Shared membership | P1 | done |  |
 | MEM-18 Member auto-renew opt-out | P1 | done | Portal Memberships screen, "Stop renewal". |
-| MEM-19 Membership number and member card | P0 | partial | No card, QR code or RFID (check-in module). |
-| MEM-20 Visit limits and visit counting | P0 | partial | No check-in calls `record_visit`. Listing and adjusting visits are API only. |
+| MEM-19 Membership number and member card | P0 | partial | Printable member card with a Code 128 barcode in the browser (phase 10 chip C); no QR on the printed card, the card shows the client photo when the template has a photo slot, no RFID. |
+| MEM-20 Visit limits and visit counting | P0 | done | An admitted check-in records one visit (idempotent on the check-in id); used-up memberships deny at the door with an override. Details dialog lists recent visits and adjusts the count with a reason. |
 | MEM-21 Revenue and lifecycle reports | P1 | not built |  |
 | MEM-22 Membership data in the public API | P1 | partial | No API keys or scopes. |
 | MEM-23 Onboarding checklist | P2 | not built |  |
@@ -210,11 +210,11 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | PKG-06 Package sharing | P1 | done |  |
 | PKG-07 Staff sale of a package | P0 | partial | No ad-hoc package, per-sale pricing, coupons or account-credit pre-apply. |
 | PKG-08 Sale through point of sale | P1 | done | Integration: sold as a POS cart line (POS-19), `sales_channel = pos`. Priced one-off plans only; no discounts on the line; removed from the client profile, not returned at the till. |
-| PKG-09 Online package sales | P1 | partial | Portal Packages screen buys with a new card (test processor only; Stripe Elements not mounted); history and auto-renew opt-out. |
+| PKG-09 Online package sales | P1 | partial | Portal Packages screen buys with a new card (fake processor, or Stripe Elements in Stripe test mode); history and auto-renew opt-out. |
 | PKG-10 Member-only plans | P1 | done |  |
 | PKG-11 Post-billed packages | P2 | not built | No tables, rate table or batch close. Not built here either. |
-| PKG-12 Session registration, roster and attendance | P0 | partial | Integration: staff register a client into a session and pick the package that pays; the credit follows attendance marks and cancellation. Not built: book all linked sessions, speed register, selling a package inline,... |
-| PKG-13 Remove a package and reverse or refund | P1 | done |  |
+| PKG-12 Session registration, roster and attendance | P0 | done | Staff register a client into a session and pick the package that pays; the credit follows attendance marks and cancellation. Phase 10 chip E: "Book across sessions" pays with a package, a speed-register mode registers on pick with the first usable package, and "Sell a package" sells inline then preselects it. |
+| PKG-13 Remove a package and reverse or refund | P1 | done | Reversing the charge after sessions were used is a manager override (`packages.package.remove_override`, reason required, audited; question 16). |
 | PKG-14 Client ledger and balance views | P0 | done |  |
 | PKG-15 Sales and usage reports | P1 | not built |  |
 | PKG-16 Package data in the public and self-service APIs | P1 | partial | No API keys or cart. |
@@ -313,19 +313,19 @@ Lane detail: `08-billing-payments.md`, `08-billing-payments-web.md`.
 | PAY-03 Client payment ledger and receipts | P0 | partial | No PDF (backend gap). |
 | PAY-04 Void payment | P0 | done |  |
 | PAY-05 Refunds | P0 | partial | Only unapplied money can be refunded; the dialog defaults to that amount. Backend gaps carry over. |
-| PAY-06 Stored payment methods | P0 | partial | Methods are added through the provider-agnostic `PaymentMethodField`: scripted test methods for the fake processor. Stripe Elements is not mounted yet, so a Stripe tenant cannot add a card here. |
+| PAY-06 Stored payment methods | P0 | partial | Methods are added through the provider-agnostic `PaymentMethodField`: scripted test methods for the fake processor. With Stripe, cards go through Stripe Elements (`StripeCardField`); bank accounts through Stripe are not built (Financial Connections). |
 | PAY-07 Card expiry notifications and report | P1 | partial |  |
 | PAY-08 Decline notifications | P0 | partial |  |
 | PAY-09 Autopay collection run | P0 | done | Integration: `make scheduler` starts the daily pass per tenant; staff can still start a run by hand. |
-| PAY-10 ACH / direct debit | P0 | partial | Fake processor only. |
-| PAY-11 Merchant processor integration | P0 | partial | Stripe Elements card entry is not mounted (`shortcut:` in `PaymentMethodField.tsx`). |
+| PAY-10 ACH / direct debit | P0 | partial | Fake processor end to end; Stripe adapter and webhooks handle ACH debits and returns, but no browser bank entry through Stripe. |
+| PAY-11 Merchant processor integration | P0 | partial | Stripe test mode works end to end with Elements card entry and signed webhooks (`docs/dev/stripe-test-mode.md`); never run against Stripe live. Not built: browser bank-account entry through Stripe, 3-D Secure completion, platform application fee. |
 | PAY-12 EMV card terminals | v2-adapter | not built |  |
 | PAY-13 Clover terminal integration | v2-adapter | not built |  |
 | PAY-14 Credit card surcharging | P1 | not built |  |
 | PAY-15 Digital wallets and tap-to-pay | P1 | not built |  |
 | PAY-16 Processor disbursement reconciliation | P1 | not built |  |
-| PAY-17 Chargeback and transaction sync | P1 | not built |  |
-| PAY-18 Self-service payment of open invoices | P0 | partial | Portal Invoices screen: list, document, pay one invoice with a stored or new card and optional account credit, payment history. A payment that needs 3-D Secure shows as pending: no in-page confirmation (Stripe Elements not mounted). |
+| PAY-17 Chargeback and transaction sync | P1 | partial | Disputes by webhook: `dispute` table, payment `disputed` then `succeeded` or `charged_back`, allocations released, ledger postings (ADR 0003 section 9). No staff screen; one dispute per payment. |
+| PAY-18 Self-service payment of open invoices | P0 | partial | Portal Invoices screen: list, document, pay one invoice with a stored or new card and optional account credit, payment history. A payment that needs 3-D Secure shows as pending: no in-page confirmation (`handleNextAction` not called yet). |
 | PAY-19 Magnetic card swipe entry | P2 | not built | Excluded by the no-raw-card-data rule. |
 
 ## Module 9: Point of sale and inventory
@@ -347,13 +347,13 @@ Lane detail: `09-pos-inventory.md`.
 | POS-05 product master data | P0 | done |  |
 | POS-06 inventory adjustments and stock | P0 | done |  |
 | POS-07 browsing, cart, barcode scan | P0 | done |  |
-| POS-08 attach client | P0 | partial | Walk-ins allowed (owner decision 7). Quick-create of a client from the register not built |
+| POS-08 attach client | P0 | done | Walk-ins allowed (owner decision 7). Quick-create from the register with a duplicate precheck inside the cashier's reach (409 `possible-duplicate` with candidates; attach one or confirm new). |
 | POS-09 quantity and price override | P0 | done |  |
 | POS-10 discounts | P0 | partial | Built: presets, custom amounts (`billing.discount.apply_custom`), sale or line scope and a largest-remainder spread. Client-level discount not built: clients have no discount field |
 | POS-11 coupons and coupon report | P1 | done |  |
 | POS-12 tenders and completion | P0 | done |  |
 | POS-13 receipts and re-send | P0 | done |  |
-| POS-14 receipt content | P1 | partial | The footer is billing's tenant-level `receipt_footer`, not a per-location POS footer |
+| POS-14 receipt content | P1 | done | Per-location `receipt_footer` on POS settings; billing's tenant footer is the fallback. |
 | POS-15 receipt-printer bridge | v2-adapter | not built | Browser print only |
 | POS-16 history, refunds, returns | P0 | done |  |
 | POS-17 equipment catalogue | P0 | done |  |
@@ -361,7 +361,7 @@ Lane detail: `09-pos-inventory.md`.
 | POS-19 sell packages | P1 | done | Integration: a `package_plan_id` cart line; `packages.sell` runs at completion on the sale's invoice. Backend tests; no browser test of the register control. |
 | POS-20 deposits | P2 | not built | Drawer close-out (expected vs counted) covers the likely intent |
 | POS-21 card-present terminals | v2-adapter | not built | `pos.terminal.*` keys registered only |
-| POS-22 reorder and reporting hooks | P1 | partial | Built: reorder, sales by employee, category, coupon, supplier, brand, product or register, daily register, and returns. Not built: the daily low-stock email and the `rpt_*` read models for the reporting module |
+| POS-22 reorder and reporting hooks | P1 | partial | Built: reorder, sales by employee, category, coupon, supplier, brand, product or register, daily register, returns, and the daily low-stock email (`send_low_stock_digest`, once per location per local day). Not built: the `rpt_*` read models for the reporting module |
 | POS-23 partner POS lines | v2-adapter | not built |  |
 ## Module 11: Leagues and tournaments
 
@@ -390,8 +390,9 @@ Cross-cutting:
    a location in another zone.
 7. **Portal and mobile:** the member portal (`/portal`, member sign-in at `/sign-in?as=member`) has Home,
    Bookings, Memberships, Packages, Invoices and Profile with a household "acting for" switch, and an Inbox for announcements (module 14). Not built:
-   portal documents and waivers, dependents and relationships, stored-method management. The inbox lists one
-   item per client the login acts for, so a household sees an announcement once per member.
+   portal documents and waivers, dependents and relationships, stored-method management. The inbox shows the
+   acting-for member's items only (each item belongs to one recipient), so a household announcement appears
+   once per view; a delegate (book and buy only) gets 404 on another member's inbox.
 8. **Databases created before revision `0401`** hold package plans with placeholder reservation types and
    cannot take the new foreign key: recreate them.
 9. **Stripe has never been called.** The adapter is tested against a mocked HTTP layer and is off by default.
@@ -413,9 +414,9 @@ By module (the tables above carry the per-feature gaps; these are the ones that 
 - **Documents:** the staff decision notice is not sent; an erased client's signed documents have no restricted
   view.
 - **Billing:** `take_payment` returns the first payment for a repeated key even if the amount differs; a
-  stored webhook that failed to enqueue is never re-enqueued; no disputes, payouts, surcharging, wallets,
-  statement batches or goodwill credit; amounts in notices assume two-decimal currencies; Stripe Elements is
-  not mounted.
+  stored webhook that failed to enqueue is never re-enqueued; no payouts, surcharging, wallets, statement
+  batches or goodwill credit; disputes have no staff screen; amounts in notices assume two-decimal currencies;
+  Stripe (test mode only) has card entry but no browser bank entry or 3-D Secure completion.
 - **POS:** a package line takes no discount or coupon and cannot be returned at the till; recurring,
   free and choose-your-quantity plans are sold from the client profile; memberships are not sold at the till
   (not in the parity matrix).

@@ -42,6 +42,7 @@ function SettingsCard({ locationId, canSave }: { locationId: string; canSave: bo
   const qc = useQueryClient()
   const settings = useQuery({ queryKey: ['kiosk-settings', locationId], queryFn: () => api.get('/api/v1/kiosk-settings', { query: { location_id: locationId } }) })
   const [form, setForm] = useState<KioskSettings | null>(null)
+  const [pin, setPin] = useState('')
   useEffect(() => setForm(settings.data ?? null), [settings.data])
   const save = useMutation({
     mutationFn: (body: KioskSettings) =>
@@ -51,10 +52,12 @@ function SettingsCard({ locationId, canSave }: { locationId: string; canSave: bo
           lookup_method: body.lookup_method as 'name' | 'membership_number' | 'both', early_window_minutes: body.early_window_minutes,
           late_window_minutes: body.late_window_minutes, welcome_message: body.welcome_message || null,
           displayed_alert_codes: body.displayed_alert_codes as never, confirmation_timeout_seconds: body.confirmation_timeout_seconds,
+          ...(pin ? { exit_pin: pin } : {}),
         },
       }),
     onSuccess: (saved) => {
       qc.setQueryData(['kiosk-settings', locationId], saved)
+      setPin('')
       toast('success', 'Kiosk settings saved.')
     },
     onError: (e) => toast('error', e instanceof ApiError ? e.message : 'Saving failed.'),
@@ -83,6 +86,19 @@ function SettingsCard({ locationId, canSave }: { locationId: string; canSave: bo
           </div>
           <Input label="Welcome message" value={form.welcome_message ?? ''} maxLength={500} onChange={(e) => set({ welcome_message: e.target.value })} />
           <Input label="Return to the start screen after (seconds)" type="number" min={3} max={300} value={form.confirmation_timeout_seconds} error={errors.confirmation_timeout_seconds} onChange={(e) => set({ confirmation_timeout_seconds: Number(e.target.value) })} />
+          <div className="flex flex-wrap items-end gap-3">
+            <Input
+              label={form.has_exit_pin ? 'New exit PIN (6 to 8 digits)' : 'Exit PIN (6 to 8 digits)'}
+              type="password"
+              inputMode="numeric"
+              autoComplete="new-password"
+              maxLength={8}
+              value={pin}
+              error={errors.exit_pin}
+              onChange={(e) => setPin(e.target.value)}
+            />
+            <Badge tone={form.has_exit_pin ? 'success' : 'warning'}>{form.has_exit_pin ? 'Exit PIN set' : 'No exit PIN: kiosks can only be revoked'}</Badge>
+          </div>
           <fieldset>
             <legend className="mb-2 text-sm font-medium">Alerts the kiosk shows the client</legend>
             <div className="grid gap-2 sm:grid-cols-2">

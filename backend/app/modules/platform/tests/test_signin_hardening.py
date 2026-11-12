@@ -243,9 +243,9 @@ def test_staff_outside_the_list_are_refused_at_sign_in_and_on_every_request(tena
     assert inside.get(f"{API}/me", headers=desk_session).status_code == 200
     moved = outside.get(f"{API}/me", headers=desk_session)
     assert moved.status_code == 403 and moved.json()["code"] == "ip-not-allowed"
-    # The Owner and Admin hold platform.security.bypass_ip_allowlist by default.
-    assert _sign_in(outside, tenant, client_kind="mobile").status_code == 200
-    assert _sign_in(outside, tenant, email=admin_email, client_kind="mobile").status_code == 200
+    # No role bypasses the list (phase 8 S4): the Owner and an Admin are refused like anyone else.
+    for email in (None, admin_email):  # None: the Owner
+        assert _sign_in(outside, tenant, email=email, client_kind="mobile").json()["code"] == "ip-not-allowed"
 
 
 def test_client_ip_comes_from_the_proxy_header_only_behind_a_trusted_proxy(tenant, monkeypatch):
@@ -261,3 +261,17 @@ def test_client_ip_comes_from_the_proxy_header_only_behind_a_trusted_proxy(tenan
     # Only the right-most untrusted hop counts: a client cannot prepend its way in.
     spoofed = {"X-Forwarded-For": f"{INSIDE}, {OUTSIDE}"}
     assert _sign_in(proxy, tenant, email=desk_email, headers=spoofed).json()["code"] == "ip-not-allowed"
+
+
+def test_operator_break_glass_clears_the_list_and_is_audited(tenant, capsys):
+    """No role bypasses the list, so a tenant locked out from everywhere is let back in by the operator CLI."""
+    from app.cli import _clear_ip_allowlist
+
+    inside, outside = _from(INSIDE), _from(OUTSIDE)
+    assert _allowlist(inside, login(inside, tenant), [f"{INSIDE}/32"]).status_code == 200
+    assert _sign_in(outside, tenant, client_kind="mobile").json()["code"] == "ip-not-allowed"
+    _clear_ip_allowlist(str(tenant.id))
+    assert f"{INSIDE}/32" in capsys.readouterr().out
+    assert _sign_in(outside, tenant, client_kind="mobile").status_code == 200
+    changes = scalar(tenant, select(AuditEvent.changes).where(AuditEvent.actor_label == "operator-cli"))
+    assert changes == {"staff_ip_allowlist": [[f"{INSIDE}/32"], []]}

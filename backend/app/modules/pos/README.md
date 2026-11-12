@@ -89,3 +89,9 @@ a stock count as a `set` movement when it differs.
   - partner POS lines (POS-23)
   - deposits (POS-20)
 - Quick-create of a client from the register is not built. The register uses the shared client picker.
+
+## Phase 10 chip E (front desk)
+
+- **Quick client (POS-08).** `POST /pos-sales/{id}/quick-client` needs `pos.sale.create` on the sale and `clients.client.create`. It first runs `clients.service.possible_duplicates` inside the cashier's reach. Any match returns 409 `possible-duplicate` with `candidates`; the cashier attaches one or resends with `confirm_new`. The new client's home is the sale's location. It is attached even when the cashier's own reach would not cover it, because they just made it.
+- **Receipt footer (POS-14).** `pos_settings.receipt_footer` can be set per location; billing's tenant `receipt_footer` is the fallback. A location override row replaces the whole tenant row, as with the other settings.
+- **Low-stock digest (POS-22).** The hourly `send_low_stock_digest` emails a location's `low_stock_alert_email` once per local day (unique row in `pos_low_stock_digest`). It lists active, stock-tracked products at or below their reorder level. A day with nothing low sends nothing and records nothing. Products without a stock row are not listed.

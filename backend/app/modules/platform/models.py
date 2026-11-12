@@ -12,6 +12,7 @@ from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
     Index,
+    LargeBinary,
     SmallInteger,
     Text,
     UniqueConstraint,
@@ -129,10 +130,12 @@ class Tenant(Timestamps, Base):
     is_listed_in_app_directory: Mapped[bool] = _false()
     app_directory_name: Mapped[str | None]
     settings: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))
-    # Staff may act only from these networks unless they hold platform.security.bypass_ip_allowlist (PLT-07).
+    # Staff may act only from these networks when it is non-empty; no role bypasses it (PLT-07).
     staff_ip_allowlist: Mapped[list[Any]] = mapped_column(ARRAY(CIDR), server_default=text("'{}'"))
     # Staff web idle limit in minutes, 15 to 60 (security-baseline 5.1); NULL is the configured default.
     staff_idle_timeout_min: Mapped[int | None] = mapped_column(info={"audit": "value"})
+    # PLT-16: the stricter privacy defaults (explicit marketing consent, shorter retention); platform.privacy.
+    is_gdpr_mode: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
 
 
 class TenantDomain(TenantOwned, Timestamps, Base):
@@ -658,3 +661,87 @@ class TenantEntitlement(TenantOwned, Timestamps, Base):
     source: Mapped[str] = enum_column()
     starts_on: Mapped[date] = mapped_column(info={"audit": "value"})
     ends_on: Mapped[date | None] = mapped_column(info={"audit": "value"})
+
+
+# --- Phase 8 T2: logos (PLT-08), the tenant export bundle (IMP-04), support requests (ONB-03) -----------------
+
+
+class Logo(TenantOwned, Timestamps, Base):
+    """The tenant's logo (location_id NULL) or one location's (PLT-08). The image is a stored file under the public
+    prefix, the only public-read objects (platform.branding)."""
+
+    __tablename__ = "logo"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", index=False),
+        *tfk("file_id", "stored_file"),
+        Index("uq_logo_tenant", "tenant_id", unique=True, postgresql_where=text("location_id IS NULL")),
+        Index("uq_logo_location", "tenant_id", "location_id", unique=True,
+              postgresql_where=text("location_id IS NOT NULL")),
+    )  # fmt: skip
+
+    location_id: Mapped[UUID | None]
+    file_id: Mapped[UUID]
+
+
+class TenantExportStatus(StrEnum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    EXPIRED = "expired"
+
+
+class TenantExport(TenantOwned, Timestamps, Base):
+    """A tenant-wide data export (IMP-04): a zip of one CSV per table, built by the chunked `run_tenant_export`
+    job and kept as a stored file until `expires_at` (platform.tenant_export)."""
+
+    __tablename__ = "tenant_export"
+    __table_args__ = tenant_args(
+        *tfk("requested_by_staff_user_id", "staff_user", index=False),
+        *tfk("file_id", "stored_file"),
+        enum_check("status", TenantExportStatus),
+    )
+
+    status: Mapped[str] = enum_column(server_default=text("'queued'"))
+    requested_by_staff_user_id: Mapped[UUID]
+    progress: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))
+    partial: Mapped[bytes | None] = mapped_column(LargeBinary, info={"audit": "never"})
+    file_id: Mapped[UUID | None]
+    row_count: Mapped[int | None] = mapped_column(info={"audit": "value"})
+    error: Mapped[str | None]
+    started_at: Mapped[datetime | None]
+    finished_at: Mapped[datetime | None]
+    expires_at: Mapped[datetime | None]
+
+
+class SupportCategory(StrEnum):
+    QUESTION = "question"
+    PROBLEM = "problem"
+    BILLING = "billing"
+    IMPORT = "import"
+    FEEDBACK = "feedback"
+
+
+class SupportStatus(StrEnum):
+    OPEN = "open"
+    CLOSED = "closed"
+
+
+class SupportRequest(TenantOwned, Timestamps, Base):
+    """A staff "Contact support" message (ONB-03), emailed to the operator address; the requester sees their own."""
+
+    __tablename__ = "support_request"
+    __table_args__ = tenant_args(
+        *tfk("requested_by_staff_user_id", "staff_user", index=False),
+        *tfk("screenshot_file_id", "stored_file"),
+        enum_check("category", SupportCategory),
+        enum_check("status", SupportStatus),
+        Index("ix_support_request_mine", "tenant_id", "requested_by_staff_user_id", "id"),
+    )
+
+    requested_by_staff_user_id: Mapped[UUID]
+    category: Mapped[str] = enum_column()
+    message: Mapped[str]
+    screenshot_file_id: Mapped[UUID | None]
+    status: Mapped[str] = enum_column(server_default=text("'open'"))
+    closed_at: Mapped[datetime | None]

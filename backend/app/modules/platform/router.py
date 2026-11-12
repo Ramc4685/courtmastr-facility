@@ -480,6 +480,13 @@ def reset_staff_credentials(
     staff.reset_credentials(ctx.session, ctx.principal, staff_user_id)
 
 
+@admin.post("/staff-users/{staff_user_id}/mfa-reset", status_code=204)
+def reset_staff_mfa(staff_user_id: UUID, ctx: Ctx = Depends(require("platform.staff_user.reset_mfa"))) -> None:
+    """Remove a user's lost authenticator and recovery codes and sign them out everywhere (ADR 0002 section 6).
+    Errors: invalid-state-transition when they have none; self-escalation for your own account."""
+    staff.reset_mfa(ctx.session, ctx.principal, staff_user_id)
+
+
 @admin.put("/staff-users/{staff_user_id}/role", response_model=s.StaffUserOut)
 def assign_staff_role(
     staff_user_id: UUID, body: s.StaffUserRoleAssign, ctx: Ctx = Depends(require("platform.staff_user.assign_role"))

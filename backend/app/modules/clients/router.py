@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from typing import Annotated
+from urllib.parse import unquote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response
@@ -12,7 +13,7 @@ from app.core.auth.deps import Ctx, current_ctx, request_session, require
 from app.core.errors import NotFound
 from app.core.idempotency import idempotency
 from app.core.pagination import ListQuery, list_query
-from app.modules.clients import activity, households, merge, service
+from app.modules.clients import activity, files, households, merge, service
 from app.modules.clients import schemas as s
 
 router = APIRouter(
@@ -491,3 +492,66 @@ def precheck_client_merge(client_id: UUID, body: s.MergeRequest, ctx: Merge):
 def merge_clients(client_id: UUID, body: s.MergeRequest, ctx: Merge):
     """Merge the listed records into this one. Errors: merge-blocked (with blockers)."""
     return _view(ctx, merge.merge(ctx.session, ctx.principal, client_id, body.merged_client_ids))
+
+
+# --- client files (phase 10 chip F): photo (CLI-12) and note attachments (CLI-09) -----------------------------
+# Raw request bytes with their Content-Type (as documents' paper scan). Files are served after both gates with
+# their sniffed type, nosniff, a sandboxing CSP and no caching; attachments always download.
+
+
+def _upload_type(request: Request) -> str:
+    return request.headers.get("content-type", "application/octet-stream").split(";")[0].strip()
+
+
+def _bytes(row, data: bytes, disposition: str) -> Response:
+    name = (row.original_name or "file").replace('"', "")
+    return Response(
+        data, media_type=row.content_type,
+        headers={"Content-Disposition": f'{disposition}; filename="{name}"', "X-Content-Type-Options": "nosniff",
+                 "Cache-Control": "private, no-store", "Content-Security-Policy": "default-src 'none'; sandbox"},
+    )  # fmt: skip
+
+
+@router.put("/clients/{client_id}/photo", response_model=s.ClientOut)
+async def set_client_photo(
+    client_id: UUID, request: Request, ctx: Annotated[Ctx, Depends(require("clients.client.update"))]
+):
+    """JPEG or PNG bytes, up to 5 MiB; re-encoded. Errors: file-type-mismatch, file-too-large, file-empty."""
+    data = await request.body()
+    return _view(ctx, files.set_photo(ctx.session, ctx.principal, client_id, data, _upload_type(request)))
+
+
+@router.delete("/clients/{client_id}/photo", status_code=204)
+def delete_client_photo(client_id: UUID, ctx: Annotated[Ctx, Depends(require("clients.client.update"))]):
+    files.remove_photo(ctx.session, ctx.principal, client_id)
+    return Response(status_code=204)
+
+
+@router.get("/clients/{client_id}/photo", response_class=Response)
+def get_client_photo(client_id: UUID, ctx: Read):
+    return _bytes(*files.get_photo(ctx.session, ctx.principal, client_id), "inline")
+
+
+@router.get("/client-notes/{note_id}/attachments", response_model=list[s.NoteAttachmentOut])
+def list_client_note_attachments(note_id: UUID, ctx: ActivityRead):
+    return files.list_attachments(ctx.session, ctx.principal, note_id)
+
+
+@router.post("/client-notes/{note_id}/attachments", response_model=s.NoteAttachmentOut, status_code=201)
+async def upload_client_note_attachment(note_id: UUID, request: Request, ctx: ActivityWrite):
+    """PDF, JPEG or PNG bytes with their Content-Type and an optional X-File-Name; at most 5 per note.
+    Errors: file-type-mismatch, file-too-large, file-empty, too-many-attachments."""
+    data = await request.body()
+    name = unquote(request.headers.get("x-file-name") or "") or None  # the web client URI-encodes it
+    return files.add_attachment(ctx.session, ctx.principal, note_id, data, _upload_type(request), name)
+
+
+@router.get("/client-notes/{note_id}/attachments/{attachment_id}", response_class=Response)
+def get_client_note_attachment(note_id: UUID, attachment_id: UUID, ctx: ActivityRead):
+    return _bytes(*files.get_attachment(ctx.session, ctx.principal, note_id, attachment_id), "attachment")
+
+
+@router.delete("/client-notes/{note_id}/attachments/{attachment_id}", status_code=204)
+def delete_client_note_attachment(note_id: UUID, attachment_id: UUID, ctx: ActivityWrite):
+    files.remove_attachment(ctx.session, ctx.principal, note_id, attachment_id)
+    return Response(status_code=204)

@@ -17,6 +17,8 @@ Scripted by method token (a stored method remembers the token it was attached wi
 | `tok_ach_unverified`    | attaches unverified; verify with micro-deposits (32, 45); pays like `tok_ach_ok` |     |
 | anything else           | declined, processor_error       | declined                                        |
 
+Disputes are opened and closed by the test hooks `open_dispute()` and `close_dispute()`.
+
 Every state change is also emitted as a signed webhook event into `outbox`, in the format parse_webhook()
 reads, so tests and the dev tools can deliver them to `/webhooks/fake` like a real processor would.
 
@@ -30,6 +32,7 @@ from uuid import uuid4
 
 from app.ports.payment_provider import (
     AccountState,
+    DisputeState,
     MethodState,
     PaymentState,
     ProviderEvent,
@@ -70,6 +73,7 @@ class FakeProvider:
         self._refunded: dict[str, int] = {}
         self._methods: dict[str, tuple[MethodState, str]] = {}  # stored method ref -> (state, script token)
         self._charges: dict[str, int] = {}  # stored method ref -> charges attempted
+        self._disputes: dict[str, tuple[DisputeState, str]] = {}  # dispute ref -> (state, account)
         self.outbox: list[tuple[dict[str, str], bytes]] = []  # signed webhook deliveries, oldest first
 
     # --- webhooks ------------------------------------------------------------------------------------------
@@ -207,6 +211,26 @@ class FakeProvider:
     def authenticate(self, provider_payment_ref: str) -> None:
         """Test and demo hook: the payer completes authentication of a `requires_action` payment."""
         self._finish(provider_payment_ref, "requires_action", "Authentication failed.")
+
+    # --- disputes ------------------------------------------------------------------------------------------------
+
+    def get_dispute(self, *, account_ref: str, provider_dispute_ref: str) -> DisputeState:
+        return self._disputes[provider_dispute_ref][0]
+
+    def open_dispute(self, provider_payment_ref: str, *, amount_minor: int | None = None) -> str:
+        """Test and demo hook: the payer disputes a settled payment. Returns the dispute reference."""
+        _, _, amount, account = self._payments[provider_payment_ref]
+        ref = f"fake_dp_{uuid4().hex}"
+        state = DisputeState(ref, provider_payment_ref, amount_minor or amount, "open", reason_code="fraudulent")
+        self._disputes[ref] = (state, account)
+        self._emit(account, "dispute", ref, "dispute.created")
+        return ref
+
+    def close_dispute(self, provider_dispute_ref: str, *, won: bool) -> None:
+        """Test and demo hook: the card network decides."""
+        state, account = self._disputes[provider_dispute_ref]
+        self._disputes[provider_dispute_ref] = (replace(state, status="won" if won else "lost"), account)
+        self._emit(account, "dispute", provider_dispute_ref, "dispute.closed")
 
     # --- refunds -------------------------------------------------------------------------------------------------
 

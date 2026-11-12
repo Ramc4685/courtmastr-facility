@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Badge } from '../components/Badge'
-import { BrandMark, Icon } from '../components/Icon'
+import { Icon } from '../components/Icon'
+import { TenantLogo } from '../features/platform/branding'
 import { useAuth, useCurrentLocation, useMe } from '../lib/auth'
 import { APP_NAME } from '../lib/format'
 import { applyTheme, readTheme, type Theme } from '../lib/theme'
@@ -10,10 +11,11 @@ import { PLATFORM_NAV, UPCOMING_NAV } from './nav'
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { can } = useAuth()
   const me = useMe()
+  const { locationId } = useCurrentLocation()
   return (
     <div className="flex h-full flex-col bg-rail text-rail-fg">
       <div className="flex items-center gap-3 px-5 py-5">
-        <BrandMark />
+        <TenantLogo locationId={locationId} />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{APP_NAME}</p>
           <p className="truncate text-xs text-rail-muted">{me.tenant.name}</p>

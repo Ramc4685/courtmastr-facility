@@ -63,6 +63,7 @@ function Kiosk({ config }: { config: Config }) {
   const [result, setResult] = useState<Result | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
   const [exiting, setExiting] = useState(false)
+  const [pin, setPin] = useState('')
   const settings = config.settings
   const byName = settings.lookup_method !== 'membership_number'
 
@@ -90,8 +91,8 @@ function Kiosk({ config }: { config: Config }) {
     onError: fail,
   })
   const exit = useMutation({
-    mutationFn: () => api.post('/api/v1/kiosk/exit'),
-    onSettled: () => qc.resetQueries({ queryKey: ['kiosk', 'config'] }),
+    mutationFn: (staff_pin: string) => api.post('/api/v1/kiosk/exit', { body: { staff_pin } }),
+    onSuccess: () => qc.resetQueries({ queryKey: ['kiosk', 'config'] }),
   })
 
   useScanBurst((value) => {
@@ -153,8 +154,17 @@ function Kiosk({ config }: { config: Config }) {
       <div className="mt-8 text-right">
         <Button size="sm" variant="ghost" onClick={() => setExiting(true)}>Exit kiosk</Button>
       </div>
-      <ConfirmDialog open={exiting} title="Exit kiosk mode?" confirmLabel="Exit" busy={exit.isPending} onConfirm={() => exit.mutate()} onClose={() => setExiting(false)}>
-        This device stops checking people in until staff pair it again.
+      <ConfirmDialog open={exiting} title="Exit kiosk mode?" confirmLabel="Exit" busy={exit.isPending} onConfirm={() => exit.mutate(pin)} onClose={() => { setExiting(false); setPin(''); exit.reset() }}>
+        <p className="mb-3">Staff only: enter the exit PIN. This device stops checking people in until staff pair it again.</p>
+        <Input
+          label="Exit PIN"
+          type="password"
+          inputMode="numeric"
+          autoComplete="off"
+          value={pin}
+          onChange={(e) => setPin(e.target.value)}
+          error={exit.error instanceof ApiError ? (exit.error.status === 409 ? 'No exit PIN is set. Revoke this device from Kiosks instead.' : exit.error.status === 429 ? 'Too many tries. Wait a minute.' : 'Wrong PIN.') : undefined}
+        />
       </ConfirmDialog>
     </section>
   )

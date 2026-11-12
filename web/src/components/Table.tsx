@@ -42,12 +42,14 @@ export function Table<T>({ caption, columns, rowKey, paging, empty }: TableProps
   if (query.isError) return <ErrorState error={query.error} onRetry={() => query.refetch()} />
   const rows = query.data.data
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-card">
+    <div className="relative overflow-hidden rounded-lg border border-border bg-surface shadow-card">
+      {/* Stale rows stay at full contrast (dimming them failed WCAG 1.4.3); a bar and aria-busy mark the refetch. */}
+      {query.isPlaceholderData && <div aria-hidden="true" data-testid="table-updating" className="absolute inset-x-0 top-0 h-0.5 animate-pulse bg-primary" />}
       {rows.length === 0 ? (
         empty
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-left text-sm" aria-busy={query.isPlaceholderData || undefined}>
             <caption className="sr-only">{caption}</caption>
             <thead className="bg-surface-2 text-xs uppercase tracking-wide text-muted">
               <tr>
@@ -58,7 +60,7 @@ export function Table<T>({ caption, columns, rowKey, paging, empty }: TableProps
                 ))}
               </tr>
             </thead>
-            <tbody className={`divide-y divide-border ${query.isPlaceholderData ? 'opacity-60' : ''}`}>
+            <tbody className="divide-y divide-border">
               {rows.map((row) => (
                 <tr key={rowKey(row)} className="hover:bg-surface-2/60">
                   {columns.map((c) => (

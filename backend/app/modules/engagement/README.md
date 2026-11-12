@@ -33,6 +33,25 @@ routes, the portal inbox and push devices, portal settings and videos. Feature s
   tenant-wide: reads need `campaign.read`, writes `authorize_tenant_wide`. Sending needs `campaign.send` (email)
   or `push.send` (announcements) on top of the router gate. Suppressions are `T`, admin only.
 - **Audiences** are always narrowed to clients whose home location is the campaign's location.
+- **Send to everyone (PLT-06, Phase 8 T2).** Sending or scheduling a campaign whose audience includes an
+  `all_clients` source also needs `campaign.send_all` (Admin and Manager by default, so a custom role or a deny
+  override can restrict senders to segments and chosen clients). Filters never waive it: no filter provably
+  narrows (a negated or catch-all one can match everyone). Scheduling records whether the scheduler passed the
+  same location-scoped gate (`campaign.is_send_all_granted`); editing a segment's definition clears that on the
+  scheduled campaigns using it. At send time a campaign whose audience now needs `send_all` without a recorded
+  grant goes back to draft with `hold_reason` `send-all-required` (audited) instead of sending.
+- **GDPR mode (PLT-16, Phase 8 T2).** When the tenant's `is_gdpr_mode` is on, an opt-in to a marketing topic
+  needs an express basis (`express_written` or `express_verbal`; `implied_*` is 422 `express-consent-required`),
+  and `is_subscribed` ignores marketing opt-ins whose recorded basis is implied or missing (no consent proof is
+  not express), so earlier implied consent stops marketing without rewriting the append-only consent log.
+  Service topics (reminders, receipts) are unaffected. Switching GDPR mode off does not resume them: every
+  implied or unproven marketing opt-in gets an opt-out consent event (source `staff`, by the owner who switched
+  it off, with a note; the count is in the setting's audit row). Chosen over a confirm flag because it needs no
+  API change and errs on the side of not mailing; the client or staff can opt in again.
+- **Automations send as marketing.** Consent, verification and the unsubscribe footer always apply, unless the
+  template is a system template marked transactional; any campaign editor can set a saved template's category,
+  so that field alone never skips consent, and a system template's category cannot be edited. A push
+  automation checks `is_subscribed` before writing the inbox item.
 - **Delivery events** (`record_delivery_event`) only move a message forward, count each step once, suppress on
   bounce or complaint (permanently after a release), and opt out on unsubscribe.
 - **Reminders** are materialised as `scheduled_notification` rows (two offsets at most, unique per subject,
@@ -52,6 +71,11 @@ routes, the portal inbox and push devices, portal settings and videos. Feature s
    not suppressed (the data model blocks all mail to unverified addresses, which would stop receipts).
 3. Bodies are plain text with `$field` merge fields; the HTML block builder (MKT-04) is P1.
 4. Announcements fan out one `inbox_item` per client, so read state and recall are a single row each.
+   **Each item belongs to one recipient** (household decision): the portal inbox, its unread count and the
+   web badge show one client's items, the acting-for member's (`?client_id=`, default the login's own record).
+   A guardian sees a dependent's items only when acting for that dependent, never merged into their own list,
+   so a household announcement appears once per view. Reading another member's inbox or marking its item read
+   needs `can_act_for(..., "consent")` (self, manager or guardian; delegates get 404), like the preferences.
 5. Notification routes store recipients as `uuid[]` and `citext[]` instead of a child table.
 6. There is no email provider webhook yet (SMTP and Mailpit emit no events): `record_delivery_event` is the
    internal entry point an adapter will call. No RFC 8058 `List-Unsubscribe` header: the email port has no
@@ -72,8 +96,8 @@ imported email consent).
 
 ## Endpoints the mobile app depends on (keep stable)
 
-`GET /portal/inbox` (page of `{id, campaign_id, title, body, link_url, read_at, created_at}`),
-`GET /portal/inbox/unread-count`, `POST /portal/inbox/{id}/read`, `POST /portal/devices`
+`GET /portal/inbox` (page of `{id, campaign_id, title, body, link_url, read_at, created_at}`; optional
+`client_id`, default the login's own record), `GET /portal/inbox/unread-count` (same `client_id`), `POST /portal/inbox/{id}/read`, `POST /portal/devices`
 (`{platform: ios|android, push_token, location_id?, app_version?, locale?, is_push_enabled?}`),
 `DELETE /portal/devices/{id}`, `GET /portal/videos`, `GET /public/portal-config` (tenant from host or
 `X-Tenant-Slug`), and `GET|PUT /portal/clients/{client_id}/communication-preferences`.

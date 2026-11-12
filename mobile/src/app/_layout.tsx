@@ -49,6 +49,7 @@ function Navigator() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false, title: 'Back' }} />
           <Stack.Screen name="memberships" options={{ title: 'Memberships & packages' }} />
           <Stack.Screen name="invoices" options={{ title: 'Invoices' }} />
+          <Stack.Screen name="progress" options={{ title: 'Progress' }} />
           <Stack.Screen name="inbox" options={{ title: 'Notifications' }} />
           <Stack.Screen name="facility" options={{ title: 'Facility info' }} />
           <Stack.Screen name="profile" options={{ title: 'Profile' }} />

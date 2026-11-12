@@ -28,17 +28,26 @@ SAMPLE = int(os.environ.get("FH_CONTRACT_SAMPLE", "8"))
 # test_security and the platform auth tests.
 SKIP_PATHS = ("/auth/sign-out", "/auth/sign-in", "/auth/refresh", "/auth/password")
 
-# Known 500s found by this test in contexts K3 may not edit (docs/status/phase8-k3-checks.md). Each is an
-# unbounded `int` in a request schema (`sort_order` and similar) that overflows the INTEGER column: bound the
-# field (for example `Field(ge=0, le=100000)`) and delete the line.
-KNOWN_FAILURES = {
-    "POST /api/v1/client-categories": "clients: unbounded sort_order overflows integer",
-    "POST /api/v1/referral-categories": "clients: unbounded sort_order overflows integer",
-    "POST /api/v1/custom-fields": "clients: unbounded sort_order overflows integer",
-    "POST /api/v1/product-categories": "pos: unbounded sort_order overflows integer",
-    "POST /api/v1/equipment-categories": "pos: unbounded sort_order overflows integer",
-    "POST /api/v1/membership-types": "memberships: unbounded integer field overflows",
-}
+# Known 500s found by this test, "METHOD /path": reason (docs/status/phase8-k3-checks.md). Empty since S4 bounded
+# the six `sort_order` fields; an unbounded `int` in a request schema is the usual cause (bound it with
+# `Field(ge=..., le=...)`).
+KNOWN_FAILURES: dict[str, str] = {}
+
+# The six operations K3 found returning 500 on an out-of-range `sort_order` (phase 8 S4 regression).
+_FORMER_OVERFLOWS = (
+    "/client-categories", "/referral-categories", "/custom-fields", "/product-categories", "/equipment-categories",
+    "/membership-types",
+)  # fmt: skip
+
+
+@pytest.mark.parametrize("path", _FORMER_OVERFLOWS)
+def test_out_of_range_sort_order_is_a_validation_error(path, owner_headers):
+    client = TestClient(app)
+    for sort_order in (2**31, -1):
+        response = client.post(f"/api/v1{path}", headers=owner_headers, json={"sort_order": sort_order})
+        assert response.status_code == 422, response.text
+        assert "/sort_order" in [error["pointer"] for error in response.json()["errors"]]
+
 
 schema = schemathesis.openapi.from_asgi("/api/v1/openapi.json", app)
 

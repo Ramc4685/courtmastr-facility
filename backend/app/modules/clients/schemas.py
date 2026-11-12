@@ -16,6 +16,7 @@ from app.core.schemas import In, Out, Page  # noqa: F401  (Page is used by the r
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 Text = Annotated[str, StringConstraints(strip_whitespace=True, max_length=4000)]
 Short = Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]
+Order = Annotated[int, Field(ge=0, le=10_000)]  # sort_order: bounded so it never overflows the INTEGER column
 Phone = Annotated[str, StringConstraints(pattern=r"^\+[1-9][0-9]{6,14}$")]  # E.164
 MemberNumber = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40)]
 Country = Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}$")]
@@ -94,6 +95,7 @@ class ClientListItem(Out):
     merged_into_id: UUID | None
     erased_at: datetime | None
     created_at: datetime
+    photo_file_id: UUID | None = None  # CLI-12: the bytes come from getClientPhoto
 
 
 class ClientOut(ClientListItem):
@@ -176,13 +178,13 @@ class TokenIn(In):
 
 class LookupIn(In):
     name: Name
-    sort_order: int = 0
+    sort_order: Order = 0
     is_active: bool = True
 
 
 class LookupUpdate(In):
     name: Name | None = None
-    sort_order: int | None = None
+    sort_order: Order | None = None
     is_active: bool | None = None
 
 
@@ -217,14 +219,14 @@ class CustomFieldIn(In):
     label: Name
     data_type: Literal["text", "number", "date", "boolean", "choice"] = "text"
     choices: list[Name] | None = None
-    sort_order: int = 0
+    sort_order: Order = 0
     is_active: bool = True
 
 
 class CustomFieldUpdate(In):
     label: Name | None = None
     choices: list[Name] | None = None
-    sort_order: int | None = None
+    sort_order: Order | None = None
     is_active: bool | None = None
 
 
@@ -633,3 +635,15 @@ class MergePrecheck(Out):
     review: list[MergeReviewItem]
     backfill_fields: list[str]
     can_merge: bool
+
+
+# --- client files (phase 10 chip F) --------------------------------------------------------------------------
+
+
+class NoteAttachmentOut(Out):
+    id: UUID
+    client_note_id: UUID
+    file_name: str | None
+    content_type: str
+    size_bytes: int
+    created_at: datetime

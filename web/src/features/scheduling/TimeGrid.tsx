@@ -16,7 +16,7 @@ export type GridItem = {
   detail?: string // second visible line (resource names in week view)
   held?: boolean // a hold inherited from a parent resource: shown, never dragged
 }
-export type Closed = { columnKey: string; start: number; end: number; label: string }
+export type Closed = { columnKey: string; start: number; end: number; label: string; tone?: 'off' } // off: a trainer's hours outside their availability (SCH-18)
 export type Change = { column: GridColumn; start: number; end: number }
 
 type Drag = {
@@ -41,6 +41,8 @@ type Props = {
   onCreate: (change: Change) => void
   onOpen: (entry: CalendarEntry) => void
   onMove: (item: GridItem, change: Change) => void
+  draggable?: boolean // false: entries open on click but never drag (drag-and-drop default `move_enrollment`)
+  selected?: Set<string> // select mode (SCH-11): booking ids picked; entries toggle instead of drag
 }
 
 const FILL_TEXT = { empty: 'open', partial: 'filling', full: 'full' } as const
@@ -48,7 +50,8 @@ const FILL_TEXT = { empty: 'open', partial: 'filling', full: 'full' } as const
 /** A time grid with one column per resource (day view) or per day (week view). Pointer drags create, move and
  * resize; every drag has a keyboard route instead: entries are buttons that open the booking drawer (where
  * time, length and resource are edited), and the toolbar's "New booking" opens an empty one. */
-export function TimeGrid({ caption, columns, items, closed, span, slot, canCreate, onCreate, onOpen, onMove }: Props) {
+export function TimeGrid({ caption, columns, items, closed, span, slot, canCreate, onCreate, onOpen, onMove, draggable = true, selected }: Props) {
+  const canDrag = draggable && !selected
   const colRefs = useRef(new Map<string, HTMLDivElement>())
   const [drag, setDrag] = useState<Drag | null>(null)
   const suppressClick = useRef(0)
@@ -139,7 +142,7 @@ export function TimeGrid({ caption, columns, items, closed, span, slot, canCreat
         </div>
         {columns.map((c) => {
           const placed = placeInLanes(items.filter((i) => i.columnKey === c.key))
-          const creatable = canCreate(c)
+          const creatable = canCreate(c) && !selected
           return (
             <div key={c.key} className="w-44 shrink-0 border-r border-border last:border-r-0">
               <div className="flex h-12 items-center justify-center border-b border-border px-2 text-center text-xs font-semibold leading-tight">{c.label}</div>
@@ -165,15 +168,17 @@ export function TimeGrid({ caption, columns, items, closed, span, slot, canCreat
                   .map((x, i) => (
                     <div
                       key={i}
-                      className="pointer-events-none absolute inset-x-0 bg-[repeating-linear-gradient(45deg,rgb(var(--danger)/0.10)_0_6px,transparent_6px_12px)]"
+                      className={`pointer-events-none absolute inset-x-0 ${x.tone === 'off' ? 'bg-surface-2/80' : 'bg-[repeating-linear-gradient(45deg,rgb(var(--danger)/0.10)_0_6px,transparent_6px_12px)]'}`}
                       style={{ top: (Math.max(x.start, span.start) - span.start) * PX_PER_MIN, height: (Math.min(x.end, span.end) - Math.max(x.start, span.start)) * PX_PER_MIN }}
                     >
-                      <span className="m-1 inline-block rounded bg-surface px-1 text-[11px] text-danger">{x.label}</span>
+                      <span className={`m-1 inline-block rounded bg-surface px-1 text-[11px] ${x.tone === 'off' ? 'text-muted' : 'text-danger'}`}>{x.label}</span>
                     </div>
                   ))}
                 {placed.map((p) => {
                   const dragging = drag?.item?.id === p.id && drag.moved
                   const e = p.entry
+                  const movable = e.can_edit && canDrag
+                  const picked = selected?.has(e.booking_id)
                   const width = 100 / p.lanes
                   const before = e.buffer_before_min * PX_PER_MIN
                   const after = e.buffer_after_min * PX_PER_MIN
@@ -200,8 +205,9 @@ export function TimeGrid({ caption, columns, items, closed, span, slot, canCreat
                       ) : (
                         <button
                           type="button"
-                          className={`group relative h-full w-full overflow-hidden rounded border border-border bg-surface-2 py-0.5 pl-2.5 pr-1 text-left text-xs shadow-sm hover:border-fg/40 ${e.status === 'tentative' ? 'border-dashed' : ''} ${e.can_edit ? 'cursor-grab touch-none' : ''}`}
-                          onPointerDown={(ev) => e.can_edit && begin(ev, { mode: 'move', item: p, column: c, anchor: minuteAt(ev.clientY, ev.currentTarget.parentElement?.parentElement ?? ev.currentTarget), start: p.start, end: p.end })}
+                          aria-pressed={selected ? Boolean(picked) : undefined}
+                          className={`group relative h-full w-full overflow-hidden rounded border border-border bg-surface-2 py-0.5 pl-2.5 pr-1 text-left text-xs shadow-sm hover:border-fg/40 ${e.status === 'tentative' ? 'border-dashed' : ''} ${movable ? 'cursor-grab touch-none' : ''} ${picked ? 'ring-2 ring-primary' : ''}`}
+                          onPointerDown={(ev) => movable && begin(ev, { mode: 'move', item: p, column: c, anchor: minuteAt(ev.clientY, ev.currentTarget.parentElement?.parentElement ?? ev.currentTarget), start: p.start, end: p.end })}
                           onClick={() => Date.now() > suppressClick.current && onOpen(e)}
                         >
                           <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1.5" style={{ background: e.color ?? 'rgb(var(--muted))' }} />
@@ -213,7 +219,7 @@ export function TimeGrid({ caption, columns, items, closed, span, slot, canCreat
                           {p.detail && <span className="block truncate text-muted">{p.detail}</span>}
                           {/* the visible text starts the accessible name (WCAG 2.5.3); full details follow for screen readers */}
                           <span className="sr-only">. {p.label}</span>
-                          {e.can_edit && (
+                          {movable && (
                             <span
                               aria-hidden="true"
                               className="absolute inset-x-0 bottom-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100"

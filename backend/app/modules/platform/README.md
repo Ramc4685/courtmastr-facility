@@ -53,7 +53,9 @@ Later modules must not assume these exist.
 - **Dead letters** (`failed_job`, ADR 0008 section 7): `core.jobs.FailedJobRecorder` writes one row per message
   that is finally rejected (retries exhausted, or none allowed), in the message's tenant: actor, queue, message
   id, args (ids and dates only, by the actor rule), error class and first line (later lines of a database error
-  can quote row values), attempts. Operators, not staff, act on them; there is no route:
+  can quote row values), attempts. An actor that drives a job row registers `core.jobs.on_dead_letter` to
+  mark that row failed in the same transaction (the tenant export does). Operators, not staff, act on them; there
+  is no route:
 
   ```
   uv run python -m app.cli failed-jobs --tenant <tenant-id>                       # open dead letters
@@ -102,8 +104,7 @@ bytes of purged rows and logs objects that have no row.
   `--profile scan` starts `clamav`. The adapter tests skip when they are not running.
 - **Deferred (assumptions written down):** the presigned direct-to-bucket upload, quarantine prefix and scan
   job of 8.1 (bytes still arrive in the request, under the 20 MiB body cap; `shortcut:` in `files.py`), the
-  `rejected` status, the 24-hour quarantine purge, fixed image renditions, a public URL for `public` files
-  (PLT-08 adds it with a bucket policy on `t/*/public/*`), and `nosniff` on the bucket origin (S3 cannot set it
+  `rejected` status, the 24-hour quarantine purge, fixed image renditions, and `nosniff` on the bucket origin (S3 cannot set it
   per object; the CDN or proxy in front of the bucket must add it). The orphan report only logs; nothing deletes
   an orphan, since it may be a store whose transaction has not committed yet.
 
@@ -149,9 +150,12 @@ bytes of purged rows and logs objects that have no row.
 - **Staff IP allow-list** (PLT-07): `tenant.staff_ip_allowlist` (`cidr[]`), edited at
   `GET/PATCH /security-settings` (`platform.security.manage`, audited under that key) and the Security
   screen (`/settings/security`). Evaluated at every staff sign-in and on every staff request (web and mobile
-  sessions); outside the list is `403 ip-not-allowed` (at sign-in decided before the password is checked, the same for unknown emails, so it is no credential oracle); empty means no restriction; holders of
-  `platform.security.bypass_ip_allowlist` (Owner and Admin by default) are exempt. A list that leaves out the
-  caller's own address is refused (`422 ip-allowlist-excludes-you`), whoever the caller is. CIDR parsing and
+  sessions); outside the list is `403 ip-not-allowed` (at sign-in decided before the password is checked, the same for unknown emails, so it is no credential oracle); empty means no restriction; no role is exempt,
+  Owners included (phase 8 S4 removed the old Owner and Admin bypass key). A list that leaves out the caller's
+  own address is refused (`422 ip-allowlist-excludes-you`), whoever the caller is. **Break-glass:** a tenant
+  that still locks itself out (its address changed) is let back in by the operator from outside the app:
+  `cd backend && uv run python -m app.cli clear-ip-allowlist --tenant <tenant id>` empties the list, prints
+  what it removed and records a `platform.security.manage` audit row by `operator-cli`. CIDR parsing and
   matching live in `core/networks.py`, shared with POS registers and the time clock. Assumption: the brief's
   tenant-wide list replaces, for now, the data model's per-location networks plus `staff_user.ip_policy`
   (`unknowns` "IP restriction scope" says tenant-wide); `ip_policy` is stored but not yet consulted.
@@ -189,6 +193,14 @@ Evidence and open questions: `docs/status/phase8-s2-mfa.md`. Migrations `1230`, 
   seed and the test tenants use `optional` so password-only sign-ins keep working.
 - **Own factor** (`/me/mfa`, staff screen `/account/security`): status, enrol + confirm (signs out the
   user's other sessions, sends an email), disable, regenerate. Enrol, disable and regenerate need step-up.
+- **Lost authenticator** (phase 8 S4, ADR 0002 section 6): `POST /staff-users/{id}/mfa-reset`
+  (`platform.staff_user.reset_mfa`, `A +`, Admin by default) removes another user's factor and recovery codes,
+  revokes all their sessions (`mfa_change`), records `platform.staff_user.reset_mfa` (actor and target, no
+  secrets) and emails them. Only an Owner resets an Owner; your own account is refused (`self-escalation`; use
+  `/account/security`); another tenant's user is 404; a user with no factor is `409`. If MFA is required for
+  them, the next sign-in walks them through enrolment, which needs an emailed link (as above). Web: "Reset
+  two-step verification" on the staff user's page, behind a confirm dialog. The last Owner who loses their
+  factor and recovery codes still recovers through support (ADR 0002 section 6).
 - **Step-up** (`POST /auth/step-up`, ADR 0002 section 4): the TOTP or recovery code when enrolled, else the
   password (refused with `mfa-enrolment-required` once the policy requires MFA of that user). Rate limited
   per IP (`step-up`) and per identity (`step-up-identity`, 10 in 5 minutes). It revokes the
@@ -204,13 +216,17 @@ Evidence and open questions: `docs/status/phase8-s2-mfa.md`. Migrations `1230`, 
   unchanged. Idle expiry slides on use, never past the absolute limit. Known limit: `client_kind` is chosen
   by the caller, so a staff client that claims `mobile` gets mobile lifetimes (bearer tokens, refresh). The
   mobile app is the only intended caller; binding it to an attested client is future work.
-- **IP allow-list**: unchanged from S1, including the Owner and Admin bypass (the owner has been asked
-  whether to remove it).
+- **IP allow-list**: the Owner and Admin bypass was removed in phase 8 S4 (see "Sign-in hardening").
 
 ## Plans and entitlements (Phase 8 chip T1: PLT-14, PLT-09, PLT-13)
 
 Entitlements only: **no charge, invoice or Stripe call is made for a tenant's plan here**. Billing the tenant
 for its subscription is later work.
+
+**Placeholders:** the plan names (Essentials, Growth, Complete) and their limits (Essentials: 1 location, 500
+clients; Growth: 3 locations, 2,000 clients, 500 app users, API access; Complete: everything, unlimited) are
+invented placeholders, not final packaging or pricing (owner decision relayed 2026-11-11). Change them with a
+new migration.
 
 - **Where the data lives.** The plan catalogue is the global `subscription_plan` table (no RLS; fh_app has
   SELECT; rows come from migration 1250, which upserts `essentials`, `growth` and `complete`). Each plan has
@@ -224,12 +240,12 @@ for its subscription is later work.
   is also what onboarding stores. The demo seed always puts the demo tenant on `complete`.
 - **Catalogues are code** (`FEATURES`, `LIMITS`): only keys something actually checks. Features: `api_access`
   (API key creation, rotation and every API-key request), `branded_app` (member sign-in and refresh on the
-  mobile client). Limits: `locations` (active), `staff_users` (active, support users excluded), `clients`
-  (active; counter registered by `clients`), `app_users` (members with a live mobile session).
+  mobile client). Limits: `locations` (active), `clients` (active; counter registered by `clients`),
+  `app_users` (members with a live mobile session). Staff users are not metered (see "Deferred" below).
 - **Calls for other contexts:** `has_feature`, `require_feature` (403 `feature-not-in-plan`), `limit`,
   `check_limit(session, key, current)` (409 `plan-limit-reached`, with `limit_key` and `limit`) and
   `enforce_limit(session, key)`, which counts only when the key is capped. Internal (no principal).
-- **Enforced at:** `create_location`; `invite_staff_user` and `reactivate_staff_user`; `clients._create` (staff,
+- **Enforced at:** `create_location`; `clients._create` (staff,
   portal dependant and import all meet there) and `enable_client`; mobile sign-in for members
   (`auth._admit_app_user`: feature, then the `app_users` cap, a member already signed in on another device is
   not counted twice). Known limit: concurrent creates can overshoot a cap by one each (no lock).
@@ -241,6 +257,58 @@ for its subscription is later work.
 - **Tenant read:** `GET /tenant/entitlements` under `platform.tenant.update` (Owner and Admin), web
   Settings > Plan and usage. `Me.entitlements` (plan, features, limits) lets the web hide what the plan lacks
   (the API keys tab today); members and kiosks see the features only, never usage counts.
+
+### Deferred
+
+- **Staff-seat metering** (owner decision, phase 8 S4: staff users are not metered for now). The `staff_users`
+  limit key, its counter and its row on the plan screen and in `Me.entitlements` are gone, and migration 1280
+  dropped it from the plans (`essentials` had 5, `growth` 15; its downgrade restores them). The hook is a
+  one-line `# hook: staff-seat metering` comment in `staff.py` at `invite_staff_user` and
+  `reactivate_staff_user`, where `entitlements.enforce_limit(session, "staff_users")` goes. Turning it on: add
+  the key to `LIMITS`, register its counter (active staff users, support users excluded), replace the two
+  comments with the call, and give the plans their numbers. Operator override rows with the key were kept;
+  they come back into force then.
+
+## Privacy, branding and onboarding (Phase 8 chip T2)
+
+- **Logos (PLT-08, `branding.py`).** One logo for the account and one per location (`logo` table), JPEG or PNG up
+  to 512 KiB, re-encoded by `files.clean` and stored `public=True` under `t/<tenant>/public/<file>`. `files.store`
+  refuses `public` for any purpose but `tenant_logo` and `location_logo`, so nothing else can land under that
+  prefix. The URL is `storage.public_base_url` + object key when a bucket or CDN serves the prefix, else
+  `GET /api/v1/public/objects/{key}` (anonymous; serves a ready logo whose key matches exactly, else 404).
+  **Bucket policy:** allow anonymous `GetObject` on `t/*/public/*` only; never list. `GET /public/branding`
+  (tenant from host or `X-Tenant-Slug`) feeds the staff sidebar and portal header. A replaced or removed logo's
+  file is purged. Gates: `tenant.update` for the account logo, `location.update` at that location for a
+  location's. Not built: logos inside emails (templates are plain text) and on invoice and receipt pages.
+- **GDPR mode (PLT-16, `privacy.py`).** `tenant.is_gdpr_mode`, read and set at `/privacy-settings`
+  (`security.manage`, audited). On: marketing consent must be express (engagement README), retention uses
+  `retention.gdpr_auth_session_days` / `gdpr_auth_token_days` (30 / 7), and every data-subject request shows
+  `due_at` (30 days after the request; computed in every mode) and `is_overdue`. The older, unused
+  `location.is_gdpr_mode` column is left in place (owner to confirm dropping it).
+- **Tenant export (IMP-04, `tenant_export.py`).** `POST /tenant-exports` (`tenant.export`, `OO X +`: Owner,
+  fresh step-up), one at a time. The chunked `run_tenant_export` job writes one CSV per tenant table (forced RLS
+  and readable by `fh_app`; split every 5,000 rows) plus `manifest.json` into a zip, stored through `files`
+  (purpose `tenant_export`), downloadable by a 5-minute signed URL (`/download-url`, audited) for
+  `retention.tenant_export_days` (7). The hourly `purge_expired_exports` removes the file and marks the row
+  `expired`. Left out: sign-in secrets and sessions, job plumbing, columns named like hashes, tokens, secrets,
+  credentials or key prefixes, any column marked `info={"audit": "never"}`, `credential.value` (badge and card
+  numbers), binary columns, and file bytes (their `stored_file` rows are in). Cells that a spreadsheet would run
+  as formulas get a leading `'`. Tables page by primary key (keyset), so writes between chunks neither skip nor
+  repeat rows. A dead-lettered chunk marks the row `failed` with an `error` and drops the partial zip (the
+  `core.jobs.on_dead_letter` hook); a queued or running export untouched for 30 minutes counts as failed on the
+  next request or hourly purge, so a new export can start. Shortcut: the zip is held on the row (`shortcut:`).
+- **Setup checklist (ONB-01, `onboarding.py`).** `GET /onboarding/checklist` (`tenant.update`) computes each step
+  from real rows on every read: location address, opening hours edited, resources, a second staff member, an
+  active payment provider account, a membership plan or program, a logo. Other contexts register their steps
+  from their `__init__` (`onboarding.register_step`; platform may not import them). Dismissal is per staff user
+  (`staff_user.preferences.onboarding_dismissed`, audited).
+- **Support requests (ONB-03).** `support_request.create` (Owner, Admin, Manager). A request (category,
+  message, optional screenshot uploaded first to `PUT /support-requests/screenshot`) is stored, emailed through
+  the notification port to `support.operator_email`, and listed only to its sender, who may close it. The
+  screenshot is not attached to the email (the port sends text); the operator sees "Screenshot stored: yes".
+  Requests and screenshot uploads share the `support-request` rate-limit bucket (10 an hour per staff user); a
+  screenshot never attached to a request is purged by `retention.purge` after `support_screenshot_days` (1).
+  Not built: operator replies or status changes in the app, attachment of the screenshot.
 
 ## Security hardening (wave 1, S-07)
 

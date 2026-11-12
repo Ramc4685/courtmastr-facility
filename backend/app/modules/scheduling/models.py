@@ -1,5 +1,5 @@
-"""scheduling tables (docs/architecture/data-model-core.md section 4). `slot_offer` and `slot_offer_resource`
-are not built yet (see README)."""
+"""scheduling tables (docs/architecture/data-model-core.md section 4), plus `reservation_type_grant` (SCH-05,
+README assumption 11)."""
 
 from datetime import date, datetime
 from enum import StrEnum
@@ -444,9 +444,15 @@ class Session(TenantOwned, Timestamps, Base):
         *tfk("location_id", "location", index=False),
         *tfk("booking_id", "booking", ondelete="CASCADE", index=False),
         UniqueConstraint("tenant_id", "booking_id", name="uq_session_booking"),
+        *tfk("slot_offer_id", "slot_offer", index=False),
         UniqueConstraint("tenant_id", "direct_link_token", name="uq_session_direct_link"),
         CheckConstraint("booked_count >= 0 AND booked_count <= capacity", name="booked_within_capacity"),
         CheckConstraint("capacity >= 0", name="capacity"),
+        CheckConstraint("(slot_offer_id IS NULL) = (slot_starts_at IS NULL)", name="slot"),
+        Index(
+            "uq_session_slot", "tenant_id", "slot_offer_id", "slot_starts_at", unique=True,
+            postgresql_where=text("slot_offer_id IS NOT NULL"),
+        ),
         Index(
             "ix_session_self_bookable", "tenant_id", "location_id", "is_self_bookable",
             postgresql_where=text("is_self_bookable"),
@@ -460,3 +466,61 @@ class Session(TenantOwned, Timestamps, Base):
     is_self_bookable: Mapped[bool]
     allows_free_booking: Mapped[bool] = _flag(False)
     direct_link_token: Mapped[str] = mapped_column(info={"audit": "never"})
+    slot_offer_id: Mapped[UUID | None]
+    slot_starts_at: Mapped[datetime | None]
+
+
+class ReservationTypeGrant(TenantOwned, Timestamps, Base):
+    """SCH-05: a staff user allowed to book a reservation type. A type with no rows is open to every staff user
+    holding the booking keys; a type with rows is restricted to them (README assumption 11)."""
+
+    __tablename__ = "reservation_type_grant"
+    __table_args__ = tenant_args(
+        *tfk("reservation_type_id", "reservation_type", ondelete="CASCADE", index=False),
+        *tfk("staff_user_id", "staff_user", ondelete="CASCADE"),
+        UniqueConstraint("tenant_id", "reservation_type_id", "staff_user_id", name="uq_reservation_type_grant"),
+    )
+
+    reservation_type_id: Mapped[UUID]
+    staff_user_id: Mapped[UUID]
+
+
+class SlotOffer(TenantOwned, Timestamps, Base):
+    """What is sold inside an availability window: fixed-length slots of a reservation type (SCH-07, SCH-18).
+    Slots are derived at query time; a session row is materialised only when a slot is taken."""
+
+    __tablename__ = "slot_offer"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location"),
+        *tfk("availability_window_id", "availability_window", ondelete="CASCADE"),
+        *tfk("reservation_type_id", "reservation_type"),
+        CheckConstraint("slot_min BETWEEN 5 AND 480 AND slot_min % 5 = 0", name="slot"),
+        CheckConstraint("capacity >= 1", name="capacity"),
+        UniqueConstraint("tenant_id", "direct_link_token", name="uq_slot_offer_direct_link"),
+    )
+
+    location_id: Mapped[UUID]
+    availability_window_id: Mapped[UUID]
+    reservation_type_id: Mapped[UUID]
+    slot_min: Mapped[int] = mapped_column(SmallInteger)
+    capacity: Mapped[int] = _int(1)
+    title: Mapped[str]
+    public_title: Mapped[str | None]
+    is_self_bookable: Mapped[bool] = _flag(True)
+    allows_free_booking: Mapped[bool] = _flag(False)
+    direct_link_token: Mapped[str] = mapped_column(info={"audit": "never"})
+    is_active: Mapped[bool] = _flag(True)
+
+
+class SlotOfferResource(TenantOwned, Timestamps, Base):
+    """An extra resource a booked slot also holds (the court that goes with the coach)."""
+
+    __tablename__ = "slot_offer_resource"
+    __table_args__ = tenant_args(
+        *tfk("slot_offer_id", "slot_offer", ondelete="CASCADE", index=False),
+        *tfk("resource_id", "resource"),
+        UniqueConstraint("tenant_id", "slot_offer_id", "resource_id", name="uq_slot_offer_resource"),
+    )
+
+    slot_offer_id: Mapped[UUID]
+    resource_id: Mapped[UUID]

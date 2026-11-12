@@ -7,6 +7,7 @@ import { ROUTER_FUTURE } from '../../app/App'
 import { ToastProvider } from '../../components/Toast'
 import { mockFetch } from '../../test/fetchMock'
 import { page, renderAsStaff, SCREEN } from '../scheduling/testing'
+import { AccessRulesPage } from './AccessRulesPage'
 import { CheckInPage } from './CheckInPage'
 import { KioskPage } from './KioskPage'
 import { csvCell, toCsv } from './queries'
@@ -140,5 +141,57 @@ describe('KioskPage', SCREEN, () => {
     clock.mockRestore()
     expect(await screen.findByText('Please see the front desk, Kit.')).toBeInTheDocument()
     expect(calls.find((c) => c.url === '/api/v1/kiosk/check-ins')?.body).toEqual({ card_payload: 'fhq.abc.1.x' })
+  })
+})
+
+describe('access rules and access mode (CHK-08, MEM-20)', SCREEN, () => {
+  it('shows why entry was refused and lets the mode key holder change the access mode with a reason', async () => {
+    const calls = renderAsStaff(<CheckInPage />, ['access.checkin.create', 'access.checkin.read', 'access.client.set_access_mode', 'clients.client.read'], {
+      'GET /api/v1/check-ins': page([]),
+      'POST /api/v1/check-ins/evaluate': { status: 200, body: { ...decision(false), denial_reason: 'depleted' } },
+      'GET /api/v1/clients/c1/access-mode': { status: 200, body: { client_id: 'c1', access_mode: 'normal' } },
+      'PUT /api/v1/clients/c1/access-mode': { status: 200, body: { client_id: 'c1', access_mode: 'always_admit' } },
+    })
+    await userEvent.type(await screen.findByLabelText('Card or member number'), 'M100')
+    await userEvent.click(screen.getByRole('button', { name: 'Look up' }))
+    expect(await screen.findByText(/Why: No visits left/)).toBeInTheDocument()
+    expect(await screen.findByLabelText('Change access mode')).toHaveValue('normal')
+    await userEvent.selectOptions(screen.getByLabelText('Change access mode'), 'always_admit')
+    const save = screen.getByRole('button', { name: 'Save mode' })
+    expect(save).toBeDisabled() // a reason is required
+    await userEvent.type(screen.getByLabelText('Reason for the change'), 'Staff member')
+    await userEvent.click(save)
+    await waitFor(() => expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ access_mode: 'always_admit', reason: 'Staff member' }))
+  })
+
+  it('saves the outcome per membership state for the working location', async () => {
+    const rules = { location_id: 'l1', rules: [{ condition: 'frozen', outcome: 'deny', is_default: true }, { condition: 'depleted', outcome: 'deny', is_default: true }] }
+    const calls = renderAsStaff(<AccessRulesPage />, ['access.rule.manage', 'access.settings.manage'], {
+      'GET /api/v1/access-rules': { status: 200, body: rules },
+      'PUT /api/v1/access-rules': { status: 200, body: rules },
+      'GET /api/v1/access-settings': { status: 200, body: { location_id: 'l1', hidden_detail_fields: ['balance_due'], staff_early_minutes: 180, staff_late_minutes: 300 } },
+      'GET /api/v1/access-schedules': page([]),
+      'GET /api/v1/membership-types': page([]),
+      'GET /api/v1/membership-type-access': page([]),
+    })
+    await userEvent.selectOptions(await screen.findByLabelText('Membership frozen'), 'allow')
+    await userEvent.click(screen.getByRole('button', { name: 'Save rules' }))
+    await waitFor(() => expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ rules: [{ condition: 'frozen', outcome: 'allow' }, { condition: 'depleted', outcome: 'deny' }] }))
+    expect(screen.getByText(/Memberships without one get in at any hour/)).toBeInTheDocument()
+  })
+
+  it('the kiosk exits only with the staff PIN', async () => {
+    const calls = renderKiosk({
+      'GET /api/v1/kiosk/config': { status: 200, body: config },
+      'POST /api/v1/kiosk/exit': (call) => ((call.body as { staff_pin: string }).staff_pin === '246810' ? { status: 204 } : { status: 422, body: { code: 'reauthentication-failed' } }),
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'Exit kiosk' }))
+    await userEvent.type(screen.getByLabelText('Exit PIN'), '111111')
+    await userEvent.click(screen.getByRole('button', { name: 'Exit' }))
+    expect(await screen.findByText('Wrong PIN.')).toBeInTheDocument()
+    await userEvent.clear(screen.getByLabelText('Exit PIN'))
+    await userEvent.type(screen.getByLabelText('Exit PIN'), '246810')
+    await userEvent.click(screen.getByRole('button', { name: 'Exit' }))
+    await waitFor(() => expect(calls.filter((c) => c.url === '/api/v1/kiosk/exit').map((c) => c.body)).toEqual([{ staff_pin: '111111' }, { staff_pin: '246810' }]))
   })
 })

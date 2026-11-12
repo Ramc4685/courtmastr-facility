@@ -170,9 +170,10 @@ export const api = {
     request<Ok<Op<P, 'delete'>>>('delete', path as string, opts as Options),
 }
 
-/** PUT raw file bytes (the paper-scan and import-source routes). Same CSRF, idempotency, step-up and problem
- * handling as `request`. */
-export async function uploadFile<T>(template: keyof paths, path: Record<string, string>, file: File): Promise<T> {
+/** PUT (or POST) raw file bytes to an upload route (paper scans, client photos, note attachments, import sources).
+ * Same CSRF, idempotency, step-up and problem handling as `request`; no refresh retry. A File is re-readable, so
+ * the step-up retry can send it again. */
+export async function uploadFile<T>(template: keyof paths, path: Record<string, string>, file: File, method: 'PUT' | 'POST' = 'PUT'): Promise<T> {
   const headers: Record<string, string> = {
     accept: 'application/json',
     'content-type': file.type || 'application/octet-stream',
@@ -181,7 +182,7 @@ export async function uploadFile<T>(template: keyof paths, path: Record<string, 
   }
   if (TENANT_SLUG) headers['x-tenant-slug'] = TENANT_SLUG
   if (csrfToken) headers['x-csrf-token'] = csrfToken
-  const send = () => fetch(buildUrl(template as string, { path }), { method: 'PUT', headers, credentials: 'same-origin', body: file })
+  const send = () => fetch(buildUrl(template as string, { path }), { method, headers, credentials: 'same-origin', body: file })
   let res = await send()
   if ((await refusedWith(res, 'step-up-required')) && (await confirmIdentity())) res = await send()
   const data: unknown = await res.json().catch(() => undefined)

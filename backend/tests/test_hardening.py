@@ -4,7 +4,7 @@ the URL fragment, security headers, the body-size cap, lane overrides, notificat
 import pytest
 
 from app.adapters.fake_payments import FakeProvider
-from app.adapters.notifications import EmailNotifier, NoopNotifier
+from app.adapters.notifications import NoopNotifier
 from app.core.db.session import tenant_session
 from app.core.settings import REPO_ROOT, get_settings
 from app.modules.platform.auth import safe_redirect_path
@@ -99,6 +99,19 @@ def test_request_body_size_cap(client, tenant):
     assert client.post(url, content=padded(2000), headers=headers).status_code == 422
 
 
+def test_only_the_file_routes_take_large_bodies():
+    """The Caddy @upload matcher (infra/proxy/Caddyfile) must list the same routes."""
+    from app.core.api import BodyLimitMiddleware
+
+    match = BodyLimitMiddleware.UPLOAD_PATHS.match
+    for path in ("client-documents/x/paper-scan", "clients/x/photo", "client-notes/x/attachments"):
+        assert match(f"/api/v1/{path}")
+    for path in ("clients/x", "clients/x/photo/extra", "client-notes/x/attachments/y", "auth/sign-in"):
+        assert not match(f"/api/v1/{path}")
+    caddy = (REPO_ROOT / "infra/proxy/Caddyfile").read_text()
+    assert "clients/[^/]+/photo" in caddy and "client-notes/[^/]+/attachments" in caddy
+
+
 # --- lane isolation ------------------------------------------------------------------------------------------
 
 
@@ -125,6 +138,7 @@ def test_fake_payments_are_refused_outside_dev_and_test(monkeypatch, tmp_path):
     (tmp_path / "app.prod.yaml").write_text("email:\n  log_links: false\n")
     monkeypatch.setenv("FH_CONFIG_DIR", str(tmp_path))
     monkeypatch.setenv("FH_ENV", "prod")
+    monkeypatch.setenv("FH_PAYMENTS_PROVIDER", "")  # a local .env trying Stripe must not mask the config under test
     with pytest.raises(RuntimeError, match="payments.provider"):
         get_settings.__wrapped__()
     (tmp_path / "app.prod.yaml").write_text(
@@ -163,12 +177,13 @@ def test_notification_goes_out_by_email_only_when_the_transaction_commits(tenant
 
 def test_noop_notifier_delivers_nothing(tenant, mailbox):
     notifications.TEMPLATES.setdefault("tests.noop", notifications.NotificationTemplate("s", "b"))
+    before = notifications._notifier  # restore what was installed, or later tests run without engagement's log
     notifications.configure(NoopNotifier())
     try:
         with tenant_session(tenant.id) as session:
             notifications.send(session, "tests.noop", "casey@example.com", {})
     finally:
-        notifications.configure(EmailNotifier())
+        notifications.configure(before)
     assert mailbox == []
 
 

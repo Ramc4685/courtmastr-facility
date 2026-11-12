@@ -234,7 +234,12 @@ class BodyLimitMiddleware:
     body. One small cap fits everything except the routes in UPLOAD_PATHS, which take file bytes up to
     storage.max_upload_bytes (security-baseline 8)."""
 
-    UPLOAD_PATHS = re.compile(r"^/api/v1/(client-documents/[^/]+/paper-scan|import-jobs/[^/]+/source)$")
+    UPLOAD_PATHS = re.compile(
+        r"^/api/v1/client-documents/[^/]+/paper-scan$"
+        r"|^/api/v1/clients/[^/]+/photo$"
+        r"|^/api/v1/client-notes/[^/]+/attachments$"
+        r"|^/api/v1/import-jobs/[^/]+/source$"
+    )  # keep in step with the @upload matcher in infra/proxy/Caddyfile
 
     def __init__(self, app) -> None:
         self.app = app

@@ -428,11 +428,26 @@ def list_exports(session: Session, principal: Principal, query: ListQuery) -> di
 
 def download_export(session: Session, principal: Principal, job_id: UUID):
     job = _load_export(session, principal, job_id)
+    if job.status == RunStatus.SUCCEEDED and _expired(job.expires_at):
+        raise NotFound("The export has expired")
     if job.status != RunStatus.SUCCEEDED or job.file_id is None:
         raise Conflict("The export is not ready")
-    if _expired(job.expires_at):
-        raise NotFound("The export has expired")
     return platform.files.read(session, job.file_id)
+
+
+def purge_expired_results(session: Session) -> int:
+    """Internal, for the hourly job: the snapshot of an expired run and the file of an expired export go through
+    `files.remove`, and the reference is cleared; the rows stay as history and read `expired`. Idempotent."""
+    now, removed = clock.now(), 0
+    for model, column in ((ReportRun, "result_file_id"), (ExportJob, "file_id")):
+        ref = getattr(model, column)
+        stmt = select(model).where(model.expires_at <= now, ref.is_not(None)).with_for_update(skip_locked=True)
+        for row in session.scalars(stmt):
+            platform.files.remove(session, getattr(row, column))
+            setattr(row, column, None)
+            removed += 1
+    session.flush()
+    return removed
 
 
 EXPORT_CHUNK_ROWS = 1_000  # rows rendered per job message (ADR 0008 section 3)

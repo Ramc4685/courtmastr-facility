@@ -12,7 +12,7 @@ from app.core.auth import CATALOGUE, Principal, authorize
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.pagination import ListQuery, paginate
 from app.core.settings import get_settings
-from app.modules.platform import auth, entitlements, rbac
+from app.modules.platform import auth, mfa, rbac
 from app.modules.platform.events import StaffUserDeactivated, StaffUserInvited
 from app.modules.platform.models import (
     Identity,
@@ -24,6 +24,7 @@ from app.modules.platform.models import (
     UserLocationAccess,
     UserPermissionOverride,
 )
+from app.ports.email import EmailMessage, send_after_commit
 
 # --- shared rules ------------------------------------------------------------------------------------------
 
@@ -191,7 +192,7 @@ def _set_locations(
 def invite_staff_user(session: Session, principal: Principal, data: dict) -> StaffUser:
     """Create the identity (invited) and staff user, and email a 7-day invite link. No admin-typed password."""
     authorize(principal, "platform.staff_user.invite")
-    entitlements.enforce_limit(session, "staff_users")
+    # hook: staff-seat metering, off by owner decision (platform README "Deferred"); enforce_limit "staff_users"
     role = _load_role(session, data["role_id"], pointer="/role_id")
     _check_assignable_role(session, principal, role)
     identity = Identity(kind="staff", email=data["email"], status="invited")
@@ -259,7 +260,7 @@ def reactivate_staff_user(session: Session, principal: Principal, staff_user_id:
     staff_user = get_staff_user(session, principal, staff_user_id, permission="platform.staff_user.deactivate")
     _check_owner_protection(principal, staff_user)
     if not staff_user.is_active:
-        entitlements.enforce_limit(session, "staff_users")
+        # hook: staff-seat metering, off by owner decision (platform README "Deferred"); enforce_limit "staff_users"
         staff_user.is_active = True
         audit.record(session, "platform.staff_user.reactivate", staff_user, changes={"is_active": [False, True]})
     return _refresh(session, staff_user)
@@ -285,6 +286,29 @@ def reset_credentials(session: Session, principal: Principal, staff_user_id: UUI
         auth.issue_link(session, identity, TokenPurpose.PASSWORD_RESET, ttl)
         auth.revoke_sessions(session, identity.id, "admin")
     audit.record(session, "platform.staff_user.reset_credentials", staff_user)
+
+
+def reset_mfa(session: Session, principal: Principal, staff_user_id: UUID) -> None:
+    """Lost authenticator (ADR 0002 section 6): an Owner or Admin removes another user's factor and recovery
+    codes and signs them out everywhere. Only an Owner resets an Owner; nobody resets their own here (their
+    security page needs a code). If MFA is required for them, the next sign-in walks them through enrolment,
+    which needs an emailed link (S2)."""
+    staff_user = get_staff_user(session, principal, staff_user_id, permission="platform.staff_user.reset_mfa")
+    _check_not_self(principal, staff_user, "Change your own two-step verification from your security page.")
+    _check_owner_protection(principal, staff_user)
+    identity = staff_user.identity
+    if mfa.factor(session, identity.id) is None:
+        raise Conflict("This user has no two-step verification to reset.")
+    mfa.remove(session, identity.id)
+    auth.revoke_sessions(session, identity.id, "mfa_change")
+    audit.record(session, "platform.staff_user.reset_mfa", staff_user)  # actor and target only; no secrets
+    name = get_settings().app.display_name
+    body = (
+        "An administrator removed the two-step verification from your account, and you were signed out everywhere. "
+        "At your next sign-in you can set up a new authenticator app. If you did not ask for this, contact your "
+        "administrator now."
+    )
+    send_after_commit(session, EmailMessage(identity.email, f"{name}: two-step verification was reset", body))
 
 
 def assign_role(
