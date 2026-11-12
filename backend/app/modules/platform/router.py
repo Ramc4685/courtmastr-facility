@@ -229,7 +229,8 @@ def accept_invitation(body: s.TokenConsumeRequest, request: Request, response: R
 @public.post("/auth/mfa/enrolment", dependencies=_guarded("mfa"), response_model=s.MfaEnrolmentOut)
 def start_mfa_challenge_enrolment(body: s.MfaChallengeToken, request: Request):
     """Forced enrolment inside a pending sign-in: a new TOTP secret as an otpauth URI (render the QR on the
-    device). Errors: mfa-challenge-invalid, mfa-already-enrolled."""
+    device). Only after an emailed link: a password-only sign-in gets a sign-in link by email instead. Errors:
+    mfa-challenge-invalid, mfa-already-enrolled, mfa-enrolment-needs-email-link."""
     session = _token_session(request, body.mfa_token, "fhm", "mfa-challenge-invalid")
     secret, uri = auth.start_challenge_enrolment(session, token=body.mfa_token)
     return {"secret": secret, "otpauth_uri": uri}
@@ -239,7 +240,8 @@ def start_mfa_challenge_enrolment(body: s.MfaChallengeToken, request: Request):
 def verify_mfa_challenge(body: s.MfaChallengeCode, request: Request, response: Response):
     """Complete a pending sign-in with a TOTP code or a recovery code (consumed); for a forced enrolment, the
     first code of the new factor, and the response carries the ten recovery codes once. Errors:
-    mfa-challenge-invalid, mfa-code-invalid, mfa-enrolment-not-started, identity-locked, rate-limited."""
+    mfa-challenge-invalid, mfa-code-invalid, mfa-enrolment-not-started, mfa-enrolment-needs-email-link, mfa-locked,
+    rate-limited."""
     session = _token_session(request, body.mfa_token, "fhm", "mfa-challenge-invalid")
     hit("mfa-challenge", body.mfa_token, response, tenant=session.info["tenant_id"])
     return _session_out(auth.complete_challenge(session, token=body.mfa_token, code=body.code), response)
@@ -301,7 +303,8 @@ def change_own_password(body: s.PasswordChange, ctx: Ctx = Depends(current_ctx))
 def step_up(body: s.StepUpRequest, response: Response, ctx: Ctx = Depends(current_ctx)):
     """Re-authenticate (TOTP or recovery code when enrolled, else password) so `+` permissions work for 10
     minutes. The session rotates: new cookie and CSRF token (web) or token pair (mobile). Errors:
-    reauthentication-failed, identity-locked, step-up-unavailable, rate-limited."""
+    reauthentication-failed, identity-locked, mfa-locked, mfa-enrolment-required, step-up-unavailable, rate-limited."""
+    hit("step-up-identity", str(ctx.principal.identity_id), response, tenant=ctx.principal.tenant_id)
     return _session_out(auth.step_up(ctx.session, ctx.principal, **body.model_dump()), response)
 
 

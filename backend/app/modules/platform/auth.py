@@ -28,6 +28,14 @@ notifications.register_template(
         "You can still sign in with an emailed link. If these attempts were not you, reset your password."
     ),
 )
+notifications.register_template(
+    "platform.mfa_locked",
+    subject="$app: two-step verification paused after wrong codes",
+    body=(
+        "There were too many wrong verification codes for your account, so sign-in is paused for $minutes minutes.\n\n"
+        "Someone who knows your password may be trying codes. If these attempts were not you, reset your password."
+    ),
+)
 
 
 @dataclass
@@ -167,31 +175,41 @@ def revoke_sessions(session: Session, identity_id: UUID, reason: str, *, keep: U
 # --- password ----------------------------------------------------------------------------------------------
 
 
-def _password_failed(session: Session, identity: Identity) -> None:
-    """Count a wrong password inside the lockout window (baseline 5.1). The threshold locks password sign-in:
-    15 minutes, doubling with each further lockout up to the cap, and mails the owner once per lockout.
-    Attempts while locked are refused before they get here, so they neither count nor mail."""
+def _count_failure(row) -> int | None:
+    """Count one failure on a row with the four lockout fields (identity for passwords, mfa_factor for codes)
+    inside the window (baseline 5.1). At the threshold, lock it: 15 minutes, doubling with each further lockout
+    up to the cap. Returns the minutes when this failure locked it. Lock the row before calling."""
     cfg = get_settings().auth
     now = clock.now()
-    started = identity.failed_window_started_at
+    started = row.failed_window_started_at
     if started is None or now - started > timedelta(minutes=cfg.lockout_window_min):
-        identity.failed_window_started_at, identity.failed_attempt_count = now, 0
-    identity.failed_attempt_count += 1
-    if identity.failed_attempt_count < cfg.lockout_threshold:
+        row.failed_window_started_at, row.failed_attempt_count = now, 0
+    row.failed_attempt_count += 1
+    if row.failed_attempt_count < cfg.lockout_threshold:
+        return None
+    minutes = min(cfg.lockout_min * 2 ** min(row.lockout_count, 16), cfg.lockout_max_min)
+    row.locked_until_at = now + timedelta(minutes=minutes)
+    row.lockout_count += 1
+    row.failed_attempt_count, row.failed_window_started_at = 0, None
+    return minutes
+
+
+def _password_failed(session: Session, identity: Identity) -> None:
+    """A wrong password. The lock stops password sign-in only and mails the owner once per lockout. Attempts
+    while locked are refused before they get here, so they neither count nor mail."""
+    minutes = _count_failure(identity)
+    if minutes is None:
         return
-    minutes = min(cfg.lockout_min * 2 ** min(identity.lockout_count, 16), cfg.lockout_max_min)
-    identity.locked_until_at = now + timedelta(minutes=minutes)
-    identity.lockout_count += 1
-    identity.failed_attempt_count, identity.failed_window_started_at = 0, None
     events.publish(session, IdentityLocked(identity_id=identity.id), identity.id)
     data = {"app": get_settings().app.display_name, "minutes": minutes}
     notifications.send(session, "platform.identity_locked", identity.email, data)
 
 
-def _clear_failures(identity: Identity) -> None:
-    """A proven sign-in (right password, redeemed link) ends the failure window and the doubling."""
-    identity.failed_attempt_count, identity.failed_window_started_at = 0, None
-    identity.locked_until_at, identity.lockout_count = None, 0
+def _clear_failures(row) -> None:
+    """A proof ends that row's failure window and doubling: a right password or a redeemed link clears the
+    identity's password count, a right code clears the factor's. Neither clears the other."""
+    row.failed_attempt_count, row.failed_window_started_at = 0, None
+    row.locked_until_at, row.lockout_count = None, 0
 
 
 def sign_in(
@@ -218,9 +236,9 @@ def sign_in(
         raise _invalid_credentials()
     if passwords.needs_rehash(identity.password_hash):
         identity.password_hash = passwords.hash_password(password)
+    _clear_failures(identity)  # codes have their own count on the factor
     if challenge := _second_factor(session, identity, client_kind, "password"):
-        return challenge  # failures stay counted until the second factor passes too
-    _clear_failures(identity)
+        return challenge
     grant = _start_session(session, identity, client_kind, elevated=True)
     audit.record(session, "platform.identity.sign_in", identity, actor=grant.principal)
     return grant
@@ -373,12 +391,11 @@ def consume_magic_link(session: Session, *, token: str, client_kind: str = "web"
     identity = _consume(session, token, TokenPurpose.MAGIC_LINK)
     if identity.status != "active":
         raise Unauthenticated("This link is not valid or was already used.", code="token-invalid")
-    # Redeeming the link proves the mailbox: verify the address, and clear a password lockout unless a second
-    # factor is still due (then only complete_challenge clears it, or a link would reset the code-guess count).
+    # Redeeming the link proves the mailbox: verify the address and clear a password lockout (not the code one).
     identity.email_verified_at = identity.email_verified_at or clock.now()
+    _clear_failures(identity)
     if challenge := _second_factor(session, identity, client_kind, "magic_link"):
         return challenge
-    _clear_failures(identity)
     grant = _start_session(session, identity, client_kind)
     audit.record(session, "platform.identity.sign_in", identity, actor=grant.principal, reason="magic_link")
     return grant
@@ -398,11 +415,11 @@ def consume_password_reset(
     if identity.status != "active":
         raise Unauthenticated("This link is not valid or was already used.", code="token-invalid")
     _set_password(session, identity, new_password)
+    _clear_failures(identity)
     revoke_sessions(session, identity.id, "password_reset")
     if challenge := _second_factor(session, identity, client_kind, "password_reset"):
         audit.record(session, "platform.identity.reset_password", identity, actor=_actor(identity))
-        return challenge  # a reset never bypasses MFA (ADR 0002 section 3) nor clears its lockout
-    _clear_failures(identity)
+        return challenge  # a reset never bypasses MFA (ADR 0002 section 3)
     grant = _start_session(session, identity, client_kind)
     audit.record(session, "platform.identity.reset_password", identity, actor=grant.principal)
     return grant
@@ -580,22 +597,49 @@ def _pending(session: Session, token: str) -> tuple[AuthToken, Identity]:
 
 
 def _refuse_if_locked(identity: Identity, error=Unauthenticated) -> None:
-    """Signed-in callers get 403: a 401 would mean their session is over."""
+    """The password lock. Signed-in callers get 403: a 401 would mean their session is over."""
     if identity.locked_until_at and identity.locked_until_at > clock.now():
         raise error("Too many failed attempts. Try again later or use an emailed link.", code="identity-locked")
 
 
-def _code_failed(session: Session, identity: Identity, action: str, error) -> None:
-    """A wrong second-factor code counts against the same lockout as a wrong password, then is refused with a
-    persisted error so the count survives the rollback of the rest."""
-    _password_failed(session, identity)
+def _refuse_if_code_locked(factor, error=Unauthenticated) -> None:
+    """The code lock, on the factor: wrong passwords never set it, and links never clear it."""
+    if factor.locked_until_at and factor.locked_until_at > clock.now():
+        raise error("Too many wrong codes. Try again later.", code="mfa-locked")
+
+
+def _code_failed(session: Session, identity: Identity, factor, action: str, error) -> None:
+    """A wrong code counts on the (locked) factor row, then is refused with a persisted error so the count
+    survives the rollback of the rest. The lock mails the owner once, like the password lock."""
+    minutes = _count_failure(factor)
+    if minutes is not None:
+        data = {"app": get_settings().app.display_name, "minutes": minutes}
+        notifications.send(session, "platform.mfa_locked", identity.email, data)
     audit.record(session, action, identity, actor=_actor(identity))
     raise error
 
 
+def _refuse_password_only_enrolment(session: Session, row: AuthToken, identity: Identity) -> None:
+    """Forced enrolment binds a new authenticator, so a password alone (which may have leaked) is not enough:
+    it must follow an emailed link (magic link, reset, invitation). Email one sign-in link per pending sign-in."""
+    if row.payload.get("method") != "password":
+        return
+    if not row.payload.get("link_sent"):
+        ttl = timedelta(minutes=get_settings().auth.magic_link_ttl_min)
+        issue_link(session, identity, TokenPurpose.MAGIC_LINK, ttl)
+        row.payload = {**row.payload, "link_sent": True}
+    raise PermissionDenied(
+        "To set up two-step verification, open the sign-in link we just emailed you.",
+        code="mfa-enrolment-needs-email-link",
+        persist=True,
+    )
+
+
 def start_challenge_enrolment(session: Session, *, token: str) -> tuple[str, str]:
-    """Forced enrolment inside a pending sign-in: a new secret for the identity. (secret, otpauth URI)."""
-    _, identity = _pending(session, token)
+    """Forced enrolment inside a pending sign-in that began with an emailed link: a new secret for the
+    identity. (secret, otpauth URI)."""
+    row, identity = _pending(session, token)
+    _refuse_password_only_enrolment(session, row, identity)
     return mfa.start_enrolment(session, identity)
 
 
@@ -603,23 +647,25 @@ def complete_challenge(session: Session, *, token: str, code: str) -> Grant:
     """Second factor of a pending sign-in: a TOTP code, a recovery code (consumed), or, for a forced enrolment,
     the first code of the new factor. Only now is a session minted, MFA-verified and elevated."""
     row, identity = _pending(session, token)
-    _refuse_if_locked(identity)
     wrong = Unauthenticated("That code is not right. Try the current one.", code="mfa-code-invalid", persist=True)
     factor = mfa.factor(session, identity.id, lock=True)
+    if factor is None:
+        raise ValidationFailed("Set up your authenticator app first.", code="mfa-enrolment-not-started")
+    _refuse_if_code_locked(factor)
     recovery_codes = None
-    if factor is not None and factor.confirmed_at is not None:
+    if factor.confirmed_at is not None:
         used = mfa.verify(session, factor, code)
-    elif factor is not None:  # forced enrolment: the first code proves the authenticator was set up
+    else:  # forced enrolment: the first code proves the authenticator was set up
+        _refuse_password_only_enrolment(session, row, identity)
         used = "totp" if mfa.match_totp(factor, code) else None
         if used:
             recovery_codes = _confirm(session, identity, factor)
-    else:
-        raise ValidationFailed("Set up your authenticator app first.", code="mfa-enrolment-not-started")
+            revoke_sessions(session, identity.id, "mfa_change")  # as confirm_mfa_enrolment does
     if used is None:
-        _code_failed(session, identity, "platform.identity.mfa_failed", wrong)
+        _code_failed(session, identity, factor, "platform.identity.mfa_failed", wrong)
     now = clock.now()
     row.consumed_at = now
-    _clear_failures(identity)
+    _clear_failures(factor)
     grant = _start_session(session, identity, row.payload["client_kind"], elevated=True, mfa_verified_at=now)
     grant.recovery_codes = recovery_codes
     if used == "recovery":
@@ -654,10 +700,12 @@ def step_up(session: Session, principal: Principal, *, code: str | None = None, 
     if current is None or current.kind not in ("web", "mobile"):
         raise PermissionDenied("This session cannot be confirmed.", code="step-up-unavailable")
     wrong = PermissionDenied("That did not match. Try again.", code="reauthentication-failed", persist=True)
-    _refuse_if_locked(identity, PermissionDenied)
-    factor = mfa.confirmed_factor(session, identity.id, lock=True)
+    factor = mfa.confirmed_factor(session, identity.id, lock=True)  # locked before counting: no lost updates
     if factor is not None:
-        ok = bool(code) and mfa.verify(session, factor, code) is not None
+        _refuse_if_code_locked(factor, PermissionDenied)
+        if not (code and mfa.verify(session, factor, code)):
+            _code_failed(session, identity, factor, "platform.identity.step_up_failed", wrong)
+        _clear_failures(factor)
     elif mfa.is_required(session, identity):
         # The policy was tightened under a live session: a password alone no longer confirms this user.
         raise PermissionDenied(
@@ -665,14 +713,17 @@ def step_up(session: Session, principal: Principal, *, code: str | None = None, 
             code="mfa-enrolment-required",
         )
     elif identity.password_hash:
-        ok = bool(password) and passwords.verify_password(identity.password_hash, password)
+        session.refresh(identity, with_for_update=True)  # count on a locked row
+        _refuse_if_locked(identity, PermissionDenied)
+        if not (password and passwords.verify_password(identity.password_hash, password)):
+            _password_failed(session, identity)
+            audit.record(session, "platform.identity.step_up_failed", identity, actor=_actor(identity))
+            raise wrong
+        _clear_failures(identity)
     else:
         raise PermissionDenied(
             "Set a password or turn on two-step verification to confirm it is you.", code="step-up-unavailable"
         )
-    if not ok:
-        _code_failed(session, identity, "platform.identity.step_up_failed", wrong)
-    _clear_failures(identity)
     now = clock.now()
     current.revoked_at, current.revoked_reason = now, "step_up"
     grant = _start_session(
@@ -710,10 +761,11 @@ def confirm_mfa_enrolment(session: Session, principal: Principal, code: str) -> 
     factor = mfa.factor(session, identity.id, lock=True)
     if factor is None or factor.confirmed_at is not None:
         raise ValidationFailed("Set up your authenticator app first.", code="mfa-enrolment-not-started")
-    _refuse_if_locked(identity, PermissionDenied)
+    _refuse_if_code_locked(factor, PermissionDenied)
     if not mfa.match_totp(factor, code):
         wrong = PermissionDenied("That code is not right. Try the current one.", code="mfa-code-invalid", persist=True)
-        _code_failed(session, identity, "platform.identity.mfa_failed", wrong)
+        _code_failed(session, identity, factor, "platform.identity.mfa_failed", wrong)
+    _clear_failures(factor)
     codes = _confirm(session, identity, factor)
     revoke_sessions(session, identity.id, "mfa_change", keep=principal.session_id)
     session.get(AuthSession, principal.session_id).mfa_verified_at = clock.now()

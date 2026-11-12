@@ -14,16 +14,17 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.core import clock, crypto
-from app.core.auth import tokens
+from app.core.auth import CATALOGUE
 from app.core.errors import Conflict
 from app.core.settings import get_settings
+from app.modules.platform import rbac
 from app.modules.platform.models import Identity, MfaFactor, MfaPolicy, MfaRecoveryCode, StaffUser, Tenant
 
 _STEP_SEC = 30
 _DRIFT = 1
 RECOVERY_CODE_COUNT = 10
 _ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"  # no 0/o, 1/l/i: read off paper
-_PRIVILEGED_ROLES = ("owner", "admin")  # owner decision 3: required for Owner and Admin under `privileged`
+_PRIVILEGED_ROLES = ("owner", "admin")  # owner decision 3, plus any holder of a `+` key (ADR 0002 section 6)
 
 
 def factor(session: Session, identity_id, *, lock: bool = False) -> MfaFactor | None:
@@ -40,13 +41,19 @@ def is_required(session: Session, identity: Identity) -> bool:
     """Members may enrol but are never required to (ADR 0002 section 6). Staff follow the tenant policy."""
     if identity.kind != "staff":
         return False
-    policy = session.get(Tenant, identity.tenant_id).staff_mfa_policy
+    policy = session.get_one(Tenant, identity.tenant_id).staff_mfa_policy
     if policy == MfaPolicy.ALL:
         return True
     if policy != MfaPolicy.PRIVILEGED:
         return False
     staff = session.scalar(select(StaffUser).where(StaffUser.identity_id == identity.id))
-    return staff is not None and staff.role.system_key in _PRIVILEGED_ROLES
+    if staff is None:
+        return False
+    if staff.role.system_key in _PRIVILEGED_ROLES:
+        return True
+    # A cloned role or a per-user override can carry `+` keys too: whoever may use them must have a factor.
+    held = rbac.effective_permissions(session, staff)
+    return any(CATALOGUE[key].needs_step_up for key in held if key in CATALOGUE)
 
 
 def start_enrolment(session: Session, identity: Identity) -> tuple[str, str]:
@@ -85,13 +92,18 @@ def _normalise(code: str) -> str:
     return code.strip().lower().replace("-", "").replace(" ", "")
 
 
+def _code_hash(identity_id, code: str) -> str:
+    """Keyed and bound to the identity: a leaked table cannot be brute-forced offline or matched across users."""
+    return crypto.mac(f"mfa-recovery:{identity_id}:{_normalise(code)}")
+
+
 def use_recovery_code(session: Session, identity_id, code: str) -> bool:
     """Spend one unused recovery code; True when it was one."""
     row = session.scalar(
         select(MfaRecoveryCode)
         .where(
             MfaRecoveryCode.identity_id == identity_id,
-            MfaRecoveryCode.code_hash == tokens.digest(_normalise(code)),
+            MfaRecoveryCode.code_hash == _code_hash(identity_id, code),
             MfaRecoveryCode.used_at.is_(None),
         )
         .with_for_update()
@@ -116,17 +128,18 @@ def new_recovery_codes(session: Session, identity_id) -> list[str]:
     session.execute(delete(MfaRecoveryCode).where(MfaRecoveryCode.identity_id == identity_id))
     codes = ["".join(secrets.choice(_ALPHABET) for _ in range(10)) for _ in range(RECOVERY_CODE_COUNT)]
     for code in codes:
-        session.add(MfaRecoveryCode(identity_id=identity_id, code_hash=tokens.digest(code)))
+        session.add(MfaRecoveryCode(identity_id=identity_id, code_hash=_code_hash(identity_id, code)))
     session.flush()
     return [f"{code[:5]}-{code[5:]}" for code in codes]
 
 
 def remaining_recovery_codes(session: Session, identity_id) -> int:
-    return session.scalar(
+    count = session.scalar(
         select(func.count())
         .select_from(MfaRecoveryCode)
         .where(MfaRecoveryCode.identity_id == identity_id, MfaRecoveryCode.used_at.is_(None))
     )
+    return count or 0
 
 
 def remove(session: Session, identity_id) -> None:
