@@ -5,10 +5,10 @@ re-encodes images, `store` keeps them under a generated key, never the user's fi
 through the record that points at it, after both gates, so a file id that is not this client's photo or this
 note's attachment is 404. Attachments follow their note's reach (`clients.activity.read`); none reach the portal.
 
-TODO(Phase 8 chip K1): swap `files.read` for `files.load`/`files.download_url`, and purge the bytes of a replaced
-or removed photo or attachment with `files.remove`; until then the stored_file row stays, unreferenced. A purge
-must first check for other references: merge backfills the photo, so a survivor and its tombstone can share one
-stored_file. Erasure already marks the rows `purged` with no name (`purge_rows`); only their bytes remain.
+A replaced or removed photo or attachment is purged with `files.remove` (row `purged`, bytes deleted after
+commit), but a photo only once no client points at it: merge backfills the photo, so a survivor and its tombstone
+can share one stored_file. Erasure purges the rows and bytes and drops the name (`purge_rows`). Bytes are served
+by these gated routes, not `files.download_url`: a signed URL would outlive the per-request permission check.
 """
 
 from typing import ClassVar, Literal
@@ -42,10 +42,14 @@ class NoteAttachmentChanged(Event):
 
 
 def _read(session: Session, file_id: UUID, purpose: str) -> tuple[StoredFile, bytes]:
-    row, data = files.read(session, file_id)
-    if row.purpose != purpose:
-        raise NotFound()
-    return row, data
+    row = files.load(session, file_id, purpose=purpose)  # 404 for a file of another purpose
+    return files.read(session, row.id)
+
+
+def _drop_photo(session: Session, file_id: UUID | None) -> None:
+    """Purge a photo no client points at any more (a merge tombstone may still share it)."""
+    if file_id and not session.scalar(select(func.count()).where(Client.photo_file_id == file_id)):
+        files.remove(session, file_id)
 
 
 # --- photo (CLI-12) ------------------------------------------------------------------------------------------
@@ -70,7 +74,10 @@ def set_photo(session: Session, principal: Principal, client_id: UUID, data: byt
     stored = files.store(
         session, cleaned, purpose=PHOTO, content_type=kind, uploaded_by=("staff", principal.staff_user_id)
     )
-    return _set_photo_id(session, client, stored.id)  # TODO(K1): files.remove the replaced photo's bytes
+    replaced = client.photo_file_id
+    _set_photo_id(session, client, stored.id)
+    _drop_photo(session, replaced)
+    return client
 
 
 def remove_photo(session: Session, principal: Principal, client_id: UUID) -> None:
@@ -78,7 +85,9 @@ def remove_photo(session: Session, principal: Principal, client_id: UUID) -> Non
     service._require_live(client)
     if client.photo_file_id is None:
         raise NotFound("The client has no photo.")
-    _set_photo_id(session, client, None)  # TODO(K1): files.remove the bytes, unless a tombstone shares them
+    removed = client.photo_file_id
+    _set_photo_id(session, client, None)
+    _drop_photo(session, removed)
 
 
 def get_photo(session: Session, principal: Principal, client_id: UUID) -> tuple[StoredFile, bytes]:
@@ -123,7 +132,9 @@ def file_ids_of(session: Session, client: Client) -> list[UUID]:
 
 
 def purge_rows(session: Session, file_ids: list[UUID]) -> None:
-    """Drop the name and mark the rows purged (files.read 404s them). TODO(K1): files.remove the bytes."""
+    """Purge the rows and their bytes (files.read 404s them) and drop the name."""
+    for file_id in file_ids:
+        files.remove(session, file_id)
     if file_ids:
         session.execute(
             update(StoredFile).where(StoredFile.id.in_(file_ids)).values(original_name=None, status="purged")
@@ -182,5 +193,6 @@ def remove_attachment(session: Session, principal: Principal, note_id: UUID, att
     note, row = _attachment(session, principal, note_id, attachment_id, "clients.activity.write")
     audit.record(session, "clients.activity.write", note, location_id=note.location_id, changes={"attachments": True})
     events.publish(session, NoteAttachmentChanged(note_id=note.id, attachment_id=row.id, change="removed"), note.id)
-    session.delete(row)  # TODO(K1): files.remove the bytes
+    session.delete(row)
     session.flush()
+    files.remove(session, row.stored_file_id)

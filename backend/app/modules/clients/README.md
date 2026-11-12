@@ -83,11 +83,11 @@ the portal member card, a scheduler for task reminders, derived system alerts, a
 - Audit is flag-only: `photo_file_id: true` on the client, `attachments: true` on the note; never names or ids of
   files. Events: `ClientUpdated` for the photo, `NoteAttachmentChanged` (in `files.py`) for attachments.
 - Merge: `photo_file_id` is a backfill field (a survivor without a photo takes the loser's; its own wins).
-  Attachments ride on their notes, which merge re-points. Erasure first marks the photo's and the attachments'
-  `stored_file` rows `purged` with `original_name` null (`files.purge_rows`), then nulls `photo_file_id` and
-  deletes the notes (which cascades `client_note_attachment`). Removing a photo or attachment leaves its row
-  `ready` and unreferenced. The bytes stay until Phase 8 chip K1 adds `files.remove`; a purge must check for
-  other references first, since a merged survivor and its tombstone can share one photo file.
+  Attachments ride on their notes, which merge re-points. Erasure first purges the photo's and the attachments'
+  `stored_file` rows and bytes (`platform.files.remove`) with `original_name` null (`files.purge_rows`), then
+  nulls `photo_file_id` and deletes the notes (which cascades `client_note_attachment`). Replacing or removing a
+  photo or attachment purges its file the same way; a photo only once no client points at it, since a merged
+  survivor and its tombstone can share one photo file.
 - Subject-access export lists each note's attachments (`file_name`, `content_type`, `size_bytes`), not bytes.
 - Uploads to a note lock the note row first, so concurrent uploads cannot exceed the per-note cap.
 - The check-in status card loads the photo route directly (`ClientPhotoById`) and hides the image on 404 or 403;
