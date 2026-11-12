@@ -263,3 +263,17 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [ ] [undocumented] Taking the last trainer off a session that has no other resource is refused with `409 session-needs-resource` (`service.py:1016-1017`). The instructor-assignment paragraph (lines 22-26) mentions only `booking-conflict`.
 - [ ] [wording] Lines 68-69 ("`resource_id` adopts an existing trainer resource; otherwise one is created in `resource_group_id`...") sit inside the `own-sessions-only` bullet (lines 66-67) but describe trainer-payee creation (`service.py:152-162`; `resources/service.py:376-391`). They belong with the line 60 bullet.
 - [ ] [wording] Lines 16-20 list the cross-context reads that payroll uses. The list leaves out `memberships.eligibility` (`service.py:1356`), which line 98 says is used for membership-type pay. It also leaves out the write-side calls `platform.service.set_linked_resource` (`service.py:156,198`), `resources.service.trainer_group` and `resources.service.create_resource` (`service.py:158-162`).
+
+## Added on this branch (drift refresh 2026-11-12)
+Found by re-running the drift reports against this branch's code. Merge these into the module checklists above when the branch lands.
+
+### platform (+2) — [evidence](drift/platform.md)
+
+- [ ] [undocumented] service.location_todays (service.py:335) not in README:9 service row (README:326 names only earliest_today)
+- [ ] [wording] README:42-44 auth_session.target_client_id FK still absent (models.py:517) though clients context now exists; "waiting on other contexts" no longer holds
+
+### reporting (+3) — [evidence](drift/reporting.md)
+
+- [ ] [stale-not-built] README:94 "reports outside P0 not built"; catalogue.py:7-9 registers 17 more (reports/money.py, reports/memberships.py)
+- [ ] [undocumented] no assumptions for income_balances, underpaid_items, accrued_session_revenue, package_sales, deferred_membership_revenue; no list of the 27 registered reports
+- [ ] [wording] views.py now has 9 views from migration 1621; other contexts' rpt_rental_* still unread
