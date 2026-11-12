@@ -9,7 +9,7 @@ Scripted by method token (a stored method remembers the token it was attached wi
 | `tok_card_insufficient` | declined, insufficient_funds    | declined                                        |
 | `tok_card_expired`      | declined, expired_card          | declined                                        |
 | `tok_card_flaky`        | first charge of a stored method declines (insufficient_funds), later ones succeed |    |
-| `tok_card_auth`         | requires_action; off-session: declined, authentication_required | authenticate() -> succeeded |
+| `tok_card_auth`         | requires_action; off-session: declined, authentication_required | authenticate() -> succeeded, or declined when the payer fails it |
 | `tok_card_unknown`      | unknown (timeout)               | succeeded (the charge did go through)           |
 | `tok_ach_ok`            | processing                      | processing until settle(); then succeeded       |
 | `tok_ach_fail`          | processing                      | processing until settle(); then declined        |
@@ -18,6 +18,11 @@ Scripted by method token (a stored method remembers the token it was attached wi
 | anything else           | declined, processor_error       | declined                                        |
 
 Disputes are opened and closed by the test hooks `open_dispute()` and `close_dispute()`.
+
+3-D Secure ("requires action" mode): a `tok_card_auth` payment comes back `requires_action` with a client
+secret. Stripe would run the bank's challenge in Stripe.js; here the browser posts the secret and the payer's
+answer to `/public/fake-processor/authentications` (authenticate_secret()), which exists only while the fake
+is registered (dev and test), then calls our confirm route like it would after Stripe's handleNextAction().
 
 Every state change is also emitted as a signed webhook event into `outbox`, in the format parse_webhook()
 reads, so tests and the dev tools can deliver them to `/webhooks/fake` like a real processor would.
@@ -208,9 +213,28 @@ class FakeProvider:
         and emits the webhook a processor would send."""
         self._finish(provider_payment_ref, "processing", "The bank returned the debit.")
 
-    def authenticate(self, provider_payment_ref: str) -> None:
-        """Test and demo hook: the payer completes authentication of a `requires_action` payment."""
-        self._finish(provider_payment_ref, "requires_action", "Authentication failed.")
+    def authenticate(self, provider_payment_ref: str, *, approve: bool = True) -> None:
+        """Test and demo hook: the payer completes (or fails) authentication of a `requires_action` payment."""
+        if approve:
+            self._finish(provider_payment_ref, "requires_action", "Authentication failed.")
+            return
+        state, token, amount, account = self._payments[provider_payment_ref]
+        if state.outcome == "requires_action":
+            state = replace(
+                state, outcome="declined", failure_category="authentication_required",
+                failure_message="The bank could not confirm it was you.", client_secret=None,
+            )  # fmt: skip
+            self._payments[provider_payment_ref] = (state, token, amount, account)
+            self._emit(account, "payment", provider_payment_ref, "payment.failed")
+
+    def authenticate_secret(self, client_secret: str, *, approve: bool = True) -> bool:
+        """The browser side of authenticate(): the client secret is the bearer, as with Stripe.js. False for a
+        secret this fake never issued."""
+        ref = client_secret.removesuffix("_secret")
+        if not client_secret.endswith("_secret") or ref not in self._payments:
+            return False
+        self.authenticate(ref, approve=approve)
+        return True
 
     # --- disputes ------------------------------------------------------------------------------------------------
 

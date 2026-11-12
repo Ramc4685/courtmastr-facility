@@ -3,15 +3,22 @@
 An entitlement with a non-zero total exists only once payment is secured. Call secure_online_checkout()
 inside the sale's transaction, after the sale wrote its rows; every refusal raises without `persist`, so the
 entitlement rolls back with it.
+
+Also here: a coupon at online checkout (SSP-11, through the one coupon engine in `catalogue`), and the pay
+link's return from 3-D Secure authentication (PAY-11).
 """
 
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.errors import Conflict, DomainError, ValidationFailed
-from app.modules.billing import methods, service
-from app.modules.billing.models import Invoice, Payment
+from app.core import clock
+from app.core.auth import system_principal
+from app.core.errors import Conflict, DomainError, NotFound, ValidationFailed
+from app.core.events import handles
+from app.modules.billing import catalogue, documents, methods, service
+from app.modules.billing.models import Charge, CouponRedemption, Invoice, InvoicePayLink, Payment
 
 SECURED = ("succeeded", "processing")
 
@@ -33,13 +40,22 @@ def secure_online_checkout(
     tender_kind: str = "card",
     must_pay_now: bool = True,
     on_account_ok: bool = False,
+    coupon_code: str | None = None,
 ) -> Payment | None:
     """Pay what is due now, or prove a chargeable method is on file for what falls due later.
 
     None when nothing needed securing (a free sale, or a plan that explicitly sells on account); the payment
     when it went through. `unknown` or `initiated` is a 503: the `initiated` row was committed before the
     provider call, so a retry with the same key replays it and money that did go through lands as credit.
+    A `coupon_code` comes off what is invoiced now before anything is charged.
     """
+    if coupon_code:
+        if invoice is None:
+            raise ValidationFailed("A coupon applies to what is paid now.", pointer="/coupon_code",
+                                   code="coupon-not-applicable")  # fmt: skip
+        apply_coupon(session, invoice, coupon_code, client_id)
+        if invoice.balance_minor <= 0:
+            return None
     if total_minor <= 0:
         return None
     has_method = bool(method_token or payment_method_id)
@@ -103,3 +119,66 @@ def _covering(session: Session, invoice: Invoice, payment: Payment) -> Payment:
     if invoice.status not in ("paid", "payment_pending"):
         raise _key_reused()
     return payment
+
+
+def apply_coupon(session: Session, invoice: Invoice, code: str, client_id: UUID) -> int:
+    """Redeem a portal coupon on the invoice of a sale being made now and take it off its items (after any
+    manual discount, before tax: each item is re-priced through service.adjust_charge). Idempotent by
+    invoice: a replay returns the discount already taken and re-prices nothing. The per-client cap counts the
+    client the sale is for. Returns the discount."""
+    session.flush()
+    session.refresh(invoice)
+    key = f"billing:checkout:{invoice.id}"
+    taken = session.scalars(
+        select(CouponRedemption).where(CouponRedemption.redemption_key == key, CouponRedemption.released_at.is_(None))
+    ).first()
+    if taken is not None:
+        return taken.discount_minor
+    charges = session.scalars(
+        select(Charge)
+        .where(Charge.invoice_id == invoice.id, Charge.status == "active", Charge.applied_minor == 0)
+        .order_by(Charge.bill_on, Charge.id)
+    ).all()
+    _, parts = catalogue.redeem_coupon(
+        session, code, redemption_key=key, line_nets=[c.net_minor for c in charges],
+        redeemer_client_id=client_id, channel="portal", invoice_id=invoice.id,
+    )  # fmt: skip
+    for charge, part in zip(charges, parts, strict=True):
+        if part > 0:
+            service.adjust_charge(
+                session, charge.id, reason=f"Coupon {code}", discount_minor=charge.discount_minor + part
+            )
+    session.flush()
+    session.refresh(invoice)
+    return sum(parts)
+
+
+def confirm_link_payment(session: Session, token: str, payment_id: UUID) -> Payment:
+    """The pay link, back from 3-D Secure: re-read the payment the link started and, once it went through,
+    apply it to the invoice and use the link up. Only a payment this link made is accepted (404 otherwise)."""
+    used = session.scalars(
+        select(InvoicePayLink).where(
+            InvoicePayLink.token_hash == documents._hash(token), InvoicePayLink.payment_id == payment_id
+        )
+    ).first()
+    if used is not None and used.used_at is not None:  # a repeat after success: the same answer, nothing moves
+        return service._get(session, Payment, payment_id)
+    link, invoice = documents._link(session, token, lock=True)
+    payment = session.get(Payment, payment_id)
+    if payment is None or not (payment.idempotency_key or "").startswith(f"paylink:{link.id}:"):
+        raise NotFound()
+    if session.info.get("actor") is None:  # anonymous surface: the audit trail names the link, not a person
+        session.info["actor"] = system_principal("pay link")
+    payment = service.confirm_payment(session, payment.id)
+    if payment.status in ("succeeded", "processing"):
+        if invoice.status in ("open", "partially_paid") and invoice.balance_minor > 0:
+            service.allocate(session, payment.id, invoice_id=invoice.id)
+        link.used_at, link.payment_id = clock.now(), payment.id
+        session.flush()
+    return payment
+
+
+@handles("billing.invoice.voided")
+def release_checkout_coupon(session: Session, payload: dict) -> None:
+    """A voided invoice gives back the portal coupon its sale redeemed (SSP-11); a no-op for any other."""
+    catalogue.release_coupon(session, f"billing:checkout:{payload['invoice_id']}")

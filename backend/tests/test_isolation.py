@@ -82,6 +82,9 @@ def test_tenant_row_is_private(two_tenants):
 
 _BODIES = {
     "updateLocation": {"name": "Renamed"},
+    "updateCatalogItem": {"description": "Renamed"},
+    "sellCatalogItem": lambda ids: {"client_id": ids.client_id},
+    "cancelCatalogItemSale": {"reason": "Mistake"},
     "createImportJobDryRun": {},
     "updateSavedReport": {"name": "Renamed"},
     # access rules (phase 10 chip B)
@@ -125,11 +128,13 @@ _BODIES = {
     "applyAccountCredit": {},
     "refundAccountCredit": {"amount_minor": 1, "reason": "Mistake"},
     "sendClientStatement": {"from_on": "2026-01-01", "to_on": "2026-02-01"},
+    "resendStatementBatch": {},
     "attachPaymentMethod": {"method_token": "tok_card_ok"},
     "createSetupIntent": {},
     "updatePaymentMethod": {"is_autopay": True},
     "verifyBankAccount": {"amounts": [32, 45]},
     "updatePortalPaymentMethod": {"is_autopay": True},
+    "confirmPortalPayment": lambda a: {"invoice_ids": [str(a.invoice_id)]},
     # pos (build module 9)
     "updateRegister": {"name": "Renamed"},
     "putRegisterFavorites": {"product_ids": []},

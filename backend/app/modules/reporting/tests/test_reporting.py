@@ -35,6 +35,14 @@ def code(response, status):
     return response.json()["code"]
 
 
+@pytest.fixture(autouse=True)
+def same_day_everywhere():
+    """Multi-location runs cut at the earliest local today (service.py); between 05:00 and 06:00 UTC New York is
+    a day ahead of Chicago and the North sale fell outside the period. Noon in Chicago is one day in both."""
+    with clock.freeze(datetime.combine(datetime.now(UTC).date(), NOON.timetz())):
+        yield
+
+
 def drain() -> None:
     worker = Worker(broker, worker_timeout=100)
     worker.start()

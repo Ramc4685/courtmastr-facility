@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import Field, StringConstraints
+from pydantic import Field, StringConstraints, model_validator
 
 from app.core.schemas import In, Out, Page  # noqa: F401  (Page is used by the router as s.Page)
 
@@ -44,8 +44,20 @@ class MembershipTypeOut(Out):
 
 
 class PlanAddonIn(In):
-    package_plan_id: UUID
+    """A bundled package plan, or a pre-defined billing item billed with the dues (MEM-04)."""
+
+    addon_kind: Literal["package_plan", "catalog_item"] = "package_plan"
+    package_plan_id: UUID | None = None
+    catalog_item_id: UUID | None = None
     quantity: Count = 1
+
+    @model_validator(mode="after")
+    def _one_target(self):
+        if (self.package_plan_id is None) != (self.addon_kind == "catalog_item") or (self.catalog_item_id is None) != (
+            self.addon_kind == "package_plan"
+        ):
+            raise ValueError("Name the package plan or the catalogue item the add-on kind says, and only that.")
+        return self
 
 
 class PlanAddonsReplace(In):
@@ -56,6 +68,7 @@ class PlanAddonOut(Out):
     id: UUID
     addon_kind: str
     package_plan_id: UUID | None
+    catalog_item_id: UUID | None
     quantity: int
     sort_order: int
 
@@ -205,6 +218,8 @@ class ContractQuote(In):
     is_autopay: bool | None = None
     is_auto_renew: bool | None = None
     customize: CustomizeTerms | None = None
+    # This sale's add-ons instead of the plan's (MEM-04); a list other than the plan's needs customize_terms.
+    addons: list[PlanAddonIn] | None = Field(default=None, max_length=20)
 
 
 class ContractSell(ContractQuote):
@@ -225,6 +240,9 @@ class PortalContractBuy(In):
     is_auto_renew: bool | None = None
     tender_kind: Literal["card", "bank_debit"] = "card"
     method_token: Annotated[str, StringConstraints(max_length=200)] | None = None
+    coupon_code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)] | None = (
+        None  # SSP-11
+    )
 
 
 class PublicPlanOut(Out):

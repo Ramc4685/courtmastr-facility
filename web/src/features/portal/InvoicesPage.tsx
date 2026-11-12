@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { api, type Schemas } from '../../api/client'
+import { api, downloadFile, type Schemas } from '../../api/client'
 import { Button } from '../../components/Button'
 import { Dialog } from '../../components/Dialog'
 import { Checkbox, Select } from '../../components/Field'
@@ -8,10 +8,11 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { Table, useKeysetQuery } from '../../components/Table'
 import { Tabs } from '../../components/Tabs'
 import { formatDate, formatDateTime } from '../../lib/format'
-import { INVOICE_STATUS, PAYMENT_STATUS, TENDER_LABEL } from '../billing/money'
-import { FormError, StatusBadge } from '../billing/shared'
+import { INVOICE_STATUS, parseMoney, PAYMENT_STATUS, TENDER_LABEL, toMoneyInput } from '../billing/money'
+import { FormError, MoneyInput, PdfButton, StatusBadge } from '../billing/shared'
+import { PaymentAuthentication } from '../billing/PaymentMethodField'
 import { PortalPage } from './PortalApp'
-import { NewCardField, PaymentOutcome, useAttemptKey, usePortal } from './shared'
+import { NewCardField, PaymentOutcome, useAttemptKey, useCheckoutProvider, usePortal } from './shared'
 
 type Invoice = Schemas['PortalInvoiceOut']
 const NEW_CARD = 'new'
@@ -31,6 +32,7 @@ function InvoiceDialog({ invoice, onClose, onPay }: { invoice: Invoice; onClose:
           <Button variant="secondary" onClick={onClose}>
             Close
           </Button>
+          <PdfButton download={() => downloadFile('/api/v1/portal/invoices/{invoice_id}/pdf', { path: { invoice_id: invoice.id } }, `invoice-${invoice.number}.pdf`)} />
           {payable(invoice) && <Button onClick={onPay}>Pay {money(invoice.balance_minor)}</Button>}
         </>
       }
@@ -95,57 +97,87 @@ function InvoiceDialog({ invoice, onClose, onPay }: { invoice: Invoice; onClose:
 
 function PayDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => void }) {
   const qc = useQueryClient()
-  const { money, nameOf } = usePortal()
+  const { clients, money, nameOf } = usePortal()
   const methods = useQuery({ queryKey: ['portal', 'payment-methods'], queryFn: () => api.get('/api/v1/portal/payment-methods') })
-  // A payer only ever spends their own stored methods (the API refuses anyone else's).
-  const own = (methods.data ?? []).filter((m) => m.status === 'active' && m.client_id === invoice.bill_to_client_id)
+  const provider = useCheckoutProvider()
+  // Who pays: the invoice's own client when the signed-in person holds that record, else (a dependant's
+  // invoice) the signed-in person. A payer only ever spends their own stored methods; the API refuses others.
+  const billTo = clients.find((c) => c.id === invoice.bill_to_client_id)
+  const payerId = billTo && (billTo.authority === 'self' || billTo.authority === 'manager') ? billTo.id : (clients.find((c) => c.authority === 'self')?.id ?? invoice.bill_to_client_id)
+  const own = (methods.data ?? []).filter((m) => m.status === 'active' && m.client_id === payerId)
   const [choice, setChoice] = useState<string | null>(null)
   const methodId = choice ?? own[0]?.id ?? NEW_CARD
   const [token, setToken] = useState('')
   const [useCredit, setUseCredit] = useState(false)
+  const [amount, setAmount] = useState(toMoneyInput(invoice.balance_minor))
+  const amountMinor = parseMoney(amount)
+  const amountError = amountMinor === null || amountMinor <= 0 ? 'Enter an amount above zero.' : amountMinor > invoice.balance_minor ? `At most ${money(invoice.balance_minor)} is owed.` : undefined
   const attempt = useAttemptKey()
+  const settled = () => void qc.invalidateQueries({ queryKey: ['portal'] })
   const pay = useMutation({
     mutationFn: () =>
       api.post('/api/v1/portal/payments', {
-        body: { invoice_ids: [invoice.id], payment_method_id: methodId === NEW_CARD ? null : methodId, method_token: methodId === NEW_CARD ? token : null, use_account_credit: useCredit, set_autopay: false },
+        body: { invoice_ids: [invoice.id], amount_minor: amountMinor, payment_method_id: methodId === NEW_CARD ? null : methodId, method_token: methodId === NEW_CARD ? token : null, use_account_credit: useCredit, set_autopay: false },
         idempotencyKey: attempt.key,
       }),
     onSuccess: (r) => {
-      void qc.invalidateQueries({ queryKey: ['portal'] })
+      settled()
       if (r.payment?.status === 'failed') attempt.settle(null) // a decline: the next try is a new attempt
     },
     onError: attempt.settle,
   })
-  const result = pay.data
-  const failed = result?.payment?.status === 'failed'
-  const done = result && !failed
-  const status = result?.client_secret ? 'requires_action' : result?.payment?.status
+  // Back from the bank's 3-D Secure check: re-read the payment and apply it to this invoice.
+  const confirm = useMutation({
+    mutationFn: (paymentId: string) => api.post('/api/v1/portal/payments/{payment_id}/confirm', { path: { payment_id: paymentId }, body: { invoice_ids: [invoice.id] }, idempotencyKey: crypto.randomUUID() }),
+    onSuccess: (r) => {
+      settled()
+      if (r.payment?.status === 'failed') attempt.settle(null)
+    },
+  })
+  const result = confirm.data ?? pay.data
+  const payment = result?.payment
+  const failed = payment?.status === 'failed'
+  const challenge = result?.client_secret && payment?.status === 'requires_action' ? result.client_secret : null
+  const done = result && !failed && !challenge
+  const p = provider.data?.provider === 'fake' || provider.data?.provider === 'stripe' ? provider.data.provider : null
 
   return (
     <Dialog
       open
       onClose={onClose}
       title={`Pay invoice #${invoice.number}`}
-      description={`${money(invoice.balance_minor)} for ${nameOf(invoice.bill_to_client_id)}.`}
+      description={`${money(invoice.balance_minor)} owed by ${nameOf(invoice.bill_to_client_id)}.`}
       footer={
-        done ? (
-          <Button onClick={onClose}>Done</Button>
+        done || challenge ? (
+          <>
+            {payment && done && (
+              <PdfButton label="Download receipt" download={() => downloadFile('/api/v1/portal/payments/{payment_id}/receipt/pdf', { path: { payment_id: payment.id } }, `receipt-${payment.receipt_number}.pdf`)} />
+            )}
+            <Button variant={done ? 'primary' : 'secondary'} onClick={onClose}>
+              {done ? 'Done' : 'Close'}
+            </Button>
+          </>
         ) : (
           <>
             <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
-            <Button loading={pay.isPending} disabled={methods.isPending || (methodId === NEW_CARD && !token)} onClick={() => pay.mutate()}>
-              Pay {money(invoice.balance_minor)}
+            <Button loading={pay.isPending} disabled={methods.isPending || Boolean(amountError) || (methodId === NEW_CARD && !token)} onClick={() => { confirm.reset(); pay.mutate() }}>
+              Pay {amountMinor && !amountError ? money(amountMinor) : ''}
             </Button>
           </>
         )
       }
     >
-      {done ? (
+      {challenge && payment ? (
+        <div className="space-y-3">
+          <FormError error={confirm.error} />
+          <PaymentAuthentication clientSecret={challenge} provider={p} keys={provider.data} onDone={() => confirm.mutateAsync(payment.id)} />
+        </div>
+      ) : done ? (
         <PaymentOutcome
-          status={result.payment ? status : null}
-          done={result.payment ? `Thank you. ${money(result.payment.amount_minor)} paid, receipt #${result.payment.receipt_number}.` : `Paid with ${money(result.credit_applied_minor)} of account credit.`}
+          status={payment ? payment.status : null}
+          done={payment ? `Thank you. ${money(payment.amount_minor)} paid, receipt #${payment.receipt_number}.` : `Paid with ${money(result.credit_applied_minor)} of account credit.`}
         />
       ) : methods.isPending ? (
         <LoadingState />
@@ -154,9 +186,10 @@ function PayDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => void
           <FormError error={pay.error} />
           {failed && (
             <p role="alert" className="text-danger">
-              The payment was declined. Try another card.
+              The payment was declined or the bank check failed. Try another card.
             </p>
           )}
+          <MoneyInput label="Amount" hint="Pay all of it or part now; any rest stays on the invoice." value={amount} onChange={(e) => setAmount(e.target.value)} error={amount ? amountError : undefined} required />
           <Select
             label="Pay with"
             value={methodId}

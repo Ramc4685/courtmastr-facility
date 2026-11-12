@@ -8029,6 +8029,1028 @@
         "title": "CapacityResult",
         "type": "object"
       },
+      "CatalogItemCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "additional_description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Additional Description"
+          },
+          "description": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Description",
+            "type": "string"
+          },
+          "discount_minor": {
+            "anyOf": [
+              {
+                "maximum": 1000000000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Minor"
+          },
+          "discount_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Pct"
+          },
+          "fee_minor": {
+            "maximum": 1000000000000.0,
+            "minimum": 0.0,
+            "title": "Fee Minor",
+            "type": "integer"
+          },
+          "internal_remarks": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Internal Remarks"
+          },
+          "invoice_option": {
+            "default": "single_invoice",
+            "enum": [
+              "single_invoice",
+              "invoice_per_occurrence",
+              "leave_uninvoiced"
+            ],
+            "title": "Invoice Option",
+            "type": "string"
+          },
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_auto_renew": {
+            "default": false,
+            "title": "Is Auto Renew",
+            "type": "boolean"
+          },
+          "is_autopay": {
+            "default": false,
+            "title": "Is Autopay",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "one_off",
+              "recurring"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "length_count": {
+            "anyOf": [
+              {
+                "maximum": 366.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Length Count"
+          },
+          "length_unit": {
+            "anyOf": [
+              {
+                "enum": [
+                  "day",
+                  "week",
+                  "month",
+                  "year"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Length Unit"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "recurrence_count": {
+            "anyOf": [
+              {
+                "maximum": 366.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recurrence Count"
+          },
+          "recurrence_every": {
+            "anyOf": [
+              {
+                "maximum": 366.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recurrence Every"
+          },
+          "recurrence_unit": {
+            "anyOf": [
+              {
+                "enum": [
+                  "day",
+                  "week",
+                  "month",
+                  "year"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recurrence Unit"
+          },
+          "renew_lead_days": {
+            "default": 0,
+            "maximum": 366.0,
+            "minimum": 0.0,
+            "title": "Renew Lead Days",
+            "type": "integer"
+          },
+          "renews_as_catalog_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Renews As Catalog Item Id"
+          },
+          "revenue_category_id": {
+            "format": "uuid",
+            "title": "Revenue Category Id",
+            "type": "string"
+          },
+          "start_mode": {
+            "default": "sale_date",
+            "enum": [
+              "sale_date",
+              "fixed_date"
+            ],
+            "title": "Start Mode",
+            "type": "string"
+          },
+          "starts_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts On"
+          }
+        },
+        "required": [
+          "location_id",
+          "kind",
+          "description",
+          "fee_minor",
+          "revenue_category_id"
+        ],
+        "title": "CatalogItemCreate",
+        "type": "object"
+      },
+      "CatalogItemOut": {
+        "properties": {
+          "additional_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Additional Description"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "discount_minor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Minor"
+          },
+          "discount_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Pct"
+          },
+          "fee_minor": {
+            "title": "Fee Minor",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "internal_remarks": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Internal Remarks"
+          },
+          "invoice_option": {
+            "enum": [
+              "single_invoice",
+              "invoice_per_occurrence",
+              "leave_uninvoiced"
+            ],
+            "title": "Invoice Option",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_auto_renew": {
+            "title": "Is Auto Renew",
+            "type": "boolean"
+          },
+          "is_autopay": {
+            "title": "Is Autopay",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "one_off",
+              "recurring"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "length_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Length Count"
+          },
+          "length_unit": {
+            "anyOf": [
+              {
+                "enum": [
+                  "day",
+                  "week",
+                  "month",
+                  "year"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Length Unit"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "recurrence_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recurrence Count"
+          },
+          "recurrence_every": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recurrence Every"
+          },
+          "recurrence_unit": {
+            "anyOf": [
+              {
+                "enum": [
+                  "day",
+                  "week",
+                  "month",
+                  "year"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recurrence Unit"
+          },
+          "renew_lead_days": {
+            "title": "Renew Lead Days",
+            "type": "integer"
+          },
+          "renews_as_catalog_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Renews As Catalog Item Id"
+          },
+          "revenue_category_id": {
+            "format": "uuid",
+            "title": "Revenue Category Id",
+            "type": "string"
+          },
+          "start_mode": {
+            "enum": [
+              "sale_date",
+              "fixed_date"
+            ],
+            "title": "Start Mode",
+            "type": "string"
+          },
+          "starts_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts On"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "kind",
+          "description",
+          "additional_description",
+          "internal_remarks",
+          "start_mode",
+          "starts_on",
+          "length_count",
+          "length_unit",
+          "recurrence_unit",
+          "recurrence_every",
+          "recurrence_count",
+          "fee_minor",
+          "discount_pct",
+          "discount_minor",
+          "invoice_option",
+          "is_autopay",
+          "is_auto_renew",
+          "renew_lead_days",
+          "renews_as_catalog_item_id",
+          "revenue_category_id",
+          "is_active"
+        ],
+        "title": "CatalogItemOut",
+        "type": "object"
+      },
+      "CatalogItemSaleCreate": {
+        "additionalProperties": false,
+        "description": "Per-sale overrides of the item's terms; a fee or discount other than the item's needs\nbilling.charge.override_price.",
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "discount_minor": {
+            "anyOf": [
+              {
+                "maximum": 1000000000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Minor"
+          },
+          "discount_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Pct"
+          },
+          "excluded_tax_ids": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Excluded Tax Ids",
+            "type": "array"
+          },
+          "fee_minor": {
+            "anyOf": [
+              {
+                "maximum": 1000000000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee Minor"
+          },
+          "invoice_option": {
+            "anyOf": [
+              {
+                "enum": [
+                  "single_invoice",
+                  "invoice_per_occurrence",
+                  "leave_uninvoiced"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Option"
+          },
+          "is_auto_renew": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Auto Renew"
+          },
+          "is_autopay": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Autopay"
+          },
+          "starts_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts On"
+          }
+        },
+        "required": [
+          "client_id"
+        ],
+        "title": "CatalogItemSaleCreate",
+        "type": "object"
+      },
+      "CatalogItemSaleOut": {
+        "properties": {
+          "catalog_item_id": {
+            "format": "uuid",
+            "title": "Catalog Item Id",
+            "type": "string"
+          },
+          "charge_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Charge Ids",
+            "type": "array"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "ends_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends On"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invoice_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Invoice Ids",
+            "type": "array"
+          },
+          "is_auto_renew": {
+            "title": "Is Auto Renew",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "previous_sale_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Sale Id"
+          },
+          "renew_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Renew On"
+          },
+          "renews_as_catalog_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Renews As Catalog Item Id"
+          },
+          "sold_on": {
+            "format": "date",
+            "title": "Sold On",
+            "type": "string"
+          },
+          "starts_on": {
+            "format": "date",
+            "title": "Starts On",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "renewed",
+              "ended",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "terms": {
+            "additionalProperties": true,
+            "title": "Terms",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "catalog_item_id",
+          "client_id",
+          "location_id",
+          "sold_on",
+          "starts_on",
+          "ends_on",
+          "is_auto_renew",
+          "renew_on",
+          "renews_as_catalog_item_id",
+          "previous_sale_id",
+          "status",
+          "terms",
+          "charge_ids",
+          "invoice_ids"
+        ],
+        "title": "CatalogItemSaleOut",
+        "type": "object"
+      },
+      "CatalogItemUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "additional_description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Additional Description"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "discount_minor": {
+            "anyOf": [
+              {
+                "maximum": 1000000000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Minor"
+          },
+          "discount_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Pct"
+          },
+          "fee_minor": {
+            "anyOf": [
+              {
+                "maximum": 1000000000000.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee Minor"
+          },
+          "internal_remarks": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Internal Remarks"
+          },
+          "invoice_option": {
+            "anyOf": [
+              {
+                "enum": [
+                  "single_invoice",
+                  "invoice_per_occurrence",
+                  "leave_uninvoiced"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Option"
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "is_auto_renew": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Auto Renew"
+          },
+          "is_autopay": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Autopay"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "one_off",
+                  "recurring"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "length_count": {
+            "anyOf": [
+              {
+                "maximum": 366.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Length Count"
+          },
+          "length_unit": {
+            "anyOf": [
+              {
+                "enum": [
+                  "day",
+                  "week",
+                  "month",
+                  "year"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Length Unit"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "recurrence_count": {
+            "anyOf": [
+              {
+                "maximum": 366.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recurrence Count"
+          },
+          "recurrence_every": {
+            "anyOf": [
+              {
+                "maximum": 366.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recurrence Every"
+          },
+          "recurrence_unit": {
+            "anyOf": [
+              {
+                "enum": [
+                  "day",
+                  "week",
+                  "month",
+                  "year"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recurrence Unit"
+          },
+          "renew_lead_days": {
+            "anyOf": [
+              {
+                "maximum": 366.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Renew Lead Days"
+          },
+          "renews_as_catalog_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Renews As Catalog Item Id"
+          },
+          "revenue_category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Category Id"
+          },
+          "start_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sale_date",
+                  "fixed_date"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Mode"
+          },
+          "starts_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts On"
+          }
+        },
+        "title": "CatalogItemUpdate",
+        "type": "object"
+      },
       "CategoryCreate": {
         "additionalProperties": false,
         "properties": {
@@ -14485,6 +15507,21 @@
       "ContractQuote": {
         "additionalProperties": false,
         "properties": {
+          "addons": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PlanAddonIn"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Addons"
+          },
           "client_id": {
             "format": "uuid",
             "title": "Client Id",
@@ -15254,6 +16291,21 @@
       "ContractSell": {
         "additionalProperties": false,
         "properties": {
+          "addons": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PlanAddonIn"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Addons"
+          },
           "client_id": {
             "format": "uuid",
             "title": "Client Id",
@@ -21218,6 +22270,26 @@
         "title": "FacilityHoursReplace",
         "type": "object"
       },
+      "FakeAuthentication": {
+        "additionalProperties": false,
+        "properties": {
+          "approve": {
+            "default": true,
+            "title": "Approve",
+            "type": "boolean"
+          },
+          "client_secret": {
+            "maxLength": 200,
+            "title": "Client Secret",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_secret"
+        ],
+        "title": "FakeAuthentication",
+        "type": "object"
+      },
       "FeatureState": {
         "properties": {
           "included": {
@@ -24002,6 +25074,28 @@
         "title": "InvoiceDocument",
         "type": "object"
       },
+      "InvoiceLinkConfirm": {
+        "additionalProperties": false,
+        "properties": {
+          "payment_id": {
+            "format": "uuid",
+            "title": "Payment Id",
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 200,
+            "minLength": 20,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "payment_id"
+        ],
+        "title": "InvoiceLinkConfirm",
+        "type": "object"
+      },
       "InvoiceLinkLookup": {
         "additionalProperties": false,
         "properties": {
@@ -25719,6 +26813,11 @@
             "title": "Currency",
             "type": "string"
           },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
           "receipt_number": {
             "title": "Receipt Number",
             "type": "integer"
@@ -25729,6 +26828,7 @@
           }
         },
         "required": [
+          "id",
           "status",
           "amount_minor",
           "currency",
@@ -33624,6 +34724,46 @@
         "title": "Page[CampaignOut]",
         "type": "object"
       },
+      "Page_CatalogItemOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogItemOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[CatalogItemOut]",
+        "type": "object"
+      },
+      "Page_CatalogItemSaleOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogItemSaleOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[CatalogItemSaleOut]",
+        "type": "object"
+      },
       "Page_CategoryOut_": {
         "properties": {
           "data": {
@@ -35662,6 +36802,26 @@
           "page"
         ],
         "title": "Page[StaffUserOut]",
+        "type": "object"
+      },
+      "Page_StatementBatchOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/StatementBatchOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[StatementBatchOut]",
         "type": "object"
       },
       "Page_StockMovementOut_": {
@@ -37775,11 +38935,40 @@
       },
       "PlanAddonIn": {
         "additionalProperties": false,
+        "description": "A bundled package plan, or a pre-defined billing item billed with the dues (MEM-04).",
         "properties": {
-          "package_plan_id": {
-            "format": "uuid",
-            "title": "Package Plan Id",
+          "addon_kind": {
+            "default": "package_plan",
+            "enum": [
+              "package_plan",
+              "catalog_item"
+            ],
+            "title": "Addon Kind",
             "type": "string"
+          },
+          "catalog_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catalog Item Id"
+          },
+          "package_plan_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package Plan Id"
           },
           "quantity": {
             "default": 1,
@@ -37789,9 +38978,6 @@
             "type": "integer"
           }
         },
-        "required": [
-          "package_plan_id"
-        ],
         "title": "PlanAddonIn",
         "type": "object"
       },
@@ -37800,6 +38986,18 @@
           "addon_kind": {
             "title": "Addon Kind",
             "type": "string"
+          },
+          "catalog_item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catalog Item Id"
           },
           "id": {
             "format": "uuid",
@@ -37831,6 +39029,7 @@
           "id",
           "addon_kind",
           "package_plan_id",
+          "catalog_item_id",
           "quantity",
           "sort_order"
         ],
@@ -38426,6 +39625,19 @@
       "PortalCheckoutConfirm": {
         "additionalProperties": false,
         "properties": {
+          "coupon_code": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coupon Code"
+          },
           "method_token": {
             "anyOf": [
               {
@@ -39266,6 +40478,19 @@
             ],
             "title": "Client Id"
           },
+          "coupon_code": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coupon Code"
+          },
           "is_auto_renew": {
             "anyOf": [
               {
@@ -39687,6 +40912,70 @@
           "payment_status"
         ],
         "title": "PortalContractSaleOut",
+        "type": "object"
+      },
+      "PortalCouponQuote": {
+        "properties": {
+          "discount_minor": {
+            "title": "Discount Minor",
+            "type": "integer"
+          },
+          "invalid_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invalid Reason"
+          },
+          "is_valid": {
+            "title": "Is Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_valid",
+          "invalid_reason",
+          "discount_minor"
+        ],
+        "title": "PortalCouponQuote",
+        "type": "object"
+      },
+      "PortalCouponQuoteRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "code": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "subtotal_minor": {
+            "minimum": 0.0,
+            "title": "Subtotal Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "subtotal_minor"
+        ],
+        "title": "PortalCouponQuoteRequest",
         "type": "object"
       },
       "PortalCreditLedgerEntryOut": {
@@ -40356,6 +41645,19 @@
               }
             ],
             "title": "Client Id"
+          },
+          "coupon_code": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coupon Code"
           },
           "location_id": {
             "format": "uuid",
@@ -41089,9 +42391,42 @@
         "title": "PortalPayment",
         "type": "object"
       },
+      "PortalPaymentConfirm": {
+        "additionalProperties": false,
+        "description": "The invoices the payment was for, so what it has left lands on them once authentication succeeds.",
+        "properties": {
+          "invoice_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Invoice Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "invoice_ids"
+        ],
+        "title": "PortalPaymentConfirm",
+        "type": "object"
+      },
       "PortalPaymentCreate": {
         "additionalProperties": false,
         "properties": {
+          "amount_minor": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Minor"
+          },
           "invoice_ids": {
             "items": {
               "format": "uuid",
@@ -41445,6 +42780,155 @@
           "changes"
         ],
         "title": "PortalPreferencesReplace",
+        "type": "object"
+      },
+      "PortalReceiptLine": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "invoice_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Id"
+          }
+        },
+        "required": [
+          "description",
+          "invoice_id",
+          "amount_minor"
+        ],
+        "title": "PortalReceiptLine",
+        "type": "object"
+      },
+      "PortalReceiptOut": {
+        "description": "The client's own receipt (PAY-18). Its own schema, so a field added for staff never reaches a client.",
+        "properties": {
+          "applied_minor": {
+            "title": "Applied Minor",
+            "type": "integer"
+          },
+          "card_brand": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Card Brand"
+          },
+          "card_last4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Card Last4"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "footer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Footer"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PortalReceiptLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "payment_id": {
+            "format": "uuid",
+            "title": "Payment Id",
+            "type": "string"
+          },
+          "receipt_number": {
+            "title": "Receipt Number",
+            "type": "integer"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "received_minor": {
+            "title": "Received Minor",
+            "type": "integer"
+          },
+          "refunded_minor": {
+            "title": "Refunded Minor",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tender_kind": {
+            "title": "Tender Kind",
+            "type": "string"
+          },
+          "unapplied_minor": {
+            "title": "Unapplied Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "payment_id",
+          "receipt_number",
+          "status",
+          "client_id",
+          "tender_kind",
+          "currency",
+          "received_at",
+          "received_minor",
+          "applied_minor",
+          "refunded_minor",
+          "unapplied_minor",
+          "card_brand",
+          "card_last4",
+          "footer",
+          "lines"
+        ],
+        "title": "PortalReceiptOut",
         "type": "object"
       },
       "PortalRefundOut": {
@@ -42200,6 +43684,223 @@
           "method"
         ],
         "title": "PortalSigner",
+        "type": "object"
+      },
+      "PortalStatementInvoice": {
+        "properties": {
+          "balance_minor": {
+            "title": "Balance Minor",
+            "type": "integer"
+          },
+          "due_on": {
+            "format": "date",
+            "title": "Due On",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invoice_on": {
+            "format": "date",
+            "title": "Invoice On",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "payment_pending",
+              "partially_paid",
+              "paid",
+              "voided"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "total_minor": {
+            "title": "Total Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "invoice_on",
+          "due_on",
+          "status",
+          "total_minor",
+          "balance_minor"
+        ],
+        "title": "PortalStatementInvoice",
+        "type": "object"
+      },
+      "PortalStatementOut": {
+        "properties": {
+          "balance_due_minor": {
+            "title": "Balance Due Minor",
+            "type": "integer"
+          },
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "credit_minor": {
+            "title": "Credit Minor",
+            "type": "integer"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "date_basis": {
+            "enum": [
+              "invoice_date",
+              "due_date"
+            ],
+            "title": "Date Basis",
+            "type": "string"
+          },
+          "from_on": {
+            "format": "date",
+            "title": "From On",
+            "type": "string"
+          },
+          "invoiced_minor": {
+            "title": "Invoiced Minor",
+            "type": "integer"
+          },
+          "invoices": {
+            "items": {
+              "$ref": "#/components/schemas/PortalStatementInvoice"
+            },
+            "title": "Invoices",
+            "type": "array"
+          },
+          "paid_minor": {
+            "title": "Paid Minor",
+            "type": "integer"
+          },
+          "payments": {
+            "items": {
+              "$ref": "#/components/schemas/PortalStatementPayment"
+            },
+            "title": "Payments",
+            "type": "array"
+          },
+          "refunded_minor": {
+            "title": "Refunded Minor",
+            "type": "integer"
+          },
+          "refunds": {
+            "items": {
+              "$ref": "#/components/schemas/PortalStatementRefund"
+            },
+            "title": "Refunds",
+            "type": "array"
+          },
+          "time_zone": {
+            "title": "Time Zone",
+            "type": "string"
+          },
+          "to_on": {
+            "format": "date",
+            "title": "To On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "from_on",
+          "to_on",
+          "date_basis",
+          "time_zone",
+          "currency",
+          "invoices",
+          "payments",
+          "refunds",
+          "invoiced_minor",
+          "paid_minor",
+          "refunded_minor",
+          "balance_due_minor",
+          "credit_minor"
+        ],
+        "title": "PortalStatementOut",
+        "type": "object"
+      },
+      "PortalStatementPayment": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "receipt_number": {
+            "title": "Receipt Number",
+            "type": "integer"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "tender_kind": {
+            "enum": [
+              "card",
+              "bank_debit",
+              "cash",
+              "cheque",
+              "bank_transfer",
+              "gift_card",
+              "external",
+              "other"
+            ],
+            "title": "Tender Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "receipt_number",
+          "tender_kind",
+          "amount_minor",
+          "received_at"
+        ],
+        "title": "PortalStatementPayment",
+        "type": "object"
+      },
+      "PortalStatementRefund": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "refund_on": {
+            "format": "date",
+            "title": "Refund On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "amount_minor",
+          "refund_on"
+        ],
+        "title": "PortalStatementRefund",
         "type": "object"
       },
       "PortalTermsOut": {
@@ -60198,6 +61899,181 @@
         "title": "StandingsSort",
         "type": "object"
       },
+      "StatementBatchCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "title": "Client Ids",
+            "type": "array"
+          },
+          "date_basis": {
+            "default": "invoice_date",
+            "enum": [
+              "invoice_date",
+              "due_date"
+            ],
+            "title": "Date Basis",
+            "type": "string"
+          },
+          "is_open_only": {
+            "default": false,
+            "title": "Is Open Only",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "period_from_on": {
+            "format": "date",
+            "title": "Period From On",
+            "type": "string"
+          },
+          "period_to_on": {
+            "format": "date",
+            "title": "Period To On",
+            "type": "string"
+          }
+        },
+        "required": [
+          "location_id",
+          "period_from_on",
+          "period_to_on"
+        ],
+        "title": "StatementBatchCreate",
+        "type": "object"
+      },
+      "StatementBatchOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "date_basis": {
+            "enum": [
+              "invoice_date",
+              "due_date"
+            ],
+            "title": "Date Basis",
+            "type": "string"
+          },
+          "failed_count": {
+            "title": "Failed Count",
+            "type": "integer"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_open_only": {
+            "title": "Is Open Only",
+            "type": "boolean"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "period_from_on": {
+            "format": "date",
+            "title": "Period From On",
+            "type": "string"
+          },
+          "period_to_on": {
+            "format": "date",
+            "title": "Period To On",
+            "type": "string"
+          },
+          "queued_count": {
+            "title": "Queued Count",
+            "type": "integer"
+          },
+          "recipient_count": {
+            "title": "Recipient Count",
+            "type": "integer"
+          },
+          "recipients": {
+            "items": {
+              "$ref": "#/components/schemas/StatementRecipientOut"
+            },
+            "title": "Recipients",
+            "type": "array"
+          },
+          "sent_count": {
+            "title": "Sent Count",
+            "type": "integer"
+          },
+          "skipped_count": {
+            "title": "Skipped Count",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "period_from_on",
+          "period_to_on",
+          "date_basis",
+          "is_open_only",
+          "status",
+          "created_at",
+          "finished_at",
+          "recipient_count",
+          "queued_count",
+          "sent_count",
+          "failed_count",
+          "skipped_count",
+          "recipients"
+        ],
+        "title": "StatementBatchOut",
+        "type": "object"
+      },
+      "StatementBatchResend": {
+        "additionalProperties": false,
+        "properties": {
+          "statement_recipient_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "title": "Statement Recipient Ids",
+            "type": "array"
+          }
+        },
+        "title": "StatementBatchResend",
+        "type": "object"
+      },
       "StatementOut": {
         "properties": {
           "balance_due_minor": {
@@ -60263,6 +62139,10 @@
             "title": "Refunds",
             "type": "array"
           },
+          "time_zone": {
+            "title": "Time Zone",
+            "type": "string"
+          },
           "to_on": {
             "format": "date",
             "title": "To On",
@@ -60274,6 +62154,7 @@
           "from_on",
           "to_on",
           "date_basis",
+          "time_zone",
           "currency",
           "invoices",
           "payments",
@@ -60285,6 +62166,79 @@
           "credit_minor"
         ],
         "title": "StatementOut",
+        "type": "object"
+      },
+      "StatementRecipientOut": {
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_name": {
+            "title": "Client Name",
+            "type": "string"
+          },
+          "failure_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Message"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "sent",
+              "failed",
+              "skipped_no_email"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "to_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Email"
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "client_name",
+          "to_email",
+          "status",
+          "failure_message",
+          "sent_at"
+        ],
+        "title": "StatementRecipientOut",
         "type": "object"
       },
       "StatementSend": {
@@ -73682,6 +75636,618 @@
         ]
       }
     },
+    "/api/v1/catalog-item-sales": {
+      "get": {
+        "description": "Filters: client_id, catalog_item_id, status, location_id. Sort: starts_on, created_at.",
+        "operationId": "listCatalogItemSales",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_CatalogItemSaleOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Catalog Item Sales",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/catalog-item-sales/{catalog_item_sale_id}/cancel": {
+      "post": {
+        "description": "Occurrences not started yet are reversed; money applied to them becomes account credit.",
+        "operationId": "cancelCatalogItemSale",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_item_sale_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Catalog Item Sale Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItemSaleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Catalog Item Sale",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/catalog-items": {
+      "get": {
+        "description": "Filters: location_id, kind, is_active; q searches the description. Sort: description, created_at.",
+        "operationId": "listCatalogItems",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_CatalogItemOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Catalog Items",
+        "tags": [
+          "billing"
+        ]
+      },
+      "post": {
+        "operationId": "createCatalogItem",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogItemCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Catalog Item",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/catalog-items/{catalog_item_id}": {
+      "get": {
+        "operationId": "getCatalogItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Catalog Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Catalog Item",
+        "tags": [
+          "billing"
+        ]
+      },
+      "patch": {
+        "description": "Edits apply to later sales; set is_active false to stop selling it.",
+        "operationId": "updateCatalogItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Catalog Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogItemUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItemOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Catalog Item",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/catalog-items/{catalog_item_id}/sales": {
+      "post": {
+        "description": "Sell an item to a client: one billing item per occurrence, invoiced as the item says. A fee or\ndiscount other than the item's needs billing.charge.override_price.",
+        "operationId": "sellCatalogItem",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_item_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Catalog Item Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "description": "Required; keys live 24 hours.",
+              "maxLength": 255,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogItemSaleCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogItemSaleOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sell Catalog Item",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/api/v1/charges": {
       "get": {
         "description": "The items workbench. Filters: client_id, invoice_id, location_id, status, kind, source_id,\nrevenue_category_id, bill_on, created_by_staff_user_id, is_uninvoiced (the \"cart\"), is_open; q searches the\ndescription. Voided items are hidden unless status=voided. Sort: bill_on, created_at, revenue_on.",
@@ -81502,7 +84068,7 @@
     },
     "/api/v1/clients/{client_id}/statement": {
       "get": {
-        "description": "Default period: the 30 days up to today.",
+        "description": "Default period: the 30 days up to today at the client's home location, whose days the dates are.",
         "operationId": "getClientStatement",
         "parameters": [
           {
@@ -81675,6 +84241,109 @@
           }
         },
         "summary": "Send Client Statement",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/clients/{client_id}/statement/pdf": {
+      "get": {
+        "operationId": "getClientStatementPdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Client Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from_on",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From On"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to_on",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To On"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_basis",
+            "required": false,
+            "schema": {
+              "default": "invoice_date",
+              "pattern": "^(invoice_date|due_date)$",
+              "title": "Date Basis",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The PDF, as an attachment."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Client Statement Pdf",
         "tags": [
           "billing"
         ]
@@ -91740,7 +94409,7 @@
     },
     "/api/v1/invoices/{invoice_id}/document": {
       "get": {
-        "description": "The printable content of the invoice as data (PDF rendering is not built).",
+        "description": "The printable content of the invoice as data; `/pdf` renders the same content.",
         "operationId": "getInvoiceDocument",
         "parameters": [
           {
@@ -92069,6 +94738,64 @@
           }
         },
         "summary": "Generate Payment Schedule",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/invoices/{invoice_id}/pdf": {
+      "get": {
+        "operationId": "getInvoicePdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The PDF, as an attachment."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Invoice Pdf",
         "tags": [
           "billing"
         ]
@@ -101741,6 +104468,64 @@
         ]
       }
     },
+    "/api/v1/payments/{payment_id}/receipt/pdf": {
+      "get": {
+        "operationId": "getReceiptPdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "payment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Payment Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The PDF, as an attachment."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Receipt Pdf",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/api/v1/payments/{payment_id}/refunds": {
       "post": {
         "description": "Refund a payment's unapplied remainder. Errors: refund-exceeds-unapplied, payment-not-refundable.",
@@ -104410,6 +107195,69 @@
         ]
       }
     },
+    "/api/v1/portal/coupon-quotes": {
+      "post": {
+        "description": "Validation only: the portal checkout that sells something redeems the code. Errors: coupon-not-found.",
+        "operationId": "quotePortalCoupon",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalCouponQuoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalCouponQuote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Quote Portal Coupon",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/api/v1/portal/dependents": {
       "post": {
         "description": "Add a family member who has no login of their own; you manage their profile.",
@@ -105446,6 +108294,64 @@
         ]
       }
     },
+    "/api/v1/portal/invoices/{invoice_id}/pdf": {
+      "get": {
+        "operationId": "getPortalInvoicePdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The PDF, as an attachment."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portal Invoice Pdf",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/api/v1/portal/membership-contracts": {
       "get": {
         "description": "Memberships the signed-in client (or the client they act for) owns or is covered by.",
@@ -106431,7 +109337,7 @@
         ]
       },
       "post": {
-        "description": "Pay the full balance of the caller's own invoices. The payer is the caller's client and a stored\nmethod must be theirs. Read `payment.status`. Errors: invoice-not-payable, payment-method-not-usable.",
+        "description": "Pay the caller's invoices (or a household member's they may handle): the whole balance or\n`amount_minor` of it. A stored method must be the payer's. Read `payment.status`; `requires_action` comes\nwith a `client_secret` for 3-D Secure, then confirm. Errors: invoice-not-payable, amount-exceeds-balance,\npayment-method-not-usable.",
         "operationId": "payPortalInvoices",
         "parameters": [
           {
@@ -106482,6 +109388,194 @@
           }
         },
         "summary": "Pay Portal Invoices",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/portal/payments/{payment_id}/confirm": {
+      "post": {
+        "description": "Back from 3-D Secure: re-read the payment and apply it to the invoices it was for. Safe to repeat.",
+        "operationId": "confirmPortalPayment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "payment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Payment Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "description": "Required; keys live 24 hours.",
+              "maxLength": 255,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalPaymentConfirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalPayment"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Portal Payment",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/portal/payments/{payment_id}/receipt": {
+      "get": {
+        "operationId": "getPortalReceipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "payment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Payment Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalReceiptOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portal Receipt",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/portal/payments/{payment_id}/receipt/pdf": {
+      "get": {
+        "operationId": "getPortalReceiptPdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "payment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Payment Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The PDF, as an attachment."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portal Receipt Pdf",
         "tags": [
           "billing"
         ]
@@ -107655,6 +110749,209 @@
         "summary": "List Portal Session Listings",
         "tags": [
           "programs"
+        ]
+      }
+    },
+    "/api/v1/portal/statement": {
+      "get": {
+        "description": "The caller's own statement; default period the 30 days up to today at their home location.",
+        "operationId": "getPortalStatement",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from_on",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From On"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to_on",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To On"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalStatementOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portal Statement",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/portal/statement/pdf": {
+      "get": {
+        "operationId": "getPortalStatementPdf",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from_on",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From On"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to_on",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To On"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The PDF, as an attachment."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portal Statement Pdf",
+        "tags": [
+          "billing"
         ]
       }
     },
@@ -113640,6 +116937,41 @@
         ]
       }
     },
+    "/api/v1/public/fake-processor/authentications": {
+      "post": {
+        "description": "Development and test only: the fake processor's stand-in for the bank's 3-D Secure challenge, which\nStripe runs inside Stripe.js. 404 whenever the fake processor is not registered (it never is in\nproduction, where settings refuse it). Errors: not-found.",
+        "operationId": "authenticateFakePayment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FakeAuthentication"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Authenticate Fake Payment",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/api/v1/public/invoice-links/lookup": {
       "post": {
         "description": "What the emailed link pays. The token travels in the body, never the URL. Errors: link-invalid.",
@@ -113735,6 +117067,64 @@
           }
         },
         "summary": "Pay Invoice By Link",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/public/invoice-links/payments/confirm": {
+      "post": {
+        "description": "Back from 3-D Secure: re-read the payment this link started; once it went through it pays the invoice\nand uses the link up. Errors: link-invalid.",
+        "operationId": "confirmInvoiceLinkPayment",
+        "parameters": [
+          {
+            "description": "Required; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "description": "Required; keys live 24 hours.",
+              "maxLength": 255,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvoiceLinkConfirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkPayment"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Invoice Link Payment",
         "tags": [
           "billing"
         ]
@@ -128646,6 +132036,408 @@
         "summary": "Adjust Standing",
         "tags": [
           "leagues"
+        ]
+      }
+    },
+    "/api/v1/statement-batches": {
+      "get": {
+        "description": "Newest first, recipients left out (read one batch for them). Filters: location_id, status.",
+        "operationId": "listStatementBatches",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_StatementBatchOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Statement Batches",
+        "tags": [
+          "billing"
+        ]
+      },
+      "post": {
+        "description": "Statements for every payer with an invoice at the location in the period (`is_open_only`: still owing;\n`client_ids` narrows). Up to 25 recipients run in the request, more as a job: follow `status`.",
+        "operationId": "createStatementBatch",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatementBatchCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementBatchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Statement Batch",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/statement-batches/{statement_batch_id}": {
+      "get": {
+        "operationId": "getStatementBatch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "statement_batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Statement Batch Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementBatchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Statement Batch",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/statement-batches/{statement_batch_id}/recipients": {
+      "get": {
+        "description": "Per-recipient outcome: sent, skipped_no_email, failed (with the reason) or still queued.",
+        "operationId": "listStatementRecipients",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "statement_batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Statement Batch Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StatementRecipientOut"
+                  },
+                  "title": "Response Liststatementrecipients",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Statement Recipients",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/statement-batches/{statement_batch_id}/resend": {
+      "post": {
+        "description": "Send again to the listed recipients, or to every failed and skipped one when none are listed.",
+        "operationId": "resendStatementBatch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "statement_batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Statement Batch Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatementBatchResend"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatementBatchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resend Statement Batch",
+        "tags": [
+          "billing"
         ]
       }
     },

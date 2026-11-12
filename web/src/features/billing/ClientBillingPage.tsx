@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api, fieldErrors, type Schemas } from '../../api/client'
+import { api, downloadFile, fieldErrors, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { ConfirmDialog } from '../../components/Dialog'
@@ -15,9 +15,10 @@ import { useAuth, useCurrentLocation } from '../../lib/auth'
 import { formatDateTime, fullName } from '../../lib/format'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { AddChargeDialog, EditChargeDialog, ReverseChargeDialog, VoidChargeDialog } from './ChargeDialogs'
+import { ClientItemSales, SellItemDialog } from './CatalogPage'
 import { CHARGE_STATUS, INVOICE_STATUS, PAYMENT_STATUS, TENDER_LABEL, formatMoney, parseMoney, today } from './money'
 import { PaymentMethodField } from './PaymentMethodField'
-import { ClientName, Facts, FormDialog, ListTable, Money, MoneyInput, StatusBadge, TextArea, useClient, useCurrency } from './shared'
+import { ClientName, Facts, FormDialog, ListTable, Money, MoneyInput, PdfButton, StatusBadge, TextArea, useClient, useCurrency } from './shared'
 import { TakePaymentDialog } from './TakePaymentDialog'
 
 type Charge = Schemas['ChargeOut']
@@ -73,7 +74,7 @@ function ItemsTab({ clientId, homeLocationId }: { clientId: string; homeLocation
   const { can } = useAuth()
   const [filter, setFilter] = useState('open')
   const [chosen, setChosen] = useState<string[]>([])
-  const [dialog, setDialog] = useState<null | { kind: 'add' | 'invoice' } | { kind: 'edit' | 'reverse' | 'void'; charge: Charge }>(null)
+  const [dialog, setDialog] = useState<null | { kind: 'add' | 'sell' | 'invoice' } | { kind: 'edit' | 'reverse' | 'void'; charge: Charge }>(null)
   const query = filter === 'uninvoiced' ? { is_uninvoiced: true } : filter === 'open' ? { is_open: true } : {}
   const paging = useKeysetQuery(['billing', 'charges', 'client', clientId, filter], (cursor) => api.get('/api/v1/charges', { query: { client_id: clientId, cursor, ...query } }))
   const toggle = (id: string, on: boolean) => setChosen(on ? [...chosen, id] : chosen.filter((x) => x !== id))
@@ -132,11 +133,14 @@ function ItemsTab({ clientId, homeLocationId }: { clientId: string; homeLocation
               Invoice selected ({chosen.length})
             </Button>
           )}
+          {can('billing.charge.create') && <Button variant="secondary" onClick={() => setDialog({ kind: 'sell' })}>Sell pre-defined item</Button>}
           {can('billing.charge.create') && <Button onClick={() => setDialog({ kind: 'add' })}>Add item</Button>}
         </div>
       </div>
       <Table caption="Billing items" columns={columns} rowKey={(c) => c.id} paging={paging} empty={<EmptyState title="No items" />} />
+      <ClientItemSales clientId={clientId} />
       {dialog?.kind === 'add' && <AddChargeDialog clientId={clientId} defaultLocationId={homeLocationId} onClose={close} />}
+      {dialog?.kind === 'sell' && <SellItemDialog clientId={clientId} onClose={close} />}
       {dialog?.kind === 'invoice' && <CreateInvoiceDialog clientId={clientId} chargeIds={chosen} onClose={close} />}
       {dialog?.kind === 'edit' && <EditChargeDialog charge={dialog.charge} onClose={close} />}
       {dialog?.kind === 'reverse' && <ReverseChargeDialog charge={dialog.charge} onClose={close} />}
@@ -276,7 +280,7 @@ function MethodsTab({ clientId }: { clientId: string }) {
       {manage && <Button onClick={() => setAdding(true)}>Add payment method</Button>}
       {adding && (
         <FormDialog title="Add a payment method" submitLabel="Save method" busy={attach.isPending} error={attach.error} onClose={() => setAdding(false)} onSubmit={() => token && attach.mutate()}>
-          <PaymentMethodField kind="any" value={token} onChange={setToken} />
+          <PaymentMethodField kind="any" value={token} onChange={setToken} setup={() => api.post('/api/v1/clients/{client_id}/payment-methods/setup-intents', { path: { client_id: clientId }, body: { kinds: ['card', 'bank_account'] } })} />
           <Checkbox label="Use for autopay" checked={autopay} onChange={(e) => setAutopay(e.target.checked)} />
         </FormDialog>
       )}
@@ -404,6 +408,7 @@ function StatementTab({ clientId }: { clientId: string }) {
         <Input label="From" type="date" value={range.from_on} onChange={(e) => setRange({ ...range, from_on: e.target.value })} />
         <Input label="To" type="date" value={range.to_on} onChange={(e) => setRange({ ...range, to_on: e.target.value })} />
         <Select label="Dates by" value={range.date_basis} onChange={(e) => setRange({ ...range, date_basis: e.target.value as 'invoice_date' })} options={[{ value: 'invoice_date', label: 'Invoice date' }, { value: 'due_date', label: 'Due date' }]} />
+        <PdfButton download={() => downloadFile('/api/v1/clients/{client_id}/statement/pdf', { path: { client_id: clientId }, query: range }, 'statement.pdf')} />
         {can('billing.statement.send') && (
           <Button variant="secondary" loading={send.isPending} onClick={() => send.mutate()}>
             Email statement

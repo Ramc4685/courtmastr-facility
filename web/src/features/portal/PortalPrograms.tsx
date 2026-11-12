@@ -10,7 +10,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { formatDate, formatDateTime, formatMoney } from '../../lib/format'
 import { programError, REGISTRATION_STATE } from '../programs/queries'
-import { clientName, usePortalClients } from './shared'
+import { clientName, CouponField, usePortalClients } from './shared'
 
 type Program = Schemas['PublicProgramGroup']
 type Basket = Schemas['PortalCheckoutOut']
@@ -66,6 +66,7 @@ function BasketPanel({ basket, onChange, onDone }: { basket: Basket; onChange: (
   const qc = useQueryClient()
   const methods = useQuery({ queryKey: ['portal', 'payment-methods'], queryFn: () => api.get('/api/v1/portal/payment-methods') })
   const [pay, setPay] = useState('later')
+  const [coupon, setCoupon] = useState('')
   const key = useRef(crypto.randomUUID()) // one key per attempt; a failed attempt gets a new one
   const remove = useMutation({
     mutationFn: (itemId: string) => api.delete('/api/v1/portal/registration-checkouts/{checkout_id}/items/{item_id}', { path: { checkout_id: basket.id, item_id: itemId } }),
@@ -77,7 +78,7 @@ function BasketPanel({ basket, onChange, onDone }: { basket: Basket; onChange: (
       api.post('/api/v1/portal/registration-checkouts/{checkout_id}/confirm', {
         path: { checkout_id: basket.id },
         idempotencyKey: key.current,
-        body: { pay_later: pay === 'later', payment_method_id: pay === 'later' ? null : pay },
+        body: { pay_later: pay === 'later', payment_method_id: pay === 'later' ? null : pay, coupon_code: pay === 'later' ? null : coupon || null },
       }),
     onSuccess: (b) => {
       void qc.invalidateQueries({ queryKey: ['portal'] })
@@ -128,6 +129,7 @@ function BasketPanel({ basket, onChange, onDone }: { basket: Basket; onChange: (
         {basket.items.length > 0 && (
           <Select label="Payment" value={pay} onChange={(e) => setPay(e.target.value)} options={[{ value: 'later', label: 'Pay later' }, ...cards.map((m) => ({ value: m.id, label: `${m.brand ?? 'Card'} ending ${m.last4}` }))]} />
         )}
+        {basket.items.length > 0 && pay !== 'later' && basket.total_minor > 0 && <CouponField subtotalMinor={basket.total_minor} onChange={setCoupon} />}
         {confirm.error && (
           <p role="alert" className="text-danger">
             {programError(confirm.error)}

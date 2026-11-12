@@ -11,7 +11,7 @@ import { useToast } from '../../components/Toast'
 import { formatDate, todayIn } from '../../lib/format'
 import { FormError, ListTable } from '../billing/shared'
 import { PortalPage } from './PortalApp'
-import { CONTRACT_TONE, label, LocationPicker, NewCardField, PaymentOutcome, useAttemptKey, usePortal } from './shared'
+import { CONTRACT_TONE, CouponField, label, LocationPicker, NewCardField, PaymentOutcome, useAttemptKey, usePortal } from './shared'
 
 type Contract = Schemas['PortalContractOut']
 type Plan = Schemas['PublicPlanOut']
@@ -25,11 +25,12 @@ function BuyDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
   const [startOn, setStartOn] = useState(() => todayIn(zoneOf(locationId)))
   const [autoRenew, setAutoRenew] = useState(true)
   const [token, setToken] = useState('')
+  const [coupon, setCoupon] = useState('')
   const attempt = useAttemptKey()
   const terms = { client_id: actingFor.id, membership_plan_id: plan.id, location_id: locationId, start_on: startOn || null, is_auto_renew: autoRenew, tender_kind: 'card' as const }
   const quote = useQuery({ queryKey: ['portal', 'membership-quote', terms], queryFn: () => api.post('/api/v1/portal/membership-contracts/quote', { body: terms }), retry: false })
   const buy = useMutation({
-    mutationFn: () => api.post('/api/v1/portal/membership-contracts', { body: { ...terms, method_token: token || null }, idempotencyKey: attempt.key }),
+    mutationFn: () => api.post('/api/v1/portal/membership-contracts', { body: { ...terms, method_token: token || null, coupon_code: coupon || null }, idempotencyKey: attempt.key }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['portal'] }),
     onError: attempt.settle,
   })
@@ -108,6 +109,7 @@ function BuyDialog({ plan, onClose }: { plan: Plan; onClose: () => void }) {
               </section>
             )
           )}
+          {q && q.due_now_minor > 0 && <CouponField subtotalMinor={q.due_now_minor} onChange={setCoupon} />}
           <FormError error={buy.error} />
           {needsCard && <NewCardField value={token} onChange={setToken} />}
           {errors.method_token && (

@@ -17,7 +17,7 @@ invoicing, `axe` the WCAG sweep (all in `web/e2e/billing.spec.ts`). `TPD` is
 
 | Priority | Total | Done | Partial | Not built |
 |---|---|---|---|---|
-| P0 | 27 | 12 | 14 | 1 (BIL-14) |
+| P0 | 27 | 13 | 14 | 0 |
 | P1 | 12 | 1 | 5 | 6 |
 | P2 | 2 | 0 | 0 | 2 |
 | v2-adapter | 2 | 0 | 0 | 2 |
@@ -35,11 +35,11 @@ invoicing, `axe` the WCAG sweep (all in `web/e2e/billing.spec.ts`). `TPD` is
 | BIL-07 Billing reversal | P0 | done | Reverse item dialog (reason, revenue date) from Items and from the invoice page | backend only | |
 | BIL-08 Invoice void and item void | P0 | done | Void invoice dialog (reason, release applied money); Void item dialog on uninvoiced unpaid items | e2e2 (reason required, then voided) | |
 | BIL-09 Billing audit history | P0 | done | History list on the invoice page and the payment page (`GET /billing-history?entity_id=`) | axe | |
-| BIL-10 Invoice delivery (email, print, PDF) | P0 | partial | Invoice page > Email invoice, deliveries list; print view with the browser's print; public `/pay` page for the emailed link | PLP (2), axe (`/pay`), backend pay-link tests | Before this change the email linked to a page that did not exist. `/pay` reads the token from the fragment and clears it. No PDF. |
-| BIL-11 Billing statements | P1 | partial | Client billing > Statement (date range, by invoice or due date, email it) | axe | No statement batches or PDF (backend gap). |
+| BIL-10 Invoice delivery (email, print, PDF) | P0 | done | Invoice page > Email invoice, Download PDF, deliveries list; print view with the browser's print; portal invoice dialog > Download PDF; public `/pay` page for the emailed link | PLP (2), axe (`/pay`), `e2e/statements.spec.ts`, backend pay-link tests | `/pay` reads the token from the fragment and clears it. |
+| BIL-11 Billing statements | P1 | done | Client billing > Statement (date range, by invoice or due date, email it, Download PDF); Billing > Statements (send a batch, follow each recipient, resend); portal Statement (period from the emailed link, Download PDF) | `StatementsPage.test`, `portal.test`, `e2e/statements.spec.ts`, axe | done. |
 | BIL-12 Taxes | P0 | done | Set-up > Taxes: tax dialog with dated rates you can add and delete | axe | A rate that has been used is frozen: the server refuses to change it and the dialog shows that error. |
 | BIL-13 Revenue categories | P0 | done | Set-up > Revenue categories (parent, default taxes, active) | axe | |
-| BIL-14 Pre-defined items | P0 | not built | none | none | No backend. The largest P0 gap. |
+| BIL-14 Pre-defined items | P0 | done | Billing > Pre-defined items (list, new, edit); Client billing > Items: Sell pre-defined item (price override behind its key), Pre-defined items sold with Cancel | `CatalogPage.test` (3), e2e `catalog.spec` (create, sell, cancel, axe) | Fixed-date start is not offered on the sell dialog (it starts on the chosen date). |
 | BIL-15 Coupons | P0 | done | Coupons page: create and edit (amount or percent, window in the browser's zone, caps), redemptions, delete with confirm; coupon code on Add item | axe | |
 | BIL-16 Billing preferences | P0 | done | Preferences page: every setting, tenant row or a location override (reset to tenant), period lock | axe; backend `test_closing_the_books...` (now with GET) | Added `GET /billing-settings/period-lock` so the screen can show the current lock. |
 | BIL-17 Autopay defaults and per-invoice flag | P0 | partial | Autopay checkbox on Edit invoice and bulk invoicing; autopay method toggle on Payment methods & autopay | backend only | Default resolution at sale is not built (backend gap). |
@@ -52,22 +52,22 @@ invoicing, `axe` the WCAG sweep (all in `web/e2e/billing.spec.ts`). `TPD` is
 | BIL-24 Outsourced billing and collections | P2 | not built | none | none | Not planned. |
 | PAY-01 Take payment and allocate | P0 | done | Take payment dialog (split tender, stored or new method, confirm authentication); Allocate dialog and release allocation on the payment page | TPD (6), e2e1, e2e2, axe | Payments post in order and stop at the first failure. Each row keeps its idempotency key through a lost answer or 5xx, and gets a new key after a decline or 4xx. |
 | PAY-02 Payment method configuration | P0 | done | Set-up > Tenders (hide or show the optional ones, add an external tender) | axe | |
-| PAY-03 Client payment ledger and receipts | P0 | partial | Client billing > Payments; workbench Payments and Refunds tabs; payment page; printable receipt; email receipt | e2e1, axe | No PDF (backend gap). |
+| PAY-03 Client payment ledger and receipts | P0 | partial | Client billing > Payments; workbench Payments and Refunds tabs; payment page; printable receipt; email receipt | e2e1, axe | Payment page > Receipt PDF. No portal receipt PDF yet (chip C). |
 | PAY-04 Void payment | P0 | done | Payment page > Void (record-only tenders, reason) | backend only | |
 | PAY-05 Refunds | P0 | partial | Payment page > Refund (to the original method or as an external refund, reason); refund from account credit | e2e1 | Only unapplied money can be refunded; the dialog defaults to that amount. Backend gaps carry over. |
-| PAY-06 Stored payment methods | P0 | partial | Client billing > Payment methods & autopay (add a method, autopay toggle, remove, verify a bank account) | TPD (stored method use), axe | Methods are added through the provider-agnostic `PaymentMethodField`: scripted test methods for the fake processor. With Stripe, cards go through Stripe Elements (`StripeCardField`); bank accounts through Stripe are not built (Financial Connections). |
+| PAY-06 Stored payment methods | P0 | partial | Client billing > Payment methods & autopay (add a method, autopay toggle, remove, verify a bank account) | TPD (stored method use), axe | Methods are added through the provider-agnostic `PaymentMethodField`: scripted test methods for the fake processor. With Stripe, the Payment Element (`StripeCardField`) on a setup intent takes a card or a US bank account through Financial Connections. |
 | PAY-07 Card expiry notifications and report | P1 | partial | No expiring-cards screen | backend only | |
 | PAY-08 Decline notifications | P0 | partial | The decline message shows in Take payment and on the pay page; no notices screen | TPD, PLP, e2e2 | |
 | PAY-09 Autopay collection run | P0 | partial | Autopay page: runs, run now (dry-run preview, then run), attempts per run, error queue with retry and clear | axe (preview and error queue) | The daily job is not scheduled (backend gap). |
-| PAY-10 ACH / direct debit | P0 | partial | Bank debit tender in Take payment; micro-deposit verification on the methods tab | backend only | Fake processor only. |
-| PAY-11 Merchant processor integration | P0 | partial | Set-up > Processor (connect Stripe or, in development, the fake processor; onboarding link; disconnect) | axe | Stripe test mode works end to end with Elements card entry and signed webhooks (`docs/dev/stripe-test-mode.md`); never run against Stripe live. Not built: browser bank-account entry through Stripe, 3-D Secure completion, platform application fee. |
+| PAY-10 ACH / direct debit | P0 | partial | Bank debit tender in Take payment; micro-deposit verification on the methods tab | TPD (Stripe bank via setup intent) | Fake processor, or Stripe Financial Connections in Take payment and on the methods tab. |
+| PAY-11 Merchant processor integration | P0 | partial | Set-up > Processor (connect Stripe or, in development, the fake processor; onboarding link; disconnect) | axe | Stripe test mode works end to end with Elements card entry and signed webhooks (`docs/dev/stripe-test-mode.md`); never run against Stripe live. 3-D Secure: `PaymentAuthentication` runs Stripe's `handleNextAction` (or the fake processor's Approve or Fail) and then the screen's confirm route, in Take payment, the pay link and portal invoice pay (`e2e/card-entry.spec.ts`). Not built: platform application fee. |
 | PAY-12 EMV card terminals | v2-adapter | not built | none | none | |
 | PAY-13 Clover terminal integration | v2-adapter | not built | none | none | |
 | PAY-14 Credit card surcharging | P1 | not built | none | none | |
-| PAY-15 Digital wallets and tap-to-pay | P1 | not built | none | none | |
+| PAY-15 Digital wallets and tap-to-pay | P1 | partial | Every Stripe card field (Payment Element) | TPD | Apple Pay and Google Pay through the Payment Element; tap-to-pay needs a card reader. |
 | PAY-16 Processor disbursement reconciliation | P1 | not built | none | none | |
 | PAY-17 Chargeback and transaction sync | P1 | not built | none | none | |
-| PAY-18 Self-service payment of open invoices | P0 | partial | Public `/pay` page for the emailed link (whole balance, card, fake processor) | PLP (2), axe | No portal billing screen. The portal app does not exist yet. |
+| PAY-18 Self-service payment of open invoices | P0 | partial | Public `/pay` page (whole balance, card or wallet, 3-D Secure); portal Invoices > Pay (part of the balance, stored or new card, credit, 3-D Secure, receipt PDF, a guardian's own card for a dependant's invoice) | PLP (3), portal.test, `e2e/card-entry.spec.ts`, axe | Coupons at portal checkout (SSP-11): a coupon field on portal membership, package and program purchase, previewed through `POST /portal/coupon-quotes`, redeemed by the sale. |
 | PAY-19 Magnetic card swipe entry | P2 | not built | none | none | Excluded by the no-raw-card-data rule. |
 
 ## Assumptions

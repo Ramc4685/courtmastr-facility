@@ -2,20 +2,22 @@
 emailed pay link, statements (BIL-11), the client billing summary (BIL-21), accounts receivable ageing
 (BIL-19), billing history (BIL-09) and bulk invoicing from the workbench (BIL-02).
 
-Documents are structured data plus a plain-text email. Rendering a PDF is not built: there is no document
-renderer or file store in the kernel yet.
+Documents are structured data, a PDF rendered from that data with `app.core.pdf`, and a plain-text email
+that links to the PDF in the portal. A sent PDF is stored (`stored_file_id` on the delivery) so it can be shown
+as it went out. Statement periods and the ageing "as at" cut end at midnight on the location's wall clock.
 """
 
 import hashlib
 import secrets
 from collections import defaultdict
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.core import audit, clock
+from app.core import audit, clock, pdf
 from app.core.audit import AuditEvent
 from app.core.auth import Principal, authorize, scope_query, system_principal
 from app.core.errors import Conflict, DomainError, ValidationFailed
@@ -23,7 +25,7 @@ from app.core.pagination import ListQuery, paginate
 from app.core.settings import get_settings
 from app.modules import clients, platform
 from app.modules.billing import catalogue, service
-from app.modules.billing.autopay import money
+from app.modules.billing.autopay import money, portal_link
 from app.modules.billing.domain.dunning import AGEING_BUCKETS, ageing_bucket
 from app.modules.billing.models import (
     BillingDocumentDelivery,
@@ -42,17 +44,18 @@ MAX_STATEMENT_DAYS = 366
 notifications.register_template(
     "billing.invoice", subject="$subject",
     body="Invoice $invoice_number from $facility\n\n$lines\n\nTotal: $total\nBalance due: $balance (due $due_on)"
-    "$pay$footer",
+    "$pay\n\nView or download the PDF in your account:\n$document_link$footer",
 )  # fmt: skip
 notifications.register_template(
     "billing.receipt", subject="Receipt $receipt_number from $facility",
     body="Receipt $receipt_number\n\nReceived: $received ($tender) on $received_on\nApplied: $applied\n"
-    "Refunded: $refunded\nOn account: $unapplied$footer",
+    "Refunded: $refunded\nOn account: $unapplied\n\nYour payments and invoices are in your account:\n$document_link"
+    "$footer",
 )  # fmt: skip
 notifications.register_template(
     "billing.statement", subject="$subject",
     body="$intro\n\nStatement for $period\n\n$lines\n\nInvoiced: $invoiced\nPaid: $paid\nBalance due: $balance\n"
-    "Credit on account: $credit$footer",
+    "Credit on account: $credit\n\nView or download the PDF in your account:\n$document_link$footer",
 )  # fmt: skip
 
 
@@ -74,16 +77,41 @@ def _recipient(session: Session, client_id: UUID | None, to_email: str | None, c
     return address
 
 
-def _deliver(session: Session, kind: str, channel: str, to_email: str | None, **subject) -> BillingDocumentDelivery:
+def _deliver(
+    session: Session, kind: str, channel: str, to_email: str | None, data: bytes, name: str, **subject
+) -> BillingDocumentDelivery:
     # `sent` means handed to the notification port in this transaction; it goes out after commit. Delivery
     # confirmation (bounces) belongs to engagement and is not tracked here.
     row = BillingDocumentDelivery(
         document_kind=kind, channel=channel, to_email=to_email, status="sent",
-        requested_by_staff_user_id=service._staff_id(session), **subject,
+        requested_by_staff_user_id=service._staff_id(session), stored_file_id=store_pdf(session, data, kind, name).id,
+        **subject,
     )  # fmt: skip
     session.add(row)
     session.flush()
     return row
+
+
+def store_pdf(session: Session, data: bytes, kind: str, name: str):
+    """Keep the PDF as it went out. Internal: statement batches store each recipient's copy too."""
+    staff_id = service._staff_id(session)
+    return platform.files.store(
+        session, data, purpose=f"billing.{kind}", content_type=platform.files.PDF, original_name=name,
+        uploaded_by=("staff", staff_id) if staff_id else ("system", None),
+    )  # fmt: skip
+
+
+def _zone(session: Session, location_id: UUID) -> str:
+    return platform.service.location_time_zone(session, location_id)
+
+
+def _local_day(zone: str, day: date) -> datetime:
+    """The instant a local calendar day starts at a location (overview 3.7)."""
+    return datetime.combine(day, time.min, ZoneInfo(zone))
+
+
+def _pdf(title: str, session: Session, *, subtitle: str | None, footer: str | None) -> pdf.Document:
+    return pdf.Document(title, organization=platform.service.get_tenant(session).name, subtitle=subtitle, footer=footer)
 
 
 # --- invoices ----------------------------------------------------------------------------------------------
@@ -123,6 +151,49 @@ def get_invoice_document(session: Session, principal: Principal, invoice_id: UUI
     return invoice_document(session, service._get(session, Invoice, invoice_id))
 
 
+def invoice_pdf(document: dict, organization_session: Session) -> bytes:
+    """The invoice document as a PDF (BIL-10): exactly the lines and totals of `invoice_document`."""
+    currency = document["currency"]
+    bill_to = document["bill_to_name"] or "-"
+    if document["organization_name"]:
+        bill_to = f"{bill_to}, {document['organization_name']}"
+    doc = _pdf(f"Invoice {document['number']}", organization_session, subtitle=f"Bill to: {bill_to}",
+               footer=document["footer"])  # fmt: skip
+    doc.fields([
+        ("Invoice date", pdf.local_date(document["invoice_on"])), ("Due", pdf.local_date(document["due_on"])),
+        ("Status", document["status"].replace("_", " ")),
+    ])  # fmt: skip
+    doc.table(
+        [pdf.Column("Item"), pdf.Column("Qty", 14, "R"), pdf.Column("Price", 26, "R"), pdf.Column("Discount", 24, "R"),
+         pdf.Column("Tax", 22, "R"), pdf.Column("Total", 28, "R")],
+        [(line["description"] + (f" - {line['additional_description']}" if line["additional_description"] else ""),
+          line["quantity"], pdf.money(line["unit_price_minor"], currency), pdf.money(line["discount_minor"], currency),
+          pdf.money(line["tax_minor"], currency), pdf.money(line["total_minor"], currency))
+         for line in document["lines"]],
+        empty="No items.",
+    )  # fmt: skip
+    doc.fields([
+        ("Total", pdf.money(document["total_minor"], currency)), ("Paid", pdf.money(document["paid_minor"], currency)),
+        ("Balance due", pdf.money(document["balance_minor"], currency)),
+    ])  # fmt: skip
+    if document["instalments"]:
+        doc.heading("Payment schedule")
+        doc.table(
+            [pdf.Column("Due"), pdf.Column("Amount", 40, "R"), pdf.Column("Paid", 40, "R")],
+            [(pdf.local_date(row["due_on"]), pdf.money(row["amount_minor"], currency),
+              pdf.money(row["covered_minor"], currency)) for row in document["instalments"]],
+        )  # fmt: skip
+    if document["comments"]:
+        doc.heading("Comments").text(document["comments"])
+    return doc.output()
+
+
+def get_invoice_pdf(session: Session, principal: Principal, invoice_id: UUID) -> tuple[str, bytes]:
+    authorize(principal, "billing.invoice.read")
+    document = invoice_document(session, service._get(session, Invoice, invoice_id))
+    return f"invoice-{document['number']}.pdf", invoice_pdf(document, session)
+
+
 def _hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
@@ -149,10 +220,12 @@ def send_invoice(session: Session, principal: Principal, invoice_id: UUID, data:
     if invoice.status == "voided":
         raise Conflict("This invoice is voided.", code="invoice-voided")
     to_email = _recipient(session, invoice.bill_to_client_id, data.get("to_email"), data["channel"])
-    row = _deliver(session, "invoice", data["channel"], to_email, invoice_id=invoice.id)
+    document = invoice_document(session, invoice)
+    name = f"invoice-{invoice.number}.pdf"
+    row = _deliver(session, "invoice", data["channel"], to_email, invoice_pdf(document, session), name,
+                   invoice_id=invoice.id)  # fmt: skip
     if to_email:
-        document, cfg = invoice_document(session, invoice), catalogue.settings_for(session, invoice.location_id)
-        currency = document["currency"]
+        cfg, currency = catalogue.settings_for(session, invoice.location_id), document["currency"]
         pay = f"\n\nPay online:\n{create_pay_link(session, invoice)}" if invoice.balance_minor > 0 else ""
         notifications.send(
             session, "billing.invoice", to_email,
@@ -164,6 +237,7 @@ def send_invoice(session: Session, principal: Principal, invoice_id: UUID, data:
                 ),
                 "total": money(invoice.total_minor, currency), "balance": money(invoice.balance_minor, currency),
                 "due_on": invoice.due_on.isoformat(), "pay": pay, "footer": _footer(cfg.invoice_footer),
+                "document_link": portal_link(f"/portal/invoices?invoice={invoice.id}"),
             },
         )  # fmt: skip
     audit.record(
@@ -273,13 +347,51 @@ def get_receipt(session: Session, principal: Principal, payment_id: UUID) -> dic
     return receipt(session, service._get(session, Payment, payment_id))
 
 
+def receipt_pdf(session: Session, payment: Payment) -> bytes:
+    """The receipt as a PDF (PAY-03): received, what it paid, refunds and what is left on account. The
+    received date is the location's day."""
+    document, currency = receipt(session, payment), payment.currency
+    payer = clients.service.get(session, payment.client_id) if payment.client_id else None
+    tender = payment.tender_kind.replace("_", " ")
+    if payment.card_last4:
+        tender = f"{tender} ({payment.card_brand or 'card'} ending {payment.card_last4})"
+    doc = _pdf(f"Receipt {payment.receipt_number}", session,
+               subtitle=f"Received from: {clients.service.display_name(payer) if payer else '-'}",
+               footer=document["footer"])  # fmt: skip
+    doc.fields([
+        ("Received on", pdf.local_date(payment.received_at, _zone(session, payment.location_id))),
+        ("Amount", pdf.money(payment.amount_minor, currency)), ("Paid by", tender),
+        ("Status", payment.status.replace("_", " ")),
+    ])  # fmt: skip
+    doc.heading("Applied to")
+    doc.table(
+        [pdf.Column("Item"), pdf.Column("Amount", 40, "R")],
+        [(line["description"], pdf.money(line["amount_minor"], currency)) for line in document["lines"]],
+        empty="Nothing yet: the payment is on account.",
+    )  # fmt: skip
+    doc.fields([
+        ("Applied", pdf.money(document["applied_minor"], currency)),
+        ("Refunded", pdf.money(document["refunded_minor"], currency)),
+        ("On account", pdf.money(document["unapplied_minor"], currency)),
+    ])  # fmt: skip
+    return doc.output()
+
+
+def get_receipt_pdf(session: Session, principal: Principal, payment_id: UUID) -> tuple[str, bytes]:
+    authorize(principal, "billing.payment.read")
+    payment = service._get(session, Payment, payment_id)
+    return f"receipt-{payment.receipt_number}.pdf", receipt_pdf(session, payment)
+
+
 def send_receipt(session: Session, principal: Principal, payment_id: UUID, data: dict) -> BillingDocumentDelivery:
     authorize(principal, "billing.invoice.send")
     payment = service._get(session, Payment, payment_id)
     if payment.status not in ("succeeded", "voided", "disputed", "charged_back"):
         raise Conflict("A receipt exists once the payment has settled.", code="payment-not-settled")
     to_email = _recipient(session, payment.client_id, data.get("to_email"), data["channel"])
-    row = _deliver(session, "receipt", data["channel"], to_email, payment_id=payment.id)
+    name = f"receipt-{payment.receipt_number}.pdf"
+    row = _deliver(session, "receipt", data["channel"], to_email, receipt_pdf(session, payment), name,
+                   payment_id=payment.id)  # fmt: skip
     if to_email:
         document, currency = receipt(session, payment), payment.currency
         notifications.send(
@@ -287,10 +399,11 @@ def send_receipt(session: Session, principal: Principal, payment_id: UUID, data:
             {
                 "facility": platform.service.get_tenant(session).name, "receipt_number": payment.receipt_number,
                 "received": money(payment.amount_minor, currency), "tender": payment.tender_kind.replace("_", " "),
-                "received_on": payment.received_at.date().isoformat(),
+                "received_on": pdf.local_date(payment.received_at, _zone(session, payment.location_id)),
                 "applied": money(document["applied_minor"], currency),
                 "refunded": money(document["refunded_minor"], currency),
                 "unapplied": money(payment.unapplied_minor, currency), "footer": _footer(document["footer"]),
+                "document_link": portal_link("/portal/invoices"),
             },
         )  # fmt: skip
     return row
@@ -347,7 +460,8 @@ def get_account_credit(session: Session, principal: Principal, client_id: UUID) 
 
 def statement(session: Session, client_id: UUID, from_on: date, to_on: date, basis: str = "invoice_date") -> dict:
     """A payer's invoices, payments and refunds in a period (BIL-11). Voided invoices and voided payments are
-    left out. `basis` picks whether invoices are selected by invoice date or due date."""
+    left out. `basis` picks whether invoices are selected by invoice date or due date. The period's days are
+    the payer's home location's days, so a payment at 23:30 there on `to_on` is inside."""
     if to_on < from_on or (to_on - from_on).days > MAX_STATEMENT_DAYS:
         raise ValidationFailed("A statement covers at most 366 days.", pointer="/to_on")
     column = Invoice.due_on if basis == "due_date" else Invoice.invoice_on
@@ -356,9 +470,8 @@ def statement(session: Session, client_id: UUID, from_on: date, to_on: date, bas
         .where(Invoice.bill_to_client_id == client_id, Invoice.status != "voided", column.between(from_on, to_on))
         .order_by(column, Invoice.number)
     ).all()
-    # shortcut: the period's day boundaries are UTC; use the client's home location zone if statements are
-    # ever reconciled to the hour.
-    start, end = datetime.combine(from_on, time.min, UTC), datetime.combine(to_on + timedelta(days=1), time.min, UTC)
+    zone = _zone(session, clients.service.get(session, client_id).home_location_id)
+    start, end = _local_day(zone, from_on), _local_day(zone, to_on + timedelta(days=1))
     payments = session.scalars(
         select(Payment)
         .where(
@@ -376,7 +489,7 @@ def statement(session: Session, client_id: UUID, from_on: date, to_on: date, bas
     ).all()
     summary = billing_summary(session, client_id)
     return {
-        "client_id": client_id, "from_on": from_on, "to_on": to_on, "date_basis": basis,
+        "client_id": client_id, "from_on": from_on, "to_on": to_on, "date_basis": basis, "time_zone": zone,
         "currency": summary["currency"], "invoices": invoices, "payments": payments, "refunds": refunds,
         "invoiced_minor": sum(invoice.total_minor for invoice in invoices),
         "paid_minor": sum(payment.amount_minor for payment in payments),
@@ -385,19 +498,71 @@ def statement(session: Session, client_id: UUID, from_on: date, to_on: date, bas
     }  # fmt: skip
 
 
-def get_statement(session: Session, principal: Principal, client_id: UUID, from_on: date, to_on: date, basis: str):
+def get_statement(
+    session: Session, principal: Principal, client_id: UUID, from_on: date | None, to_on: date | None, basis: str
+):
+    """Default period: the 30 days up to today at the client's home location."""
     authorize(principal, "billing.invoice.read")
-    clients.service.get(session, client_id)
-    return statement(session, client_id, from_on, to_on, basis)
+    home = clients.service.get(session, client_id).home_location_id
+    to_on = to_on or (
+        platform.service.location_today(session, home) if home else platform.service.earliest_today(session)
+    )
+    return statement(session, client_id, from_on or to_on - timedelta(days=30), to_on, basis)
 
 
-def send_statement(session: Session, principal: Principal, client_id: UUID, data: dict) -> BillingDocumentDelivery:
-    """Email one client their statement. (Bulk statement batches are not built.)"""
-    authorize(principal, "billing.statement.send")
-    client = clients.service.get(session, client_id)
-    document = statement(session, client_id, data["from_on"], data["to_on"], data.get("date_basis", "invoice_date"))
-    to_email = _recipient(session, client_id, data.get("to_email"), "email")
-    row = _deliver(session, "statement", "email", to_email, client_id=client_id)
+def statement_pdf(session: Session, document: dict) -> bytes:
+    """The statement as a PDF (BIL-11); dates are the payer's home location's days."""
+    client = clients.service.get(session, document["client_id"])
+    currency, zone = document["currency"], document["time_zone"]
+    period = f"{pdf.local_date(document['from_on'])} to {pdf.local_date(document['to_on'])}"
+    cfg = catalogue.settings_for(session, client.home_location_id)
+    doc = _pdf(f"Statement for {clients.service.display_name(client)}", session, subtitle=f"Period: {period}",
+               footer=cfg.statement_footer)  # fmt: skip
+    doc.heading("Invoices")
+    doc.table(
+        [pdf.Column("Invoice", 24), pdf.Column("Date", 28), pdf.Column("Due", 28), pdf.Column("Status"),
+         pdf.Column("Total", 32, "R"), pdf.Column("Balance", 32, "R")],
+        [(row.number, pdf.local_date(row.invoice_on), pdf.local_date(row.due_on), row.status.replace("_", " "),
+          pdf.money(row.total_minor, currency), pdf.money(row.balance_minor, currency))
+         for row in document["invoices"]],
+        empty="No invoices in this period.",
+    )  # fmt: skip
+    doc.heading("Payments")
+    doc.table(
+        [pdf.Column("Receipt", 24), pdf.Column("Date", 28), pdf.Column("Paid by"), pdf.Column("Amount", 32, "R")],
+        [(row.receipt_number, pdf.local_date(row.received_at, zone), row.tender_kind.replace("_", " "),
+          pdf.money(row.amount_minor, currency)) for row in document["payments"]],
+        empty="No payments in this period.",
+    )  # fmt: skip
+    if document["refunds"]:
+        doc.heading("Refunds")
+        doc.table(
+            [pdf.Column("Date"), pdf.Column("Amount", 32, "R")],
+            [(pdf.local_date(row.refund_on), pdf.money(row.amount_minor, currency)) for row in document["refunds"]],
+        )  # fmt: skip
+    doc.fields([
+        ("Invoiced", pdf.money(document["invoiced_minor"], currency)),
+        ("Paid", pdf.money(document["paid_minor"], currency)),
+        ("Refunded", pdf.money(document["refunded_minor"], currency)),
+        ("Balance due", pdf.money(document["balance_due_minor"], currency)),
+        ("Credit on account", pdf.money(document["credit_minor"], currency)),
+    ])  # fmt: skip
+    return doc.output()
+
+
+def statement_name(document: dict) -> str:
+    return f"statement-{document['from_on'].isoformat()}-{document['to_on'].isoformat()}.pdf"
+
+
+def get_statement_pdf(
+    session: Session, principal: Principal, client_id: UUID, from_on: date | None, to_on: date | None, basis: str
+) -> tuple[str, bytes]:
+    document = get_statement(session, principal, client_id, from_on, to_on, basis)
+    return statement_name(document), statement_pdf(session, document)
+
+
+def email_statement(session: Session, client, document: dict, to_email: str) -> None:
+    """Internal: the statement email, also sent by statement batches."""
     cfg, currency = catalogue.settings_for(session, client.home_location_id), document["currency"]
     facility = platform.service.get_tenant(session).name
     notifications.send(
@@ -405,7 +570,7 @@ def send_statement(session: Session, principal: Principal, client_id: UUID, data
         {
             "subject": cfg.statement_email_subject or f"Your statement from {facility}",
             "intro": cfg.statement_email_body or f"Here is your statement from {facility}.",
-            "period": f"{data['from_on'].isoformat()} to {data['to_on'].isoformat()}",
+            "period": f"{document['from_on'].isoformat()} to {document['to_on'].isoformat()}",
             "lines": "\n".join(
                 f"Invoice {invoice.number} ({invoice.invoice_on.isoformat()}): "
                 f"{money(invoice.total_minor, currency)}, balance {money(invoice.balance_minor, currency)}"
@@ -414,8 +579,22 @@ def send_statement(session: Session, principal: Principal, client_id: UUID, data
             "invoiced": money(document["invoiced_minor"], currency), "paid": money(document["paid_minor"], currency),
             "balance": money(document["balance_due_minor"], currency),
             "credit": money(document["credit_minor"], currency), "footer": _footer(cfg.statement_footer),
+            "document_link": portal_link(
+                f"/portal/statement?from_on={document['from_on'].isoformat()}&to_on={document['to_on'].isoformat()}"
+            ),
         },
     )  # fmt: skip
+
+
+def send_statement(session: Session, principal: Principal, client_id: UUID, data: dict) -> BillingDocumentDelivery:
+    """Email one client their statement. Many at once: `statements.create_batch`."""
+    authorize(principal, "billing.statement.send")
+    client = clients.service.get(session, client_id)
+    document = statement(session, client_id, data["from_on"], data["to_on"], data.get("date_basis", "invoice_date"))
+    to_email = _recipient(session, client_id, data.get("to_email"), "email")
+    row = _deliver(session, "statement", "email", to_email, statement_pdf(session, document),
+                   statement_name(document), client_id=client_id)  # fmt: skip
+    email_statement(session, client, document, to_email)
     audit.record(session, "billing.statement.send", row, changes={"to_email": True})
     return row
 
@@ -428,13 +607,23 @@ def receivables_ageing(
 ) -> dict:
     """Who owes what, by how long it has been due, as at a date.
 
-    A charge counts if it was billed on or before `as_of` and had not been reversed or voided by then; what
+    A charge counts if it was billed on or before `as_of` (default: the earliest location's today) and had not
+    been reversed or voided by the end of that day at its location; what
     it owed then is its total minus the allocations that were applied by then and not yet released (the
     "payments up to" cut). It is aged from its invoice's due date, or from its bill date while uninvoiced.
     """
     authorize(principal, "billing.invoice.read")
-    as_of = as_of or clock.now().date()
-    cut = datetime.combine(as_of + timedelta(days=1), time.min, UTC)  # shortcut: the day ends at UTC midnight
+    if as_of is None:
+        known = location_id and platform.service.location_exists(session, location_id)
+        as_of = (
+            platform.service.location_today(session, location_id) if known else platform.service.earliest_today(session)
+        )
+    # The day ends at midnight on each charge's location's wall clock.
+    locations = session.scalars(select(Charge.location_id).distinct()).all()
+    cut = case(
+        {loc: _local_day(_zone(session, loc), as_of + timedelta(days=1)) for loc in locations},
+        value=Charge.location_id,
+    ) if locations else _local_day("UTC", as_of + timedelta(days=1))  # fmt: skip
     paid = (
         select(func.coalesce(func.sum(PaymentAllocation.amount_minor), 0))
         .where(

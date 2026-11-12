@@ -14,8 +14,9 @@ status, including everything not built: `docs/status/08-billing-payments.md`.
 | `methods.py` | the processor connection and stored payment methods |
 | `autopay.py` | collection runs, dunning, the autopay-error queue, billing notices, the daily pass |
 | `documents.py` | invoice and receipt documents and deliveries, the pay link, statements, billing summary, AR ageing, billing history, bulk invoicing |
+| `statements.py` | statement batches: one stored row per recipient with its status, run in the request or as a job, resend |
 | `webhooks.py` | provider webhook intake, the tenant actor that applies an event, the reconciliation sweep, `billing_daily` |
-| `portal.py` | the client surface (own invoices, payments, stored methods) |
+| `portal.py` | the client surface (own invoices, payments, stored methods, statement, invoice and statement PDFs) |
 | `router.py` | staff, portal, public pay-link and webhook routes |
 
 Ports and adapters: `app/ports/payment_provider.py`; `app/adapters/fake_payments.py` (scripted by token: see
@@ -93,6 +94,66 @@ Rules a caller must know:
 - Events emitted: `billing.charge.created|reversed|voided|adjusted`, `billing.invoice.issued|paid|voided|past_due`,
   `billing.payment.processing|succeeded|failed|refunded|voided|disputed|dispute_closed`, `billing.payment_method.expiring`.
 
+## PDF documents (`app/core/pdf.py`)
+
+Invoice, receipt and statement PDFs are rendered from the same JSON documents the API returns, by the shared
+engine that Phase 12 reports will reuse:
+
+    doc = pdf.Document(title, organization=..., subtitle=None, footer=None)
+    doc.heading(text); doc.text(text, size=10); doc.fields([(label, value)]); doc.table([pdf.Column(title, width_mm, "L|R|C")], rows, empty=...)
+    data: bytes = doc.output()   # plus pdf.money(minor, currency), pdf.local_date(value, zone), pdf.latin(text)
+
+Output is deterministic (uncompressed, fixed creation date), so tests assert text in the bytes. Every emailed
+invoice, receipt and statement also stores its PDF through `platform.files.store` (purpose `billing.invoice`,
+`billing.receipt`, `billing.statement`) and keeps the id on the delivery or recipient row.
+
+## Pre-defined items (BIL-14, `catalog.py`)
+
+`catalog_item` holds a fee the tenant sells again and again, at one location: one-off (open-ended or with a
+length) or recurring (every N days, weeks, months or years, a number of times per term), with a discount
+(percent or amount, never both), an invoicing option, autopay and auto-renew flags, a renewal lead and an
+optional item to renew as. `catalog_item_sale` freezes the item's terms at sale (`terms` JSONB), so editing
+an item changes later sales only. Staff routes: `/catalog-items` (list, create, get, update) behind
+`billing.item.manage`, `POST /catalog-items/{id}/sales` behind `billing.charge.create` at the item's location
+(a different fee or discount also needs `billing.charge.override_price`), `GET /catalog-item-sales`
+(`billing.charge.read`, client-following like the charge list) and `POST /catalog-item-sales/{id}/cancel`
+behind `billing.charge.reverse` at the sale's location.
+
+Internal, for other contexts (no principal, ADR 0009 section 9), in `billing.catalog`:
+
+```python
+sell(session, item_id, *, client_id, starts_on=None, overrides=None, is_auto_renew=None) -> CatalogItemSale
+renew_due(session) -> {"renewed": n, "ended": n, "failed": n}   # the hourly job's body, per tenant
+addon_terms(session, item_id, *, location_id, pointer="/addons") -> dict  # MEM-04: description, net amount,
+                                                                          # is_recurring, revenue category
+item_is_active(session, item_id) -> bool;  revenue_category_of(session, item_id) -> UUID
+```
+
+Assumptions:
+
+- **Every occurrence is posted at sale.** One charge per occurrence (`source_context="billing"`,
+  `source_type="catalog_item_sale"`, `source_line_no` = occurrence index, so a replay posts nothing twice),
+  billed today; the occurrence dates go to `revenue_on` (never before today) and the service dates. Bounded at
+  366 occurrences per term. Invoicing: one invoice for all (due on the start), one per occurrence (due on its
+  first day), or none.
+- **The discount applies per occurrence** and a percentage rounds half-up once on each line.
+- **Cancel** reverses the occurrences whose service has not started; money applied to them becomes account
+  credit through the reversal. Started occurrences stay billed. Only an `active` sale cancels: one already
+  `renewed` returns 409, and its successor is a sale of its own that is cancelled separately.
+- **Selling needs an `Idempotency-Key`** (one call can post up to 366 charges and their invoices); a replay
+  returns the first sale. A desk sale starts within a year either side of the location's today.
+- **An item's location is fixed** once another item renews as it or it has active sales (409).
+- **Renewal** runs hourly (`renew_catalog_item_sales`) and acts on sales whose `renew_on` (the day after the
+  term, less the lead) is the location's today or earlier. Renewing as another item uses that item's current
+  terms; an inactive renew-as item ends the sale instead. Without auto-renew a sale past its end becomes
+  `ended`. The successor is unique per sale, so a second run creates nothing; it is audited and announced
+  (`billing.catalog_item_sale.sold`) like a desk sale. A renewal that fails (a `DomainError`) is logged and
+  retried hourly until the term is over, then the sale ends with the failure as its reason.
+- **Membership add-ons (MEM-04)** bill through the membership schedule, not through a sale: the item is a price
+  list entry there. A plan add-on must be active when saved; plans are tenant-wide, so at each sale an item
+  that is inactive or sold at another location is skipped (as at renewal). An add-on chosen for one sale must
+  be active at the sale's location, or the sale is refused (422 `/addons`).
+
 Imports (Phase 8 I1): `post_opening_balance` posts an opening balance as ledger entries, never a balance write:
 owed is a charge (`source_context` imports, `source_type` opening_balance, default revenue category, no tax) on a
 system invoice; credit is an external payment that becomes account credit, on the billing-owned tender
@@ -109,9 +170,15 @@ and say whether they posted (`created`). `take_payment` gained `audit_changes` (
 
 ## Jobs
 
-`webhooks.process_provider_event` (enqueued by the webhook route), `webhooks.billing_daily` (per tenant:
-`autopay.daily` then `webhooks.reconcile`). `app/scheduler.py` enqueues `billing_daily` hourly per tenant
-(`EVERY_HOUR`); staff can still start a run by hand (`POST /autopay-runs`).
+`webhooks.process_provider_event` (enqueued by the webhook route), `statements.run_statement_batch` (a batch
+of more than 25 recipients), `webhooks.billing_daily` (per tenant:
+`autopay.daily` then `webhooks.reconcile`). `app/scheduler.py` runs `billing_daily` hourly for every tenant;
+staff can also start an autopay run (`POST /autopay-runs`).
+
+`webhooks.retry_provider_events` (hourly through `app/scheduler.py`, Phase 9 chip C): per tenant, provider
+events stored but never processed (or failed fewer than `RETRY_ATTEMPTS` = 5 times) and older than a few
+minutes are applied inline, each in a savepoint. Idempotent: an applied event is marked processed and the
+handlers re-read the object from the provider.
 
 ## Assumptions and deviations (the specs win where they are silent; these are the places we chose)
 
@@ -155,9 +222,29 @@ and say whether they posted (`created`). `take_payment` gained `audit_changes` (
   no memo, external reference, failure message, refund reason, void reason or collection state (M-13).
 - **Bulk invoicing runs in the request** (up to 1000 items) and is not stored; there is no
   `billing_bulk_action` table.
-- **Documents are data and plain-text email, not PDF.** `GET /invoices/{id}/document` and
-  `/payments/{id}/receipt` return JSON. A delivery row is `sent` when handed to the notification port.
-- **Day boundaries for statements and the AR "as at" cut are UTC**, not the location's zone.
+- **Documents are JSON, with a PDF beside them.** `GET /invoices/{id}/document` and `/payments/{id}/receipt`
+  return JSON; the PDF is a separate `/pdf` path (`/invoices/{id}/pdf`, `/payments/{id}/receipt/pdf`,
+  `/clients/{id}/statement/pdf`, portal `/portal/invoices/{id}/pdf`, `/portal/statement/pdf`) instead of the
+  contract's content negotiation by `Accept`, so a browser download link works. A delivery row is `sent` when
+  handed to the notification port.
+- **Emails link to the PDF instead of attaching it.** The notification port has no attachments; the email
+  carries a portal link (`/portal/invoices?invoice=`, `/portal/statement?from_on=&to_on=`) where the member
+  downloads it, and the stored file is kept for staff. Swap to `files.download_url` (Phase 8) for a direct
+  signed link once it lands.
+- **Statement periods and the AR "as at" cut use the location's day.** A statement's dates are read in the
+  client's home location's zone; ageing cuts each charge at the end of the "as at" day in its own location's
+  zone (UTC only when a location has no zone). The default "as at" is the earliest local today of the tenant.
+- **A payment's day can differ between statement and receipt.** A statement reads every date in the payer's
+  home location's zone, a receipt in the payment's location's zone; for a tenant whose locations span zones a
+  payment near midnight shows on a different day on each. Revisit if an owner asks.
+- **Erasure purges the sent PDFs.** The client's invoice, receipt and statement PDFs are blanked and marked
+  purged (`platform.files.purge`: bytes deleted after commit, name and hash blanked); an emailed delivery's
+  address becomes `erased@erased.invalid` because the row must keep one. Invoices and payments stay.
+- **A statement batch belongs to one location** (`location_id` NOT NULL, where the data model allows null), so
+  the location gate applies; its requester is null when an API key asked. Recipients are the payers of non-void
+  invoices at that location in the period. A recipient row keeps no message id: engagement returns none
+  yet, so a sent row cannot be traced to its message (add the column when it does). Resend is refused while
+  a batch is still sending.
 - **AR ageing ages a charge from its invoice's due date**, not instalment by instalment.
 - **Staff `Idempotency-Key`s are scoped to the caller** before they reach `take_payment` and `refund`.
 - Tender types, the two system revenue categories and (with `payments.provider = fake`) the provider account
@@ -175,3 +262,31 @@ and say whether they posted (`created`). `take_payment` gained `audit_changes` (
   `payment_method_types`; `create_setup`'s `kinds` is therefore advisory for Stripe.
 - Kernel assumptions still standing: zero-total invoices stay `open`; client-following keys are checked as
   "holds the key at any location"; a declined payment returns `201` with `status = failed`.
+- **3-D Secure keeps no new state** (Phase 9 chip C). A payment that comes back `requires_action` allocates
+  nothing; once the bank check is done the screen calls a confirm route (`POST /payments/{id}/confirm` then
+  `/allocations` at the desk, `POST /portal/payments/{id}/confirm`, `POST /public/invoice-links/payments/
+  confirm`), which re-reads the payment and applies it to the invoices named. If the browser never comes back
+  and a webhook settles the payment, the money waits as account credit until someone confirms or allocates it.
+  The pay-link confirm only accepts a payment that link started (its idempotency key carries the link id).
+- **Portal partial pay** applies the amount oldest item first, after any account credit, and refuses more than
+  the selected invoices owe (`amount-exceeds-balance`). A guardian or manager may pay a household member's
+  invoice (`can_act_for(..., "invoices")`): the payer is then the signed-in person's own record, so only their
+  stored methods can be used (`payment-method-not-usable`), and money still only pays related clients' items.
+  Scope, deliberately split: **invoices** (list, read, PDF, pay targets) cover the household members
+  `can_act_for(..., "invoices")` allows; **money** (payments list, receipts, confirm, account credit,
+  statement, billing summary, stored methods) covers only the records the identity holds portal access to.
+  A guardian sees and pays a ward's invoices with their own money, but never sees, spends or removes the
+  ward's payments, credit or methods. Portal confirm accepts only a payment that identity started
+  (`portal:{identity_id}:` key).
+- **Coupons at portal checkout (SSP-11)** go through the one coupon engine (`catalogue.redeem_coupon`, channel
+  `portal`, owner decision Q8) inside `secure_online_checkout`: redeemed for the sale's client against the
+  unpaid lines of the invoice due now, the discount spread over those lines with `adjust_charge`, before
+  anything is charged. A replay re-prices nothing; voiding the invoice releases the redemption
+  (`checkout.release_checkout_coupon` on `billing.invoice.voided`). A coupon with nothing invoiced now (a deferred program charge) is refused
+  (`coupon-not-applicable`); `POST /portal/coupon-quotes` only previews.
+- **3-D Secure on a portal purchase** (membership, package, program, rental) is refused cleanly: the sale is
+  atomic, so a card that asks for the bank check is cancelled and nothing is bought (409). Paying an invoice
+  supports the check; holding a sale open across it would need a pending-sale state.
+- **Stripe bank accounts** are linked through Financial Connections on a setup intent; the browser never
+  handles micro-deposit verification for a Stripe account that falls back to it (the fake's micro-deposit
+  check still works). `attach_method` skips the attach call when the method is already on the customer.

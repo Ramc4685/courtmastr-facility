@@ -445,12 +445,27 @@ def _populate_billing(client, headers, post, person, location, category_id, tax_
         "method_token": "tok_card_declined",
     }, key=key())  # fmt: skip
     assert declined["status"] == "failed"
+    from datetime import timedelta
+
+    from app.core import clock
+
+    today = clock.now().date()
+    batch = post("/statement-batches", {  # statement_batch + statement_recipient (+ its stored PDF)
+        "location_id": location["id"], "period_from_on": str(today - timedelta(days=200)),
+        "period_to_on": str(today + timedelta(days=100)),
+    })  # fmt: skip
+    assert batch["recipient_count"] >= 1, batch
+    catalog_item = post("/catalog-items", {"location_id": location["id"], "kind": "one_off", "description": "Locker",
+                                           "fee_minor": 1000, "revenue_category_id": category_id})  # fmt: skip
+    catalog_sale = post(f"/catalog-items/{catalog_item['id']}/sales", {"client_id": person["id"]}, key=key())
     return {
+        "statement_batch_id": batch["id"],
         "tax_rate_id": get(f"/taxes/{tax_id}")["rates"][0]["id"], "tender_type_id": get("/tender-types")[0]["id"],
         "coupon_id": coupon["id"], "payment_method_id": method["id"], "autopay_run_id": run["id"],
         "autopay_attempt_id": attempt["id"], "provider_account_id": get("/provider-accounts")[0]["id"],
         "payment_allocation_id": payment["allocations"][0]["id"], "unpaid_invoice_id": unpaid["id"],
-        "autopay_invoice_id": autopay_invoice["id"],
+        "autopay_invoice_id": autopay_invoice["id"], "catalog_item_id": catalog_item["id"],
+        "catalog_item_sale_id": catalog_sale["id"],
     }  # fmt: skip
 
 

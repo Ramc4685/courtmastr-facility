@@ -40,9 +40,10 @@ CLIENT_OR_TENANT_ROUTES = {
     "client": set("""
         applyAccountCredit attachPaymentMethod clearClientDocumentPaperSigned clearWaiverOverride
         createSetupIntent getAccountCredit getAutopayRun getCharge getClientBillingSummary
-        getClientDocument getClientDocumentFile getClientPackage getClientStatement
-        getDocumentLocationSettings getDocumentTemplate getInvoice getInvoiceDocument getMembershipContract
-        getMembershipPlan getPackagePlan getPackageSeries getPayment getPaymentSchedule getReceipt
+        getClientDocument getClientDocumentFile getClientPackage getClientStatement getClientStatementPdf
+        getDocumentLocationSettings getDocumentTemplate getInvoice getInvoiceDocument getInvoicePdf
+        getMembershipContract
+        getMembershipPlan getPackagePlan getPackageSeries getPayment getPaymentSchedule getReceipt getReceiptPdf
         listClientDocumentDeliveries listClientPackageLedger listClientPaymentMethods listInvoiceDeliveries
         listMembershipBillingSchedule listMembershipContractHistory listMembershipFreezes listMembershipShares
         listMembershipSuspensions listMembershipVisits listPackageShares removePaymentMethod
@@ -55,7 +56,7 @@ CLIENT_OR_TENANT_ROUTES = {
     """.split()),
     "tenant": set("""
         createImportJobCommit createImportJobDryRun getImportJob getImportJobErrorReport getImportTemplate uploadImportJobSource
-        addTaxRate releaseSuppression approveClientRelationship archiveDocumentTemplate archiveLocation assignClientMemberNumber
+        addTaxRate updateCatalogItem releaseSuppression approveClientRelationship archiveDocumentTemplate archiveLocation assignClientMemberNumber
         assignClientOwners assignStaffLocations assignStaffRole confirmDataSubjectRequest createClientAlert
         createClientNote createClientRelationship createOnboardingLink createRentalRate
         deactivateDocumentBinding deactivateStaffUser deleteClientCategory deleteClientNote deleteCoupon

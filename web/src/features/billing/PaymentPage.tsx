@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { api, fieldErrors, type Schemas } from '../../api/client'
+import { api, downloadFile, fieldErrors, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { ConfirmDialog } from '../../components/Dialog'
@@ -14,7 +14,7 @@ import { formatDateTime } from '../../lib/format'
 import { ReasonDialog } from './ChargeDialogs'
 import { HistoryList } from './InvoicePage'
 import { PAYMENT_STATUS, TENDER_LABEL, formatMoney, parseMoney, toMoneyInput } from './money'
-import { ClientName, Facts, FormDialog, ListTable, Money, MoneyInput, StatusBadge, TextArea, useCurrency, useLocationRef } from './shared'
+import { ClientName, Facts, FormDialog, ListTable, Money, MoneyInput, PdfButton, StatusBadge, TextArea, useCurrency, useLocationRef } from './shared'
 
 type Payment = Schemas['PaymentDetail']
 const PROCESSED = new Set(['card', 'bank_debit'])
@@ -166,6 +166,7 @@ export function PaymentPage() {
             <Link to={`/billing/payments/${p.id}/receipt`} className="inline-flex h-10 items-center rounded border border-border bg-surface px-4 text-sm font-medium hover:bg-surface-2">
               Receipt
             </Link>
+            <PdfButton label="Receipt PDF" download={() => downloadFile('/api/v1/payments/{payment_id}/receipt/pdf', { path: { payment_id: p.id } }, `receipt-${p.receipt_number}.pdf`)} />
             {can('billing.invoice.send') && (
               <Button variant="secondary" onClick={() => setDialog('receipt')}>
                 Email receipt

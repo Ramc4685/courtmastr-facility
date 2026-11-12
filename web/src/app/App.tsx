@@ -58,9 +58,11 @@ import { AgeingPage, AutopayPage } from '../features/billing/AutopayPage'
 import { BillingLayout } from '../features/billing/BillingLayout'
 import { ClientBillingLookupPage, ClientBillingPage } from '../features/billing/ClientBillingPage'
 import { CouponsPage } from '../features/billing/CouponsPage'
+import { CatalogPage } from '../features/billing/CatalogPage'
 import { InvoiceDocumentPage, InvoicePage } from '../features/billing/InvoicePage'
 import { PaymentPage, ReceiptPage } from '../features/billing/PaymentPage'
 import { BillingSettingsPage } from '../features/billing/SettingsPage'
+import { StatementsPage } from '../features/billing/StatementsPage'
 import { SetupPage as BillingSetupPage } from '../features/billing/SetupPage'
 import { WorkbenchPage } from '../features/billing/WorkbenchPage'
 import { RUN_KEYS } from '../features/reporting/queries'
@@ -145,7 +147,9 @@ export function AppRoutes() {
           <Route path="payments/:id" element={<RequirePermission permission="billing.payment.read"><PaymentPage /></RequirePermission>} />
           <Route path="autopay" element={<RequirePermission permission="billing.payment.read"><AutopayPage /></RequirePermission>} />
           <Route path="receivables" element={<RequirePermission permission="billing.invoice.read"><AgeingPage /></RequirePermission>} />
+          <Route path="statements" element={<RequirePermission permission="billing.statement.send"><StatementsPage /></RequirePermission>} />
           <Route path="coupons" element={<CouponsPage />} />
+          <Route path="catalog" element={<CatalogPage />} />
           <Route path="setup" element={<BillingSetupPage />} />
           <Route path="settings" element={<RequirePermission permission="billing.settings.manage"><BillingSettingsPage /></RequirePermission>} />
         </Route>

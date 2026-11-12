@@ -1,24 +1,37 @@
 """billing HTTP surface (docs/api/openapi-money.yaml, tag billing): staff routes, the client portal, the
 public pay link and the provider webhook. Handlers are named after the spec's operationIds."""
 
-from datetime import date, timedelta
-from typing import Annotated
+from datetime import date
+from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Query, Request
+from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core import clock
 from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, current_ctx, public_session, require
+from app.core.errors import NotFound
 from app.core.idempotency import KEY_PATTERN, idempotency
 from app.core.pagination import ListQuery, list_query, paginate
 from app.core.ratelimit import rate_limit
-from app.modules.billing import autopay, catalogue, desk, documents, methods, portal, service, webhooks
+from app.modules.billing import (
+    autopay,
+    catalog,
+    catalogue,
+    checkout,
+    desk,
+    documents,
+    methods,
+    portal,
+    service,
+    statements,
+    webhooks,
+)
 from app.modules.billing import schemas as s
 from app.modules.billing.models import BillingNotice
+from app.ports import payment_provider
 
 router = APIRouter(
     route_class=TxRoute, tags=["billing"], generate_unique_id_function=camel_id, dependencies=[Depends(idempotency)]
@@ -136,6 +149,20 @@ def list_ledger_entries(query: Lists, ctx: Ctx = Depends(require("billing.ledger
 # === build module 8 ========================================================================================
 
 Client = Annotated[Ctx, Depends(current_ctx)]  # any signed-in principal; portal services check ownership
+PDF: dict[int | str, dict[str, Any]] = {
+    200: {"content": {"application/pdf": {}}, "description": "The PDF, as an attachment."}
+}
+
+
+def _pdf(named: tuple[str, bytes]) -> Response:
+    name, data = named
+    return Response(
+        data, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{name}"', "X-Content-Type-Options": "nosniff",
+                 "Cache-Control": "private, no-store"},
+    )  # fmt: skip
+
+
 Staff = Depends(require())  # configuration reads: any signed-in staff user
 
 
@@ -290,6 +317,59 @@ def list_coupon_redemptions(coupon_id: UUID, ctx: Ctx = Depends(require("billing
     return catalogue.list_coupon_redemptions(ctx.session, ctx.principal, coupon_id)
 
 
+# --- pre-defined items (BIL-14) ----------------------------------------------------------------------------
+
+
+@router.get("/catalog-items", response_model=s.Page[s.CatalogItemOut])
+def list_catalog_items(query: Lists, ctx: Ctx = Staff):
+    """Filters: location_id, kind, is_active; q searches the description. Sort: description, created_at."""
+    return catalog.list_items(ctx.session, ctx.principal, query)
+
+
+@router.post("/catalog-items", response_model=s.CatalogItemOut, status_code=201)
+def create_catalog_item(body: s.CatalogItemCreate, ctx: Ctx = Depends(require("billing.item.manage"))):
+    return catalog.create_item(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.get("/catalog-items/{catalog_item_id}", response_model=s.CatalogItemOut)
+def get_catalog_item(catalog_item_id: UUID, ctx: Ctx = Staff):
+    return catalog.get_item(ctx.session, ctx.principal, catalog_item_id)
+
+
+@router.patch("/catalog-items/{catalog_item_id}", response_model=s.CatalogItemOut)
+def update_catalog_item(
+    catalog_item_id: UUID, body: s.CatalogItemUpdate, ctx: Ctx = Depends(require("billing.item.manage"))
+):
+    """Edits apply to later sales; set is_active false to stop selling it."""
+    return catalog.update_item(ctx.session, ctx.principal, catalog_item_id, _patch(body))
+
+
+@router.post("/catalog-items/{catalog_item_id}/sales", response_model=s.CatalogItemSaleOut, status_code=201)
+def sell_catalog_item(
+    catalog_item_id: UUID,
+    body: s.CatalogItemSaleCreate,
+    idempotency_key: RequiredKey,
+    ctx: Ctx = Depends(require("billing.charge.create")),
+):
+    """Sell an item to a client: one billing item per occurrence, invoiced as the item says. A fee or
+    discount other than the item's needs billing.charge.override_price."""
+    return catalog.sell_item(ctx.session, ctx.principal, catalog_item_id, _patch(body) | {"client_id": body.client_id})
+
+
+@router.get("/catalog-item-sales", response_model=s.Page[s.CatalogItemSaleOut])
+def list_catalog_item_sales(query: Lists, ctx: Ctx = Depends(require("billing.charge.read"))):
+    """Filters: client_id, catalog_item_id, status, location_id. Sort: starts_on, created_at."""
+    return catalog.list_sales(ctx.session, ctx.principal, query)
+
+
+@router.post("/catalog-item-sales/{catalog_item_sale_id}/cancel", response_model=s.CatalogItemSaleOut)
+def cancel_catalog_item_sale(
+    catalog_item_sale_id: UUID, body: s.ReasonRequest, ctx: Ctx = Depends(require("billing.charge.reverse"))
+):
+    """Occurrences not started yet are reversed; money applied to them becomes account credit."""
+    return catalog.cancel_sale(ctx.session, ctx.principal, catalog_item_sale_id, body.model_dump())
+
+
 # --- items -------------------------------------------------------------------------------------------------
 
 
@@ -418,8 +498,13 @@ def list_invoice_deliveries(invoice_id: UUID, ctx: Ctx = Depends(require("billin
 
 @router.get("/invoices/{invoice_id}/document", response_model=s.InvoiceDocument)
 def get_invoice_document(invoice_id: UUID, ctx: Ctx = Depends(require("billing.invoice.read"))):
-    """The printable content of the invoice as data (PDF rendering is not built)."""
+    """The printable content of the invoice as data; `/pdf` renders the same content."""
     return documents.get_invoice_document(ctx.session, ctx.principal, invoice_id)
+
+
+@router.get("/invoices/{invoice_id}/pdf", response_class=Response, responses=PDF)
+def get_invoice_pdf(invoice_id: UUID, ctx: Ctx = Depends(require("billing.invoice.read"))):
+    return _pdf(documents.get_invoice_pdf(ctx.session, ctx.principal, invoice_id))
 
 
 @router.post("/billing-bulk-actions", response_model=s.BulkInvoiceResult)
@@ -494,6 +579,11 @@ def get_receipt(payment_id: UUID, ctx: Ctx = Depends(require("billing.payment.re
     return documents.get_receipt(ctx.session, ctx.principal, payment_id)
 
 
+@router.get("/payments/{payment_id}/receipt/pdf", response_class=Response, responses=PDF)
+def get_receipt_pdf(payment_id: UUID, ctx: Ctx = Depends(require("billing.payment.read"))):
+    return _pdf(documents.get_receipt_pdf(ctx.session, ctx.principal, payment_id))
+
+
 @router.post("/payments/{payment_id}/receipt-deliveries", response_model=s.DeliveryOut, status_code=201)
 def send_receipt(payment_id: UUID, body: s.DocumentSendRequest, ctx: Ctx = Depends(require("billing.invoice.send"))):
     return documents.send_receipt(ctx.session, ctx.principal, payment_id, body.model_dump())
@@ -536,11 +626,21 @@ def get_client_statement(
     date_basis: Annotated[str, Query(pattern="^(invoice_date|due_date)$")] = "invoice_date",
     ctx: Ctx = Depends(require("billing.invoice.read")),
 ):
-    """Default period: the 30 days up to today."""
-    to_on = to_on or clock.now().date()
-    return documents.get_statement(
-        ctx.session, ctx.principal, client_id, from_on or to_on - timedelta(days=30), to_on, date_basis
-    )
+    """Default period: the 30 days up to today at the client's home location, whose days the dates are."""
+    return documents.get_statement(ctx.session, ctx.principal, client_id, from_on, to_on, date_basis)
+
+
+@router.get("/clients/{client_id}/statement/pdf", response_class=Response, responses=PDF)
+def get_client_statement_pdf(
+    client_id: UUID,
+    from_on: date | None = None,
+    to_on: date | None = None,
+    date_basis: Annotated[str, Query(pattern="^(invoice_date|due_date)$")] = "invoice_date",
+    ctx: Ctx = Depends(require("billing.invoice.read")),
+):
+    return _pdf(documents.get_statement_pdf(
+        ctx.session, ctx.principal, client_id, from_on, to_on, date_basis
+    ))  # fmt: skip
 
 
 @router.post("/clients/{client_id}/statement/deliveries", response_model=s.DeliveryOut, status_code=201)
@@ -548,6 +648,38 @@ def send_client_statement(
     client_id: UUID, body: s.StatementSend, ctx: Ctx = Depends(require("billing.statement.send"))
 ):
     return documents.send_statement(ctx.session, ctx.principal, client_id, body.model_dump())
+
+
+@router.post("/statement-batches", response_model=s.StatementBatchOut, status_code=201)
+def create_statement_batch(body: s.StatementBatchCreate, ctx: Ctx = Depends(require("billing.statement.send"))):
+    """Statements for every payer with an invoice at the location in the period (`is_open_only`: still owing;
+    `client_ids` narrows). Up to 25 recipients run in the request, more as a job: follow `status`."""
+    return statements.create_batch(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.get("/statement-batches", response_model=s.Page[s.StatementBatchOut])
+def list_statement_batches(query: Lists, ctx: Ctx = Depends(require("billing.statement.send"))):
+    """Newest first, recipients left out (read one batch for them). Filters: location_id, status."""
+    return statements.list_batches(ctx.session, ctx.principal, query)
+
+
+@router.get("/statement-batches/{statement_batch_id}", response_model=s.StatementBatchOut)
+def get_statement_batch(statement_batch_id: UUID, ctx: Ctx = Depends(require("billing.statement.send"))):
+    return statements.get_batch(ctx.session, ctx.principal, statement_batch_id)
+
+
+@router.get("/statement-batches/{statement_batch_id}/recipients", response_model=list[s.StatementRecipientOut])
+def list_statement_recipients(statement_batch_id: UUID, ctx: Ctx = Depends(require("billing.statement.send"))):
+    """Per-recipient outcome: sent, skipped_no_email, failed (with the reason) or still queued."""
+    return statements.get_batch(ctx.session, ctx.principal, statement_batch_id)["recipients"]
+
+
+@router.post("/statement-batches/{statement_batch_id}/resend", response_model=s.StatementBatchOut)
+def resend_statement_batch(
+    statement_batch_id: UUID, body: s.StatementBatchResend, ctx: Ctx = Depends(require("billing.statement.send"))
+):
+    """Send again to the listed recipients, or to every failed and skipped one when none are listed."""
+    return statements.resend(ctx.session, ctx.principal, statement_batch_id, body.model_dump())
 
 
 # --- stored methods, autopay, processor --------------------------------------------------------------------
@@ -678,6 +810,26 @@ def get_portal_invoice(invoice_id: UUID, ctx: Client):
     return portal.get_invoice(ctx.session, ctx.principal, invoice_id)
 
 
+@router.get("/portal/invoices/{invoice_id}/pdf", response_class=Response, responses=PDF)
+def get_portal_invoice_pdf(invoice_id: UUID, ctx: Client):
+    return _pdf(portal.get_invoice_pdf(ctx.session, ctx.principal, invoice_id))
+
+
+@router.get("/portal/statement", response_model=s.PortalStatementOut)
+def get_portal_statement(
+    ctx: Client, client_id: UUID | None = None, from_on: date | None = None, to_on: date | None = None
+):
+    """The caller's own statement; default period the 30 days up to today at their home location."""
+    return portal.statement(ctx.session, ctx.principal, client_id, from_on, to_on)
+
+
+@router.get("/portal/statement/pdf", response_class=Response, responses=PDF)
+def get_portal_statement_pdf(
+    ctx: Client, client_id: UUID | None = None, from_on: date | None = None, to_on: date | None = None
+):
+    return _pdf(portal.statement_pdf(ctx.session, ctx.principal, client_id, from_on, to_on))
+
+
 @router.get("/portal/payments", response_model=s.Page[s.PortalPaymentOut])
 def list_portal_payments(query: Lists, ctx: Client):
     return portal.list_payments(ctx.session, ctx.principal, query)
@@ -685,9 +837,33 @@ def list_portal_payments(query: Lists, ctx: Client):
 
 @router.post("/portal/payments", response_model=s.PortalPayment, status_code=201)
 def pay_portal_invoices(body: s.PortalPaymentCreate, idempotency_key: RequiredKey, ctx: Client):
-    """Pay the full balance of the caller's own invoices. The payer is the caller's client and a stored
-    method must be theirs. Read `payment.status`. Errors: invoice-not-payable, payment-method-not-usable."""
+    """Pay the caller's invoices (or a household member's they may handle): the whole balance or
+    `amount_minor` of it. A stored method must be the payer's. Read `payment.status`; `requires_action` comes
+    with a `client_secret` for 3-D Secure, then confirm. Errors: invoice-not-payable, amount-exceeds-balance,
+    payment-method-not-usable."""
     return portal.pay(ctx.session, ctx.principal, body.model_dump(), idempotency_key)
+
+
+@router.post("/portal/payments/{payment_id}/confirm", response_model=s.PortalPayment)
+def confirm_portal_payment(payment_id: UUID, body: s.PortalPaymentConfirm, idempotency_key: RequiredKey, ctx: Client):
+    """Back from 3-D Secure: re-read the payment and apply it to the invoices it was for. Safe to repeat."""
+    return portal.confirm(ctx.session, ctx.principal, payment_id, body.model_dump())
+
+
+@router.get("/portal/payments/{payment_id}/receipt", response_model=s.PortalReceiptOut)
+def get_portal_receipt(payment_id: UUID, ctx: Client):
+    return portal.receipt(ctx.session, ctx.principal, payment_id)
+
+
+@router.get("/portal/payments/{payment_id}/receipt/pdf", response_class=Response, responses=PDF)
+def get_portal_receipt_pdf(payment_id: UUID, ctx: Client):
+    return _pdf(portal.receipt_pdf(ctx.session, ctx.principal, payment_id))
+
+
+@router.post("/portal/coupon-quotes", response_model=s.PortalCouponQuote, dependencies=[Depends(rate_limit("consume"))])
+def quote_portal_coupon(body: s.PortalCouponQuoteRequest, ctx: Client):
+    """Validation only: the portal checkout that sells something redeems the code. Errors: coupon-not-found."""
+    return portal.quote_coupon(ctx.session, ctx.principal, body.model_dump())
 
 
 @router.get("/portal/billing-summary", response_model=s.BillingSummary)
@@ -745,9 +921,31 @@ def pay_invoice_by_link(body: s.InvoiceLinkPayment, session: PublicSession, idem
         session, body.token, method_token=body.method_token, idempotency_key=idempotency_key
     )
     return {
-        "status": payment.status, "amount_minor": payment.amount_minor, "currency": payment.currency,
+        "id": payment.id, "status": payment.status, "amount_minor": payment.amount_minor, "currency": payment.currency,
         "receipt_number": payment.receipt_number, "client_secret": getattr(payment, "client_secret", None),
     }  # fmt: skip
+
+
+@public.post("/public/invoice-links/payments/confirm", response_model=s.LinkPayment, dependencies=_link_limit)
+def confirm_invoice_link_payment(body: s.InvoiceLinkConfirm, session: PublicSession, idempotency_key: RequiredKey):
+    """Back from 3-D Secure: re-read the payment this link started; once it went through it pays the invoice
+    and uses the link up. Errors: link-invalid."""
+    payment = checkout.confirm_link_payment(session, body.token, body.payment_id)
+    return {
+        "id": payment.id, "status": payment.status, "amount_minor": payment.amount_minor, "currency": payment.currency,
+        "receipt_number": payment.receipt_number, "client_secret": None,
+    }  # fmt: skip
+
+
+@public.post("/public/fake-processor/authentications", status_code=204)
+def authenticate_fake_payment(body: s.FakeAuthentication) -> None:
+    """Development and test only: the fake processor's stand-in for the bank's 3-D Secure challenge, which
+    Stripe runs inside Stripe.js. 404 whenever the fake processor is not registered (it never is in
+    production, where settings refuse it). Errors: not-found."""
+    if not payment_provider.registered("fake") or not payment_provider.get("fake").authenticate_secret(  # type: ignore[attr-defined]  # the fake adapter's own method
+        body.client_secret, approve=body.approve
+    ):
+        raise NotFound()
 
 
 @public.post("/webhooks/{provider}", response_model=s.WebhookAck)

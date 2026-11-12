@@ -24,6 +24,8 @@ EVERY_HOUR = (
     "purge_expired_results", "purge_expired_exports",
     "send_client_task_reminders",
     "send_low_stock_digest",
+    "renew_catalog_item_sales",  # billing pre-defined items (BIL-14)
+    "retry_provider_events",  # billing: webhooks stored but never processed (PAY-11)
 )  # fmt: skip
 # Retention keeps running for a suspended tenant (purges, export expiry, file byte deletion): suspension stops
 # the business, not the data-protection clock. Billing and messaging stay with active tenants only.

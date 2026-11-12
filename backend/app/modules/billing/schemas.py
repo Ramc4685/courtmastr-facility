@@ -720,6 +720,7 @@ class StatementOut(Out):
     from_on: date
     to_on: date
     date_basis: Literal["invoice_date", "due_date"]
+    time_zone: str  # the payer's home location: the period's days are its days
     currency: str
     invoices: list[InvoiceOut]
     payments: list[PaymentOut]
@@ -899,6 +900,7 @@ class LinkInvoice(BrowserKeys):
 
 
 class LinkPayment(Out):
+    id: UUID  # what the confirm call names after 3-D Secure
     status: str
     amount_minor: int
     currency: str
@@ -908,10 +910,65 @@ class LinkPayment(Out):
 
 class PortalPaymentCreate(In):
     invoice_ids: Annotated[list[UUID], Field(min_length=1, max_length=50)]
+    amount_minor: Annotated[int, Field(gt=0)] | None = None  # part of the balance; omitted pays it all
     payment_method_id: UUID | None = None
     method_token: MethodToken | None = None
     use_account_credit: bool = False
     set_autopay: bool = False
+
+
+class PortalPaymentConfirm(In):
+    """The invoices the payment was for, so what it has left lands on them once authentication succeeds."""
+
+    invoice_ids: Annotated[list[UUID], Field(min_length=1, max_length=50)]
+
+
+class PortalReceiptLine(Out):
+    description: str
+    invoice_id: UUID | None
+    amount_minor: int
+
+
+class PortalReceiptOut(Out):
+    """The client's own receipt (PAY-18). Its own schema, so a field added for staff never reaches a client."""
+
+    payment_id: UUID
+    receipt_number: int
+    status: str
+    client_id: UUID | None
+    tender_kind: str
+    currency: str
+    received_at: datetime
+    received_minor: int
+    applied_minor: int
+    refunded_minor: int
+    unapplied_minor: int
+    card_brand: str | None
+    card_last4: str | None
+    footer: str | None
+    lines: list[PortalReceiptLine]
+
+
+class PortalCouponQuoteRequest(In):
+    code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
+    subtotal_minor: Annotated[int, Field(ge=0)]
+    client_id: UUID | None = None
+
+
+class PortalCouponQuote(Out):
+    is_valid: bool
+    invalid_reason: str | None
+    discount_minor: int
+
+
+class FakeAuthentication(In):
+    client_secret: Annotated[str, StringConstraints(max_length=200)]
+    approve: bool = True
+
+
+class InvoiceLinkConfirm(In):
+    token: LinkToken
+    payment_id: UUID
 
 
 # --- portal: what a client sees of their own money. No staff memos, collection state or void reasons. -------
@@ -983,3 +1040,209 @@ class PortalPayment(Out):
     credit_applied_minor: int
     payment: PortalPaymentDetail | None
     client_secret: str | None
+
+
+# --- statement batches (BIL-11) ----------------------------------------------------------------------------
+
+
+class StatementBatchCreate(In):
+    location_id: UUID
+    period_from_on: date
+    period_to_on: date
+    date_basis: Literal["invoice_date", "due_date"] = "invoice_date"
+    is_open_only: bool = False
+    client_ids: list[UUID] = Field(default_factory=list, max_length=1000)
+
+
+class StatementBatchResend(In):
+    statement_recipient_ids: list[UUID] = Field(default_factory=list, max_length=1000)
+
+
+class StatementRecipientOut(Out):
+    id: UUID
+    client_id: UUID
+    client_name: str
+    to_email: str | None
+    status: Literal["queued", "sent", "failed", "skipped_no_email"]
+    failure_message: str | None
+    sent_at: datetime | None
+
+
+class StatementBatchOut(Out):
+    id: UUID
+    location_id: UUID
+    period_from_on: date
+    period_to_on: date
+    date_basis: Literal["invoice_date", "due_date"]
+    is_open_only: bool
+    status: Literal["queued", "running", "completed", "failed"]
+    created_at: datetime
+    finished_at: datetime | None
+    recipient_count: int
+    queued_count: int
+    sent_count: int
+    failed_count: int
+    skipped_count: int
+    recipients: list[StatementRecipientOut]
+
+
+# --- portal statement (BIL-11): what the payer receives, no staff fields -----------------------------------
+
+
+class PortalStatementInvoice(Out):
+    id: UUID
+    number: int
+    invoice_on: date
+    due_on: date
+    status: Literal["open", "payment_pending", "partially_paid", "paid", "voided"]
+    total_minor: int
+    balance_minor: int
+
+
+class PortalStatementPayment(Out):
+    id: UUID
+    receipt_number: int
+    tender_kind: TenderKind
+    amount_minor: int
+    received_at: datetime
+
+
+class PortalStatementRefund(Out):
+    id: UUID
+    amount_minor: int
+    refund_on: date
+
+
+class PortalStatementOut(Out):
+    client_id: UUID
+    from_on: date
+    to_on: date
+    date_basis: Literal["invoice_date", "due_date"]
+    time_zone: str
+    currency: str
+    invoices: list[PortalStatementInvoice]
+    payments: list[PortalStatementPayment]
+    refunds: list[PortalStatementRefund]
+    invoiced_minor: int
+    paid_minor: int
+    refunded_minor: int
+    balance_due_minor: int
+    credit_minor: int
+
+
+# --- pre-defined items (BIL-14) ----------------------------------------------------------------------------
+
+Unit = Literal["day", "week", "month", "year"]
+InvoiceOption = Literal["single_invoice", "invoice_per_occurrence", "leave_uninvoiced"]
+Pct = Annotated[Decimal, Field(ge=0, le=100, decimal_places=2)]
+Occurrences = Annotated[int, Field(ge=1, le=366)]
+Every = Annotated[int, Field(ge=1, le=366)]
+
+
+class CatalogItemCreate(In):
+    location_id: UUID
+    kind: Literal["one_off", "recurring"]
+    description: Text
+    additional_description: Text | None = None
+    internal_remarks: Text | None = None
+    start_mode: Literal["sale_date", "fixed_date"] = "sale_date"
+    starts_on: date | None = None
+    length_count: Every | None = None
+    length_unit: Unit | None = None
+    recurrence_unit: Unit | None = None
+    recurrence_every: Every | None = None
+    recurrence_count: Occurrences | None = None
+    fee_minor: Minor
+    discount_pct: Pct | None = None
+    discount_minor: Minor | None = None
+    invoice_option: InvoiceOption = "single_invoice"
+    is_autopay: bool = False
+    is_auto_renew: bool = False
+    renew_lead_days: Annotated[int, Field(ge=0, le=366)] = 0
+    renews_as_catalog_item_id: UUID | None = None
+    revenue_category_id: UUID
+    is_active: bool = True
+
+
+class CatalogItemUpdate(In):
+    location_id: UUID | None = None
+    kind: Literal["one_off", "recurring"] | None = None
+    description: Text | None = None
+    additional_description: Text | None = None
+    internal_remarks: Text | None = None
+    start_mode: Literal["sale_date", "fixed_date"] | None = None
+    starts_on: date | None = None
+    length_count: Every | None = None
+    length_unit: Unit | None = None
+    recurrence_unit: Unit | None = None
+    recurrence_every: Every | None = None
+    recurrence_count: Occurrences | None = None
+    fee_minor: Minor | None = None
+    discount_pct: Pct | None = None
+    discount_minor: Minor | None = None
+    invoice_option: InvoiceOption | None = None
+    is_autopay: bool | None = None
+    is_auto_renew: bool | None = None
+    renew_lead_days: Annotated[int, Field(ge=0, le=366)] | None = None
+    renews_as_catalog_item_id: UUID | None = None
+    revenue_category_id: UUID | None = None
+    is_active: bool | None = None
+
+
+class CatalogItemOut(Out):
+    id: UUID
+    location_id: UUID
+    kind: Literal["one_off", "recurring"]
+    description: str
+    additional_description: str | None
+    internal_remarks: str | None
+    start_mode: Literal["sale_date", "fixed_date"]
+    starts_on: date | None
+    length_count: int | None
+    length_unit: Unit | None
+    recurrence_unit: Unit | None
+    recurrence_every: int | None
+    recurrence_count: int | None
+    fee_minor: int
+    discount_pct: Decimal | None
+    discount_minor: int | None
+    invoice_option: InvoiceOption
+    is_autopay: bool
+    is_auto_renew: bool
+    renew_lead_days: int
+    renews_as_catalog_item_id: UUID | None
+    revenue_category_id: UUID
+    is_active: bool
+
+
+class CatalogItemSaleCreate(In):
+    """Per-sale overrides of the item's terms; a fee or discount other than the item's needs
+    billing.charge.override_price."""
+
+    client_id: UUID
+    starts_on: date | None = None
+    fee_minor: Minor | None = None
+    discount_pct: Pct | None = None
+    discount_minor: Minor | None = None
+    excluded_tax_ids: Annotated[list[UUID], Field(max_length=20)] = []
+    is_auto_renew: bool | None = None
+    is_autopay: bool | None = None
+    invoice_option: InvoiceOption | None = None
+
+
+class CatalogItemSaleOut(Out):
+    id: UUID
+    catalog_item_id: UUID
+    client_id: UUID
+    location_id: UUID
+    sold_on: date
+    starts_on: date
+    ends_on: date | None
+    is_auto_renew: bool
+    renew_on: date | None
+    renews_as_catalog_item_id: UUID | None
+    previous_sale_id: UUID | None
+    status: Literal["active", "renewed", "ended", "cancelled"]
+    terms: dict
+    charge_ids: list[UUID]
+    invoice_ids: list[UUID]

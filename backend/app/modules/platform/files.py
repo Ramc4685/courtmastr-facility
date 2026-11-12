@@ -11,10 +11,11 @@ import hmac
 import io
 import logging
 import re
+from collections.abc import Iterable
 from uuid import UUID
 
 from PIL import Image, UnidentifiedImageError
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.orm import Session
 
 from app.core import clock, crypto
@@ -123,6 +124,16 @@ def _ready(session: Session, file_id: UUID) -> StoredFile:
 def read(session: Session, file_id: UUID) -> tuple[StoredFile, bytes]:
     row = _ready(session, file_id)
     return row, storage.get(session.info["tenant_id"], row.object_key)
+
+
+def purge(session: Session, file_ids: Iterable[UUID] | Select) -> int:
+    """Remove the rows (bytes deleted after commit) and blank their metadata (erasure). Returns the count."""
+    count = 0
+    for row in session.scalars(select(StoredFile).where(StoredFile.id.in_(file_ids), StoredFile.status != "purged")):
+        remove(session, row.id)
+        row.original_name, row.sha256, row.size_bytes = None, None, 0
+        count += 1
+    return count
 
 
 def load(session: Session, file_id: UUID, *, purpose: str) -> StoredFile:

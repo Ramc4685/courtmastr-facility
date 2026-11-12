@@ -1219,6 +1219,7 @@ def portal_buy(session: Session, principal: Principal, data: dict, idempotency_k
     subject = _portal_client(session, principal, data.pop("client_id", None), "buy")
     token = data.pop("method_token", None)
     tender = data.pop("tender_kind", "card")
+    coupon = data.pop("coupon_code", None)
     plan = session.get(PackagePlan, data["package_plan_id"])
     if plan is not None and plan.default_invoice_mode == "deferred":
         data["invoice_mode"] = "per_period" if plan.kind == "recurring" else "single"
@@ -1227,7 +1228,7 @@ def portal_buy(session: Session, principal: Principal, data: dict, idempotency_k
     sold["payment"] = billing.checkout.secure_online_checkout(
         session, client_id=subject, location_id=package.location_id, total_minor=package.price_minor,
         invoice=invoice, idempotency_key=idempotency_key, method_token=token, tender_kind=tender,
-        must_pay_now=True, on_account_ok=plan.online_sale_mode == "balance_allowed",
+        must_pay_now=True, on_account_ok=plan.online_sale_mode == "balance_allowed", coupon_code=coupon,
     )  # fmt: skip
     return _sale_view(session, sold)
 

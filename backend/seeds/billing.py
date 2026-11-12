@@ -1,5 +1,6 @@
 """Demo billing set-up: tenders, a sales tax, revenue categories, one paid invoice with change on account,
-and for build module 8 a coupon, a stored card and an open three-instalment autopay invoice."""
+and for build module 8 a coupon, a stored card, an open three-instalment autopay invoice and three
+pre-defined items (BIL-14), one of them sold to Morgan."""
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -10,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.modules import billing
 from app.modules.billing.domain import schedule
-from app.modules.billing.models import Charge, Coupon, Payment, PaymentMethod
+from app.modules.billing.models import CatalogItem, CatalogItemSale, Charge, Coupon, Payment, PaymentMethod
 from app.modules.clients.models import Client
 
 # (code, label, taxed?)
@@ -63,3 +64,21 @@ def seed(session: Session) -> None:
         invoice = service.create_invoice_for_charges(session, [term.id], is_autopay=True)
         plan = schedule.generate(invoice.total_minor, invoice.invoice_on, 1, "month", 3)
         service.set_schedule(session, invoice.id, plan, basis={"seed": "three monthly instalments"})
+
+    if session.scalar(select(CatalogItem.id).where(CatalogItem.description == "Locker, monthly")) is None:
+        at, retail, rentals = morgan.home_location_id, categories["RETAIL"].id, categories["RENTALS"].id
+        locker = CatalogItem(
+            location_id=at, kind="recurring", description="Locker, monthly", fee_minor=1500, recurrence_unit="month",
+            recurrence_every=1, recurrence_count=3, is_auto_renew=True, revenue_category_id=rentals,
+        )  # fmt: skip
+        session.add_all([
+            locker,
+            CatalogItem(location_id=at, kind="one_off", description="Key card", fee_minor=1000,
+                        revenue_category_id=retail),
+            CatalogItem(location_id=at, kind="one_off", description="Towel service, one year", fee_minor=6000,
+                        length_count=1, length_unit="year", discount_pct=Decimal("10"), revenue_category_id=retail),
+        ])  # fmt: skip
+        session.flush()
+    if session.scalar(select(CatalogItemSale.id).where(CatalogItemSale.client_id == morgan.id)) is None:
+        locker_id = session.scalar(select(CatalogItem.id).where(CatalogItem.description == "Locker, monthly"))
+        billing.catalog.sell(session, locker_id, client_id=morgan.id)

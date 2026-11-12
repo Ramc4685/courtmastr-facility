@@ -1680,6 +1680,109 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/catalog-item-sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Catalog Item Sales
+         * @description Filters: client_id, catalog_item_id, status, location_id. Sort: starts_on, created_at.
+         */
+        get: operations["listCatalogItemSales"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/catalog-item-sales/{catalog_item_sale_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Catalog Item Sale
+         * @description Occurrences not started yet are reversed; money applied to them becomes account credit.
+         */
+        post: operations["cancelCatalogItemSale"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/catalog-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Catalog Items
+         * @description Filters: location_id, kind, is_active; q searches the description. Sort: description, created_at.
+         */
+        get: operations["listCatalogItems"];
+        put?: never;
+        /** Create Catalog Item */
+        post: operations["createCatalogItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/catalog-items/{catalog_item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Catalog Item */
+        get: operations["getCatalogItem"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Catalog Item
+         * @description Edits apply to later sales; set is_active false to stop selling it.
+         */
+        patch: operations["updateCatalogItem"];
+        trace?: never;
+    };
+    "/api/v1/catalog-items/{catalog_item_id}/sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sell Catalog Item
+         * @description Sell an item to a client: one billing item per occurrence, invoiced as the item says. A fee or
+         *     discount other than the item's needs billing.charge.override_price.
+         */
+        post: operations["sellCatalogItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/charges": {
         parameters: {
             query?: never;
@@ -3195,7 +3298,7 @@ export interface paths {
         };
         /**
          * Get Client Statement
-         * @description Default period: the 30 days up to today.
+         * @description Default period: the 30 days up to today at the client's home location, whose days the dates are.
          */
         get: operations["getClientStatement"];
         put?: never;
@@ -3217,6 +3320,23 @@ export interface paths {
         put?: never;
         /** Send Client Statement */
         post: operations["sendClientStatement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/statement/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Client Statement Pdf */
+        get: operations["getClientStatementPdf"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5062,7 +5182,7 @@ export interface paths {
         };
         /**
          * Get Invoice Document
-         * @description The printable content of the invoice as data (PDF rendering is not built).
+         * @description The printable content of the invoice as data; `/pdf` renders the same content.
          */
         get: operations["getInvoiceDocument"];
         put?: never;
@@ -5125,6 +5245,23 @@ export interface paths {
         put?: never;
         /** Generate Payment Schedule */
         post: operations["generatePaymentSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/invoices/{invoice_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Invoice Pdf */
+        get: operations["getInvoicePdf"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -7049,6 +7186,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/payments/{payment_id}/receipt/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Receipt Pdf */
+        get: operations["getReceiptPdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payments/{payment_id}/refunds": {
         parameters: {
             query?: never;
@@ -7562,6 +7716,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/coupon-quotes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Quote Portal Coupon
+         * @description Validation only: the portal checkout that sells something redeems the code. Errors: coupon-not-found.
+         */
+        post: operations["quotePortalCoupon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/dependents": {
         parameters: {
             query?: never;
@@ -7775,6 +7949,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/invoices/{invoice_id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Invoice Pdf */
+        get: operations["getPortalInvoicePdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/membership-contracts": {
         parameters: {
             query?: never;
@@ -7963,10 +8154,66 @@ export interface paths {
         put?: never;
         /**
          * Pay Portal Invoices
-         * @description Pay the full balance of the caller's own invoices. The payer is the caller's client and a stored
-         *     method must be theirs. Read `payment.status`. Errors: invoice-not-payable, payment-method-not-usable.
+         * @description Pay the caller's invoices (or a household member's they may handle): the whole balance or
+         *     `amount_minor` of it. A stored method must be the payer's. Read `payment.status`; `requires_action` comes
+         *     with a `client_secret` for 3-D Secure, then confirm. Errors: invoice-not-payable, amount-exceeds-balance,
+         *     payment-method-not-usable.
          */
         post: operations["payPortalInvoices"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/payments/{payment_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Portal Payment
+         * @description Back from 3-D Secure: re-read the payment and apply it to the invoices it was for. Safe to repeat.
+         */
+        post: operations["confirmPortalPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/payments/{payment_id}/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Receipt */
+        get: operations["getPortalReceipt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/payments/{payment_id}/receipt/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Receipt Pdf */
+        get: operations["getPortalReceiptPdf"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -8224,6 +8471,43 @@ export interface paths {
          * @description Sessions with whether the acting client may book or queue now, and why not.
          */
         get: operations["listPortalSessionListings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/statement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Portal Statement
+         * @description The caller's own statement; default period the 30 days up to today at their home location.
+         */
+        get: operations["getPortalStatement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/statement/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Statement Pdf */
+        get: operations["getPortalStatementPdf"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9473,6 +9757,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/fake-processor/authentications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Authenticate Fake Payment
+         * @description Development and test only: the fake processor's stand-in for the bank's 3-D Secure challenge, which
+         *     Stripe runs inside Stripe.js. 404 whenever the fake processor is not registered (it never is in
+         *     production, where settings refuse it). Errors: not-found.
+         */
+        post: operations["authenticateFakePayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/invoice-links/lookup": {
         parameters: {
             query?: never;
@@ -9508,6 +9814,27 @@ export interface paths {
          *     invoice-not-payable.
          */
         post: operations["payInvoiceByLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/invoice-links/payments/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Invoice Link Payment
+         * @description Back from 3-D Secure: re-read the payment this link started; once it went through it pays the invoice
+         *     and uses the link up. Errors: link-invalid.
+         */
+        post: operations["confirmInvoiceLinkPayment"];
         delete?: never;
         options?: never;
         head?: never;
@@ -12131,6 +12458,88 @@ export interface paths {
         head?: never;
         /** Adjust Standing */
         patch: operations["adjustStanding"];
+        trace?: never;
+    };
+    "/api/v1/statement-batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Statement Batches
+         * @description Newest first, recipients left out (read one batch for them). Filters: location_id, status.
+         */
+        get: operations["listStatementBatches"];
+        put?: never;
+        /**
+         * Create Statement Batch
+         * @description Statements for every payer with an invoice at the location in the period (`is_open_only`: still owing;
+         *     `client_ids` narrows). Up to 25 recipients run in the request, more as a job: follow `status`.
+         */
+        post: operations["createStatementBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/statement-batches/{statement_batch_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Statement Batch */
+        get: operations["getStatementBatch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/statement-batches/{statement_batch_id}/recipients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Statement Recipients
+         * @description Per-recipient outcome: sent, skipped_no_email, failed (with the reason) or still queued.
+         */
+        get: operations["listStatementRecipients"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/statement-batches/{statement_batch_id}/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend Statement Batch
+         * @description Send again to the listed recipients, or to every failed and skipped one when none are listed.
+         */
+        post: operations["resendStatementBatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/stock-movements": {
@@ -15755,6 +16164,283 @@ export interface components {
              */
             status: "ok" | "capacity-below-booked";
         };
+        /** CatalogItemCreate */
+        CatalogItemCreate: {
+            /** Additional Description */
+            additional_description?: string | null;
+            /** Description */
+            description: string;
+            /** Discount Minor */
+            discount_minor?: number | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
+            /** Fee Minor */
+            fee_minor: number;
+            /** Internal Remarks */
+            internal_remarks?: string | null;
+            /**
+             * Invoice Option
+             * @default single_invoice
+             * @enum {string}
+             */
+            invoice_option: "single_invoice" | "invoice_per_occurrence" | "leave_uninvoiced";
+            /**
+             * Is Active
+             * @default true
+             */
+            is_active: boolean;
+            /**
+             * Is Auto Renew
+             * @default false
+             */
+            is_auto_renew: boolean;
+            /**
+             * Is Autopay
+             * @default false
+             */
+            is_autopay: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "one_off" | "recurring";
+            /** Length Count */
+            length_count?: number | null;
+            /** Length Unit */
+            length_unit?: ("day" | "week" | "month" | "year") | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Recurrence Count */
+            recurrence_count?: number | null;
+            /** Recurrence Every */
+            recurrence_every?: number | null;
+            /** Recurrence Unit */
+            recurrence_unit?: ("day" | "week" | "month" | "year") | null;
+            /**
+             * Renew Lead Days
+             * @default 0
+             */
+            renew_lead_days: number;
+            /** Renews As Catalog Item Id */
+            renews_as_catalog_item_id?: string | null;
+            /**
+             * Revenue Category Id
+             * Format: uuid
+             */
+            revenue_category_id: string;
+            /**
+             * Start Mode
+             * @default sale_date
+             * @enum {string}
+             */
+            start_mode: "sale_date" | "fixed_date";
+            /** Starts On */
+            starts_on?: string | null;
+        };
+        /** CatalogItemOut */
+        CatalogItemOut: {
+            /** Additional Description */
+            additional_description: string | null;
+            /** Description */
+            description: string;
+            /** Discount Minor */
+            discount_minor: number | null;
+            /** Discount Pct */
+            discount_pct: string | null;
+            /** Fee Minor */
+            fee_minor: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Internal Remarks */
+            internal_remarks: string | null;
+            /**
+             * Invoice Option
+             * @enum {string}
+             */
+            invoice_option: "single_invoice" | "invoice_per_occurrence" | "leave_uninvoiced";
+            /** Is Active */
+            is_active: boolean;
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /** Is Autopay */
+            is_autopay: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "one_off" | "recurring";
+            /** Length Count */
+            length_count: number | null;
+            /** Length Unit */
+            length_unit: ("day" | "week" | "month" | "year") | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Recurrence Count */
+            recurrence_count: number | null;
+            /** Recurrence Every */
+            recurrence_every: number | null;
+            /** Recurrence Unit */
+            recurrence_unit: ("day" | "week" | "month" | "year") | null;
+            /** Renew Lead Days */
+            renew_lead_days: number;
+            /** Renews As Catalog Item Id */
+            renews_as_catalog_item_id: string | null;
+            /**
+             * Revenue Category Id
+             * Format: uuid
+             */
+            revenue_category_id: string;
+            /**
+             * Start Mode
+             * @enum {string}
+             */
+            start_mode: "sale_date" | "fixed_date";
+            /** Starts On */
+            starts_on: string | null;
+        };
+        /**
+         * CatalogItemSaleCreate
+         * @description Per-sale overrides of the item's terms; a fee or discount other than the item's needs
+         *     billing.charge.override_price.
+         */
+        CatalogItemSaleCreate: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Discount Minor */
+            discount_minor?: number | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
+            /**
+             * Excluded Tax Ids
+             * @default []
+             */
+            excluded_tax_ids: string[];
+            /** Fee Minor */
+            fee_minor?: number | null;
+            /** Invoice Option */
+            invoice_option?: ("single_invoice" | "invoice_per_occurrence" | "leave_uninvoiced") | null;
+            /** Is Auto Renew */
+            is_auto_renew?: boolean | null;
+            /** Is Autopay */
+            is_autopay?: boolean | null;
+            /** Starts On */
+            starts_on?: string | null;
+        };
+        /** CatalogItemSaleOut */
+        CatalogItemSaleOut: {
+            /**
+             * Catalog Item Id
+             * Format: uuid
+             */
+            catalog_item_id: string;
+            /** Charge Ids */
+            charge_ids: string[];
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Ends On */
+            ends_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Ids */
+            invoice_ids: string[];
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Previous Sale Id */
+            previous_sale_id: string | null;
+            /** Renew On */
+            renew_on: string | null;
+            /** Renews As Catalog Item Id */
+            renews_as_catalog_item_id: string | null;
+            /**
+             * Sold On
+             * Format: date
+             */
+            sold_on: string;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "renewed" | "ended" | "cancelled";
+            /** Terms */
+            terms: {
+                [key: string]: unknown;
+            };
+        };
+        /** CatalogItemUpdate */
+        CatalogItemUpdate: {
+            /** Additional Description */
+            additional_description?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Discount Minor */
+            discount_minor?: number | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
+            /** Fee Minor */
+            fee_minor?: number | null;
+            /** Internal Remarks */
+            internal_remarks?: string | null;
+            /** Invoice Option */
+            invoice_option?: ("single_invoice" | "invoice_per_occurrence" | "leave_uninvoiced") | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Is Auto Renew */
+            is_auto_renew?: boolean | null;
+            /** Is Autopay */
+            is_autopay?: boolean | null;
+            /** Kind */
+            kind?: ("one_off" | "recurring") | null;
+            /** Length Count */
+            length_count?: number | null;
+            /** Length Unit */
+            length_unit?: ("day" | "week" | "month" | "year") | null;
+            /** Location Id */
+            location_id?: string | null;
+            /** Recurrence Count */
+            recurrence_count?: number | null;
+            /** Recurrence Every */
+            recurrence_every?: number | null;
+            /** Recurrence Unit */
+            recurrence_unit?: ("day" | "week" | "month" | "year") | null;
+            /** Renew Lead Days */
+            renew_lead_days?: number | null;
+            /** Renews As Catalog Item Id */
+            renews_as_catalog_item_id?: string | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Start Mode */
+            start_mode?: ("sale_date" | "fixed_date") | null;
+            /** Starts On */
+            starts_on?: string | null;
+        };
         /** CategoryCreate */
         CategoryCreate: {
             /**
@@ -17575,6 +18261,8 @@ export interface components {
         };
         /** ContractQuote */
         ContractQuote: {
+            /** Addons */
+            addons?: components["schemas"]["PlanAddonIn"][] | null;
             /**
              * Client Id
              * Format: uuid
@@ -17793,6 +18481,8 @@ export interface components {
         };
         /** ContractSell */
         ContractSell: {
+            /** Addons */
+            addons?: components["schemas"]["PlanAddonIn"][] | null;
             /**
              * Client Id
              * Format: uuid
@@ -19734,6 +20424,16 @@ export interface components {
             /** Days */
             days: components["schemas"]["FacilityHoursDay"][];
         };
+        /** FakeAuthentication */
+        FakeAuthentication: {
+            /**
+             * Approve
+             * @default true
+             */
+            approve: boolean;
+            /** Client Secret */
+            client_secret: string;
+        };
         /** FeatureState */
         FeatureState: {
             /** Included */
@@ -20646,6 +21346,16 @@ export interface components {
             /** Total Minor */
             total_minor: number;
         };
+        /** InvoiceLinkConfirm */
+        InvoiceLinkConfirm: {
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            /** Token */
+            token: string;
+        };
         /** InvoiceLinkLookup */
         InvoiceLinkLookup: {
             /** Token */
@@ -21220,6 +21930,11 @@ export interface components {
             client_secret?: string | null;
             /** Currency */
             currency: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
             /** Receipt Number */
             receipt_number: number;
             /** Status */
@@ -23555,6 +24270,18 @@ export interface components {
             data: components["schemas"]["CampaignOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[CatalogItemOut] */
+        Page_CatalogItemOut_: {
+            /** Data */
+            data: components["schemas"]["CatalogItemOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[CatalogItemSaleOut] */
+        Page_CatalogItemSaleOut_: {
+            /** Data */
+            data: components["schemas"]["CatalogItemSaleOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[CategoryOut] */
         Page_CategoryOut_: {
             /** Data */
@@ -24165,6 +24892,12 @@ export interface components {
         Page_StaffUserOut_: {
             /** Data */
             data: components["schemas"]["StaffUserOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[StatementBatchOut] */
+        Page_StatementBatchOut_: {
+            /** Data */
+            data: components["schemas"]["StatementBatchOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[StockMovementOut] */
@@ -24871,13 +25604,21 @@ export interface components {
             /** Grants */
             grants: components["schemas"]["PermissionGrant"][];
         };
-        /** PlanAddonIn */
+        /**
+         * PlanAddonIn
+         * @description A bundled package plan, or a pre-defined billing item billed with the dues (MEM-04).
+         */
         PlanAddonIn: {
             /**
-             * Package Plan Id
-             * Format: uuid
+             * Addon Kind
+             * @default package_plan
+             * @enum {string}
              */
-            package_plan_id: string;
+            addon_kind: "package_plan" | "catalog_item";
+            /** Catalog Item Id */
+            catalog_item_id?: string | null;
+            /** Package Plan Id */
+            package_plan_id?: string | null;
             /**
              * Quantity
              * @default 1
@@ -24888,6 +25629,8 @@ export interface components {
         PlanAddonOut: {
             /** Addon Kind */
             addon_kind: string;
+            /** Catalog Item Id */
+            catalog_item_id: string | null;
             /**
              * Id
              * Format: uuid
@@ -25125,6 +25868,8 @@ export interface components {
         };
         /** PortalCheckoutConfirm */
         PortalCheckoutConfirm: {
+            /** Coupon Code */
+            coupon_code?: string | null;
             /** Method Token */
             method_token?: string | null;
             /**
@@ -25388,6 +26133,8 @@ export interface components {
         PortalContractBuy: {
             /** Client Id */
             client_id?: string | null;
+            /** Coupon Code */
+            coupon_code?: string | null;
             /** Is Auto Renew */
             is_auto_renew?: boolean | null;
             /** Is Autopay */
@@ -25545,6 +26292,24 @@ export interface components {
             visits_remaining_count: number | null;
             /** Visits Used Count */
             visits_used_count: number;
+        };
+        /** PortalCouponQuote */
+        PortalCouponQuote: {
+            /** Discount Minor */
+            discount_minor: number;
+            /** Invalid Reason */
+            invalid_reason: string | null;
+            /** Is Valid */
+            is_valid: boolean;
+        };
+        /** PortalCouponQuoteRequest */
+        PortalCouponQuoteRequest: {
+            /** Client Id */
+            client_id?: string | null;
+            /** Code */
+            code: string;
+            /** Subtotal Minor */
+            subtotal_minor: number;
         };
         /**
          * PortalCreditLedgerEntryOut
@@ -25805,6 +26570,8 @@ export interface components {
         PortalPackageBuy: {
             /** Client Id */
             client_id?: string | null;
+            /** Coupon Code */
+            coupon_code?: string | null;
             /**
              * Location Id
              * Format: uuid
@@ -26052,8 +26819,18 @@ export interface components {
             credit_applied_minor: number;
             payment: components["schemas"]["PortalPaymentDetail"] | null;
         };
+        /**
+         * PortalPaymentConfirm
+         * @description The invoices the payment was for, so what it has left lands on them once authentication succeeds.
+         */
+        PortalPaymentConfirm: {
+            /** Invoice Ids */
+            invoice_ids: string[];
+        };
         /** PortalPaymentCreate */
         PortalPaymentCreate: {
+            /** Amount Minor */
+            amount_minor?: number | null;
             /** Invoice Ids */
             invoice_ids: string[];
             /** Method Token */
@@ -26177,6 +26954,57 @@ export interface components {
         PortalPreferencesReplace: {
             /** Changes */
             changes: components["schemas"]["PreferenceChange"][];
+        };
+        /** PortalReceiptLine */
+        PortalReceiptLine: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Description */
+            description: string;
+            /** Invoice Id */
+            invoice_id: string | null;
+        };
+        /**
+         * PortalReceiptOut
+         * @description The client's own receipt (PAY-18). Its own schema, so a field added for staff never reaches a client.
+         */
+        PortalReceiptOut: {
+            /** Applied Minor */
+            applied_minor: number;
+            /** Card Brand */
+            card_brand: string | null;
+            /** Card Last4 */
+            card_last4: string | null;
+            /** Client Id */
+            client_id: string | null;
+            /** Currency */
+            currency: string;
+            /** Footer */
+            footer: string | null;
+            /** Lines */
+            lines: components["schemas"]["PortalReceiptLine"][];
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            /** Receipt Number */
+            receipt_number: number;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Received Minor */
+            received_minor: number;
+            /** Refunded Minor */
+            refunded_minor: number;
+            /** Status */
+            status: string;
+            /** Tender Kind */
+            tender_kind: string;
+            /** Unapplied Minor */
+            unapplied_minor: number;
         };
         /** PortalRefundOut */
         PortalRefundOut: {
@@ -26476,6 +27304,115 @@ export interface components {
             signer_role: "client" | "guardian";
             /** Typed Signature */
             typed_signature?: string | null;
+        };
+        /** PortalStatementInvoice */
+        PortalStatementInvoice: {
+            /** Balance Minor */
+            balance_minor: number;
+            /**
+             * Due On
+             * Format: date
+             */
+            due_on: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Invoice On
+             * Format: date
+             */
+            invoice_on: string;
+            /** Number */
+            number: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "payment_pending" | "partially_paid" | "paid" | "voided";
+            /** Total Minor */
+            total_minor: number;
+        };
+        /** PortalStatementOut */
+        PortalStatementOut: {
+            /** Balance Due Minor */
+            balance_due_minor: number;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Credit Minor */
+            credit_minor: number;
+            /** Currency */
+            currency: string;
+            /**
+             * Date Basis
+             * @enum {string}
+             */
+            date_basis: "invoice_date" | "due_date";
+            /**
+             * From On
+             * Format: date
+             */
+            from_on: string;
+            /** Invoiced Minor */
+            invoiced_minor: number;
+            /** Invoices */
+            invoices: components["schemas"]["PortalStatementInvoice"][];
+            /** Paid Minor */
+            paid_minor: number;
+            /** Payments */
+            payments: components["schemas"]["PortalStatementPayment"][];
+            /** Refunded Minor */
+            refunded_minor: number;
+            /** Refunds */
+            refunds: components["schemas"]["PortalStatementRefund"][];
+            /** Time Zone */
+            time_zone: string;
+            /**
+             * To On
+             * Format: date
+             */
+            to_on: string;
+        };
+        /** PortalStatementPayment */
+        PortalStatementPayment: {
+            /** Amount Minor */
+            amount_minor: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Receipt Number */
+            receipt_number: number;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /**
+             * Tender Kind
+             * @enum {string}
+             */
+            tender_kind: "card" | "bank_debit" | "cash" | "cheque" | "bank_transfer" | "gift_card" | "external" | "other";
+        };
+        /** PortalStatementRefund */
+        PortalStatementRefund: {
+            /** Amount Minor */
+            amount_minor: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Refund On
+             * Format: date
+             */
+            refund_on: string;
         };
         /** PortalTermsOut */
         PortalTermsOut: {
@@ -32044,6 +32981,96 @@ export interface components {
              */
             metric: "GP" | "W" | "L" | "T" | "GF" | "GA" | "PTS" | "GD" | "WP" | "OTL" | "FF" | "BP" | "SPT" | "H2H";
         };
+        /** StatementBatchCreate */
+        StatementBatchCreate: {
+            /** Client Ids */
+            client_ids?: string[];
+            /**
+             * Date Basis
+             * @default invoice_date
+             * @enum {string}
+             */
+            date_basis: "invoice_date" | "due_date";
+            /**
+             * Is Open Only
+             * @default false
+             */
+            is_open_only: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Period From On
+             * Format: date
+             */
+            period_from_on: string;
+            /**
+             * Period To On
+             * Format: date
+             */
+            period_to_on: string;
+        };
+        /** StatementBatchOut */
+        StatementBatchOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Date Basis
+             * @enum {string}
+             */
+            date_basis: "invoice_date" | "due_date";
+            /** Failed Count */
+            failed_count: number;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Open Only */
+            is_open_only: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Period From On
+             * Format: date
+             */
+            period_from_on: string;
+            /**
+             * Period To On
+             * Format: date
+             */
+            period_to_on: string;
+            /** Queued Count */
+            queued_count: number;
+            /** Recipient Count */
+            recipient_count: number;
+            /** Recipients */
+            recipients: components["schemas"]["StatementRecipientOut"][];
+            /** Sent Count */
+            sent_count: number;
+            /** Skipped Count */
+            skipped_count: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "completed" | "failed";
+        };
+        /** StatementBatchResend */
+        StatementBatchResend: {
+            /** Statement Recipient Ids */
+            statement_recipient_ids?: string[];
+        };
         /** StatementOut */
         StatementOut: {
             /** Balance Due Minor */
@@ -32079,11 +33106,39 @@ export interface components {
             refunded_minor: number;
             /** Refunds */
             refunds: components["schemas"]["RefundOut"][];
+            /** Time Zone */
+            time_zone: string;
             /**
              * To On
              * Format: date
              */
             to_on: string;
+        };
+        /** StatementRecipientOut */
+        StatementRecipientOut: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Name */
+            client_name: string;
+            /** Failure Message */
+            failure_message: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Sent At */
+            sent_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "sent" | "failed" | "skipped_no_email";
+            /** To Email */
+            to_email: string | null;
         };
         /** StatementSend */
         StatementSend: {
@@ -37891,6 +38946,276 @@ export interface operations {
             };
         };
     };
+    listCatalogItemSales: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CatalogItemSaleOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancelCatalogItemSale: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                catalog_item_sale_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItemSaleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listCatalogItems: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CatalogItemOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createCatalogItem: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogItemCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getCatalogItem: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                catalog_item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateCatalogItem: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                catalog_item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogItemUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItemOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sellCatalogItem: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path: {
+                catalog_item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogItemSaleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogItemSaleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listCharges: {
         parameters: {
             query?: {
@@ -41898,6 +43223,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeliveryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getClientStatementPdf: {
+        parameters: {
+            query?: {
+                from_on?: string | null;
+                to_on?: string | null;
+                date_basis?: string;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF, as an attachment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
                 };
             };
             /** @description Validation Error */
@@ -46966,6 +48329,40 @@ export interface operations {
             };
         };
     };
+    getInvoicePdf: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF, as an attachment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     reassignInvoicePayer: {
         parameters: {
             query?: never;
@@ -51755,6 +53152,40 @@ export interface operations {
             };
         };
     };
+    getReceiptPdf: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF, as an attachment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     createRefund: {
         parameters: {
             query?: never;
@@ -52966,6 +54397,42 @@ export interface operations {
             };
         };
     };
+    quotePortalCoupon: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalCouponQuoteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalCouponQuote"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     portalCreateDependent: {
         parameters: {
             query?: never;
@@ -53395,6 +54862,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InvoiceDocument"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalInvoicePdf: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF, as an attachment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
                 };
             };
             /** @description Validation Error */
@@ -53900,6 +55401,112 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortalPayment"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirmPortalPayment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalPaymentConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalPayment"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalReceipt: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalReceiptOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalReceiptPdf: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF, as an attachment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
                 };
             };
             /** @description Validation Error */
@@ -54471,6 +56078,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortalSessionListing"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalStatement: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+                from_on?: string | null;
+                to_on?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalStatementOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalStatementPdf: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+                from_on?: string | null;
+                to_on?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF, as an attachment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
                 };
             };
             /** @description Validation Error */
@@ -57487,6 +59166,37 @@ export interface operations {
             };
         };
     };
+    authenticateFakePayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FakeAuthentication"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getInvoiceByLink: {
         parameters: {
             query?: never;
@@ -57538,6 +59248,42 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkPayment"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirmInvoiceLinkPayment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceLinkConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -64684,6 +66430,191 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LeagueStandingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listStatementBatches: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_StatementBatchOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createStatementBatch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatementBatchCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementBatchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getStatementBatch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                statement_batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementBatchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listStatementRecipients: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                statement_batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementRecipientOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resendStatementBatch: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                statement_batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StatementBatchResend"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatementBatchOut"];
                 };
             };
             /** @description Validation Error */

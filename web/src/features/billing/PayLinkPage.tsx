@@ -6,7 +6,7 @@ import { ErrorState, LoadingState } from '../../components/States'
 import { AuthLayout } from '../auth/AuthLayout'
 import { formatMoney } from './money'
 import { FormError } from './shared'
-import { PaymentMethodField } from './PaymentMethodField'
+import { PaymentAuthentication, PaymentMethodField } from './PaymentMethodField'
 
 /** The emailed "pay online" link: no sign-in. The token arrives in the URL fragment (never sent to a server
  * or a Referer, security-baseline 17.2), is read once, removed from the address bar, and posted in bodies. */
@@ -24,6 +24,13 @@ export function PayLinkPage() {
       if (r.status === 'failed') attempt.key = crypto.randomUUID() // a decline: the next try is a new attempt
     },
   })
+  // Back from the bank's 3-D Secure check: the server re-reads the payment and, once it went through, pays the invoice.
+  const confirm = useMutation({
+    mutationFn: (paymentId: string) => api.post('/api/v1/public/invoice-links/payments/confirm', { body: { token, payment_id: paymentId }, idempotencyKey: crypto.randomUUID() }),
+    onSuccess: (r) => {
+      if (r.status === 'failed') attempt.key = crypto.randomUUID()
+    },
+  })
 
   const body = () => {
     if (!token) return <ErrorState error={new Error('This link is incomplete. Open it again from your email.')} />
@@ -31,7 +38,15 @@ export function PayLinkPage() {
     if (invoice.isError) return <ErrorState error={new Error('This link has expired or was already used. Ask the club for a new invoice email.')} />
     const inv = invoice.data
     const m = (minor: number) => formatMoney(minor, inv.currency)
-    const result = pay.data
+    const result = confirm.data ?? pay.data
+    if (result?.status === 'requires_action' && result.client_secret) {
+      return (
+        <div className="space-y-3">
+          <FormError error={confirm.error} />
+          <PaymentAuthentication clientSecret={result.client_secret} provider={inv.provider} keys={inv} onDone={() => confirm.mutateAsync(result.id)} />
+        </div>
+      )
+    }
     if (result && result.status !== 'failed') {
       return (
         <div role="status" className="space-y-2 text-center">
@@ -64,13 +79,16 @@ export function PayLinkPage() {
             className="space-y-4"
             onSubmit={(e) => {
               e.preventDefault()
-              if (method) pay.mutate()
+              if (method) {
+                confirm.reset()
+                pay.mutate()
+              }
             }}
           >
             <FormError error={pay.error} />
             {result?.status === 'failed' && (
               <p role="alert" className="text-danger">
-                The payment was declined. Try another card.
+                The payment was declined or the bank check failed. Try another card.
               </p>
             )}
             <PaymentMethodField kind="card" label="Card" value={method} onChange={setMethod} provider={inv.provider} keys={inv} />
