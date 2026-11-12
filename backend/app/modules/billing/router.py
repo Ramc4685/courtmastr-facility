@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, current_ctx, public_session, require
+from app.core.errors import NotFound
 from app.core.idempotency import KEY_PATTERN, idempotency
 from app.core.pagination import ListQuery, list_query, paginate
 from app.core.ratelimit import rate_limit
@@ -19,6 +20,7 @@ from app.modules.billing import (
     autopay,
     catalog,
     catalogue,
+    checkout,
     desk,
     documents,
     methods,
@@ -29,6 +31,7 @@ from app.modules.billing import (
 )
 from app.modules.billing import schemas as s
 from app.modules.billing.models import BillingNotice
+from app.ports import payment_provider
 
 router = APIRouter(
     route_class=TxRoute, tags=["billing"], generate_unique_id_function=camel_id, dependencies=[Depends(idempotency)]
@@ -832,9 +835,33 @@ def list_portal_payments(query: Lists, ctx: Client):
 
 @router.post("/portal/payments", response_model=s.PortalPayment, status_code=201)
 def pay_portal_invoices(body: s.PortalPaymentCreate, idempotency_key: RequiredKey, ctx: Client):
-    """Pay the full balance of the caller's own invoices. The payer is the caller's client and a stored
-    method must be theirs. Read `payment.status`. Errors: invoice-not-payable, payment-method-not-usable."""
+    """Pay the caller's invoices (or a household member's they may handle): the whole balance or
+    `amount_minor` of it. A stored method must be the payer's. Read `payment.status`; `requires_action` comes
+    with a `client_secret` for 3-D Secure, then confirm. Errors: invoice-not-payable, amount-exceeds-balance,
+    payment-method-not-usable."""
     return portal.pay(ctx.session, ctx.principal, body.model_dump(), idempotency_key)
+
+
+@router.post("/portal/payments/{payment_id}/confirm", response_model=s.PortalPayment)
+def confirm_portal_payment(payment_id: UUID, body: s.PortalPaymentConfirm, idempotency_key: RequiredKey, ctx: Client):
+    """Back from 3-D Secure: re-read the payment and apply it to the invoices it was for. Safe to repeat."""
+    return portal.confirm(ctx.session, ctx.principal, payment_id, body.model_dump())
+
+
+@router.get("/portal/payments/{payment_id}/receipt", response_model=s.PortalReceiptOut)
+def get_portal_receipt(payment_id: UUID, ctx: Client):
+    return portal.receipt(ctx.session, ctx.principal, payment_id)
+
+
+@router.get("/portal/payments/{payment_id}/receipt/pdf", response_class=Response, responses=PDF)
+def get_portal_receipt_pdf(payment_id: UUID, ctx: Client):
+    return _pdf(portal.receipt_pdf(ctx.session, ctx.principal, payment_id))
+
+
+@router.post("/portal/coupon-quotes", response_model=s.PortalCouponQuote, dependencies=[Depends(rate_limit("consume"))])
+def quote_portal_coupon(body: s.PortalCouponQuoteRequest, ctx: Client):
+    """Validation only: the portal checkout that sells something redeems the code. Errors: coupon-not-found."""
+    return portal.quote_coupon(ctx.session, ctx.principal, body.model_dump())
 
 
 @router.get("/portal/billing-summary", response_model=s.BillingSummary)
@@ -892,9 +919,31 @@ def pay_invoice_by_link(body: s.InvoiceLinkPayment, session: PublicSession, idem
         session, body.token, method_token=body.method_token, idempotency_key=idempotency_key
     )
     return {
-        "status": payment.status, "amount_minor": payment.amount_minor, "currency": payment.currency,
+        "id": payment.id, "status": payment.status, "amount_minor": payment.amount_minor, "currency": payment.currency,
         "receipt_number": payment.receipt_number, "client_secret": getattr(payment, "client_secret", None),
     }  # fmt: skip
+
+
+@public.post("/public/invoice-links/payments/confirm", response_model=s.LinkPayment, dependencies=_link_limit)
+def confirm_invoice_link_payment(body: s.InvoiceLinkConfirm, session: PublicSession, idempotency_key: RequiredKey):
+    """Back from 3-D Secure: re-read the payment this link started; once it went through it pays the invoice
+    and uses the link up. Errors: link-invalid."""
+    payment = checkout.confirm_link_payment(session, body.token, body.payment_id)
+    return {
+        "id": payment.id, "status": payment.status, "amount_minor": payment.amount_minor, "currency": payment.currency,
+        "receipt_number": payment.receipt_number, "client_secret": None,
+    }  # fmt: skip
+
+
+@public.post("/public/fake-processor/authentications", status_code=204)
+def authenticate_fake_payment(body: s.FakeAuthentication) -> None:
+    """Development and test only: the fake processor's stand-in for the bank's 3-D Secure challenge, which
+    Stripe runs inside Stripe.js. 404 whenever the fake processor is not registered (it never is in
+    production, where settings refuse it). Errors: not-found."""
+    if not payment_provider.registered("fake") or not payment_provider.get("fake").authenticate_secret(
+        body.client_secret, approve=body.approve
+    ):
+        raise NotFound()
 
 
 @public.post("/webhooks/{provider}", response_model=s.WebhookAck)

@@ -23,6 +23,7 @@ from app.ports.payment_provider import PaymentState, WebhookRejected
 
 log = logging.getLogger(__name__)
 STALE_AFTER = timedelta(minutes=5)  # leave a request that is still running alone
+RETRY_ATTEMPTS = 5  # a failed event is tried this many times, then left `failed` for an operator
 ABANDON_AFTER = timedelta(minutes=30)  # an `initiated` payment the provider never heard of
 
 
@@ -87,6 +88,24 @@ def process_provider_event(session: Session, row_id: str) -> None:
         raise
     # Marked only once our transaction has committed: a failed commit leaves the event to be retried.
     session.info.setdefault("after_commit", []).append(lambda: inbound_webhooks.finish(UUID(row_id)))
+
+
+@tenant_actor
+def retry_provider_events(session: Session) -> None:
+    """The sweep for a webhook that was stored but never processed (PAY-11): the enqueue after the store
+    was lost, or processing failed. Each event is applied here, in its own savepoint, by the same idempotent
+    apply_event(), so an event that a worker also picks up changes nothing twice."""
+    tenant_id = session.info["tenant_id"]
+    for row_id in inbound_webhooks.stale(tenant_id, clock.now() - STALE_AFTER, RETRY_ATTEMPTS):
+        row = inbound_webhooks.get(row_id)
+        try:
+            with session.begin_nested():
+                apply_event(session, row.payload.get("kind"), row.payload.get("object"), row.payload.get("account"))
+        except Exception as error:  # noqa: BLE001  (recorded on the event; the next sweep tries again)
+            log.warning("webhook %s failed again: %s", row_id, error)
+            inbound_webhooks.finish(row_id, error=str(error)[:500])
+            continue
+        session.info.setdefault("after_commit", []).append(lambda done=row_id: inbound_webhooks.finish(done))
 
 
 def reconcile(session: Session) -> dict:

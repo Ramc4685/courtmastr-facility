@@ -133,6 +133,7 @@ _BODIES = {
     "updatePaymentMethod": {"is_autopay": True},
     "verifyBankAccount": {"amounts": [32, 45]},
     "updatePortalPaymentMethod": {"is_autopay": True},
+    "confirmPortalPayment": lambda a: {"invoice_ids": [str(a.invoice_id)]},
     # pos (build module 9)
     "updateRegister": {"name": "Renamed"},
     "putRegisterFavorites": {"product_ids": []},

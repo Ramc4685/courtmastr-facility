@@ -224,7 +224,9 @@ class StripeConnectProvider:
 
     def create_setup(self, *, account_ref: str, customer_ref: str, kinds: tuple[str, ...]) -> SetupState:
         # The payment methods offered come from the account's dashboard settings (dynamic payment methods),
-        # not from `kinds`: Stripe's hosted fields decide what the payer sees.
+        # not from `kinds`: Stripe's Payment Element decides what the payer sees: card, wallets where the
+        # browser has one (PAY-15), and US bank accounts through Financial Connections (PAY-10), which
+        # creates the debit mandate as part of the setup.
         params = {"customer": customer_ref, "usage": "off_session", "automatic_payment_methods": _NO_REDIRECTS}
         payload = self._ok("POST", "/v1/setup_intents", params, account=account_ref)
         return SetupState(payload["id"], payload["client_secret"])
@@ -241,8 +243,11 @@ class StripeConnectProvider:
         )  # fmt: skip
 
     def attach_method(self, *, account_ref: str, customer_ref: str, method_token: str) -> MethodState:
-        path = f"/v1/payment_methods/{urllib.parse.quote(method_token, safe='')}/attach"
-        return self._method(self._ok("POST", path, {"customer": customer_ref}, account=account_ref))
+        path = f"/v1/payment_methods/{urllib.parse.quote(method_token, safe='')}"
+        current = self._ok("GET", path, account=account_ref)
+        if current.get("customer") == customer_ref:  # saved through a setup intent: already on the customer
+            return self._method(current)
+        return self._method(self._ok("POST", f"{path}/attach", {"customer": customer_ref}, account=account_ref))
 
     def get_method(self, *, account_ref: str, provider_method_ref: str) -> MethodState:
         return self._method(self._ok("GET", f"/v1/payment_methods/{provider_method_ref}", account=account_ref))
@@ -289,6 +294,8 @@ class StripeConnectProvider:
             "customer": customer_ref, "off_session": True if off_session else None,
             "automatic_payment_methods": _NO_REDIRECTS, "metadata": {"fh_key": idempotency_key},
             "expand": ["latest_charge"],
+            # The payer is present: 3-D Secure comes back as a next action Stripe.js handleNextAction() runs.
+            "use_stripe_sdk": None if off_session else True,
         }  # fmt: skip
         try:
             status, payload = self._call(

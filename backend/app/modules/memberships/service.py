@@ -1890,7 +1890,7 @@ def portal_buy(session: Session, principal: Principal, data: dict, idempotency_k
         session, client_id=contract.owner_client_id, location_id=contract.location_id,
         total_minor=sum(row.amount_minor for row in _rows(session, contract.id)), invoice=invoice,
         idempotency_key=idempotency_key, method_token=data.get("method_token"),
-        tender_kind=data.get("tender_kind") or "card", must_pay_now=False,
+        tender_kind=data.get("tender_kind") or "card", must_pay_now=False, coupon_code=data.get("coupon_code"),
     )  # fmt: skip
     return _sale_view(session, contract, invoice, payment)
 

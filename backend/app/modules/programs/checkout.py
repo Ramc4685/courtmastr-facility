@@ -354,7 +354,7 @@ def portal_confirm(session: Db, principal: Principal, checkout_id: UUID, data: d
         total_minor=found.total_minor if found is not None else 0, invoice=None if defer_charge else found,
         idempotency_key=idempotency_key, method_token=data.get("method_token"),
         payment_method_id=data.get("payment_method_id"), must_pay_now=not (pay_later or defer_charge),
-        on_account_ok=requirement == "pay_later_allowed" and pay_later,
+        on_account_ok=requirement == "pay_later_allowed" and pay_later, coupon_code=data.get("coupon_code"),
     )  # fmt: skip
     _complete(session, checkout, items, accepted)
     audit.record(
