@@ -191,7 +191,7 @@ def test_trainers_see_the_packages_of_their_own_clients_only(client, tenant, own
         session.execute(update(StaffUser).where(StaffUser.id == staff_id).values(linked_resource_id=trainer["id"]))
     coach = login(client, tenant, email)
     assert ran(client, coach, "package_summary")["row_count"] == 0  # nobody names them yet
-    ok(client.patch(f"{API}/clients/{world.person}", headers=owner,
+    ok(client.put(f"{API}/clients/{world.person}/owners", headers=owner,
                     json={"default_trainer_staff_user_id": str(staff_id)}))  # fmt: skip
     mine = ran(client, coach, "package_summary")
     assert mine["row_count"] == 1 and rows(client, coach, mine["id"])["data"][0]["sessions_remaining"] == 8
