@@ -75,24 +75,52 @@ describe('PortalApp', { timeout: 20_000 }, () => {
     expect(standing).toEqual(['c1', 'c2'])
   })
 
-  it('pays an open invoice with the stored card and shows a needs-confirmation state instead of success', async () => {
+  it('pays part of an invoice with the stored card, runs the bank check, and only then reads as paid', async () => {
     const payments: Call[] = []
+    const confirms: Call[] = []
     open('/portal/invoices', {
       'GET /api/v1/portal/invoices': page([invoice('i1', 'c1')]),
       'GET /api/v1/portal/payment-methods': { status: 200, body: [card] },
+      'POST /api/v1/portal/payment-methods/setup-intents': { status: 201, body: { provider: 'fake', client_secret: 'x' } },
       'POST /api/v1/portal/payments': (call) => {
         payments.push(call)
-        return { status: 201, body: { client_secret: 'pi_secret', credit_applied_minor: 0, payment: { id: 'p1', status: 'requires_action', amount_minor: 2500, receipt_number: 3 } } }
+        return { status: 201, body: { client_secret: 'fake_pi_1_secret_x', credit_applied_minor: 0, payment: { id: 'p1', status: 'requires_action', amount_minor: 1000, receipt_number: 3 } } }
+      },
+      'POST /api/v1/public/fake-processor/authentications': { status: 204 },
+      'POST /api/v1/portal/payments/p1/confirm': (call) => {
+        confirms.push(call)
+        return { status: 200, body: { client_secret: null, credit_applied_minor: 0, payment: { id: 'p1', status: 'succeeded', amount_minor: 1000, receipt_number: 3 } } }
       },
     })
     await userEvent.click(await screen.findByRole('button', { name: 'Pay invoice 7' }))
     const dialog = await screen.findByRole('dialog', { name: 'Pay invoice #7' })
     expect(within(dialog).getByRole('combobox', { name: 'Pay with' })).toHaveValue('pm1')
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Pay $25.00' }))
-    expect(await within(dialog).findByRole('status')).toHaveTextContent('Payment pending.')
+    const amount = within(dialog).getByRole('textbox', { name: /Amount/ })
+    await userEvent.clear(amount)
+    await userEvent.type(amount, '30')
+    expect(within(dialog).getByRole('button', { name: /^Pay/ })).toBeDisabled() // more than is owed
+    await userEvent.clear(amount)
+    await userEvent.type(amount, '10')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Pay $10.00' }))
     expect(within(dialog).queryByText(/Thank you/)).not.toBeInTheDocument()
-    expect(payments[0]?.body).toEqual({ invoice_ids: ['i1'], payment_method_id: 'pm1', method_token: null, use_account_credit: false, set_autopay: false })
+    await userEvent.click(await within(dialog).findByRole('button', { name: 'Approve as the bank (test)' }))
+    expect(await within(dialog).findByRole('status')).toHaveTextContent('Thank you. $10.00 paid, receipt #3.')
+    expect(within(dialog).getByRole('button', { name: 'Download receipt' })).toBeInTheDocument()
+    expect(payments[0]?.body).toEqual({ invoice_ids: ['i1'], amount_minor: 1000, payment_method_id: 'pm1', method_token: null, use_account_credit: false, set_autopay: false })
     expect(payments[0]?.headers['idempotency-key']).toBeTruthy()
+    expect(confirms[0]?.body).toEqual({ invoice_ids: ['i1'] })
+  })
+
+  it("offers the guardian's own stored card for a dependant's invoice", async () => {
+    open('/portal/invoices', {
+      'GET /api/v1/portal/clients': { status: 200, body: { data: [person('c1', 'Morgan', 'self'), person('c3', 'Kit', 'guardian')] } },
+      'GET /api/v1/portal/invoices': page([invoice('i3', 'c3')]),
+      'GET /api/v1/portal/payment-methods': { status: 200, body: [card] },
+      'POST /api/v1/portal/payment-methods/setup-intents': { status: 201, body: { provider: 'fake', client_secret: 'x' } },
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'Pay invoice 7' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Pay invoice #7' })
+    expect(within(dialog).getByRole('combobox', { name: 'Pay with' })).toHaveValue('pm1')
   })
 
   it("does not offer another person's stored card for a dependent's invoice", async () => {

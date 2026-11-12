@@ -239,6 +239,9 @@ class PortalContractBuy(In):
     is_auto_renew: bool | None = None
     tender_kind: Literal["card", "bank_debit"] = "card"
     method_token: Annotated[str, StringConstraints(max_length=200)] | None = None
+    coupon_code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)] | None = (
+        None  # SSP-11
+    )
 
 
 class PublicPlanOut(Out):

@@ -180,11 +180,13 @@ def test_payment_is_a_direct_charge_on_the_connected_account_with_our_key(stripe
         ["true"],
         ["t1:payment:k1"],
     )
+    assert "use_stripe_sdk" not in params  # nobody is there to authenticate an off-session charge
     http.reply(200, intent())
     stripe.create_payment(
         account_ref=ACCOUNT, amount_minor=5, currency="USD", method_token="pm_card", idempotency_key="k2"
     )
     assert "off_session" not in http.last["params"] and "customer" not in http.last["params"]
+    assert http.last["params"]["use_stripe_sdk"] == ["true"]  # 3-D Secure runs in the browser (handleNextAction)
 
 
 @pytest.mark.parametrize(
@@ -328,7 +330,7 @@ def test_accounts_customers_and_stored_methods(stripe, http):
         "type": "us_bank_account",
         "us_bank_account": {"bank_name": "STRIPE TEST BANK", "last4": "6789"},
     }
-    http.reply(200, card).reply(200, bank).reply(200, bank).reply(200, {}).reply(
+    http.reply(200, card).reply(200, card).reply(200, bank).reply(200, bank).reply(200, {}).reply(
         402, {"error": {"message": "Card declined."}}
     )
     stored = stripe.attach_method(account_ref=ACCOUNT, customer_ref="cus_1", method_token="pm_1")
@@ -346,6 +348,12 @@ def test_accounts_customers_and_stored_methods(stripe, http):
     assert http.last["path"] == "/v1/payment_methods/pm_1/detach"
     with pytest.raises(ValueError, match="Card declined"):
         stripe.attach_method(account_ref=ACCOUNT, customer_ref="cus_1", method_token="pm_bad")
+    # A bank account saved through a setup intent (Financial Connections) is already on the customer: no attach.
+    http.reply(200, bank | {"customer": "cus_1"})
+    saved = stripe.attach_method(account_ref=ACCOUNT, customer_ref="cus_1", method_token="pm_2")
+    assert (saved.kind, saved.last4, http.last["method"], http.last["path"]) == (
+        "bank_account", "6789", "GET", "/v1/payment_methods/pm_2",
+    )  # fmt: skip
 
 
 @pytest.mark.parametrize(

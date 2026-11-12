@@ -86,6 +86,21 @@ def finish(row_id: UUID, error: str | None = None) -> None:
         )
 
 
+def stale(tenant_id: UUID, before: datetime, max_attempts: int) -> list[UUID]:
+    """One tenant's events that were stored but not processed before `before` (never enqueued, or failed
+    fewer than `max_attempts` times): the work list of billing's retry sweep."""
+    with platform_engine().connect() as conn:
+        return list(
+            conn.execute(
+                text(
+                    "SELECT id FROM inbound_webhook_event WHERE tenant_id = :t AND received_at < :b AND "
+                    "(status = 'received' OR (status = 'failed' AND attempt_count < :m)) ORDER BY received_at"
+                ),
+                {"t": tenant_id, "b": before, "m": max_attempts},
+            ).scalars()
+        )
+
+
 def get(row_id: UUID):
     with platform_engine().connect() as conn:
         return conn.execute(

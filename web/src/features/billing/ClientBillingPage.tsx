@@ -280,7 +280,7 @@ function MethodsTab({ clientId }: { clientId: string }) {
       {manage && <Button onClick={() => setAdding(true)}>Add payment method</Button>}
       {adding && (
         <FormDialog title="Add a payment method" submitLabel="Save method" busy={attach.isPending} error={attach.error} onClose={() => setAdding(false)} onSubmit={() => token && attach.mutate()}>
-          <PaymentMethodField kind="any" value={token} onChange={setToken} />
+          <PaymentMethodField kind="any" value={token} onChange={setToken} setup={() => api.post('/api/v1/clients/{client_id}/payment-methods/setup-intents', { path: { client_id: clientId }, body: { kinds: ['card', 'bank_account'] } })} />
           <Checkbox label="Use for autopay" checked={autopay} onChange={(e) => setAutopay(e.target.checked)} />
         </FormDialog>
       )}

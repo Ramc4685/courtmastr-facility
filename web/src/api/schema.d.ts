@@ -7053,6 +7053,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/coupon-quotes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Quote Portal Coupon
+         * @description Validation only: the portal checkout that sells something redeems the code. Errors: coupon-not-found.
+         */
+        post: operations["quotePortalCoupon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/dependents": {
         parameters: {
             query?: never;
@@ -7471,10 +7491,66 @@ export interface paths {
         put?: never;
         /**
          * Pay Portal Invoices
-         * @description Pay the full balance of the caller's own invoices. The payer is the caller's client and a stored
-         *     method must be theirs. Read `payment.status`. Errors: invoice-not-payable, payment-method-not-usable.
+         * @description Pay the caller's invoices (or a household member's they may handle): the whole balance or
+         *     `amount_minor` of it. A stored method must be the payer's. Read `payment.status`; `requires_action` comes
+         *     with a `client_secret` for 3-D Secure, then confirm. Errors: invoice-not-payable, amount-exceeds-balance,
+         *     payment-method-not-usable.
          */
         post: operations["payPortalInvoices"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/payments/{payment_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Portal Payment
+         * @description Back from 3-D Secure: re-read the payment and apply it to the invoices it was for. Safe to repeat.
+         */
+        post: operations["confirmPortalPayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/payments/{payment_id}/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Receipt */
+        get: operations["getPortalReceipt"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/payments/{payment_id}/receipt/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Portal Receipt Pdf */
+        get: operations["getPortalReceiptPdf"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -8977,6 +9053,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/fake-processor/authentications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Authenticate Fake Payment
+         * @description Development and test only: the fake processor's stand-in for the bank's 3-D Secure challenge, which
+         *     Stripe runs inside Stripe.js. 404 whenever the fake processor is not registered (it never is in
+         *     production, where settings refuse it). Errors: not-found.
+         */
+        post: operations["authenticateFakePayment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/invoice-links/lookup": {
         parameters: {
             query?: never;
@@ -9012,6 +9110,27 @@ export interface paths {
          *     invoice-not-payable.
          */
         post: operations["payInvoiceByLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/invoice-links/payments/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Invoice Link Payment
+         * @description Back from 3-D Secure: re-read the payment this link started; once it went through it pays the invoice
+         *     and uses the link up. Errors: link-invalid.
+         */
+        post: operations["confirmInvoiceLinkPayment"];
         delete?: never;
         options?: never;
         head?: never;
@@ -19323,6 +19442,16 @@ export interface components {
             /** Days */
             days: components["schemas"]["FacilityHoursDay"][];
         };
+        /** FakeAuthentication */
+        FakeAuthentication: {
+            /**
+             * Approve
+             * @default true
+             */
+            approve: boolean;
+            /** Client Secret */
+            client_secret: string;
+        };
         /** FieldPolicies */
         FieldPolicies: {
             /** Policies */
@@ -20015,6 +20144,16 @@ export interface components {
             /** Total Minor */
             total_minor: number;
         };
+        /** InvoiceLinkConfirm */
+        InvoiceLinkConfirm: {
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            /** Token */
+            token: string;
+        };
         /** InvoiceLinkLookup */
         InvoiceLinkLookup: {
             /** Token */
@@ -20575,6 +20714,11 @@ export interface components {
             client_secret?: string | null;
             /** Currency */
             currency: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
             /** Receipt Number */
             receipt_number: number;
             /** Status */
@@ -24330,6 +24474,8 @@ export interface components {
         };
         /** PortalCheckoutConfirm */
         PortalCheckoutConfirm: {
+            /** Coupon Code */
+            coupon_code?: string | null;
             /** Method Token */
             method_token?: string | null;
             /**
@@ -24593,6 +24739,8 @@ export interface components {
         PortalContractBuy: {
             /** Client Id */
             client_id?: string | null;
+            /** Coupon Code */
+            coupon_code?: string | null;
             /** Is Auto Renew */
             is_auto_renew?: boolean | null;
             /** Is Autopay */
@@ -24750,6 +24898,24 @@ export interface components {
             visits_remaining_count: number | null;
             /** Visits Used Count */
             visits_used_count: number;
+        };
+        /** PortalCouponQuote */
+        PortalCouponQuote: {
+            /** Discount Minor */
+            discount_minor: number;
+            /** Invalid Reason */
+            invalid_reason: string | null;
+            /** Is Valid */
+            is_valid: boolean;
+        };
+        /** PortalCouponQuoteRequest */
+        PortalCouponQuoteRequest: {
+            /** Client Id */
+            client_id?: string | null;
+            /** Code */
+            code: string;
+            /** Subtotal Minor */
+            subtotal_minor: number;
         };
         /**
          * PortalCreditLedgerEntryOut
@@ -25010,6 +25176,8 @@ export interface components {
         PortalPackageBuy: {
             /** Client Id */
             client_id?: string | null;
+            /** Coupon Code */
+            coupon_code?: string | null;
             /**
              * Location Id
              * Format: uuid
@@ -25257,8 +25425,18 @@ export interface components {
             credit_applied_minor: number;
             payment: components["schemas"]["PortalPaymentDetail"] | null;
         };
+        /**
+         * PortalPaymentConfirm
+         * @description The invoices the payment was for, so what it has left lands on them once authentication succeeds.
+         */
+        PortalPaymentConfirm: {
+            /** Invoice Ids */
+            invoice_ids: string[];
+        };
         /** PortalPaymentCreate */
         PortalPaymentCreate: {
+            /** Amount Minor */
+            amount_minor?: number | null;
             /** Invoice Ids */
             invoice_ids: string[];
             /** Method Token */
@@ -25382,6 +25560,57 @@ export interface components {
         PortalPreferencesReplace: {
             /** Changes */
             changes: components["schemas"]["PreferenceChange"][];
+        };
+        /** PortalReceiptLine */
+        PortalReceiptLine: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Description */
+            description: string;
+            /** Invoice Id */
+            invoice_id: string | null;
+        };
+        /**
+         * PortalReceiptOut
+         * @description The client's own receipt (PAY-18). Its own schema, so a field added for staff never reaches a client.
+         */
+        PortalReceiptOut: {
+            /** Applied Minor */
+            applied_minor: number;
+            /** Card Brand */
+            card_brand: string | null;
+            /** Card Last4 */
+            card_last4: string | null;
+            /** Client Id */
+            client_id: string | null;
+            /** Currency */
+            currency: string;
+            /** Footer */
+            footer: string | null;
+            /** Lines */
+            lines: components["schemas"]["PortalReceiptLine"][];
+            /**
+             * Payment Id
+             * Format: uuid
+             */
+            payment_id: string;
+            /** Receipt Number */
+            receipt_number: number;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Received Minor */
+            received_minor: number;
+            /** Refunded Minor */
+            refunded_minor: number;
+            /** Status */
+            status: string;
+            /** Tender Kind */
+            tender_kind: string;
+            /** Unapplied Minor */
+            unapplied_minor: number;
         };
         /** PortalRefundOut */
         PortalRefundOut: {
@@ -51247,6 +51476,42 @@ export interface operations {
             };
         };
     };
+    quotePortalCoupon: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalCouponQuoteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalCouponQuote"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     portalCreateDependent: {
         parameters: {
             query?: never;
@@ -52215,6 +52480,112 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PortalPayment"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirmPortalPayment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalPaymentConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalPayment"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalReceipt: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalReceiptOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalReceiptPdf: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The PDF, as an attachment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
                 };
             };
             /** @description Validation Error */
@@ -55786,6 +56157,37 @@ export interface operations {
             };
         };
     };
+    authenticateFakePayment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FakeAuthentication"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getInvoiceByLink: {
         parameters: {
             query?: never;
@@ -55837,6 +56239,42 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkPayment"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirmInvoiceLinkPayment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceLinkConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

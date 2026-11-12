@@ -24,6 +24,7 @@ EVERY_HOUR = (
     "send_low_stock_digest",
 )  # fmt: skip
 EVERY_HOUR += ("renew_catalog_item_sales",)  # billing pre-defined items (BIL-14)
+EVERY_HOUR += ("retry_provider_events",)  # billing: webhooks stored but never processed (PAY-11)
 
 
 def active_tenants() -> list[str]:

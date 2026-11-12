@@ -94,6 +94,38 @@ describe('TakePaymentDialog', { timeout: 20_000 }, () => {
     expect(payments[1]?.headers['idempotency-key']).not.toBe(payments[0]?.headers['idempotency-key'])
   })
 
+  it('runs the bank check for a card that needs authentication, then confirms and applies it to the invoice', async () => {
+    const payments: Call[] = []
+    const calls = mockFetch({
+      'GET /api/v1/tender-types': { status: 200, body: tenders },
+      'GET /api/v1/clients/c1/payment-methods': { status: 200, body: [] },
+      'GET /api/v1/provider-accounts': { status: 200, body: fake },
+      'POST /api/v1/payments': (call) => {
+        payments.push(call)
+        return { status: 201, body: { ...payment(call.body as Record<string, unknown>, 'requires_action', 1), client_secret: 'fake_pi_1_secret_x', unapplied_minor: 0 } }
+      },
+      'POST /api/v1/public/fake-processor/authentications': { status: 204 },
+      'POST /api/v1/payments/p1/confirm': { status: 200, body: { id: 'p1', receipt_number: 1, status: 'succeeded', amount_minor: 500, unapplied_minor: 500 } },
+      'POST /api/v1/payments/p1/allocations': { status: 200, body: { id: 'p1', receipt_number: 1, status: 'succeeded', amount_minor: 500, unapplied_minor: 0 } },
+    })
+    const onPaid = vi.fn()
+    const onClose = vi.fn()
+    wrap(<TakePaymentDialog clientId="c1" locationId="l1" invoiceId="i1" balanceMinor={500} onClose={onClose} onPaid={onPaid} />)
+    const row = await screen.findByRole('group', { name: 'Tender 1' })
+    await userEvent.selectOptions(within(row).getByRole('combobox', { name: 'Tender' }), 'Card')
+    await userEvent.selectOptions(await within(row).findByRole('combobox', { name: 'New payment method' }), 'tok_card_auth')
+    await userEvent.click(screen.getByRole('button', { name: 'Take payment' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve as the bank (test)' }))
+    await waitFor(() => expect(calls.some((c) => c.url.endsWith('/payments/p1/allocations'))).toBe(true))
+    expect(calls.find((c) => c.url.endsWith('/fake-processor/authentications'))?.body).toEqual({ client_secret: 'fake_pi_1_secret_x', approve: true })
+    expect(calls.find((c) => c.url.endsWith('/payments/p1/allocations'))?.body).toEqual({ invoice_id: 'i1' })
+    expect(calls.find((c) => c.url.endsWith('/payments/p1/confirm'))?.headers['idempotency-key']).toBeTruthy()
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+    await waitFor(() => expect(onPaid).toHaveBeenCalled())
+    expect(onClose).toHaveBeenCalled()
+    expect(payments).toHaveLength(1)
+  })
+
   it('refuses a processed tender with no method before calling the API', async () => {
     const payments: Call[] = []
     routes(payments, () => 'succeeded')
@@ -118,27 +150,47 @@ describe('PaymentMethodField', () => {
 
   it('mounts Stripe Elements on the connected account and hands on only the pm_ reference', async () => {
     const mounted: HTMLElement[] = []
-    const card = { mount: (el: HTMLElement) => mounted.push(el), destroy: vi.fn(), on: vi.fn() }
+    const element = { mount: (el: HTMLElement) => void mounted.push(el), destroy: vi.fn() }
+    const elements = vi.fn(() => ({ create: () => element, submit: vi.fn().mockResolvedValue({}) }))
     const createPaymentMethod = vi.fn().mockResolvedValue({ paymentMethod: { id: 'pm_123', card: { brand: 'visa', last4: '4242' } } })
-    const Stripe = vi.fn(() => ({ elements: () => ({ create: () => card }), createPaymentMethod }))
+    const Stripe = vi.fn(() => ({ elements, createPaymentMethod, confirmSetup: vi.fn(), handleNextAction: vi.fn() }))
     window.Stripe = Stripe
     const stripeAccount = { ...fake[0], provider: 'stripe', provider_account_ref: 'acct_1', publishable_key: 'pk_test_1' }
     mockFetch({ 'GET /api/v1/provider-accounts': { status: 200, body: [stripeAccount] } })
     const onChange = vi.fn()
     wrap(<PaymentMethodField kind="card" value="" onChange={onChange} />)
-    await userEvent.click(await screen.findByRole('button', { name: 'Use this card' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Use these details' }))
     expect(Stripe).toHaveBeenCalledWith('pk_test_1', { stripeAccount: 'acct_1' })
-    expect(mounted[0]).toHaveAttribute('data-testid', 'stripe-card')
+    expect(mounted[0]).toHaveAttribute('data-testid', 'stripe-payment')
+    expect(elements).toHaveBeenCalledWith(expect.objectContaining({ mode: 'setup', currency: 'usd', paymentMethodCreation: 'manual', paymentMethodTypes: ['card'] }))
     expect(onChange).toHaveBeenCalledWith('pm_123')
     expect(await screen.findByRole('status')).toHaveTextContent('visa ending 4242 is ready.')
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument() // the card number lives in Stripe's iframe
     delete window.Stripe
   })
 
-  it('says plainly that Stripe bank entry is not available yet', async () => {
+  it('links a Stripe bank account through a setup intent (Financial Connections) and hands on its pm_ reference', async () => {
+    const element = { mount: vi.fn(), destroy: vi.fn() }
+    const elements = vi.fn(() => ({ create: () => element, submit: vi.fn() }))
+    const confirmSetup = vi.fn().mockResolvedValue({ setupIntent: { payment_method: { id: 'pm_bank', us_bank_account: { bank_name: 'Test Bank', last4: '6789' } } } })
+    window.Stripe = vi.fn(() => ({ elements, createPaymentMethod: vi.fn(), confirmSetup, handleNextAction: vi.fn() }))
+    const stripeAccount = { ...fake[0], provider: 'stripe', provider_account_ref: 'acct_1', publishable_key: 'pk_test_1' }
+    mockFetch({ 'GET /api/v1/provider-accounts': { status: 200, body: [stripeAccount] } })
+    const setup = vi.fn().mockResolvedValue({ client_secret: 'seti_1_secret_x' })
+    const onChange = vi.fn()
+    wrap(<PaymentMethodField kind="bank" value="" onChange={onChange} setup={setup} />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Use these details' }))
+    expect(elements).toHaveBeenCalledWith(expect.objectContaining({ clientSecret: 'seti_1_secret_x' }))
+    expect(confirmSetup).toHaveBeenCalledWith(expect.objectContaining({ redirect: 'if_required' }))
+    expect(onChange).toHaveBeenCalledWith('pm_bank')
+    expect(await screen.findByRole('status')).toHaveTextContent('Test Bank ending 6789 is ready.')
+    delete window.Stripe
+  })
+
+  it('sends a Stripe bank account without a setup intent to the client payment methods', async () => {
     mockFetch({ 'GET /api/v1/provider-accounts': { status: 200, body: [{ ...fake[0], provider: 'stripe' }] } })
     wrap(<PaymentMethodField kind="bank" value="" onChange={() => {}} />)
-    expect(await screen.findByRole('alert')).toHaveTextContent('Bank account entry through Stripe is not available')
+    expect(await screen.findByRole('alert')).toHaveTextContent("A bank account can be linked from the client's payment methods")
   })
 
   it('points to set-up when no processor is connected', async () => {

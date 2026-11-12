@@ -5,7 +5,7 @@ import { Button } from '../../components/Button'
 import { Input, Select } from '../../components/Field'
 import { useToast } from '../../components/Toast'
 import { formatMoney, parseMoney, toMoneyInput, TENDER_LABEL, PAYMENT_STATUS } from './money'
-import { PaymentMethodField } from './PaymentMethodField'
+import { PaymentAuthentication, PaymentMethodField } from './PaymentMethodField'
 import { FormDialog, MoneyInput, StatusBadge, useCurrency, useTenderTypes } from './shared'
 
 type Payment = Schemas['PaymentDetail']
@@ -13,7 +13,8 @@ type Row = { id: string; idem: string; tenderTypeId: string; amount: string; met
 
 const newRow = (tenderTypeId: string, amount: string): Row => ({ id: crypto.randomUUID(), idem: crypto.randomUUID(), tenderTypeId, amount, methodId: '', token: '', reference: '' })
 const PROCESSED = new Set(['card', 'bank_debit'])
-const done = (r: Row) => r.result && !['failed', 'cancelled'].includes(r.result.status)
+// A payment waiting on the bank's check is not done: the dialog stays open for it.
+const done = (r: Row) => r.result && !['failed', 'cancelled', 'requires_action'].includes(r.result.status)
 
 /** onPaid runs only after every tender went through, just before onClose (which Cancel also calls). */
 type Props = { clientId: string; locationId: string; invoiceId?: string; balanceMinor: number; onClose: () => void; onPaid?: () => void }
@@ -33,12 +34,21 @@ export function TakePaymentDialog({ clientId, locationId, invoiceId, balanceMino
   const current = rows ?? (enabled[0] ? [newRow(enabled[0].id, toMoneyInput(Math.max(balanceMinor, 0)))] : [])
   const usable = (methods.data ?? []).filter((m) => m.status === 'active')
 
-  const update = (i: number, patch: Partial<Row>) => setRows(current.map((r, j) => (j === i ? { ...r, ...patch } : r)))
+  // Functional: the bank check finishes asynchronously, after the render that started it.
+  const update = (i: number, patch: Partial<Row>) => setRows((rows) => (rows ?? current).map((r, j) => (j === i ? { ...r, ...patch } : r)))
+  const bankSetup = () => api.post('/api/v1/clients/{client_id}/payment-methods/setup-intents', { path: { client_id: clientId }, body: { kinds: ['bank_account'] } })
   const total = current.reduce((sum, r) => sum + (parseMoney(r.amount) ?? 0), 0)
 
+  // Back from 3-D Secure: re-read the payment, then apply it to the invoice (a payment that needed action
+  // allocated nothing when it was taken, so its money waits as unapplied credit).
   const confirm = async (i: number, payment: Payment) => {
-    const confirmed = await api.post('/api/v1/payments/{payment_id}/confirm', { path: { payment_id: payment.id } })
-    update(i, { result: confirmed })
+    let confirmed = await api.post('/api/v1/payments/{payment_id}/confirm', { path: { payment_id: payment.id }, idempotencyKey: crypto.randomUUID() })
+    if (invoiceId && ['succeeded', 'processing'].includes(confirmed.status) && confirmed.unapplied_minor > 0) {
+      confirmed = await api.post('/api/v1/payments/{payment_id}/allocations', { path: { payment_id: payment.id }, body: { invoice_id: invoiceId }, idempotencyKey: crypto.randomUUID() })
+    }
+    const failed = confirmed.status === 'failed' || confirmed.status === 'cancelled'
+    update(i, { result: confirmed, error: failed ? (confirmed.failure_message ?? 'The bank check failed.') : undefined, ...(failed ? { idem: crypto.randomUUID() } : {}) })
+    void qc.invalidateQueries({ queryKey: ['billing'] })
   }
 
   const submit = async () => {
@@ -46,6 +56,10 @@ export function TakePaymentDialog({ clientId, locationId, invoiceId, balanceMino
     const next = [...current]
     for (const [i, row] of [...next].entries()) {
       if (done(row)) continue
+      if (row.result?.status === 'requires_action') {
+        next[i] = { ...row, error: 'Finish the bank check for this tender first.' }
+        break
+      }
       const tender = enabled.find((t) => t.id === row.tenderTypeId)
       const amount = parseMoney(row.amount)
       if (!tender || !amount || amount <= 0) {
@@ -117,20 +131,21 @@ export function TakePaymentDialog({ clientId, locationId, invoiceId, balanceMino
                     .filter((m) => (tender?.kind === 'card' ? m.kind === 'card' : m.kind === 'bank_account'))
                     .map((m) => ({ value: m.id, label: `${m.brand ?? (m.kind === 'card' ? 'Card' : 'Bank')} •••• ${m.last4}${m.is_autopay ? ' (autopay)' : ''}` }))}
                 />
-                {!row.methodId && <PaymentMethodField kind={tender?.kind === 'card' ? 'card' : 'bank'} value={row.token} onChange={(token) => update(i, { token })} />}
+                {!row.methodId && <PaymentMethodField kind={tender?.kind === 'card' ? 'card' : 'bank'} value={row.token} onChange={(token) => update(i, { token })} setup={bankSetup} />}
               </>
             )}
             {!processed && <Input label="Reference" hint="Cheque number, transfer reference or a note." value={row.reference} onChange={(e) => update(i, { reference: e.target.value })} />}
             {result && (
               <p className="flex items-center gap-2 text-sm">
                 Payment #{result.receipt_number}: <StatusBadge map={PAYMENT_STATUS} value={result.status} />
-                {result.status === 'requires_action' && (
+                {result.status === 'requires_action' && !result.client_secret && (
                   <Button size="sm" variant="secondary" onClick={() => void confirm(i, result).catch((e: Error) => update(i, { error: e.message }))}>
-                    Confirm authentication
+                    Check again
                   </Button>
                 )}
               </p>
             )}
+            {result?.status === 'requires_action' && result.client_secret && <PaymentAuthentication clientSecret={result.client_secret} onDone={() => confirm(i, result)} />}
             {row.error && (
               <p role="alert" className="text-sm font-medium text-danger">
                 {row.error}

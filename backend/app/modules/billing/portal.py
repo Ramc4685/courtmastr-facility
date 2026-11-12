@@ -1,9 +1,11 @@
 """The client surface of billing (PAY-18, PAY-06): a signed-in client sees and pays the invoices billed to
-the clients their identity holds portal access to, and manages their own stored methods.
+the clients they may handle invoices for, and manages their own stored methods.
 
 Ownership is the gate here, not the permission catalogue (security-baseline 17.3): every function resolves
-the caller's own client ids first, and anything outside them is 404. `can_act_for` across a household arrives
-with build module 4; until then "own" means direct portal access.
+the caller's client ids first, and anything outside them is 404. Those are the clients the identity holds
+portal access to plus the household members `can_act_for(..., "invoices")` allows (self, manager, guardian;
+never a delegate). Paying a member's invoice spends the payer's own money: the payment is the signed-in
+person's, its allocations go to the member's items (billing.service._require_payer allows a relative's).
 """
 
 from datetime import date, timedelta
@@ -16,7 +18,7 @@ from app.core.auth import Principal
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.pagination import ListQuery, paginate
 from app.modules import clients, platform
-from app.modules.billing import documents, methods, service
+from app.modules.billing import catalogue, documents, methods, service
 from app.modules.billing.models import Charge, Invoice, Payment, PaymentMethod
 
 _PAYABLE = ("open", "partially_paid")
@@ -25,7 +27,18 @@ _PAYABLE = ("open", "partially_paid")
 def _own(session: Session, principal: Principal) -> list[UUID]:
     if principal.kind != "client" or principal.identity_id is None:
         return []
-    return list(clients.service.client_ids_for_identity(session, principal.identity_id))
+    return [
+        client_id
+        for client_id in clients.households.actable_client_ids(session, principal.identity_id)
+        if clients.households.can_act_for(session, principal.identity_id, client_id, "invoices")
+    ]
+
+
+def _payer(session: Session, principal: Principal, bill_to: UUID) -> UUID:
+    """Whose money pays an invoice: the invoice's client when the caller holds its portal access, otherwise
+    (a household member's invoice) the caller's own record."""
+    direct = clients.service.client_ids_for_identity(session, principal.identity_id)
+    return bill_to if bill_to in direct else direct[0]
 
 
 def _clients(session: Session, principal: Principal) -> list[UUID]:
@@ -68,30 +81,29 @@ def get_invoice(session: Session, principal: Principal, invoice_id: UUID) -> dic
 
 
 def pay(session: Session, principal: Principal, data: dict, idempotency_key: str) -> dict:
-    """Pay the full balance of one or more of the caller's invoices, all billed to the same client, with
-    account credit first if asked and then one card or bank payment. The payer is always that client and a
-    stored method must be theirs: a caller never spends someone else's method or credit."""
-    own = _clients(session, principal)
+    """Pay one or more of the caller's invoices, all billed to the same client: the whole balance, or
+    `amount_minor` of it (oldest item first, never more than is owed). Account credit goes first if asked,
+    then one card or bank payment for the rest. The payer is the invoice's client, or the signed-in person
+    when it is a household member's invoice; a stored method must be the payer's, so a caller never spends
+    someone else's method or credit. A payment that needs the payer to authenticate (3-D Secure) comes back
+    `requires_action` with a `client_secret`: the browser authenticates, then calls confirm()."""
     invoices = [_invoice(session, principal, invoice_id, lock=True) for invoice_id in sorted(set(data["invoice_ids"]))]
-    payer = invoices[0].bill_to_client_id
-    if any(invoice.bill_to_client_id != payer for invoice in invoices) or payer not in own:
+    if len({invoice.bill_to_client_id for invoice in invoices}) != 1:
         raise ValidationFailed("Pay one person's invoices at a time.", pointer="/invoice_ids")
     if any(invoice.status not in _PAYABLE or invoice.balance_minor <= 0 for invoice in invoices):
         raise Conflict("An invoice is not payable.", code="invoice-not-payable")
+    payer = _payer(session, principal, invoices[0].bill_to_client_id)
+    owed = sum(invoice.balance_minor for invoice in invoices)
+    wanted = data.get("amount_minor") or owed
+    if wanted > owed:
+        raise ValidationFailed(
+            "That is more than is owed on these invoices.", pointer="/amount_minor", code="amount-exceeds-balance"
+        )
     credit = 0
     if data.get("use_account_credit"):
         for invoice in invoices:
-            credit += service.spend_credit(session, payer, invoice_id=invoice.id)
-    open_charges = session.scalars(
-        select(Charge)
-        .where(
-            Charge.invoice_id.in_([invoice.id for invoice in invoices]),
-            Charge.status == "active",
-            Charge.applied_minor < Charge.total_minor,
-        )  # fmt: skip
-        .order_by(Charge.bill_on, Charge.id)
-    ).all()
-    allocations = [(charge.id, charge.total_minor - charge.applied_minor) for charge in open_charges]
+            credit += service.spend_credit(session, payer, invoice_id=invoice.id, limit=wanted - credit)
+    allocations = _allocations(session, invoices, wanted - credit)
     payment = None
     if allocations:
         method_id, tender = data.get("payment_method_id"), "card"
@@ -119,6 +131,68 @@ def pay(session: Session, principal: Principal, data: dict, idempotency_key: str
         "credit_applied_minor": credit, "payment": service._payment_detail(session, payment) if payment else None,
         "client_secret": getattr(payment, "client_secret", None),
     }  # fmt: skip
+
+
+def _allocations(session: Session, invoices: list[Invoice], amount: int) -> list[tuple[UUID, int]]:
+    """`amount` over the invoices' open items, oldest first."""
+    rows = []
+    for charge in session.scalars(
+        select(Charge)
+        .where(
+            Charge.invoice_id.in_([invoice.id for invoice in invoices]),
+            Charge.status == "active",
+            Charge.applied_minor < Charge.total_minor,
+        )  # fmt: skip
+        .order_by(Charge.bill_on, Charge.id)
+    ):
+        take = min(amount - sum(part for _, part in rows), charge.total_minor - charge.applied_minor)
+        if take > 0:
+            rows.append((charge.id, take))
+    return rows
+
+
+def _payment(session: Session, principal: Principal, payment_id: UUID, *, lock: bool = False) -> Payment:
+    payment = service._get(session, Payment, payment_id, lock=lock)
+    if payment.client_id not in _own(session, principal):
+        raise NotFound()
+    return payment
+
+
+def confirm(session: Session, principal: Principal, payment_id: UUID, data: dict) -> dict:
+    """Back from the processor's authentication (3-D Secure): re-read the payment and, once it went through,
+    apply what it has left to the invoices it was for (the caller's own, oldest item first). Safe to repeat;
+    a webhook that settled the payment first leaves the money on account until this applies it."""
+    payment = _payment(session, principal, payment_id, lock=True)
+    payment = service.confirm_payment(session, payment.id)
+    if payment.status in ("succeeded", "processing"):
+        for invoice_id in sorted(set(data["invoice_ids"])):
+            invoice = _invoice(session, principal, invoice_id)
+            if invoice.status in _PAYABLE and invoice.balance_minor > 0:
+                service.allocate(session, payment.id, invoice_id=invoice.id)
+    return {"credit_applied_minor": 0, "payment": service._payment_detail(session, payment), "client_secret": None}
+
+
+def receipt(session: Session, principal: Principal, payment_id: UUID) -> dict:
+    return documents.receipt(session, _payment(session, principal, payment_id))
+
+
+def receipt_pdf(session: Session, principal: Principal, payment_id: UUID) -> tuple[str, bytes]:
+    payment = _payment(session, principal, payment_id)
+    return f"receipt-{payment.receipt_number}.pdf", documents.receipt_pdf(session, payment)
+
+
+def quote_coupon(session: Session, principal: Principal, data: dict) -> dict:
+    """Would this code work online for this sale (SSP-11)? Validation only: the sale's checkout redeems it.
+    `client_id` is who the sale is for (a household member the caller may buy for); default the caller."""
+    _clients(session, principal)
+    own = clients.households.actable_client_ids(session, principal.identity_id)
+    client_id = data.get("client_id") or own[0]
+    if client_id not in own:
+        raise NotFound()
+    quote = catalogue.quote_coupon(
+        session, data["code"], subtotal_minor=data["subtotal_minor"], redeemer_client_id=client_id, channel="portal"
+    )
+    return {key: quote[key] for key in ("is_valid", "invalid_reason", "discount_minor")}
 
 
 def list_payments(session: Session, principal: Principal, query: ListQuery) -> dict:

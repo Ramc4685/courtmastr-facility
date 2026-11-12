@@ -804,7 +804,7 @@ def test_a_client_sees_and_pays_only_their_own_invoices(api, shop, member):
     pay({"invoice_ids": [mine["id"]], "payment_method_id": their_card["id"]}, 422, "payment-method-not-usable")
     pay({"invoice_ids": [theirs["id"]], "payment_method_id": card["id"]}, 404)
     pay({"invoice_ids": [mine["id"]]}, 422)  # no way to pay named
-    pay({"invoice_ids": [mine["id"]], "payment_method_id": card["id"], "amount_minor": 1}, 422)  # not a field here
+    pay({"invoice_ids": [mine["id"]], "payment_method_id": card["id"], "amount_minor": 0}, 422)  # above zero
     api("POST", "/payments", {"client_id": member.id, "location_id": str(shop.location_id), "amount_minor": 100,
                               "tender_kind": "cash"}, 201)  # fmt: skip
     paid = pay({"invoice_ids": [mine["id"], second["id"]], "payment_method_id": card["id"], "use_account_credit": True,

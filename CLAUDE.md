@@ -112,7 +112,7 @@ per location, WCAG 2.1 AA, docs updated).
 | 5 | Memberships and packages | staff and portal screens; P0 12 done, 3 partial; item add-ons (MEM-04); no post-billed, reports |
 | 6 | Programs and registration | staff and portal screens; P0 13 done, 2 partial; no deposits, instalments, guest checkout, coupons |
 | 7 | Waivers and documents (`documents`) | all P0 done; P1 all but DOC-07 bulk send |
-| 8 | Billing and payments | staff screens; P0 15 done, 12 partial; Stripe test mode, disputes by webhook, pre-defined items; invoice, receipt, statement PDFs and statement batches |
+| 8 | Billing and payments | staff and portal pay screens; P0 16 done, 11 partial; Stripe test mode (Payment Element, bank via Financial Connections, 3-D Secure), disputes by webhook, pre-defined items; invoice, receipt, statement PDFs and statement batches |
 | 9 | Point of sale and inventory | all P0 done bar 1 partial; packages sell at the till; quick-create client |
 | 10-17 | 10 check-in; 11 leagues; staff, assessments, reporting; 14 engagement; 16 integrations; 17 mobile (`mobile/`) | 10 P0 8 done, 1 partial, P1 access rules and desk built; 11 P0 8 done, 3 partial; 12 staff P0 6 done, 3 partial; 13 assessments P0 2 done, 1 partial; 14 P0 5 done, 9 partial; 15 reporting P0 6 done, 4 partial; 16, 17 partial (17 on the real portal API, 2 screens not available yet); details `docs/status/` |
 Per-feature state, known defects and notes for the next modules: `docs/status/README.md`; limits: module READMEs.

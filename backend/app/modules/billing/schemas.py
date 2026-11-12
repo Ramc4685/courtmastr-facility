@@ -900,6 +900,7 @@ class LinkInvoice(BrowserKeys):
 
 
 class LinkPayment(Out):
+    id: UUID  # what the confirm call names after 3-D Secure
     status: str
     amount_minor: int
     currency: str
@@ -909,10 +910,65 @@ class LinkPayment(Out):
 
 class PortalPaymentCreate(In):
     invoice_ids: Annotated[list[UUID], Field(min_length=1, max_length=50)]
+    amount_minor: Annotated[int, Field(gt=0)] | None = None  # part of the balance; omitted pays it all
     payment_method_id: UUID | None = None
     method_token: MethodToken | None = None
     use_account_credit: bool = False
     set_autopay: bool = False
+
+
+class PortalPaymentConfirm(In):
+    """The invoices the payment was for, so what it has left lands on them once authentication succeeds."""
+
+    invoice_ids: Annotated[list[UUID], Field(min_length=1, max_length=50)]
+
+
+class PortalReceiptLine(Out):
+    description: str
+    invoice_id: UUID | None
+    amount_minor: int
+
+
+class PortalReceiptOut(Out):
+    """The client's own receipt (PAY-18). Its own schema, so a field added for staff never reaches a client."""
+
+    payment_id: UUID
+    receipt_number: int
+    status: str
+    client_id: UUID | None
+    tender_kind: str
+    currency: str
+    received_at: datetime
+    received_minor: int
+    applied_minor: int
+    refunded_minor: int
+    unapplied_minor: int
+    card_brand: str | None
+    card_last4: str | None
+    footer: str | None
+    lines: list[PortalReceiptLine]
+
+
+class PortalCouponQuoteRequest(In):
+    code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
+    subtotal_minor: Annotated[int, Field(ge=0)]
+    client_id: UUID | None = None
+
+
+class PortalCouponQuote(Out):
+    is_valid: bool
+    invalid_reason: str | None
+    discount_minor: int
+
+
+class FakeAuthentication(In):
+    client_secret: Annotated[str, StringConstraints(max_length=200)]
+    approve: bool = True
+
+
+class InvoiceLinkConfirm(In):
+    token: LinkToken
+    payment_id: UUID
 
 
 # --- portal: what a client sees of their own money. No staff memos, collection state or void reasons. -------

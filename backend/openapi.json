@@ -22105,6 +22105,26 @@
         "title": "FacilityHoursReplace",
         "type": "object"
       },
+      "FakeAuthentication": {
+        "additionalProperties": false,
+        "properties": {
+          "approve": {
+            "default": true,
+            "title": "Approve",
+            "type": "boolean"
+          },
+          "client_secret": {
+            "maxLength": 200,
+            "title": "Client Secret",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_secret"
+        ],
+        "title": "FakeAuthentication",
+        "type": "object"
+      },
       "FieldPolicies": {
         "additionalProperties": false,
         "properties": {
@@ -24276,6 +24296,28 @@
         "title": "InvoiceDocument",
         "type": "object"
       },
+      "InvoiceLinkConfirm": {
+        "additionalProperties": false,
+        "properties": {
+          "payment_id": {
+            "format": "uuid",
+            "title": "Payment Id",
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 200,
+            "minLength": 20,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "payment_id"
+        ],
+        "title": "InvoiceLinkConfirm",
+        "type": "object"
+      },
       "InvoiceLinkLookup": {
         "additionalProperties": false,
         "properties": {
@@ -25950,6 +25992,11 @@
             "title": "Currency",
             "type": "string"
           },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
           "receipt_number": {
             "title": "Receipt Number",
             "type": "integer"
@@ -25960,6 +26007,7 @@
           }
         },
         "required": [
+          "id",
           "status",
           "amount_minor",
           "currency",
@@ -38288,6 +38336,19 @@
       "PortalCheckoutConfirm": {
         "additionalProperties": false,
         "properties": {
+          "coupon_code": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coupon Code"
+          },
           "method_token": {
             "anyOf": [
               {
@@ -39128,6 +39189,19 @@
             ],
             "title": "Client Id"
           },
+          "coupon_code": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coupon Code"
+          },
           "is_auto_renew": {
             "anyOf": [
               {
@@ -39549,6 +39623,70 @@
           "payment_status"
         ],
         "title": "PortalContractSaleOut",
+        "type": "object"
+      },
+      "PortalCouponQuote": {
+        "properties": {
+          "discount_minor": {
+            "title": "Discount Minor",
+            "type": "integer"
+          },
+          "invalid_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invalid Reason"
+          },
+          "is_valid": {
+            "title": "Is Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "is_valid",
+          "invalid_reason",
+          "discount_minor"
+        ],
+        "title": "PortalCouponQuote",
+        "type": "object"
+      },
+      "PortalCouponQuoteRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "code": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "subtotal_minor": {
+            "minimum": 0.0,
+            "title": "Subtotal Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "subtotal_minor"
+        ],
+        "title": "PortalCouponQuoteRequest",
         "type": "object"
       },
       "PortalCreditLedgerEntryOut": {
@@ -40218,6 +40356,19 @@
               }
             ],
             "title": "Client Id"
+          },
+          "coupon_code": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coupon Code"
           },
           "location_id": {
             "format": "uuid",
@@ -40951,9 +41102,42 @@
         "title": "PortalPayment",
         "type": "object"
       },
+      "PortalPaymentConfirm": {
+        "additionalProperties": false,
+        "description": "The invoices the payment was for, so what it has left lands on them once authentication succeeds.",
+        "properties": {
+          "invoice_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Invoice Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "invoice_ids"
+        ],
+        "title": "PortalPaymentConfirm",
+        "type": "object"
+      },
       "PortalPaymentCreate": {
         "additionalProperties": false,
         "properties": {
+          "amount_minor": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Minor"
+          },
           "invoice_ids": {
             "items": {
               "format": "uuid",
@@ -41307,6 +41491,155 @@
           "changes"
         ],
         "title": "PortalPreferencesReplace",
+        "type": "object"
+      },
+      "PortalReceiptLine": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "invoice_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Id"
+          }
+        },
+        "required": [
+          "description",
+          "invoice_id",
+          "amount_minor"
+        ],
+        "title": "PortalReceiptLine",
+        "type": "object"
+      },
+      "PortalReceiptOut": {
+        "description": "The client's own receipt (PAY-18). Its own schema, so a field added for staff never reaches a client.",
+        "properties": {
+          "applied_minor": {
+            "title": "Applied Minor",
+            "type": "integer"
+          },
+          "card_brand": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Card Brand"
+          },
+          "card_last4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Card Last4"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "footer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Footer"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PortalReceiptLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "payment_id": {
+            "format": "uuid",
+            "title": "Payment Id",
+            "type": "string"
+          },
+          "receipt_number": {
+            "title": "Receipt Number",
+            "type": "integer"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          },
+          "received_minor": {
+            "title": "Received Minor",
+            "type": "integer"
+          },
+          "refunded_minor": {
+            "title": "Refunded Minor",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tender_kind": {
+            "title": "Tender Kind",
+            "type": "string"
+          },
+          "unapplied_minor": {
+            "title": "Unapplied Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "payment_id",
+          "receipt_number",
+          "status",
+          "client_id",
+          "tender_kind",
+          "currency",
+          "received_at",
+          "received_minor",
+          "applied_minor",
+          "refunded_minor",
+          "unapplied_minor",
+          "card_brand",
+          "card_last4",
+          "footer",
+          "lines"
+        ],
+        "title": "PortalReceiptOut",
         "type": "object"
       },
       "PortalRefundOut": {
@@ -102793,6 +103126,69 @@
         ]
       }
     },
+    "/api/v1/portal/coupon-quotes": {
+      "post": {
+        "description": "Validation only: the portal checkout that sells something redeems the code. Errors: coupon-not-found.",
+        "operationId": "quotePortalCoupon",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalCouponQuoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalCouponQuote"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Quote Portal Coupon",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/api/v1/portal/dependents": {
       "post": {
         "description": "Add a family member who has no login of their own; you manage their profile.",
@@ -104872,7 +105268,7 @@
         ]
       },
       "post": {
-        "description": "Pay the full balance of the caller's own invoices. The payer is the caller's client and a stored\nmethod must be theirs. Read `payment.status`. Errors: invoice-not-payable, payment-method-not-usable.",
+        "description": "Pay the caller's invoices (or a household member's they may handle): the whole balance or\n`amount_minor` of it. A stored method must be the payer's. Read `payment.status`; `requires_action` comes\nwith a `client_secret` for 3-D Secure, then confirm. Errors: invoice-not-payable, amount-exceeds-balance,\npayment-method-not-usable.",
         "operationId": "payPortalInvoices",
         "parameters": [
           {
@@ -104923,6 +105319,194 @@
           }
         },
         "summary": "Pay Portal Invoices",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/portal/payments/{payment_id}/confirm": {
+      "post": {
+        "description": "Back from 3-D Secure: re-read the payment and apply it to the invoices it was for. Safe to repeat.",
+        "operationId": "confirmPortalPayment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "payment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Payment Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "description": "Required; keys live 24 hours.",
+              "maxLength": 255,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalPaymentConfirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalPayment"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Portal Payment",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/portal/payments/{payment_id}/receipt": {
+      "get": {
+        "operationId": "getPortalReceipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "payment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Payment Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalReceiptOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portal Receipt",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/portal/payments/{payment_id}/receipt/pdf": {
+      "get": {
+        "operationId": "getPortalReceiptPdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "payment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Payment Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {}
+            },
+            "description": "The PDF, as an attachment."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portal Receipt Pdf",
         "tags": [
           "billing"
         ]
@@ -112149,6 +112733,41 @@
         ]
       }
     },
+    "/api/v1/public/fake-processor/authentications": {
+      "post": {
+        "description": "Development and test only: the fake processor's stand-in for the bank's 3-D Secure challenge, which\nStripe runs inside Stripe.js. 404 whenever the fake processor is not registered (it never is in\nproduction, where settings refuse it). Errors: not-found.",
+        "operationId": "authenticateFakePayment",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FakeAuthentication"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Authenticate Fake Payment",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/api/v1/public/invoice-links/lookup": {
       "post": {
         "description": "What the emailed link pays. The token travels in the body, never the URL. Errors: link-invalid.",
@@ -112244,6 +112863,64 @@
           }
         },
         "summary": "Pay Invoice By Link",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/v1/public/invoice-links/payments/confirm": {
+      "post": {
+        "description": "Back from 3-D Secure: re-read the payment this link started; once it went through it pays the invoice\nand uses the link up. Errors: link-invalid.",
+        "operationId": "confirmInvoiceLinkPayment",
+        "parameters": [
+          {
+            "description": "Required; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": true,
+            "schema": {
+              "description": "Required; keys live 24 hours.",
+              "maxLength": 255,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvoiceLinkConfirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkPayment"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Invoice Link Payment",
         "tags": [
           "billing"
         ]
