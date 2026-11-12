@@ -18,7 +18,7 @@ from sqlalchemy import select, text, update
 
 from app import relay
 from app.adapters.accounting import FakeAccounting, JsonFileAccounting, QuickBooksOnline
-from app.core import clock, crypto
+from app.core import clock, crypto, networks
 from app.core.auth import CATALOGUE, Principal, system_principal, system_role_grants
 from app.core.db.session import tenant_session
 from app.core.jobs import broker
@@ -201,17 +201,17 @@ BLOCKED = [
 
 @pytest.mark.parametrize("address", BLOCKED)
 def test_blocked_address_classes(address):
-    assert rules.blocked_reason(address) is not None
+    assert networks.blocked_reason(address) is not None
 
 
 @pytest.mark.parametrize("address", [PUBLIC_IP, "2606:4700:4700::1111", "8.8.8.8"])
 def test_public_addresses_pass(address):
-    assert rules.blocked_reason(address) is None
+    assert networks.blocked_reason(address) is None
 
 
 def test_loopback_only_when_the_dev_switch_allows_it():
-    assert rules.blocked_reason("127.0.0.1", allow_loopback=True) is None
-    assert rules.blocked_reason("10.0.0.1", allow_loopback=True) == "private"
+    assert networks.blocked_reason("127.0.0.1", allow_loopback=True) is None
+    assert networks.blocked_reason("10.0.0.1", allow_loopback=True) == "private"
 
 
 @pytest.mark.parametrize(

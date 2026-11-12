@@ -81,6 +81,7 @@ def test_enrol_sign_in_and_disable(client, tenant, mailbox, now):
     owner = login(client, tenant)
     assert client.get(f"{API}/me/mfa", headers=owner).json() == {
         "enrolled": False, "confirmed_at": None, "recovery_codes_remaining": 0, "required": False,
+        "provider_step_up": False,
     }  # fmt: skip
     secret, codes = _enrol(client, owner)
     assert len(codes) == 10 and len(set(codes)) == 10

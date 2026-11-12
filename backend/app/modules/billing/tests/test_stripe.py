@@ -136,7 +136,10 @@ def test_api_onboarding_is_refused_outside_dev_and_test(monkeypatch, tmp_path):
 def test_a_live_key_refuses_to_start_outside_production(monkeypatch, tmp_path, name, env):
     config = (REPO_ROOT / "config" / "app.yaml").read_text().replace("cookie_secure: false", "cookie_secure: true")
     (tmp_path / "app.yaml").write_text(config.replace("provider: fake ", "provider: stripe "))
-    (tmp_path / f"app.{env}.yaml").write_text("email:\n  log_links: false\n")
+    overlay = (
+        "email:\n  log_links: false\nstorage:\n  scanner: clamd\n"  # outside dev and test, uploads must be scanned
+    )
+    (tmp_path / f"app.{env}.yaml").write_text(overlay)
     monkeypatch.setenv("FH_CONFIG_DIR", str(tmp_path))
     monkeypatch.setenv("FH_ENV", env)
     live = {"FH_STRIPE_SECRET_KEY": "sk_live_x", "FH_STRIPE_PUBLISHABLE_KEY": "pk_live_x"}.get(name, "rk_live_x")
@@ -147,7 +150,7 @@ def test_a_live_key_refuses_to_start_outside_production(monkeypatch, tmp_path, n
     assert get_settings.__wrapped__().payments.provider == "stripe"  # test-mode keys start anywhere
     monkeypatch.setenv(name, live)
     monkeypatch.setenv("FH_ENV", "production")
-    (tmp_path / "app.production.yaml").write_text("email:\n  log_links: false\n")
+    (tmp_path / "app.production.yaml").write_text(overlay)
     assert get_settings.__wrapped__().env == "production"  # only production may hold a live key
 
 

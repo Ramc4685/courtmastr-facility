@@ -22,6 +22,9 @@ ANONYMOUS = {
     "/auth/sign-in", "/auth/magic-links", "/auth/magic-links/consume", "/auth/password-resets",
     "/auth/password-resets/consume", "/auth/invitations/accept", "/auth/refresh", "/auth/pre-session",
     "/auth/mfa/enrolment", "/auth/mfa/verify",  # authenticated by the pending sign-in's single-purpose token
+    "/auth/oidc/providers", "/auth/oidc/authorize",  # the "Continue with" buttons and the start of the round trip
+    "/auth/oidc/callback",  # authenticated by the single-use state bound to the pre-session cookie, then the ID token
+    "/auth/oidc/link",  # the emailed single-use link, redeemed in the browser that did the provider sign-in
     "/webhooks/{provider}",  # authenticated by the provider's signature, not a session
     # authenticated by the paired device's kiosk cookie (pairing: the single-use code), not a session
     "/kiosk/pair", "/kiosk/config", "/kiosk/lookups", "/kiosk/check-ins", "/kiosk/exit",

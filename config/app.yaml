@@ -66,6 +66,7 @@ rate_limit:                           # security-baseline 6; fixed windows. clos
     mfa-challenge:    {limit: 5,  window_sec: 300,  closed: true}   # codes per pending sign-in
     step-up:          {limit: 10, window_sec: 300,  closed: true}   # re-authentication, per IP
     step-up-identity: {limit: 10, window_sec: 300,  closed: true}   # re-authentication, per identity
+    oidc:             {limit: 20, window_sec: 300,  closed: true}   # OIDC authorize and callback, per IP
     refresh:          {limit: 60, window_sec: 60}                   # mobile token rotation, per IP
     support-request:  {limit: 10, window_sec: 3600}                 # support requests and screenshots, per staff user
     default:          {limit: 20, window_sec: 60}                   # any other named bucket, per IP

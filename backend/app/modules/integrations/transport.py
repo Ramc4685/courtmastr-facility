@@ -13,8 +13,8 @@ from urllib.parse import urlsplit
 import httpcore
 
 from app.core.errors import ValidationFailed
+from app.core.networks import blocked_reason
 from app.core.settings import get_settings
-from app.modules.integrations.domain.webhooks import blocked_reason
 
 
 class UrlNotAllowed(ValidationFailed):

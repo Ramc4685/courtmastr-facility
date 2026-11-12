@@ -218,6 +218,79 @@ Evidence and open questions: `docs/status/phase8-s2-mfa.md`. Migrations `1230`, 
   mobile app is the only intended caller; binding it to an attested client is future work.
 - **IP allow-list**: the Owner and Admin bypass was removed in phase 8 S4 (see "Sign-in hardening").
 
+## OIDC sign-in for staff (Phase 8 chip S3)
+
+Evidence, owner setup steps and open questions: `docs/status/phase8-s3-oidc.md`. Migrations `1240`, `1241`
+(link confirmation). Code: `oidc.py` (service), `oidc_router.py` (routes), tests `tests/test_oidc.py` (an
+in-process fake provider).
+
+- **Provider settings** (`identity_provider_config`, `/identity-providers`, web: Security settings, "Sign-in
+  providers"): preset `google`, `microsoft` or `generic`, button name, issuer URL, client id, client secret
+  (sealed with `core.crypto` under the tenant id; write-only, never returned, logged or audited, only a
+  `changed` flag), scopes, allowed email domains, `asserts_mfa`, enabled. Owner and Admin may read them
+  (`platform.security.manage`); only the Owner may add, change or remove one
+  (`platform.identity_provider.manage`, `OO +`), because a provider decides who can sign in. Every change needs
+  step-up. The issuer is the natural key and cannot be changed after creation, because links are keyed by
+  issuer. Saving fetches the issuer's discovery document and refuses a mismatched issuer
+  (`oidc-issuer-invalid`). Deleting a provider keeps the links, so adding it back restores them.
+- **Round trip**: `POST /auth/oidc/authorize` (needs the pre-session cookie) returns the provider URL with
+  PKCE S256, `state` and `nonce`; the state is an `fho_` `auth_token` (purpose `oidc_state`, 10 minutes,
+  single use, bound to a digest of the pre-session cookie). `POST /auth/oidc/callback` takes the code and
+  state, exchanges the code at the token endpoint with the exact redirect URI `<web origin>/auth/oidc/callback`,
+  and checks the ID token: signature (RS256, PS256 or ES256 from the JWKS; `none` and HMAC refused), `iss`,
+  `aud` (and `azp` when there are several audiences), `exp`, `iat`, `nonce`, and a `sub`. A spent or foreign
+  state is refused and stays spent. Rate limited by the `oidc` bucket.
+- **Outbound fetches** (discovery, JWKS, token): https only, one 5 s wall-clock deadline for the whole exchange
+  (the socket wrapper gives every connect, TLS, write and read only what is left, so dripped header bytes,
+  endless `100 Continue` or a trickling body end at the deadline), `Accept-Encoding: identity` with encoded
+  responses refused so the 1 MiB cap counts real bytes, no redirects, malformed discovery fields or key sets
+  and invalid URLs refused as provider errors, and the SSRF guard
+  (`core.networks.blocked_reason`) checked on the resolved address, which the connection is pinned to. A host
+  that does not resolve and one that resolves to a private address get the same answer. Connection and
+  timeout errors become `oidc-failed` or `oidc-unavailable`, never a 500. Discovery and JWKS are cached per
+  process for an hour in a bounded cache (256 entries, least recently used out); a failed discovery is remembered
+  for 30 s; an unknown `kid` refetches the JWKS once (key rotation). The callback holds the state row lock (it
+  makes a state single use) across its fetches, so that lock lasts at most about 20 s (discovery, token, two
+  JWKS fetches, 5 s each), usually under a second since discovery and keys are cached.
+- **Email claims.** Only a verified email can lead to a link: `email_verified` must be true. Microsoft Entra ID
+  often omits it, so for the `microsoft` preset `xms_edov` (email domain owner verified, an optional claim the
+  owner adds) counts as well. Google's issuer appears with and without `https://`; both are accepted.
+- **Linking needs the user's own confirmation.** A provider account signs in only once it is linked
+  (`external_login`, by issuer + `sub`). The first sign-in with an unlinked account starts no session and
+  stores nothing: when its verified email names an active staff identity of this tenant, with a verified
+  email, inside the allowed domains and with no other account at that issuer, that person is emailed a
+  one-time link (`fhl_` token, purpose `oidc_link`, 15 minutes, in the URL fragment). Redeeming it
+  (`POST /auth/oidc/link`, from the web page `/auth/oidc/link` on a deliberate click) stores the link, only in
+  the browser that did the provider sign-in (`oidc-link-other-browser` otherwise, and the token is spent). The
+  callback answers `202 {link_pending, display_name}` whether or not anyone matched, so there is no account
+  enumeration. So whoever controls an issuer (an Admin who added one, a compromised provider) cannot sign in as
+  someone else by claiming their email. Users are never created and a tenant never reaches another tenant's
+  identities. A linked account whose user is disabled or outside the allowed domains gets the neutral
+  `401 oidc-sign-in-refused`.
+- **Sessions**: through `auth._second_factor` and `auth._start_session` like every other sign-in. MFA counts as
+  done only when the provider is marked `asserts_mfa` and the token shows more than one factor: `amr`
+  contains `mfa`, or RFC 8176 methods from two classes (know: `pwd`, `pin`, `kba`; have: `otp`, `hwk`, `swk`,
+  `sms`, `tel`, `sc`; are: `fpt`, `face`, `iris`, `retina`, `vbm`), or `acr` is an OpenID PAPE multi-factor
+  policy URI. One method alone (a passkey, a code) is one factor. A token with neither claim shows nothing, so the user's own factor is asked for (`202`), or enrolment when required.
+  Forced enrolment is allowed after an OIDC sign-in (method `oidc`), since the account was linked through an
+  emailed link. An OIDC sign-in is not elevated. The IP allow-list applies before anything else; the password
+  lockout does not, since no password is involved.
+- **Step-up for OIDC-only users** (`POST /auth/oidc/step-up`, then the callback): `prompt=login` and
+  `max_age=0`; the callback requires the same session and identity, an already linked account, an `auth_time`
+  no older than the start of the round trip (`oidc-reauthentication-stale`), and a code when the user has a
+  factor or MFA is required and the provider did not show one (`step-up-needs-code`). It ends in
+  `auth.rotate_for_step_up`, the same rotation `/auth/step-up` uses. Both legs authenticate the session, so the
+  IP allow-list applies. `GET /me/mfa` reports `provider_step_up` so the web shows "Sign in again with your
+  provider" instead of a password field.
+- **What is never recorded**: the client secret, the authorization code and the tokens are not logged (request
+  logs carry method and path only, and the code travels in a POST body), not audited, and not stored in
+  idempotency rows (provider routes store a SHA-256 of the request body and the response, which never holds the
+  secret; the sign-in routes are not idempotent routes). The code does appear in the browser's address bar on
+  `/auth/oidc/callback` until the page removes it, and so in the web server's access log; it is single use and
+  worthless without the PKCE verifier and the client secret.
+- **Break-glass.** Password and magic-link sign-in stay available to every staff user, so an Owner can always
+  sign in when a provider is down or misconfigured. "Require SSO for staff" is not built.
+
 ## Plans and entitlements (Phase 8 chip T1: PLT-14, PLT-09, PLT-13)
 
 Entitlements only: **no charge, invoice or Stripe call is made for a tenant's plan here**. Billing the tenant

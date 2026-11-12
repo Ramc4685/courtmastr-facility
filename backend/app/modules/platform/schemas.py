@@ -124,6 +124,8 @@ class MfaStatus(Out):
     confirmed_at: datetime | None
     recovery_codes_remaining: int
     required: bool
+    # No code and no password, but linked to a sign-in provider: step-up is a fresh sign-in there (S3).
+    provider_step_up: bool = False
 
 
 class StepUpRequest(In):

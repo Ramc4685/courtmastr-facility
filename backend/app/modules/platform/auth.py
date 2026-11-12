@@ -16,7 +16,15 @@ from app.core.errors import NotFound, PermissionDenied, Unauthenticated, Validat
 from app.core.settings import get_settings
 from app.modules.platform import entitlements, mfa, rbac
 from app.modules.platform.events import IdentityLocked
-from app.modules.platform.models import AuthSession, AuthToken, Identity, StaffUser, Tenant, TokenPurpose
+from app.modules.platform.models import (
+    AuthSession,
+    AuthToken,
+    ExternalLogin,
+    Identity,
+    StaffUser,
+    Tenant,
+    TokenPurpose,
+)
 from app.ports import notifications
 from app.ports.email import EmailMessage, send_after_commit
 
@@ -332,6 +340,13 @@ _LINKS = {
         "Use this link to choose a new password.",
     ),
     TokenPurpose.INVITE: ("/auth/accept-invite", "you have been invited", "Use this link to activate your account."),
+    TokenPurpose.OIDC_LINK: (
+        "/auth/oidc/link",
+        "connect your sign-in provider",
+        "Someone signed in with a sign-in provider using your email address and asked to connect it to your "
+        "account. If that was you, open this link in the same browser to finish. If it was not you, ignore this "
+        "email and tell your administrator.",
+    ),
 }
 
 
@@ -346,7 +361,13 @@ def safe_redirect_path(path: str | None) -> str | None:
 
 
 def issue_link(
-    session: Session, identity: Identity, purpose: TokenPurpose, ttl: timedelta, *, redirect_path: str | None = None
+    session: Session,
+    identity: Identity,
+    purpose: TokenPurpose,
+    ttl: timedelta,
+    *,
+    redirect_path: str | None = None,
+    payload: dict | None = None,
 ) -> str:
     """Mint a single-use link token, supersede older ones of the same purpose and email the link.
 
@@ -361,7 +382,11 @@ def issue_link(
         .values(consumed_at=now)
     )
     raw, hashed = tokens.mint("fhl", identity.tenant_id)
-    session.add(AuthToken(identity_id=identity.id, purpose=purpose, token_hash=hashed, expires_at=now + ttl))
+    session.add(
+        AuthToken(
+            identity_id=identity.id, purpose=purpose, token_hash=hashed, expires_at=now + ttl, payload=payload or {}
+        )
+    )
     path, subject, intro = _LINKS[purpose]
     # The token rides in the URL fragment, which browsers never send to a server or put in a Referer
     # (security-baseline 17.2); the landing page reads it and posts it.
@@ -738,13 +763,21 @@ def step_up(session: Session, principal: Principal, *, code: str | None = None, 
         raise PermissionDenied(
             "Set a password or turn on two-step verification to confirm it is you.", code="step-up-unavailable"
         )
+    return rotate_for_step_up(session, identity, current, mfa_verified=factor is not None)
+
+
+def rotate_for_step_up(
+    session: Session, identity: Identity, current: AuthSession, *, mfa_verified: bool, reason: str | None = None
+) -> Grant:
+    """The end of every step-up (code, password, or an OIDC re-authentication): revoke the current session and
+    mint its elevated successor with the same absolute limit."""
     now = clock.now()
     current.revoked_at, current.revoked_reason = now, "step_up"
     grant = _start_session(
         session, identity, current.kind, elevated=True, absolute_expires_at=current.absolute_expires_at,
-        mfa_verified_at=now if factor is not None else current.mfa_verified_at,
+        mfa_verified_at=now if mfa_verified else current.mfa_verified_at,
     )  # fmt: skip
-    audit.record(session, "platform.identity.step_up", identity, actor=grant.principal)
+    audit.record(session, "platform.identity.step_up", identity, actor=grant.principal, reason=reason)
     return grant
 
 
@@ -759,7 +792,14 @@ def mfa_status(session: Session, principal: Principal) -> dict:
         "confirmed_at": factor.confirmed_at if factor else None,
         "recovery_codes_remaining": mfa.remaining_recovery_codes(session, identity.id) if factor else 0,
         "required": mfa.is_required(session, identity),
+        "provider_step_up": factor is None
+        and identity.password_hash is None
+        and _has_external_login(session, identity),
     }
+
+
+def _has_external_login(session: Session, identity: Identity) -> bool:
+    return session.scalar(select(ExternalLogin.id).where(ExternalLogin.identity_id == identity.id).limit(1)) is not None
 
 
 def begin_mfa_enrolment(session: Session, principal: Principal) -> tuple[str, str]:
