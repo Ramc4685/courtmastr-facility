@@ -1,0 +1,142 @@
+# The whole production-shaped stack on one machine: proxy (Caddy + web build), api, worker, relay, scheduler,
+# migrate (one-shot), Postgres, Redis, an S3 stand-in, ClamAV. Own project name, network, volumes and ports, so it
+# cannot collide with the dev Compose in infra/docker-compose.yml (project "facilityhub").
+#
+#   make stack-up      build and start (needs infra/docker/.env.stack, copied from stack.env.example)
+#   make stack-smoke   header, sign-in, upload/download and readiness checks through the proxy
+#   make stack-down    stop and DELETE the stack's volumes
+#
+# Optional: `--profile mail` adds Mailpit (SMTP sink; UI on 127.0.0.1:${FH_STACK_MAIL_UI_PORT}) for sign-in links.
+# Everything here runs as FH_ENV=production, so the app's own production guards apply (secure cookies, ClamAV on,
+# no fake payment processor). Postgres, Redis and the buckets publish no host port except where noted.
+name: fhstack
+x-backend: &backend
+  image: facilityhub-stack-backend:local
+  build: {context: ../.., dockerfile: infra/docker/backend.Dockerfile}
+  restart: unless-stopped
+  networks: [stack]
+  # Least privilege: the owner password reaches only `migrate`, S3 keys reach only what talks to S3.
+  environment: &backend-env
+    FH_ENV: production
+    FH_DB_APP_PASSWORD: ${FH_DB_APP_PASSWORD:?set in infra/docker/.env.stack}
+    FH_DB_PLATFORM_PASSWORD: ${FH_DB_PLATFORM_PASSWORD:?}
+    FH_DATA_KEY: ${FH_DATA_KEY:?}
+    FH_OPERATOR_TOKEN: ${FH_OPERATOR_TOKEN:-}
+    FH_S3_ACCESS_KEY_ID: ${FH_S3_ACCESS_KEY_ID:?}
+    FH_S3_SECRET_ACCESS_KEY: ${FH_S3_SECRET_ACCESS_KEY:?}
+  volumes:
+    - ./config/app.production.yaml:/srv/fh/config/app.production.yaml:ro
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+x-wait: &wait
+  postgres: {condition: service_healthy}
+  redis: {condition: service_healthy}
+  migrate: {condition: service_completed_successfully}
+  s3-init: {condition: service_completed_successfully}
+
+services:
+  web:
+    image: facilityhub-stack-web:local
+    build: {context: ../.., dockerfile: infra/docker/web.Dockerfile}
+    restart: unless-stopped
+    networks:
+      stack: {ipv4_address: 172.29.77.250}   # the one address api.trusted_proxies believes (config/app.production.yaml)
+    ports: ["127.0.0.1:${FH_STACK_HTTPS_PORT:-18443}:${FH_STACK_HTTPS_PORT:-18443}"]
+    environment:
+      HTTP_PORT: ${FH_STACK_HTTP_PORT:-18080}
+      HTTPS_PORT: ${FH_STACK_HTTPS_PORT:-18443}
+      SITE_ADDRESS: ${FH_STACK_SITE:-localhost}
+    volumes: [caddy-data:/data]
+    depends_on: {api: {condition: service_healthy}}
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+  api:
+    <<: *backend
+    command: [api]
+    depends_on: {<<: *wait, clamav: {condition: service_healthy}}
+  worker:
+    <<: *backend
+    command: [worker]
+    depends_on: *wait
+    healthcheck: {test: [CMD, python, /usr/local/bin/healthcheck.py, redis], interval: 15s, timeout: 5s, retries: 3, start_period: 20s}
+  relay:
+    <<: *backend
+    command: [relay]
+    depends_on: *wait
+    healthcheck: {test: [CMD, python, /usr/local/bin/healthcheck.py, db], interval: 15s, timeout: 5s, retries: 3, start_period: 20s}
+  scheduler:
+    <<: *backend
+    command: [scheduler]
+    depends_on: *wait
+    healthcheck: {test: [CMD, python, /usr/local/bin/healthcheck.py, db], interval: 15s, timeout: 5s, retries: 3, start_period: 20s}
+  migrate:
+    <<: *backend
+    restart: "no"
+    command: [migrate]
+    environment: {FH_ENV: production, FH_DB_OWNER_PASSWORD: "${FH_DB_OWNER_PASSWORD:?}"}
+    depends_on: {postgres: {condition: service_healthy}}
+  s3-init:
+    <<: *backend
+    restart: "no"
+    command: [s3-init]
+    environment:
+      FH_ENV: production
+      FH_S3_ACCESS_KEY_ID: ${FH_S3_ACCESS_KEY_ID:?}
+      FH_S3_SECRET_ACCESS_KEY: ${FH_S3_SECRET_ACCESS_KEY:?}
+    depends_on: {s3: {condition: service_started}}
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    networks: [stack]
+    environment:
+      POSTGRES_PASSWORD: ${FH_POSTGRES_PASSWORD:?}
+      FH_DB_OWNER_PASSWORD: ${FH_DB_OWNER_PASSWORD}
+      FH_DB_APP_PASSWORD: ${FH_DB_APP_PASSWORD}
+      FH_DB_PLATFORM_PASSWORD: ${FH_DB_PLATFORM_PASSWORD}
+      TZ: UTC
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck: {test: [CMD-SHELL, "pg_isready -U postgres -d facilityhub"], interval: 2s, timeout: 3s, retries: 30}
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks: [stack]
+    command: [redis-server, --appendonly, "yes"]   # the job queue survives a restart
+    volumes: [redisdata:/data]
+    healthcheck: {test: [CMD, redis-cli, ping], interval: 2s, timeout: 3s, retries: 30}
+  s3:
+    image: rustfs/rustfs:latest   # S3-compatible stand-in; a cloud deployment uses the provider's bucket instead
+    restart: unless-stopped
+    networks: [stack]
+    environment:
+      RUSTFS_ACCESS_KEY: ${FH_S3_ACCESS_KEY_ID}
+      RUSTFS_SECRET_KEY: ${FH_S3_SECRET_ACCESS_KEY}
+    ports: ["127.0.0.1:${FH_STACK_S3_PORT:-19000}:9000"]   # only so the smoke test can fetch a presigned URL
+    volumes: [s3data:/data]
+  clamav:
+    image: clamav/clamav-debian:stable
+    restart: unless-stopped
+    networks: [stack]
+    volumes: [clamdb:/var/lib/clamav]
+    healthcheck: {test: [CMD, clamdcheck.sh], interval: 15s, timeout: 10s, retries: 40, start_period: 60s}
+  mailpit:
+    image: axllent/mailpit:latest
+    profiles: [mail]
+    networks: [stack]
+    ports: ["127.0.0.1:${FH_STACK_MAIL_UI_PORT:-18025}:8025"]
+
+networks:
+  stack:
+    name: fhstack_net
+    ipam: {config: [{subnet: 172.29.77.0/24, ip_range: 172.29.77.0/25}]}   # dynamic addresses stay below .128; the proxy is pinned at .250
+volumes:
+  pgdata: {name: fhstack_pgdata}
+  redisdata: {name: fhstack_redisdata}
+  s3data: {name: fhstack_s3data}
+  clamdb: {name: fhstack_clamdb}
+  caddy-data: {name: fhstack_caddy}
