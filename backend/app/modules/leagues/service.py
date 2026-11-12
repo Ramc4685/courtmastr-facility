@@ -12,7 +12,7 @@ location-scoped `leagues.competition.manage`: reads need the key, writes `author
 """
 
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -67,6 +67,7 @@ AMEND = "leagues.result.amend_final"
 ADJUST = "leagues.standings.adjust"
 OFFICIALS = "leagues.official.manage"
 CARDS = "leagues.game_card.print"
+NO_TIME = datetime(9999, 12, 31, tzinfo=UTC)  # sorts games with no start time last in keyset paging
 
 CONSTRAINT_CODES.update({
     "ex_game_official_overlap": "official-conflict",
@@ -354,9 +355,10 @@ def create_competition(session: Db, principal: Principal, data: dict) -> Competi
     session.add(row)
     session.flush()
     session.add(Division(competition_id=row.id, name="Main"))
-    audit.record(
-        session, MANAGE, row, location_id=location_id, changes={"name": [None, row.name], "kind": [None, row.kind]}
-    )
+    changes = {"name": [None, row.name], "kind": [None, row.kind]}
+    if row.program_group_id:
+        changes["program_group_id"] = [None, str(row.program_group_id)]
+    audit.record(session, MANAGE, row, location_id=location_id, changes=changes)
     session.flush()
     return row
 
@@ -551,7 +553,14 @@ def _enter(
 
 
 def _bill(
-    session: Db, principal: Principal, competition: Competition, entry: CompetitionTeam, team: Team, client_id: UUID
+    session: Db,
+    principal: Principal,
+    competition: Competition,
+    entry: CompetitionTeam,
+    team: Team,
+    client_id: UUID,
+    *,
+    amount_minor: int | None = None,
 ) -> UUID:
     """Charge the team fee to the payer and invoice it. The charge is idempotent by source, so the fee is owed
     once per entry however the command is retried. The payer is in the caller's reach and is the captain, a
@@ -574,7 +583,8 @@ def _bill(
     team_name = entry.display_name or team.name
     charge = billing.service.post_charge(
         session, client_id=client_id, location_id=competition.location_id,
-        description=f"{competition.name}: team fee ({team_name})", unit_price_minor=competition.team_fee_minor,
+        description=f"{competition.name}: team fee ({team_name})",
+        unit_price_minor=competition.team_fee_minor if amount_minor is None else amount_minor,
         source_context="leagues", source_type="competition_team", source_id=entry.id,
         revenue_category_id=competition.revenue_category_id,
     )  # fmt: skip
@@ -1072,7 +1082,8 @@ def list_games(session: Db, principal: Principal, query: ListQuery) -> dict:
         stmt = stmt.where(g.competition_id.in_(mine))
     page = paginate(
         session, stmt, query, id_column=g.id,
-        sort_fields={"created_at": g.created_at, "starts_at": g.starts_at}, default_sort="created_at",
+        sort_fields={"created_at": g.created_at, "starts_at": func.coalesce(g.starts_at, NO_TIME)},
+        default_sort="created_at",
         filter_fields={
             "location_id": g.location_id, "competition_id": g.competition_id, "division_id": g.division_id,
             "status": g.status, "resource_id": g.resource_id, "schedule_run_id": g.schedule_run_id,
@@ -1572,7 +1583,10 @@ def _run_places(session: Db, run: ScheduleRun) -> tuple[list[dict], dict[UUID, V
     for window in run.time_slots:
         place = UUID(window.get("venue_id") or window["resource_id"])
         if window.get("venue_id"):
-            venues[place] = session.get(Venue, place)
+            venue = session.get(Venue, place)
+            if venue is None or not venue.is_active:
+                continue  # a venue removed or deactivated since the run was set up: its window offers no slots
+            venues[place] = venue
         windows.append(window | {"resource_id": place})
     return windows, venues
 

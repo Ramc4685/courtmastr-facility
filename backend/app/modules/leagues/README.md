@@ -118,6 +118,16 @@ games to score.
   game (`core/pdf.py` has no `new_page()`); a run is capped at 31 days and 200 games.
 - **Not routed (P1/P2):** league site and alert settings, public brackets and team pages, portal games,
   classifieds and sponsors (chip B2 and later).
+- **Gap: a hard "wants date" preference is greedy (`roundrobin.py`).** Rounds are placed in order, so a team that
+  wants one date can pull an early round onto it and leave a later round with no free slot; the run then reports
+  that round as unscheduled instead of backtracking. Workaround: widen the windows or soften the preference.
+- **Gap: crossover seeding from pools (`service.py`, `source == "pools"`)** seeds every pool winner, then every
+  runner-up, with no same-pool check. With three pools of two advancing, seeds 3 and 6 share a pool and meet in
+  round one; reorder the draft bracket by hand before publishing.
+- **Publishing a program group** rosters every enrollment under a direct subgroup, including those in deeper
+  subgroups, onto that subgroup's team.
+- **Venue windows** on a deleted or inactive venue are skipped by a schedule run, not failed.
+- **Competition staff** must work at the competition's location (`staff_user_works_at`).
 
 ## Web
 

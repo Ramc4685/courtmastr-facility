@@ -20,7 +20,7 @@ from app.core.auth import Principal, authorize, scope_query
 from app.core.auth.permissions import authorize_tenant_wide
 from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
-from app.core.pdf import Column, Document, local_date
+from app.core.pdf import Column, Document
 from app.modules import billing, clients, platform, programs, resources
 from app.modules.leagues import service as core
 from app.modules.leagues.domain import formula
@@ -116,7 +116,7 @@ def _check_preference(session: Db, competition: Competition, index: int, pref: d
                 raise ValueError
         else:
             place = UUID(value)
-            venue = core._get(session, Venue, place)
+            venue = session.get(Venue, place)
             at_venue = venue is not None and venue.location_id == competition.location_id
             if not at_venue and not resources.service.in_location(session, competition.location_id, ids=[place]):
                 raise ValueError
@@ -174,8 +174,12 @@ def replace_competition_staff(
     competition = core._competition(session, principal, competition_id, MANAGE, lock=True)
     seen = set()
     for index, member in enumerate(data["staff"]):
-        if member["staff_user_id"] in seen or not platform.service.staff_user_exists(session, member["staff_user_id"]):
-            raise ValidationFailed("Unknown or repeated staff user.", pointer=f"/staff/{index}/staff_user_id")
+        works = platform.service.staff_user_works_at(session, member["staff_user_id"], competition.location_id)
+        if member["staff_user_id"] in seen or not works:
+            raise ValidationFailed(
+                "Unknown or repeated staff user, or one who does not work here.",
+                pointer=f"/staff/{index}/staff_user_id",
+            )
         seen.add(member["staff_user_id"])
     before = len(list_competition_staff(session, principal, competition.id))
     session.execute(delete(CompetitionStaff).where(CompetitionStaff.competition_id == competition.id))
@@ -505,17 +509,12 @@ def split_team_fee(session: Db, principal: Principal, competition_team_id: UUID,
             session, TEAMS, row, location_id=competition.location_id, changes={"amount_minor": [None, row.amount_minor]}
         )
     if remainder:
-        full = competition.team_fee_minor
-        competition.team_fee_minor = remainder  # _bill charges the competition's fee: bill only the rest
-        try:
-            core._bill(session, principal, competition, entry, team, data["bill_to_client_id"])
-        finally:
-            competition.team_fee_minor = full
+        core._bill(session, principal, competition, entry, team, data["bill_to_client_id"], amount_minor=remainder)
     else:
         entry.fee_status, entry.fee_client_id = "billed", roster[data["shares"][0]["roster_entry_id"]].client_id
-        audit.record(
-            session, TEAMS, entry, location_id=competition.location_id, changes={"fee_status": ["unbilled", "billed"]}
-        )
+    audit.record(
+        session, TEAMS, entry, location_id=competition.location_id, changes={"fee_status": ["unbilled", "billed"]}
+    )
     session.flush()
     return list_team_fee_shares(session, principal, entry.id)
 
@@ -534,24 +533,33 @@ def publish_program_group(session: Db, principal: Principal, data: dict) -> Comp
     ))  # fmt: skip
     if len(subgroups) < 2:
         raise ValidationFailed("The group needs at least two subgroups to become teams.", pointer="/program_group_id")
-    body = {k: v for k, v in data.items() if k not in ("program_group_id", "include_players")}
+    body = {k: v for k, v in data.items() if k != "include_players"}
     competition = core.create_competition(
         session, principal, body | {"location_id": group.location_id, "name": data.get("name") or group.name}
     )
-    competition.program_group_id = group.id
     authorize(principal, TEAMS, location_id=competition.location_id)
     division = core._division(session, competition, None)
     players = defaultdict(list)
     if data.get("include_players"):
+        # an enrolment deeper down counts for the direct subgroup above it
+        parents = dict(session.execute(
+            select(pg.id, pg.parent_id).where(pg.location_id == group.location_id, pg.deleted_at.is_(None))
+        ).all())  # fmt: skip
+        direct = {sub.id for sub in subgroups}
         for person in programs.groups.roster(session, principal, group.id)["participants"]:
-            players[person["program_group_id"]].append(person["client_id"])
+            node = person["program_group_id"]
+            while node is not None and node not in direct:
+                node = parents.get(node)
+            if node is not None:
+                players[node].append(person["client_id"])
     for sub in subgroups:
-        team = Team(location_id=competition.location_id, name=sub.name[:100])
-        session.add(team)
-        session.flush()
+        team = core._new_team(session, principal, competition.location_id, {"name": sub.name[:100]})
         entry = core._enter(session, competition, team, division)
         for client_id in dict.fromkeys(players[sub.id]):
-            session.add(RosterEntry(competition_team_id=entry.id, client_id=client_id, origin="enrollment"))
+            row = RosterEntry(competition_team_id=entry.id, client_id=client_id, origin="enrollment")
+            session.add(row)
+            session.flush()
+            audit.record(session, TEAMS, row, location_id=competition.location_id, changes={"role": [None, row.role]})
     session.flush()
     return competition
 
@@ -661,7 +669,8 @@ def _card(doc: Document, session: Db, competition: Competition, game: Game | Non
             f"{competition.name} - {game.round_label or (f'Round {game.round_no}' if game.round_no else 'Game')}"
         )
         doc.fields([
-            ("Date", local_date(when)), ("Time", when.strftime("%H:%M") if when else "-"), ("Court", place),
+            ("Date", when.date().isoformat() if when else "-"), ("Time", when.strftime("%H:%M") if when else "-"),
+            ("Court", place),
             ("Officials", ", ".join(f"{o.first_name} {o.last_name}" for o in officials) or "-"),
         ])  # fmt: skip
         teams = [(game.home_team_id, game.home_label, "Home"), (game.away_team_id, game.away_label, "Away")]

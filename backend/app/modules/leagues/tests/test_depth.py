@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import select
 
 from app.core import clock
+from app.core.audit import AuditEvent
 from app.core.auth import passwords, system_principal
 from app.core.db.session import tenant_session
 from app.modules import clients
@@ -15,7 +16,7 @@ from app.modules.leagues import service, subject
 from app.modules.leagues.models import TeamFeeShare
 from app.modules.leagues.tests.test_leagues import WINDOW, generate, get, league, post, run_body, score
 from app.modules.platform.models import Identity
-from app.modules.scheduling.tests.helpers import API, at, book, ok
+from app.modules.scheduling.tests.helpers import API, at, book, local, ok
 from conftest import PASSWORD, add_staff, login, new_client
 
 
@@ -90,6 +91,10 @@ def test_venue_windows_book_every_court_and_preferences_are_checked(client, owne
                        json={"preferences": [{"kind": "weekday", "value": "9"}]})  # fmt: skip
     assert wrong.status_code == 422 and wrong.json()["errors"][0]["pointer"] == "/preferences/0/value"
     assert get(client, owner, f"/competition-teams/{home}/preferences")[0]["value"] == "20:00-21:00"
+    court = [{"kind": "resource", "value": f.court, "wants": True}, {"kind": "resource", "value": venue["id"]}]
+    assert len(put(client, owner, f"/competition-teams/{home}/preferences", {"preferences": court})) == 2
+    put(client, owner, f"/competition-teams/{home}/preferences",
+        {"preferences": [{"kind": "time", "value": "20:00-21:00", "wants": True}]})  # fmt: skip
     run = post(client, owner, "/schedule-runs",
                run_body(f, [comp["id"]], resource_ids=[], time_slots=[WINDOW | {"venue_id": venue["id"]}]))  # fmt: skip
     generate(client, owner, run["id"])
@@ -199,6 +204,23 @@ def test_ladder_challenges_swap_rungs_and_corrections_swap_back(client, owner, f
     put(client, owner, f"/games/{game['id']}/result", score(1, 2))  # corrected: the defender held
     rungs = _rungs(client, owner, comp["id"])
     assert (rungs[ids[3]], rungs[ids[1]]) == (4, 2)
+    post(
+        client, owner, f"/competitions/{comp['id']}/ladder-challenges", {"challenger_id": ids[4], "defender_id": ids[2]}
+    )
+    post(
+        client, owner, f"/competitions/{comp['id']}/ladder-challenges", {"challenger_id": ids[3], "defender_id": ids[2]}
+    )
+    seen, cursor = [], None  # keyset paging by start time also walks the games that have none
+    while True:
+        page = get(
+            client,
+            owner,
+            f"/games?competition_id={comp['id']}&sort=starts_at&limit=1" + (f"&cursor={cursor}" if cursor else ""),
+        )
+        seen += [g["id"] for g in page["data"]]
+        if not (cursor := page["page"]["next_cursor"]):
+            break
+    assert len(seen) == len(set(seen)) == 3
     other = league(client, owner, f, name="Other", teams=2)
     assert client.get(f"{API}/competitions/{other['id']}/ladder", headers=owner).json()["code"] == "not-a-ladder"
 
@@ -217,6 +239,9 @@ def test_scorekeepers_reach_only_their_competitions_and_stats_roll_up(client, ow
     candidates = {c["id"] for c in get(client, owner, f"/competitions/{mine['id']}/staff-candidates")}
     assert str(keeper_id) in candidates and str(elsewhere_id) not in candidates
     assert client.get(f"{API}/competitions/{mine['id']}/staff-candidates", headers=keeper).status_code == 403
+    away = client.put(f"{API}/competitions/{mine['id']}/staff", headers=owner,
+                      json={"staff": [{"staff_user_id": str(elsewhere_id)}]})  # fmt: skip
+    assert away.status_code == 422
     bogus = client.put(
         f"{API}/competitions/{mine['id']}/staff", headers=owner, json={"staff": [{"staff_user_id": str(uuid4())}]}
     )
@@ -279,6 +304,10 @@ def test_team_fee_split_bills_each_share_and_the_rest(client, owner, tenant, f):
     assert [s["amount_minor"] for s in shares] == [10000, 10000]
     team = next(t for t in get(client, owner, f"/competitions/{comp['id']}/teams") if t["id"] == entry["id"])
     assert team["fee_status"] == "billed"
+    assert get(client, owner, f"/competitions/{comp['id']}")["team_fee_minor"] == 30000
+    with tenant_session(tenant.id) as session:
+        billed = session.scalars(select(AuditEvent.changes).where(AuditEvent.entity_id == UUID(entry["id"]))).all()
+    assert {"fee_status": ["unbilled", "billed"]} in billed
     again = client.post(path, headers=owner, json={"shares": [{"roster_entry_id": p2["id"], "amount_minor": 1}]})
     assert again.status_code == 409
 
@@ -294,7 +323,7 @@ def test_team_fee_split_bills_each_share_and_the_rest(client, owner, tenant, f):
     assert held == {UUID(f.person), third}
 
 
-def test_publish_a_program_group_as_a_league(client, owner, f):
+def test_publish_a_program_group_as_a_league(client, owner, tenant, f):
     camp = ok(
         client.post(f"{API}/program-groups", headers=owner, json={"location_id": f.location, "name": "Youth league"})
     )
@@ -308,13 +337,24 @@ def test_publish_a_program_group_as_a_league(client, owner, f):
         )
     )
     ok(client.post(f"{API}/enrollments", headers=owner, json={"program_group_id": reds["id"], "client_id": f.person}))
+    under = ok(client.post(f"{API}/program-groups", headers=owner,
+                           json={"location_id": f.location, "parent_id": reds["id"], "name": "Reds U10"}))  # fmt: skip
+    deep = new_client(client, owner, f.location)["id"]
+    ok(client.post(f"{API}/enrollments", headers=owner, json={"program_group_id": under["id"], "client_id": deep}))
     body = {"program_group_id": camp["id"], "kind": "league", "sport_id": f.sport["id"], "starts_on": "2031-05-01"}
     comp = post(client, owner, "/competitions/from-program-group", body)
     assert comp["name"] == "Youth league" and comp["program_group_id"] == camp["id"]
     teams = {t["name"]: t for t in get(client, owner, f"/competitions/{comp['id']}/teams")}
     assert set(teams) == {"Reds", "Blues"}
     roster = get(client, owner, f"/competition-teams/{teams['Reds']['id']}/roster")
-    assert [(r["client_id"], r["origin"]) for r in roster] == [(f.person, "enrollment")]
+    assert sorted((r["client_id"], r["origin"]) for r in roster) == sorted(
+        [(f.person, "enrollment"), (deep, "enrollment")]
+    )
+    with tenant_session(tenant.id) as session:
+        audited = set(session.scalars(select(AuditEvent.entity_id)))
+        created = session.scalar(select(AuditEvent.changes).where(AuditEvent.entity_id == UUID(comp["id"])))
+    assert created["program_group_id"] == [None, camp["id"]]
+    assert {UUID(t["team_id"]) for t in teams.values()} | {UUID(r["id"]) for r in roster} <= audited
     leaf = client.post(
         f"{API}/competitions/from-program-group", headers=owner, json=body | {"program_group_id": reds["id"]}
     )
@@ -383,6 +423,10 @@ def test_game_cards_print_rosters_and_need_the_card_key(client, owner, tenant, f
     day = "2031-05-05"
     many = client.get(f"{API}/game-cards?sport_id={f.sport['id']}&from_on={day}&to_on={day}", headers=owner)
     assert many.status_code == 200 and b"Rosa Card" in many.content
+    evening = post(client, owner, "/games", {"competition_id": comp["id"], "home_team_id": home["id"], "away_team_id": away["id"],
+                                             "resource_id": f.court, "starts_at": local(f.zone, 2031, 5, 5, 19)})  # fmt: skip
+    late = client.get(f"{API}/games/{evening['id']}/card", headers=owner).content  # 00:00 UTC the next day
+    assert b"2031-05-05" in late and b"2031-05-06" not in late
     wide = client.get(f"{API}/game-cards?sport_id={f.sport['id']}&from_on=2031-01-01&to_on=2031-12-31", headers=owner)
     assert wide.status_code == 422
     email, _ = add_staff(tenant, "front_desk", location_ids=[f.location])
