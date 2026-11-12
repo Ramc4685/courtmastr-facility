@@ -12,8 +12,13 @@ primary_region = "REPLACE-region"
   FH_ENV = "production"
 
 # Non-secret settings overlay. Copy infra/docker/config/app.production.yaml next to this file as app.production.yaml
-# and change the hosts (Fly private DNS, <app>.internal / <app>.flycast), web_base_url, bucket endpoint and
-# api.trusted_proxies (the web app's private network address range).
+# and change the hosts (Fly private DNS, <app>.internal / <app>.flycast), web_base_url and bucket endpoint.
+# Two different trust lists, do not mix them up:
+#   api.trusted_proxies (this app's overlay): the address range the PROXY APP reaches the API from over Fly's private
+#     network (its 6PN range; check Fly's documentation). Never the stack file's 172.29.77.250/32: that address only
+#     exists on the Compose network, and with it the API sees every client as the proxy. Startup refuses an empty list.
+#   EDGE_CIDRS and EDGE_IP_HEADER (the proxy app's env, fly.web.toml): Fly's public edge ranges and Fly-Client-IP, so the
+#     proxy puts the real client address in X-Forwarded-For (docs/ops/deploy-fly.md).
 [[files]]
   guest_path = "/srv/fh/config/app.production.yaml"
   local_path = "app.production.yaml"

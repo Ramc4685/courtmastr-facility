@@ -263,6 +263,24 @@ def test_client_ip_comes_from_the_proxy_header_only_behind_a_trusted_proxy(tenan
     assert _sign_in(proxy, tenant, email=desk_email, headers=spoofed).json()["code"] == "ip-not-allowed"
 
 
+def test_allowlist_refuses_ranges_that_only_a_proxy_could_match(tenant, monkeypatch):
+    """A private, loopback or link-local entry, or one covering a trusted proxy, would match the proxy, not a
+    facility, and let every client behind it in."""
+    owner = login(_from(INSIDE), tenant)
+    for entry in ("10.0.0.0/8", "127.0.0.1", "169.254.0.0/16", "192.168.1.0/24", "fd00::/8", "0.0.0.0/0"):
+        refused = _allowlist(_from(INSIDE), owner, [f"{INSIDE}/32", entry])
+        assert refused.status_code == 422 and refused.json()["code"] == "ip-allowlist-not-public", entry
+        assert refused.json()["errors"][0]["pointer"] == "/staff_ip_allowlist/1"
+    monkeypatch.setattr(get_settings().api, "trusted_proxies", ["198.51.100.0/28"])
+    covering = _allowlist(_from(INSIDE), owner, [f"{INSIDE}/32", "198.51.100.7"])
+    assert covering.json()["code"] == "ip-allowlist-not-public"
+    # Seen as the proxy itself (an unlisted proxy): the error names the misconfiguration, not "add this address".
+    monkeypatch.setattr(get_settings().api, "trusted_proxies", [])
+    misconfigured = _allowlist(_from("172.29.77.250"), login(_from("172.29.77.250"), tenant), [f"{INSIDE}/32"])
+    assert misconfigured.json()["code"] == "ip-allowlist-proxy-misconfigured"
+    assert _allowlist(_from(INSIDE), owner, [f"{INSIDE}/32"]).status_code == 200
+
+
 def test_operator_break_glass_clears_the_list_and_is_audited(tenant, capsys):
     """No role bypasses the list, so a tenant locked out from everywhere is let back in by the operator CLI."""
     from app.cli import _clear_ip_allowlist

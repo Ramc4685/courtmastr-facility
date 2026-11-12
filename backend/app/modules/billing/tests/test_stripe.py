@@ -138,6 +138,7 @@ def test_a_live_key_refuses_to_start_outside_production(monkeypatch, tmp_path, n
     (tmp_path / "app.yaml").write_text(config.replace("provider: fake ", "provider: stripe "))
     overlay = (
         "email:\n  log_links: false\nstorage:\n  scanner: clamd\n"  # outside dev and test, uploads must be scanned
+        "api:\n  exposed_directly: true\n"  # and a proxy in front must be listed
     )
     (tmp_path / f"app.{env}.yaml").write_text(overlay)
     monkeypatch.setenv("FH_CONFIG_DIR", str(tmp_path))

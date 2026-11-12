@@ -27,7 +27,9 @@ them is AWS-specific.
    share one address and S1's per-address sign-in limits would become one shared bucket. Set the proxy's `EDGE_CIDRS` to the
    load balancer's subnets (it forwards the client in `X-Forwarded-For`, the default `EDGE_IP_HEADER`), then confirm that
    `core/api.py::_ip` returns the real client. The mechanism is tested locally with a stand-in edge (`infra/docker/smoke.sh`);
-   on AWS it is **untested**.
+   on AWS it is **untested**. Separately, the API's own overlay lists the proxy tasks' subnet in `api.trusted_proxies`
+   (not the balancer's: the API only ever talks to the proxy). Production refuses to start with it empty unless
+   `api.exposed_directly: true`.
 2. The migrate and deploy steps in the workflow are placeholders: fill them for ECS (OIDC role, `register-task-definition`,
    `update-service`, `run-task`).
 3. Overlay values: `app.web_base_url`, `db.host`, `redis.url`, `email` relay (SES is the natural one), bucket name.

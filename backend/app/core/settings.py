@@ -24,6 +24,9 @@ class Api(BaseModel):
     port: int
     max_body_bytes: int = 1_048_576
     trusted_proxies: list[str] = []  # peers whose X-Forwarded-For names the client
+    # True only when browsers reach the API with no proxy in front: then the socket peer is the client. Outside dev
+    # and test, an empty trusted_proxies without this is refused at startup (every client would look like the proxy).
+    exposed_directly: bool = False
 
 
 class Db(BaseModel):
@@ -258,6 +261,11 @@ def get_settings() -> Settings:
     ):
         # A live Stripe key moves real money: only a production deployment may hold one.
         raise RuntimeError(f"a live Stripe key is set but FH_ENV is {env!r}: use test-mode keys outside production")
+    if env not in ("dev", "test") and not settings.api.trusted_proxies and not settings.api.exposed_directly:
+        # Behind an unlisted proxy every client is seen as the proxy: one global sign-in bucket, and an allow-list
+        # error that tells the admin to add the proxy's address (which admits everyone).
+        raise RuntimeError("outside dev and test, set api.trusted_proxies to the proxy's address range, or set "
+                           "api.exposed_directly: true if no proxy stands in front of the API")  # fmt: skip
     if env not in ("dev", "test") and settings.storage.scanner == "noop":
         raise RuntimeError("outside dev and test, storage.scanner must not be noop: uploads must be malware-scanned")
     return settings

@@ -98,6 +98,28 @@ def get_security_settings(session: Session, principal: Principal) -> dict:
     return _security_view(get_tenant(session))
 
 
+def _seen_as_proxy(address: str | None) -> bool:
+    proxies = get_settings().api.trusted_proxies
+    return networks.contains(networks.NOT_A_CLIENT, address) or networks.contains(proxies, address)
+
+
+def _refuse_unreachable_networks(allowed: list[str]) -> None:
+    """An entry covering a private, loopback or link-local range, or a trusted proxy, would match the proxy
+    rather than a facility: every client behind it would pass. Refused with the index of the entry."""
+    proxies = get_settings().api.trusted_proxies
+    for index, network in enumerate(allowed):
+        if networks.overlaps(network, proxies):
+            raise ValidationFailed(
+                "That range includes this service's own proxy, so it would let everyone in. List your facility's "
+                "public address instead.", code="ip-allowlist-not-public", pointer=f"/staff_ip_allowlist/{index}",
+            )  # fmt: skip
+        if networks.overlaps(network, networks.NOT_A_CLIENT):
+            raise ValidationFailed(
+                "Private, loopback and link-local addresses never reach us from the internet. List your facility's "
+                "public address instead.", code="ip-allowlist-not-public", pointer=f"/staff_ip_allowlist/{index}",
+            )  # fmt: skip
+
+
 def update_security_settings(session: Session, principal: Principal, data: dict) -> dict:
     """Staff IP allow-list, MFA policy and staff idle timeout. The key carries `+`, so the caller re-authenticated
     in the last 10 minutes. A non-empty allow-list must contain the caller's own address, so nobody can lock
@@ -119,9 +141,17 @@ def update_security_settings(session: Session, principal: Principal, data: dict)
     before = [str(net) for net in tenant.staff_ip_allowlist]
     if data.get("staff_ip_allowlist") is not None:
         allowed = networks.normalize(data["staff_ip_allowlist"], "/staff_ip_allowlist")
-        if allowed and not networks.contains(allowed, context.client_ip.get()):
+        _refuse_unreachable_networks(allowed)
+        here = context.client_ip.get()
+        if allowed and not networks.contains(allowed, here):
+            if _seen_as_proxy(here):
+                raise ValidationFailed(
+                    f"We see your address as {here}, a proxy or private address, so an allow-list cannot work yet. "
+                    "Ask your operator to list the proxy in api.trusted_proxies.",
+                    code="ip-allowlist-proxy-misconfigured", pointer="/staff_ip_allowlist",
+                )  # fmt: skip
             raise ValidationFailed(
-                f"Add the address you are using now ({context.client_ip.get() or 'unknown'}), or you would be locked out.",
+                f"Add the address you are using now ({here or 'unknown'}), or you would be locked out.",
                 code="ip-allowlist-excludes-you", pointer="/staff_ip_allowlist",
             )  # fmt: skip
         tenant.staff_ip_allowlist = allowed

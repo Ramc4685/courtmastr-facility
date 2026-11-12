@@ -135,16 +135,34 @@ def test_lane_overrides(monkeypatch):
 def test_fake_payments_are_refused_outside_dev_and_test(monkeypatch, tmp_path):
     config = (REPO_ROOT / "config" / "app.yaml").read_text()
     (tmp_path / "app.yaml").write_text(config.replace("cookie_secure: false", "cookie_secure: true"))
-    (tmp_path / "app.prod.yaml").write_text("email:\n  log_links: false\n")
+    (tmp_path / "app.prod.yaml").write_text("email:\n  log_links: false\napi:\n  exposed_directly: true\n")
     monkeypatch.setenv("FH_CONFIG_DIR", str(tmp_path))
     monkeypatch.setenv("FH_ENV", "prod")
     monkeypatch.setenv("FH_PAYMENTS_PROVIDER", "")  # a local .env trying Stripe must not mask the config under test
     with pytest.raises(RuntimeError, match="payments.provider"):
         get_settings.__wrapped__()
     (tmp_path / "app.prod.yaml").write_text(
-        "email:\n  log_links: false\npayments:\n  provider: none\nstorage:\n  scanner: clamd\n"
+        "email:\n  log_links: false\npayments:\n  provider: none\nstorage:\n  scanner: clamd\napi:\n  exposed_directly: true\n"
     )
     assert get_settings.__wrapped__().payments.provider == "none"
+
+
+def test_production_refuses_to_guess_whether_a_proxy_stands_in_front(monkeypatch, tmp_path):
+    """Behind an unlisted proxy every client is the proxy (one sign-in bucket, a useless allow-list): outside dev
+    and test, an empty api.trusted_proxies needs api.exposed_directly said out loud."""
+    config = (REPO_ROOT / "config" / "app.yaml").read_text().replace("cookie_secure: false", "cookie_secure: true")
+    (tmp_path / "app.yaml").write_text(config)
+    base = "email: {log_links: false}\npayments: {provider: none}\nstorage: {scanner: clamd}\n"
+    (tmp_path / "app.prod.yaml").write_text(base)
+    monkeypatch.setenv("FH_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("FH_ENV", "prod")
+    monkeypatch.setenv("FH_PAYMENTS_PROVIDER", "")
+    with pytest.raises(RuntimeError, match="api.trusted_proxies"):
+        get_settings.__wrapped__()
+    (tmp_path / "app.prod.yaml").write_text(base + "api: {trusted_proxies: [fdaa::/16]}\n")
+    assert get_settings.__wrapped__().api.trusted_proxies == ["fdaa::/16"]
+    (tmp_path / "app.prod.yaml").write_text(base + "api: {exposed_directly: true}\n")
+    assert get_settings.__wrapped__().api.exposed_directly
 
 
 # --- notification port ---------------------------------------------------------------------------------------

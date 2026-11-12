@@ -23,7 +23,8 @@ Hosting is the owner's call (Fly.io or AWS, chosen on cost, possibly switched la
   permissions headers; caps API bodies at 1 MiB with the one upload route allowed 21 MiB (mirrors
   `core/api.py` `BodyLimitMiddleware.UPLOAD_PATHS`); slow-client timeouts; compression; SPA fallback; `/api` to the
   API. It sets `X-Forwarded-For` to the socket peer, and the app trusts only the proxy's address
-  (`api.trusted_proxies`, see `core/api.py::_ip`). In a cloud deployment put the proxy's network CIDR there.
+  (`api.trusted_proxies`, see `core/api.py::_ip`). In a cloud deployment put the proxy's network CIDR there; outside dev and test the API refuses to start with the list
+  empty unless `api.exposed_directly: true` (no proxy at all in front).
 - **Backups.** `infra/backup/` (see [runbook.md](runbook.md#restore-from-backup)).
 - **Release notes.** `CHANGELOG.md`; the staff app's account menu links to "What's new", built from the same file.
 

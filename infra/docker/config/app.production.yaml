@@ -7,7 +7,8 @@ app:
   base_domain: localhost
 api:
   host: 0.0.0.0
-  trusted_proxies: ["172.29.77.250/32"]    # the proxy's pinned address on the stack network
+  trusted_proxies: ["172.29.77.250/32"]    # the proxy's pinned address on THIS Compose network only; a cloud
+                                           # deployment lists its own proxy's range (empty is refused at startup)
 db:
   host: postgres
   port: 5432

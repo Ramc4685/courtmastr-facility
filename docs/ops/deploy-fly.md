@@ -26,7 +26,9 @@ owner can price it and decide. Example config: `infra/fly/fly.toml`. Pipeline: `
    for both), then confirm that `core/api.py::_ip` returns the real client address (rate limits and the staff IP allow-list
    depend on it). The mechanism is tested locally with a stand-in edge (`infra/docker/smoke.sh`); on Fly it is **untested**.
 2. The deploy workflow's migrate and deploy steps are placeholders; fill them in for the commands you choose.
-3. `api.trusted_proxies`, `app.web_base_url`, `email.smtp_*` (a real mail relay) and `payments.provider` are set in the
+3. `api.trusted_proxies` is the range the proxy app reaches the API from over Fly's private network (not Fly's edge
+   ranges, which go in the proxy's `EDGE_CIDRS`, and not the Compose stack's `172.29.77.250/32`). Production refuses to
+   start with it empty unless `api.exposed_directly: true` says no proxy stands in front. `app.web_base_url`, `email.smtp_*` (a real mail relay) and `payments.provider` are set in the
    overlay. Production refuses to start with the fake payment processor, insecure cookies or no malware scanner.
 4. Certificate and DNS: the public host name points at the proxy app.
 5. Backups: `infra/backup/backup.sh` on a schedule from somewhere with Postgres access, writing to storage that is not
