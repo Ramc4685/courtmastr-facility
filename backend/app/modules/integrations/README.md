@@ -19,11 +19,12 @@ Feature status against the parity matrix: `docs/status/16-integrations.md`.
 | `reference.py` | the generated public API reference: `x-api-key-scopes` on every operation a key may call (added in `app.main`'s OpenAPI hook), listed by `GET /api-reference` |
 | `feeds.py` | calendar feeds (`calendar_feed`: staff, team and member schedules as iCalendar) and the embeddable public schedule (`public_schedule_setting`, `GET /public/schedule`) |
 | `domain/ical.py` | RFC 5545 text: escaping, 75-octet folding, UTC stamps |
+| `meetings.py` | virtual sessions (INT-09): the Zoom connection (a tenant's Server-to-Server app), `video_meeting` per session (pasted link or Zoom), and the member join |
 | `quickbooks.py` | QuickBooks Online (INT-07): OAuth round trip with a sealed state, sealed credentials and refresh, mappings, settings, the in-request sync and retry, the verified webhook |
 
 Ports added: `app/ports/accounting.py` (adapters: `FakeAccounting`, `JsonFileAccounting`, `QuickBooksOnline`;
 the connection side `AccountingConnect`: `FakeQuickBooks` and `QuickBooksConnect`)
-and `app/ports/video_meeting.py` (`FakeVideo`, a simulated Zoom). `app/core/crypto.py` seals webhook secrets
+and `app/ports/video_meeting.py` (`FakeVideo`, a simulated Zoom, and `ZoomVideo`). `app/core/crypto.py` seals webhook secrets
 with AES-GCM, the tenant id as associated data. Simulated adapters write every call to `adapter_command_log`
 through `service.adapter_for`.
 
@@ -69,7 +70,10 @@ through `service.adapter_for`.
   browser's word: it must be digits, and `AccountingConnect.token_company_id` asks the provider which company
   the new token opens (Intuit: the company-info read); a mismatch fails the connection (`realm-mismatch`).
   `app.claim_provider_account` (migration 1702) registers the company for webhook routing and refuses one
-  already routed to another tenant (`409 account-in-use`). Credentials are sealed the
+  already routed to another tenant (`409 account-in-use`); disconnect releases the claim
+  (`app.release_provider_account`, the tenant's own row only) once no active connection of the tenant still
+  holds the company. A failed completion never claims (the claim is the last step). The simulated adapter is
+  refused in start and completion outside dev and test (`422 provider-not-configured`). Credentials are sealed the
   same way and refreshed within five minutes of expiry. `return_url` must be on `app.web_base_url`. The
   webhook (`intuit-signature`, HMAC-SHA256) stores each notification once in the inbound log; the sync is
   one-way, so nothing else happens. It answers 401 while QuickBooks is off, and outside dev and test whenever
@@ -89,6 +93,21 @@ through `service.adapter_for`.
   gate (`scheduling.service.session_window`: confirmed and self-bookable, the portal listing's source) and,
   when turned on, every other booking as a busy time per resource with no title or name, never beyond
   `days_ahead` (1 to 31).
+- **Virtual sessions (INT-09).** A Zoom connection is the tenant's own Server-to-Server OAuth app (account id,
+  client id, secret), checked by asking Zoom for a token for that account (the token request names the
+  account, so foreign credentials fail), claimed in the platform routing table like a QuickBooks company
+  (`account-in-use`, released on disconnect) and sealed. There is no browser round trip, so no OAuth state to
+  steal. A session's meeting is a pasted https link or a Zoom meeting (waiting room on, created on the
+  location's own connection, else the tenant-wide one; a repeat PUT on the same connection and host moves it,
+  otherwise the old meeting is deleted at Zoom and a new one made). A cancelled or finished session takes no
+  meeting (`409 invalid-state-transition`). Disconnecting Zoom deletes its meetings at Zoom (best effort) and
+  marks them `failed` (`last_error = connection-disconnected`), so joins stop at once. Join URL, host URL
+  (stored, not yet returned by any route) and passcode are sealed; staff read the join URL on the meeting, members never see it listed. `POST
+  /portal/enrollments/{id}/join` returns it for one's own `enrolled` place in a confirmed session, from 10
+  minutes before the start until the end, and marks the place attended (source `video_join`, credits by the
+  normal rule). It is a POST, not the contract's redirecting GET, because it writes attendance. Gate:
+  `scheduling.session.manage` on the session's location. **ZoomVideo has never called Zoom:** tests drive it on
+  `httpx.MockTransport`.
 - **Titles members and the public read** are the session's `public_title` or the fixed label "Session", never
   the internal `title` (`feeds.public_title`): the public schedule and member feeds. Staff and team feeds show
   what their owner can already read in the back office (booking titles, team names).
@@ -113,9 +132,17 @@ through `service.adapter_for`.
   `FH_QUICKBOOKS_WEBHOOK_VERIFIER` read in `quickbooks.connector()`, because core settings were frozen this
   phase; without all three the simulated adapter is used. Move them to `core.settings` when it opens.
 - The sync runs inside the request (at most 31 past days, idempotent per day) rather than as a job.
+- Zoom: a Server-to-Server app per tenant instead of a marketplace OAuth app (ADR 0012 section 5 names
+  account-level authorisation; this needs no platform Zoom app and no browser flow). The client id `simulated`
+  selects the simulated adapter in dev and test only (core settings were frozen). Not built: `/webhooks/zoom`
+  (a Server-to-Server app has no deauthorisation event and v1 takes no participant events, ADR 0012 section 5),
+  the meeting lifecycle on `scheduling.session.rescheduled` and `.cancelled` events (a staff PUT moves the
+  meeting; a cancelled session refuses joins), `virtual_room` host resources and holds, the access modes
+  (`open`, `logged_in`; the join is always `booked_only`), and the 40-minute basic-plan warning.
+- A connection that was disconnected keeps its row, so reconnecting the same provider at the same location is
+  `409 already-exists` (`uq_external_connection`); reconnect needs a new location scope or support.
 - Not built for QuickBooks: `sync_from` and `auto_sync` are stored but nothing reads them yet (no scheduled
-  sync); no `mappings-incomplete` refusal, sub-category inheritance or `needs_reauth` notice (ADR 0012); the
-  platform realm lookup is kept on disconnect, so a company cannot move to another tenant without support.
+  sync); no `mappings-incomplete` refusal, sub-category inheritance or `needs_reauth` notice (ADR 0012).
 - Team feeds walk the owner's games by start time and keep the team's, scanning at most 1000 (leagues has no
   team filter on `list_games`). Feeds carry at most 1000 events.
 - The public schedule and its settings live here, not in scheduling (contract tag `scheduling`), because

@@ -106,8 +106,17 @@ class WebhookDeliveryDetail(WebhookDeliveryOut):
     payload_preview: dict = Field(description="Ids, amounts and dates only; free text is redacted")
 
 
+class ZoomAppIn(In):
+    """The tenant's own Zoom Server-to-Server OAuth app. Sealed at rest and never returned."""
+
+    account_id: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{1,64}$")]
+    client_id: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{1,128}$")]
+    client_secret: Annotated[str, StringConstraints(min_length=1, max_length=256)]
+
+
 class ExternalConnectionCreate(In):
-    provider: Literal["accounting_file", "quickbooks_online"]
+    provider: Literal["accounting_file", "quickbooks_online", "zoom"]
+    zoom: ZoomAppIn | None = Field(None, description="Zoom: the Server-to-Server OAuth app to connect")
     location_id: UUID | None = Field(None, description="Omit for every location")
     settings: dict[str, str | dict[str, str]] | None = Field(
         None, description="`account_map` (posting key -> account) and `default_income_account`"
@@ -233,6 +242,38 @@ class AdapterCommandOut(Out):
     arguments: dict
     outcome: str
     occurred_at: datetime
+
+
+# --- virtual sessions ---------------------------------------------------------------------------------------
+
+
+class VideoMeetingIn(In):
+    provider: Literal["manual", "zoom"]
+    join_url: Annotated[str, StringConstraints(pattern=r"^https://\S+$", max_length=2000)] | None = Field(
+        None, description="manual: the pasted https link"
+    )
+    passcode: Annotated[str, StringConstraints(max_length=50)] | None = None
+    host_external_user_id: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_.@-]{1,128}$")] | None = Field(
+        None, description="zoom: the host user (id or email); default the app's own user"
+    )
+
+
+class VideoMeetingOut(Out):
+    id: UUID
+    session_id: UUID
+    provider: Literal["manual", "zoom"]
+    status: Literal["scheduled", "failed"]
+    external_connection_id: UUID | None
+    join_url: str | None = Field(description="Staff only; members use the join command")
+    has_passcode: bool
+    last_error: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class JoinOut(Out):
+    join_url: str
+    passcode: str | None
 
 
 # --- calendar feeds and the public schedule ----------------------------------------------------------------

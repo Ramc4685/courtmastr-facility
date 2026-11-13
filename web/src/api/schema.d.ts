@@ -9039,6 +9039,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/enrollments/{enrollment_id}/join": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Join Portal Virtual Session
+         * @description The meeting link of one's own booked place, from 10 minutes before the start, at click time only; joining
+         *     marks the place attended. A POST, not a redirecting GET, because it marks attendance. Errors:
+         *     invalid-state-transition, policy-violation.
+         */
+        post: operations["joinPortalVirtualSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/form-submissions": {
         parameters: {
             query?: never;
@@ -13377,6 +13399,29 @@ export interface paths {
          */
         post: operations["sendSessionRosterMessage"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{schedule_session_id}/video-meeting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Session Video Meeting */
+        get: operations["getSessionVideoMeeting"];
+        /**
+         * Put Session Video Meeting
+         * @description Attach or replace the session's online meeting: a pasted link, or a Zoom meeting created through the
+         *     location's Zoom connection. Errors: provider-unavailable.
+         */
+        put: operations["putSessionVideoMeeting"];
+        post?: never;
+        /** Delete Session Video Meeting */
+        delete: operations["deleteSessionVideoMeeting"];
         options?: never;
         head?: never;
         patch?: never;
@@ -22657,7 +22702,7 @@ export interface components {
              * Provider
              * @enum {string}
              */
-            provider: "accounting_file" | "quickbooks_online";
+            provider: "accounting_file" | "quickbooks_online" | "zoom";
             /**
              * Return Url
              * @description QuickBooks: where the browser lands after authorising
@@ -22672,6 +22717,8 @@ export interface components {
                     [key: string]: string;
                 };
             } | null;
+            /** @description Zoom: the Server-to-Server OAuth app to connect */
+            zoom?: components["schemas"]["ZoomAppIn"] | null;
         };
         /** ExternalConnectionCreated */
         ExternalConnectionCreated: {
@@ -24214,6 +24261,13 @@ export interface components {
             is_active?: boolean | null;
             /** Name */
             name?: string | null;
+        };
+        /** JoinOut */
+        JoinOut: {
+            /** Join Url */
+            join_url: string;
+            /** Passcode */
+            passcode: string | null;
         };
         /** KioskAttendedOut */
         KioskAttendedOut: {
@@ -38805,6 +38859,70 @@ export interface components {
             /** Url */
             url: string;
         };
+        /** VideoMeetingIn */
+        VideoMeetingIn: {
+            /**
+             * Host External User Id
+             * @description zoom: the host user (id or email); default the app's own user
+             */
+            host_external_user_id?: string | null;
+            /**
+             * Join Url
+             * @description manual: the pasted https link
+             */
+            join_url?: string | null;
+            /** Passcode */
+            passcode?: string | null;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "manual" | "zoom";
+        };
+        /** VideoMeetingOut */
+        VideoMeetingOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** External Connection Id */
+            external_connection_id: string | null;
+            /** Has Passcode */
+            has_passcode: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Join Url
+             * @description Staff only; members use the join command
+             */
+            join_url: string | null;
+            /** Last Error */
+            last_error: string | null;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "manual" | "zoom";
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "scheduled" | "failed";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** VideoOut */
         VideoOut: {
             /** Description */
@@ -39261,6 +39379,18 @@ export interface components {
             starts_on?: string | null;
             /** Weekdays */
             weekdays?: number[] | null;
+        };
+        /**
+         * ZoomAppIn
+         * @description The tenant's own Zoom Server-to-Server OAuth app. Sealed at rest and never returned.
+         */
+        ZoomAppIn: {
+            /** Account Id */
+            account_id: string;
+            /** Client Id */
+            client_id: string;
+            /** Client Secret */
+            client_secret: string;
         };
     };
     responses: never;
@@ -62111,6 +62241,40 @@ export interface operations {
             };
         };
     };
+    joinPortalVirtualSession: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                enrollment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JoinOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     createPortalFormSubmission: {
         parameters: {
             query?: never;
@@ -73047,6 +73211,110 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Accepted"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getSessionVideoMeeting: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoMeetingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putSessionVideoMeeting: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VideoMeetingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoMeetingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteSessionVideoMeeting: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

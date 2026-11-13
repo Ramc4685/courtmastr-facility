@@ -655,7 +655,7 @@ def test_simulated_adapters_leave_a_command_log(client, tenant, owner):
 def test_directory_reports_each_port_truthfully(client, owner):
     location = _location(client, owner)
     ports = {row["port"]: row for row in client.get(f"{API}/integration-adapters", headers=owner).json()}
-    assert ports["accounting"]["status"] == "simulated" and ports["video_meeting"]["status"] == "simulated"
+    assert ports["accounting"]["status"] == "simulated" and ports["video_meeting"]["status"] == "not_configured"
     assert ports["door_controller"]["status"] == "not_configured" and ports["payment_provider"]["status"] == "simulated"
     client.post(
         f"{API}/external-connections", headers=owner, json={"provider": "accounting_file", "location_id": location}

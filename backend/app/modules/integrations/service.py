@@ -668,6 +668,10 @@ def create_external_connection(
         from app.modules.integrations import quickbooks
 
         authorize_url = quickbooks.start(session, row, principal, data.get("return_url"))
+    elif row.provider == Provider.ZOOM:
+        from app.modules.integrations import meetings
+
+        meetings.connect_zoom(session, row, data.get("zoom"))
     audit.record(session, "integrations.connection.create", row, location_id=location_id, changes=audit.diff(row))
     return row, authorize_url
 
@@ -680,6 +684,10 @@ def disconnect_external_connection(session: Session, principal: Principal, conne
     if row.status == ConnectionStatus.DISCONNECTED:
         raise Conflict("The connection is already disconnected")
     quickbooks.revoke(session, row)
+    if row.provider == Provider.ZOOM:
+        from app.modules.integrations import meetings
+
+        meetings.on_disconnect(session, row)
     row.status, row.credentials_ciphertext = ConnectionStatus.DISCONNECTED, None
     audit.record(
         session, "integrations.connection.disconnect", row, location_id=row.location_id, changes=audit.diff(row)
@@ -879,7 +887,10 @@ def list_adapters(session: Session, principal: Principal) -> list[dict]:
                 adapter, status = "fake_accounting", "simulated"
                 detail = "Simulated. QuickBooks Online is built behind the port but switched off."
         elif port == "video_meeting":
-            adapter, status, detail = "fake_video", "simulated", "Simulated meetings; no Zoom app is registered."
+            if Provider.ZOOM in active:
+                adapter, status, detail = "zoom", "connected", "Zoom meetings through your own Server-to-Server app."
+            else:
+                adapter, status, detail = None, "not_configured", "Paste meeting links, or connect a Zoom app."
         elif port == "payment_provider":
             simulated = settings.payments.provider == "fake"
             adapter, status = settings.payments.provider, "simulated" if simulated else "not_configured"

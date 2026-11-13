@@ -223,6 +223,14 @@ def _own_row(session: Db, principal: Principal, model, row_id: UUID):
     return row
 
 
+def own_place(session: Db, principal: Principal, enrollment_id: UUID) -> dict:
+    """Internal read (integrations, the virtual-session join): an enrolment the portal caller may act for, or
+    NotFound. Returns its client, session, location and status."""
+    row = _own_row(session, principal, Enrollment, enrollment_id)
+    return {"client_id": row.client_id, "session_id": row.session_id, "location_id": row.location_id,
+            "status": row.status}  # fmt: skip
+
+
 def portal_cancel(session: Db, principal: Principal, enrollment_id: UUID) -> Enrollment:
     """Cancel one's own session booking. Early or late is the server's call from the policy notice period;
     a policy without self-cancel refuses. Group registrations are cancelled by staff."""

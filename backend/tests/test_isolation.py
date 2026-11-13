@@ -395,6 +395,7 @@ _BODIES = {
     "rotateApiKey": {},
     "updateWebhookEndpoint": {"description": "Renamed"},
     "updateCalendarFeed": {"name": "Renamed"},
+    "putSessionVideoMeeting": {"provider": "manual", "join_url": "https://video.invalid/j/other"},
     "updateExternalConnection": {"settings": {"auto_sync": True}},
     "putSyncMappings": {"mappings": []},
     "runSync": {},

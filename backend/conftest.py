@@ -298,6 +298,11 @@ def populate(client, tenant) -> SimpleNamespace:
         client, headers, post, tenant, location["id"], person["id"], space["resource_id"], leagues
     )
     integration = _populate_integrations(client, headers, tenant, post, location, person)
+    meeting = client.put(
+        f"/api/v1/sessions/{space['schedule_session_id']}/video-meeting", headers=headers,
+        json={"provider": "manual", "join_url": "https://video.invalid/j/populate", "passcode": "123456"},
+    )  # fmt: skip
+    assert meeting.status_code == 200, meeting.text
     reporting = _populate_reporting(post, location["id"])
     reporting |= _populate_imports(client, headers, tenant, location["id"])
     return SimpleNamespace(

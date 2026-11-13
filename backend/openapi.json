@@ -23950,7 +23950,8 @@
           "provider": {
             "enum": [
               "accounting_file",
-              "quickbooks_online"
+              "quickbooks_online",
+              "zoom"
             ],
             "title": "Provider",
             "type": "string"
@@ -23993,6 +23994,17 @@
             ],
             "description": "`account_map` (posting key -> account) and `default_income_account`",
             "title": "Settings"
+          },
+          "zoom": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ZoomAppIn"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Zoom: the Server-to-Server OAuth app to connect"
           }
         },
         "required": [
@@ -28695,6 +28707,31 @@
           }
         },
         "title": "JobClassificationUpdate",
+        "type": "object"
+      },
+      "JoinOut": {
+        "properties": {
+          "join_url": {
+            "title": "Join Url",
+            "type": "string"
+          },
+          "passcode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passcode"
+          }
+        },
+        "required": [
+          "join_url",
+          "passcode"
+        ],
+        "title": "JoinOut",
         "type": "object"
       },
       "KioskAttendedOut": {
@@ -74006,6 +74043,156 @@
         "title": "VideoCreate",
         "type": "object"
       },
+      "VideoMeetingIn": {
+        "additionalProperties": false,
+        "properties": {
+          "host_external_user_id": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9_.@-]{1,128}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "zoom: the host user (id or email); default the app's own user",
+            "title": "Host External User Id"
+          },
+          "join_url": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "pattern": "^https://\\S+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "manual: the pasted https link",
+            "title": "Join Url"
+          },
+          "passcode": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passcode"
+          },
+          "provider": {
+            "enum": [
+              "manual",
+              "zoom"
+            ],
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "title": "VideoMeetingIn",
+        "type": "object"
+      },
+      "VideoMeetingOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "external_connection_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Connection Id"
+          },
+          "has_passcode": {
+            "title": "Has Passcode",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "join_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Staff only; members use the join command",
+            "title": "Join Url"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "provider": {
+            "enum": [
+              "manual",
+              "zoom"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "scheduled",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "provider",
+          "status",
+          "external_connection_id",
+          "join_url",
+          "has_passcode",
+          "last_error",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "VideoMeetingOut",
+        "type": "object"
+      },
       "VideoOut": {
         "properties": {
           "description": {
@@ -75328,6 +75515,35 @@
           }
         },
         "title": "WindowUpdate",
+        "type": "object"
+      },
+      "ZoomAppIn": {
+        "additionalProperties": false,
+        "description": "The tenant's own Zoom Server-to-Server OAuth app. Sealed at rest and never returned.",
+        "properties": {
+          "account_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "title": "Account Id",
+            "type": "string"
+          },
+          "client_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,128}$",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_secret": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Client Secret",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "client_id",
+          "client_secret"
+        ],
+        "title": "ZoomAppIn",
         "type": "object"
       }
     },
@@ -123474,6 +123690,69 @@
         ]
       }
     },
+    "/api/v1/portal/enrollments/{enrollment_id}/join": {
+      "post": {
+        "description": "The meeting link of one's own booked place, from 10 minutes before the start, at click time only; joining\nmarks the place attended. A POST, not a redirecting GET, because it marks attendance. Errors:\ninvalid-state-transition, policy-violation.",
+        "operationId": "joinPortalVirtualSession",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "enrollment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Enrollment Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Join Portal Virtual Session",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
     "/api/v1/portal/form-submissions": {
       "post": {
         "description": "Register oneself or a household member; anything priced is paid now through secure checkout. Errors:\nform-closed, sold-out, form-full, coupon-not-allowed, payment-failed.",
@@ -146470,6 +146749,201 @@
         ],
         "x-api-key-scopes": [
           "scheduling.enrollment.create"
+        ]
+      }
+    },
+    "/api/v1/sessions/{schedule_session_id}/video-meeting": {
+      "delete": {
+        "operationId": "deleteSessionVideoMeeting",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Session Video Meeting",
+        "tags": [
+          "integrations"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.session.manage"
+        ]
+      },
+      "get": {
+        "operationId": "getSessionVideoMeeting",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoMeetingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Session Video Meeting",
+        "tags": [
+          "integrations"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.session.manage"
+        ]
+      },
+      "put": {
+        "description": "Attach or replace the session's online meeting: a pasted link, or a Zoom meeting created through the\nlocation's Zoom connection. Errors: provider-unavailable.",
+        "operationId": "putSessionVideoMeeting",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VideoMeetingIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoMeetingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Session Video Meeting",
+        "tags": [
+          "integrations"
+        ],
+        "x-api-key-scopes": [
+          "scheduling.session.manage"
         ]
       }
     },

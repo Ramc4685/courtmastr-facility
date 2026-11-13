@@ -20,7 +20,7 @@ from app.core.errors import NotFound
 from app.core.idempotency import idempotency, secret_response
 from app.core.pagination import ListQuery, list_query
 from app.core.ratelimit import rate_limit
-from app.modules.integrations import feeds, quickbooks, service
+from app.modules.integrations import feeds, meetings, quickbooks, service
 from app.modules.integrations import schemas as s
 from app.modules.integrations.domain.webhooks import redact
 
@@ -296,6 +296,36 @@ def update_calendar_feed(calendar_feed_id: UUID, body: s.CalendarFeedUpdate, ctx
 @router.delete("/calendar-feeds/{calendar_feed_id}", status_code=204)
 def delete_calendar_feed(calendar_feed_id: UUID, ctx: Ctx = Depends(require())) -> None:
     feeds.delete_feed(ctx.session, ctx.principal, calendar_feed_id)
+
+
+@router.get("/sessions/{schedule_session_id}/video-meeting", response_model=s.VideoMeetingOut)
+def get_session_video_meeting(schedule_session_id: UUID, ctx: Ctx = Depends(require(meetings.MANAGE))):
+    return meetings.get_meeting(ctx.session, ctx.principal, schedule_session_id)
+
+
+@router.put("/sessions/{schedule_session_id}/video-meeting", response_model=s.VideoMeetingOut)
+@secret_response
+def put_session_video_meeting(
+    schedule_session_id: UUID, body: s.VideoMeetingIn, ctx: Ctx = Depends(require(meetings.MANAGE))
+):
+    """Attach or replace the session's online meeting: a pasted link, or a Zoom meeting created through the
+    location's Zoom connection. Errors: provider-unavailable."""
+    return meetings.put_meeting(ctx.session, ctx.principal, schedule_session_id, body.model_dump())
+
+
+@router.delete("/sessions/{schedule_session_id}/video-meeting", status_code=204)
+def delete_session_video_meeting(schedule_session_id: UUID, ctx: Ctx = Depends(require(meetings.MANAGE))):
+    meetings.delete_meeting(ctx.session, ctx.principal, schedule_session_id)
+    return Response(status_code=204)
+
+
+@router.post("/portal/enrollments/{enrollment_id}/join", response_model=s.JoinOut)
+@secret_response
+def join_portal_virtual_session(enrollment_id: UUID, ctx: Ctx = Depends(current_ctx)):
+    """The meeting link of one's own booked place, from 10 minutes before the start, at click time only; joining
+    marks the place attended. A POST, not a redirecting GET, because it marks attendance. Errors:
+    invalid-state-transition, policy-violation."""
+    return meetings.join(ctx.session, ctx.principal, enrollment_id)
 
 
 @router.post("/portal/calendar-feeds", response_model=s.CalendarFeedCreated, status_code=201)
