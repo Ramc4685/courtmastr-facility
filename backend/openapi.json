@@ -110660,9 +110660,6 @@
         "summary": "Unlock Door Device",
         "tags": [
           "access"
-        ],
-        "x-api-key-scopes": [
-          "access.door.unlock"
         ]
       }
     },
@@ -122504,9 +122501,6 @@
         "summary": "Override Lighting Zone",
         "tags": [
           "access"
-        ],
-        "x-api-key-scopes": [
-          "access.lighting.override"
         ]
       }
     },
