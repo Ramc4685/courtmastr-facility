@@ -73,6 +73,27 @@ def test_a_past_due_payer_cannot_book_at_the_kiosk(client, shop):
     assert "past" not in refused.text.lower()  # the kiosk says why at the desk, not on the tablet
 
 
+def test_a_child_billed_to_a_past_due_parent_cannot_book_at_the_kiosk(client, shop):
+    """The kiosk checks the visitor's household as the portal guard does: a parent's past-due invoice locks the
+    child the parent books for, and the parent through the child."""
+    from app.modules.access.tests.test_checkin import _pair
+    from app.modules.access.tests.test_kiosk_reservations import book, enter, soon
+
+    seat = soon(client, shop.owner, str(shop.location_id), 30)
+    parent = client.get(f"/api/v1/clients/{shop.client_id}", headers=shop.owner).json()
+    kid = new_client(client, shop.owner, shop.location_id, first_name="Kit", last_name=f"Kid{parent['id'][:6]}")
+    types = {t["code"]: t["id"] for t in client.get("/api/v1/relationship-types", headers=shop.owner).json()}
+    assert client.post(f"/api/v1/clients/{parent['id']}/relationships", headers=shop.owner,
+                       json={"other_client_id": kid["id"], "relationship_type_id": types["parent_of"]}).status_code == 201  # fmt: skip
+    _pair(client, shop.tenant, shop.owner, str(shop.location_id))
+    _past_due_invoice(shop, shop.client_id)
+    _settings(shop.tenant, is_portal_blocked_when_past_due=True)
+    entered = enter(client, kid)
+    assert [(s["target_id"], s["is_bookable"]) for s in entered["sessions"]] == [(seat.id, False)]
+    refused = book(client, entered, seat.id)
+    assert refused.status_code == 409 and refused.json()["code"] == "see-staff"
+
+
 def _settings(tenant, **values) -> None:
     with work(tenant) as session:
         row = catalogue.settings_for(session)

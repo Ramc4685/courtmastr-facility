@@ -85,7 +85,8 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   through `programs.selfservice.kiosk_enroll`, which runs the portal's rules for the client the kiosk identified:
   listing mode, cutoff (so nothing already started), members-only, capacity, already enrolled, and free booking or
   else the client's soonest-to-expire package that covers the session (409 `no-entitlement`). The kiosk adds no
-  bypass. The past-due lockout applies as online (`billing.collections.is_portal_locked`): every session shows not
+  bypass. The past-due lockout applies as online (`billing.collections.is_portal_locked` over
+  `clients.households.household_ids`, so a child billed to a past-due parent is locked too): every session shows not
   bookable and booking is 409 `see-staff`. A place starting inside the kiosk check-in window is marked attended
   (`was_auto_booked`). With `is_auto_book` on, a check-in that holds no place in the window books the earliest
   bookable session, inside a savepoint: a refusal leaves the client checked in. `reservation_timeout_seconds`

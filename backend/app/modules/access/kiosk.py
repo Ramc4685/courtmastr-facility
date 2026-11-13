@@ -4,16 +4,17 @@ decisions 2026-11-13, question 15).
 Internal functions for the kiosk router (device cookie, no principal). An admitted check-in is handed a visit token
 (stored hashed, `kiosk_visit`): every action on the visit spends it and gets a fresh one, it dies at its screens'
 timeouts, and it ends when the kiosk goes back to its start screen or takes the next check-in. Booking goes through
-programs' kiosk functions, which apply the portal's rules unchanged, and the past-due lockout applies as it does
-online. Spending anything (a package credit) needs identification by possession, a card or the app's code; a visit
-found by name books only free sessions, when the location allows even that. Refusals that would reveal the
+programs' kiosk functions, which apply the portal's rules unchanged, and the past-due lockout applies to the
+visitor's household (the visitor and every client one acting relationship away), as the portal guard does online.
+Spending anything (a package credit) needs identification by possession, a card or the app's code; a visit found by
+name books only free sessions, when the location allows even that. Refusals that would reveal the
 client's standing answer only "see staff"."""
 
 import secrets
 from datetime import timedelta
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from app.core import audit, clock, events
@@ -78,7 +79,8 @@ def _until(config: dict):
 def _may_book(session: Session, row: CheckIn, config: dict) -> bool:
     if not _by_possession(row) and not config["is_name_search_booking_allowed"]:
         return False
-    return not billing.collections.is_portal_locked(session, [row.client_id])
+    # The household, as the portal guard checks an identity's clients: a child billed to a past-due parent is locked.
+    return not billing.collections.is_portal_locked(session, clients.households.household_ids(session, row.client_id))
 
 
 def _sessions(session: Session, row: CheckIn, config: dict) -> list[dict]:
