@@ -99,6 +99,7 @@ CLIENT_OR_TENANT_ROUTES = {
         replayWebhookDelivery revokeApiKey rotateApiKey rotateWebhookSecret testWebhookEndpoint
         updateWebhookEndpoint
         getExternalConnection getSyncMappings putSyncMappings retryAccountingExport runSync updateExternalConnection
+        getSyncStatus resetSync
     """.split()),
 }  # fmt: skip
 
