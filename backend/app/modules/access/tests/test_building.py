@@ -413,18 +413,24 @@ def test_verify_allows_in_window_writes_a_door_check_in_and_never_locks_everyone
     )
 
 
+def delay_at(location) -> float:
+    import asyncio
+
+    return asyncio.run(building.door_delay(location))
+
+
 def test_wrong_codes_raise_the_delay_which_decays(client, b):
     with clock.freeze(at(9.8)):
-        location = UUID(b.door)  # the delay is the door's own
-        assert building.door_delay(location) == building.DOOR_DELAYS[0]
+        location = UUID(b.location)  # the delay is the location's: a code opens every door there
+        assert delay_at(location) == building.DOOR_DELAYS[0]
         for n in range(1, 4):
             verify(client, b, f"{n:08d}")
-            assert building.door_delay(location) == building.DOOR_DELAYS[n]
+            assert delay_at(location) == building.DOOR_DELAYS[n]
         for n in range(4, 9):
             verify(client, b, f"{n:08d}")
-        assert building.door_delay(location) == building.DOOR_DELAYS[-1]  # the ceiling
+        assert delay_at(location) == building.DOOR_DELAYS[-1]  # the ceiling
     with clock.freeze(at(9.8) + building.DOOR_BAD_WINDOW + timedelta(seconds=1)):
-        assert building.door_delay(location) == building.DOOR_DELAYS[0]  # wrong codes stopped: back to the floor
+        assert delay_at(location) == building.DOOR_DELAYS[0]  # wrong codes stopped: back to the floor
 
 
 def test_fifty_concurrent_wrong_codes_are_mostly_refused_unevaluated_and_alert_at_most_once(
@@ -476,7 +482,9 @@ def test_an_unknown_credential_is_401_at_once_with_no_row(client, b, monkeypatch
     assert time.monotonic() - began < 1.0 and events_count(b) == before
 
 
-def test_a_flood_on_one_door_never_delays_or_denies_another_door(client, owner, b, monkeypatch):
+def test_a_flood_on_one_door_slows_but_never_denies_another_door(client, owner, b, monkeypatch):
+    """The queue and turn are per door (door A's full queue never refuses door B); the wrong-code delay is per
+    location (guessing at A slows B too), and a valid code at B is still admitted within the ceiling."""
     import time
 
     from app.core import ratelimit
@@ -489,14 +497,57 @@ def test_a_flood_on_one_door_never_delays_or_denies_another_door(client, owner, 
         sync(b, booking)
         code = clear(b, codes(b, booking)[0])
         for n in range(1, 4):
-            verify(client, b, f"{n:08d}")  # the front door climbs its delay
-        r = ratelimit._redis()
-        r.set(f"{ratelimit.PREFIX}:door-queue:{b.door}", building.DOOR_QUEUE + 1, ex=60)  # and its queue is full
-        assert verify(client, b, code)["result"] == "deny"
+            verify(client, b, f"{n:08d}")  # the location climbs to 1.5 s
+        ratelimit._redis().set(f"{ratelimit.PREFIX}:door-queue:{b.door}", building.DOOR_QUEUE + 1, ex=60)
+        assert verify(client, b, code)["result"] == "deny"  # door A's queue is full
         began = time.monotonic()
         other = {"Authorization": f"Bearer {side['credential']}"}
         answer = ok(client.post(f"{API}/door/verify", headers=other, json={"code": code}), 200)
-        assert answer["result"] == "allow" and time.monotonic() - began < 0.5
+        took = time.monotonic() - began
+    assert answer["result"] == "allow" and 1.5 <= took < building.DOOR_DELAYS[-1] + 3.0
+
+
+def test_the_event_loop_keeps_running_while_verifies_wait(b, monkeypatch):
+    import asyncio
+
+    monkeypatch.setattr(building, "DOOR_DELAYS", (0.5,) * 5)
+
+    async def scenario():
+        ticks = 0
+
+        async def ticker():
+            nonlocal ticks
+            while True:
+                await asyncio.sleep(0.02)
+                ticks += 1
+
+        running = asyncio.create_task(ticker())
+
+        async def one():
+            ticket = await building.door_enter(UUID(b.door), UUID(b.location))
+            await building.door_leave(ticket)
+            return ticket is not None
+
+        admitted = await asyncio.gather(one(), one())  # the second waits for the first's turn (BLPOP)
+        running.cancel()
+        return admitted, ticks
+
+    admitted, ticks = asyncio.run(scenario())
+    assert admitted == [True, True] and ticks >= 25  # ~1 s of waiting, the loop never blocked
+
+
+def test_an_over_limit_address_is_refused_before_any_database_work(client, b, monkeypatch):
+    from app.modules.access import router
+
+    cfg = get_settings().rate_limit
+    monkeypatch.setattr(cfg, "enabled", True)
+    monkeypatch.setitem(cfg.buckets, "door-auth", cfg.buckets["door-auth"].model_copy(update={"limit": 1}))
+    bogus = {"Authorization": f"Bearer fhb_{b.tenant.id}_{'x' * 40}"}
+    assert client.post(f"{API}/door/verify", headers=bogus, json={"code": "12345678"}).status_code == 401
+    monkeypatch.setattr(router, "tenant_session", lambda *a, **k: (_ for _ in ()).throw(AssertionError("db")))
+    refused = client.post(f"{API}/door/verify", headers=bogus, json={"code": "12345678"})
+    assert refused.status_code == 429
+    assert client.post(f"{API}/door/verify", headers=b.device, json={"code": "12345678"}).status_code == 429
 
 
 def test_no_connection_is_held_while_a_verify_waits(client, b, monkeypatch):
@@ -540,6 +591,7 @@ def test_limiter_down_denies_and_verify_takes_constant_time(client, b, monkeypat
 
         before = events_count(b)
         monkeypatch.setattr(ratelimit, "_redis", lambda: Down())
+        monkeypatch.setattr(building, "_aredis", lambda: Down())
         assert verify(client, b, code) == {"result": "deny", "unlock_seconds": 0}  # fail closed
     assert events_count(b) == before
 

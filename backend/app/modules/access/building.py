@@ -24,6 +24,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import redis
+import redis.asyncio as aioredis
 from sqlalchemy import column, delete, select, table
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.orm import Session
@@ -32,6 +33,7 @@ from app.core import audit, clock, crypto, events, ratelimit
 from app.core.auth import Principal, authorize, scope_query, system_principal, tokens
 from app.core.errors import Conflict, DomainError, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
+from app.core.settings import get_settings
 from app.modules import clients, platform, programs, scheduling
 from app.modules.access import events as ev
 from app.modules.access import service
@@ -545,64 +547,78 @@ def _note_bad_code(session: Session, door: DoorDevice) -> None:
             "door": door.name, "location": location.name, "count": threshold, "cap": int(DOOR_DELAYS[-1])})  # fmt: skip
 
 
-def _bad_key(door_id) -> str:
-    return f"{ratelimit.PREFIX}:door-bad:{door_id}"
+_AREDIS: dict[int, aioredis.Redis] = {}
 
 
-def door_delay(door_id: UUID | str, r=None) -> float:
-    """The wait before the next verify at this door: one step per wrong code there inside DOOR_BAD_WINDOW."""
-    r = r or ratelimit._redis()
+def _aredis() -> aioredis.Redis:
+    """One asyncio Redis client (and connection pool) per event loop: a client is bound to the loop it runs on."""
+    loop = id(asyncio.get_running_loop())
+    if loop not in _AREDIS:
+        _AREDIS[loop] = aioredis.Redis.from_url(get_settings().redis.url, socket_timeout=DOOR_LOCK_WAIT + 5)
+    return _AREDIS[loop]
+
+
+def _bad_key(location_id) -> str:
+    return f"{ratelimit.PREFIX}:door-bad:{location_id}"
+
+
+async def door_delay(location_id: UUID | str) -> float:
+    """The wait before the next verify at any door of the location: one step per wrong code at the location in
+    DOOR_BAD_WINDOW. Location-wide, because a code is valid at every door of its location."""
     since = (clock.now() - DOOR_BAD_WINDOW).timestamp()
-    wrong = int(r.zcount(_bad_key(door_id), f"({since}", "+inf"))
+    wrong = int(await _aredis().zcount(_bad_key(location_id), f"({since}", "+inf"))
     return DOOR_DELAYS[min(wrong, len(DOOR_DELAYS) - 1)]
 
 
-async def door_enter(door_id: UUID) -> tuple | None:
-    """Internal, Redis only, for an authenticated door: join the door's queue, wait for its turn (verifies at one
-    door are serialised), then wait the door's current delay. Waits with asyncio.sleep, so no thread and no database
-    connection is held. A ticket for `door_leave`, or None meaning answer deny at once: the queue is full, the turn
-    never came, or Redis is unreachable (fail closed). Keyed by door, so one door never uses another's turn."""
+async def door_enter(door_id: UUID, location_id: UUID) -> tuple | None:
+    """Internal, asyncio Redis only, for an authenticated door: join the door's queue, wait for its turn (verifies
+    at one door are serialised; the queue and turn are the door's own, so one door never takes another's), then wait
+    the location's delay. Waiting is BLPOP on the door's wake list and asyncio.sleep: no thread, no polling and no
+    database connection is held. A ticket for `door_leave`, or None meaning answer deny at once: the queue is full,
+    the turn never came, or Redis is unreachable (fail closed)."""
+    p = ratelimit.PREFIX
+    queue, lock, wake = f"{p}:door-queue:{door_id}", f"{p}:door-lock:{door_id}", f"{p}:door-wake:{door_id}"
     try:
-        r = ratelimit._redis()
-        queue, lock = f"{ratelimit.PREFIX}:door-queue:{door_id}", f"{ratelimit.PREFIX}:door-lock:{door_id}"
-        pipe = r.pipeline()
-        pipe.incr(queue)
-        pipe.expire(queue, 60)
-        if int(pipe.execute()[0]) > DOOR_QUEUE + 1:
-            r.decr(queue)
+        r = _aredis()
+        async with r.pipeline() as pipe:
+            depth = int((await pipe.incr(queue).expire(queue, 60).execute())[0])
+        if depth > DOOR_QUEUE + 1:
+            await r.decr(queue)
             return None
         mine, deadline = secrets.token_hex(8), time.monotonic() + DOOR_LOCK_WAIT
-        while not r.set(lock, mine, nx=True, px=int((DOOR_LOCK_WAIT + DOOR_DELAYS[-1]) * 1000)):
-            if time.monotonic() > deadline:
-                r.decr(queue)
+        while not await r.set(lock, mine, nx=True, px=int((DOOR_LOCK_WAIT + DOOR_DELAYS[-1]) * 1000)):
+            left = deadline - time.monotonic()
+            if left <= 0:
+                await r.decr(queue)
                 return None
-            await asyncio.sleep(0.02)
-        await asyncio.sleep(door_delay(door_id, r))
-        return (queue, lock, mine)
+            await r.blpop([wake], timeout=min(1.0, left))  # woken by door_leave; a lost wake costs one second
+        await asyncio.sleep(await door_delay(location_id))
+        return (queue, lock, wake, mine)
     except redis.RedisError:
         log.warning("door gate unavailable")
         return None
 
 
-def door_leave(ticket: tuple) -> None:
-    """Give up the turn and leave the queue."""
-    queue, lock, mine = ticket
+async def door_leave(ticket: tuple) -> None:
+    """Give up the turn, wake one waiter and leave the queue."""
+    queue, lock, wake, mine = ticket
     try:
-        r = ratelimit._redis()
-        if r.get(lock) == mine.encode():
-            r.delete(lock)
-        r.decr(queue)
+        r = _aredis()
+        if await r.get(lock) == mine.encode():
+            await r.delete(lock)
+        async with r.pipeline() as pipe:
+            await pipe.decr(queue).delete(wake).rpush(wake, "1").expire(wake, 60).execute()
     except redis.RedisError:
         log.warning("door gate unavailable on leave")  # the lock and the queue key expire on their own
 
 
-def _note_wrong(door_id: UUID) -> None:
+def _note_wrong(location_id: UUID) -> None:
     now = clock.now().timestamp()
     try:
         pipe = ratelimit._redis().pipeline()
-        pipe.zadd(_bad_key(door_id), {secrets.token_hex(8): now})
-        pipe.zremrangebyscore(_bad_key(door_id), "-inf", now - DOOR_BAD_WINDOW.total_seconds())
-        pipe.expire(_bad_key(door_id), int(DOOR_BAD_WINDOW.total_seconds()) + 60)
+        pipe.zadd(_bad_key(location_id), {secrets.token_hex(8): now})
+        pipe.zremrangebyscore(_bad_key(location_id), "-inf", now - DOOR_BAD_WINDOW.total_seconds())
+        pipe.expire(_bad_key(location_id), int(DOOR_BAD_WINDOW.total_seconds()) + 60)
         pipe.execute()
     except redis.RedisError:
         log.warning("door wrong-code record unavailable")
@@ -619,7 +635,7 @@ def verify_code(session: Session, door: DoorDevice, code: str) -> dict:
         EntryCode.code_hash == _digest(location_id, code)))  # fmt: skip
     reason, check_in = _admit(session, row, _booking(session, row.booking_id)) if row else ("unknown_code", None)
     if reason == "unknown_code":
-        _note_wrong(door.id)
+        _note_wrong(location_id)
         _note_bad_code(session, door)
     kind = "entry_denied" if reason else "entry_granted"
     _event(session, location_id, kind, door_device_id=door.id, entry_code_id=row.id if row else None,

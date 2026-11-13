@@ -531,20 +531,25 @@ def door_device(request: Request) -> DoorDevice:
     return door
 
 
-def _authenticated_door(request: Request) -> UUID:
-    """Step 1, before anything else: the credential, by indexed lookup in a short session closed at once. Unknown
-    or retired: 401 at once (no queue, no sleep, no row), counted on the per-IP `door-auth` bucket (closed)."""
+def _authenticated_door(request: Request) -> tuple[UUID, UUID]:
+    """Step 1, before anything else. An address already over the per-IP `door-auth` bucket (failed credentials;
+    closed when Redis is down) is refused before any database work. Then the credential, by indexed lookup in a
+    short session closed at once; unknown or retired: 401 at once (no queue, no sleep, no row), and only that
+    failure counts on the bucket. (door id, location id)."""
+    ip = context.client_ip.get() or "unknown"
+    if ratelimit.over("door-auth", ip):
+        raise DomainError("Too many requests", status=429, code="rate-limited", headers={"Retry-After": "60"})
     raw, tenant_id = _door_credential(request)
     host = _host_tenant(request)
-    door_id = None
+    found = None
     if host is None or host.id == tenant_id:
         with tenant_session(tenant_id) as session:
             door = building.door_for_token(session, raw)
-            door_id = door.id if door else None
-    if door_id is None:
-        ratelimit.hit("door-auth", context.client_ip.get() or "unknown")
+            found = (door.id, door.location_id) if door else None
+    if found is None:
+        ratelimit.hit("door-auth", ip)
         raise Unauthenticated("Door credential required", code="device-unauthenticated")
-    return door_id
+    return found
 
 
 def _evaluate(request: Request, code: str) -> dict:
@@ -559,13 +564,13 @@ async def verify_door_code(body: s.DoorVerifyRequest, request: Request):
     unevaluated; (3) the door's own queue and turn, and its delay, awaited with no thread and no session held
     (`building.door_enter`; a full queue or unreachable Redis is denied with nothing written); (4) evaluation in the
     request transaction, one activity row and one audit row."""
-    door_id = await run_in_threadpool(_authenticated_door, request)
+    door_id, location_id = await run_in_threadpool(_authenticated_door, request)
     if len(body.code) != building.CODE_DIGITS or not body.code.isdigit():
         return building.DENY
-    ticket = await building.door_enter(door_id)
+    ticket = await building.door_enter(door_id, location_id)
     if ticket is None:
         return building.DENY
     try:
         return await run_in_threadpool(_evaluate, request, body.code)
     finally:
-        building.door_leave(ticket)
+        await building.door_leave(ticket)
