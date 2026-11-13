@@ -59,7 +59,8 @@ where being wrong costs nothing.
   but in no README "not built" list and no phase. Build (Phase 11) or drop from the contract?
 - **Q4 (dead keys with no phase).** `platform.client_session.impersonate`, `platform.tenant.transfer_ownership`,
   `platform.tenant.close`, `leagues.discipline.manage`, `billing.dispute.manage`: in `rbac-matrix.md`, in no
-  phase list. Kept for now; schedule or strike from the matrix.
+  phase list. Kept for now; schedule or strike from the matrix. **2026-11-13 (question 16b): `leagues.discipline.manage`
+  removed from the catalogue and the matrix; the others unchanged here.**
 
 Already known and unchanged: catalog-item read permission (billing-1), "only platform reads platform models"
 (platform-1), location scoping in billing collections (not a backlog item).

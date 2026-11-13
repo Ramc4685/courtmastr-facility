@@ -411,7 +411,16 @@ Found by re-running the drift reports against this branch's code. Merge these in
 ### platform (+2) — [evidence](drift/platform.md)
 
 - [ ] [undocumented] service.location_todays (service.py:335) not in README:9 service row (README:326 names only earliest_today)
-- [ ] [wording] README:42-44 auth_session.target_client_id FK still absent (models.py:517) though clients context now exists; "waiting on other contexts" no longer holds
+- [x] (already fixed: README:50 says "still missing", 2026-11-13 recheck) [wording] README:42-44 auth_session.target_client_id FK still absent (models.py:517) though clients context now exists; "waiting on other contexts" no longer holds
+
+### platform (+6, 2026-11-13 recheck on claude/owner-decisions-1) — [evidence](drift/platform.md)
+
+- [ ] [undocumented] service.tenant_hosts (service.py:572; engagement/service.py:1760) not named in README:9
+- [ ] [wording] README:16 says register_purge is also called by imports; engagement/subject.py:143,148,149 and programs/subject.py:119 call it too
+- [ ] [wording] README:70 says only the tenant export and imports register on_dead_letter; leagues/jobs.py:15 and integrations/jobs.py:34 do too
+- [ ] [wording] README:428 says cookie_flags "moved here from the router"; router.py:115 keeps the alias _cookie_flags
+- [ ] [contract] brand_primary_color / brand_accent_color missing from the yaml (TenantUpdate yaml:4699; no /public/branding path)
+- [ ] [contract] yaml lists entitlement-limit-reached (yaml:620, 1876, 1982); code raises plan-limit-reached (entitlements.py:146)
 
 ### reporting (+3) — [evidence](drift/reporting.md)
 

@@ -81,8 +81,8 @@ Phase 15's 20 v2 partner and hardware rows.
   depleted punch pass count as a member.
 - ~~Which key gates `/pos-reports/*`~~ Decided 2026-11-13 (question 14): `reporting.pos.run`; built.
 - Kiosk session attendance, eligible sessions and kiosk package purchase: build or drop.
-- Five keys in the matrix but in no phase: impersonate, transfer ownership, tenant close,
-  `leagues.discipline.manage`, `billing.dispute.manage`.
+- Four keys in the matrix but in no phase: impersonate, transfer ownership, tenant close,
+  `billing.dispute.manage` (`leagues.discipline.manage` removed 2026-11-13, question 16b).
 - Framing policy for the public league pages (see above).
 - Guest checkout sits outside the past-due lockout, so a locked-out payer can still buy as a guest. Matching a
   guest to an existing client would reveal whether an email is a client, so it was left open.

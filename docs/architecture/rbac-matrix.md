@@ -488,7 +488,6 @@ Without `read_full_details` the check-in window shows only the fields the locati
 | `leagues.result.enter` | L | | subj:competition | Y | Y | - | - | Y | Y | - | LGE-14, PLT-11 |
 | `leagues.result.amend_final` | L | | | Y | - | - | - | Y | - | - | LGE-14 (after standings are finalised) |
 | `leagues.standings.adjust` | L | | | Y | - | - | - | Y | - | - | LGE-06 (manual points, penalties) |
-| `leagues.discipline.manage` | L | | | Y | - | - | - | Y | - | - | LGE-14 (caps, suspensions) |
 | `leagues.official.manage` | L | | | Y | Y | - | - | Y | - | - | LGE-15 |
 | `leagues.game_card.print` | L | | | Y | Y | - | - | Y | Y | - | LGE-16, RPT-36 |
 | `leagues.alert.send` | L | B | | Y | Y | - | - | Y | - | - | LGE-30 |
