@@ -1225,7 +1225,8 @@ export interface paths {
          *     email or render invoices, or add a pre-defined item to clients. Each action needs its own key at the
          *     location. A dry run or up to 25 items finish in the request; more run as a job (poll the action). The
          *     Idempotency-Key is required; `preview_id` names the dry run the person saw, and the run is refused (409
-         *     `bulk-preview-stale`) if any subject or amount changed since.
+         *     `bulk-preview-stale`) if any subject or amount changed since; an unknown `preview_id` is 404. At most 1000
+         *     subjects; each item's `error_code` says why it was skipped or failed.
          */
         post: operations["createBillingBulkAction"];
         delete?: never;

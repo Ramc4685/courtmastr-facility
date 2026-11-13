@@ -1219,7 +1219,9 @@ paths:
       operationId: createBillingBulkAction
       tags: [billing]
       summary: Start a bulk action from the workbench
-      description: The key shown is for `create_invoices`. Other actions require their own key instead.
+      description: The key shown is for `create_invoices`. Other actions require their own key instead. At most 1000
+        subjects. The Idempotency-Key is bound to the request body and replays this action for as long as it is
+        stored (it does not expire after 24 hours). 404 when `preview_id` names no action.
       x-priority: P0
       x-permission: billing.invoice.bulk_create
       x-permission-also:
@@ -1233,7 +1235,7 @@ paths:
       requestBody:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/BillingBulkActionCreate'}}}
-      x-problem-codes: [permission-denied, validation-failed, request-in-progress, idempotency-key-reused,
+      x-problem-codes: [permission-denied, not-found, validation-failed, request-in-progress, idempotency-key-reused,
         bulk-preview-stale]
       responses:
         '202':
@@ -1241,6 +1243,7 @@ paths:
           content: {application/json: {schema: {$ref: '#/components/schemas/BillingBulkAction'}}}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/Unprocessable'}
   /billing-bulk-actions/{billing_bulk_action_id}:
@@ -5663,7 +5666,7 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      schema: {type: string, maxLength: 255}
+      schema: {type: string, minLength: 8, maxLength: 255, pattern: '^[A-Za-z0-9_.:\-]{1,255}$'}
       description: Required. Replays return the stored response for 24 hours.
     IdempotencyKey:
       name: Idempotency-Key
@@ -6276,9 +6279,12 @@ components:
       properties:
         location_id: {type: string, format: uuid}
         action: {type: string, enum: [create_invoices, reverse_charges, email_invoices, render_invoices, add_catalog_item]}
-        charge_ids: {type: array, items: {type: string, format: uuid}}
-        invoice_ids: {type: array, items: {type: string, format: uuid}}
-        client_ids: {type: array, items: {type: string, format: uuid}}
+        charge_ids: {type: array, maxItems: 1000, items: {type: string, format: uuid}}
+        invoice_ids: {type: array, maxItems: 1000, items: {type: string, format: uuid}}
+        client_ids: {type: array, maxItems: 1000, items: {type: string, format: uuid}}
+        only_mine:
+          type: boolean
+          description: '`create_invoices` with no `charge_ids`: only the uninvoiced items the caller added (BIL-03).'
         params: {type: object, additionalProperties: true}
         is_dry_run: {type: boolean}
         preview_id:
@@ -6313,7 +6319,12 @@ components:
         status: {type: string, enum: [pending, done, failed, skipped]}
         result_type: {type: [string, 'null']}
         result_id: {type: [string, 'null'], format: uuid}
-        error_code: {type: [string, 'null']}
+        error_code:
+          type: [string, 'null']
+          description: Why the item was skipped or failed. Skipped when the action was created
+            (`charge-not-invoiceable`, `charge-not-reversible`, `charge-has-no-client`, `invoice-not-found`,
+            `client-not-found`); failed while it ran (`no-email-address`, `not-processed`, `requester-not-allowed`,
+            `internal-error`, or the code of the domain error the item raised).
     AllocationInput:
       type: object
       required: [charge_id, amount_minor]

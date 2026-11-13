@@ -89211,7 +89211,7 @@
     },
     "/api/v1/billing-bulk-actions": {
       "post": {
-        "description": "Start a bulk action at one location (BIL-02): invoice (one invoice per client, never mixed), reverse,\nemail or render invoices, or add a pre-defined item to clients. Each action needs its own key at the\nlocation. A dry run or up to 25 items finish in the request; more run as a job (poll the action). The\nIdempotency-Key is required; `preview_id` names the dry run the person saw, and the run is refused (409\n`bulk-preview-stale`) if any subject or amount changed since.",
+        "description": "Start a bulk action at one location (BIL-02): invoice (one invoice per client, never mixed), reverse,\nemail or render invoices, or add a pre-defined item to clients. Each action needs its own key at the\nlocation. A dry run or up to 25 items finish in the request; more run as a job (poll the action). The\nIdempotency-Key is required; `preview_id` names the dry run the person saw, and the run is refused (409\n`bulk-preview-stale`) if any subject or amount changed since; an unknown `preview_id` is 404. At most 1000\nsubjects; each item's `error_code` says why it was skipped or failed.",
         "operationId": "createBillingBulkAction",
         "parameters": [
           {
