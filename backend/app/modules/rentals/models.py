@@ -539,6 +539,8 @@ class RentalPlanPurchase(TenantOwned, Timestamps, Base):
     renewed_from_purchase_id: Mapped[UUID | None]
     cancelled_at: Mapped[datetime | None]
     cancel_mode: Mapped[str | None] = enum_column()
+    # An auto-renewal waiting on the plan's waiver (ADR 0013): set once, cleared when it renews (migration 1964).
+    renewal_waits_since: Mapped[datetime | None]
 
 
 class RentalPlanLedgerEntry(TenantOwned, Base):

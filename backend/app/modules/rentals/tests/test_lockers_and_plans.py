@@ -12,11 +12,13 @@ from app.core import clock
 from app.core.auth import passwords, system_principal
 from app.core.db.session import tenant_session
 from app.modules import billing, clients, platform
+from app.modules.documents.models import ClientDocument
 from app.modules.documents.tests.support import sign, template
 from app.modules.platform.models import Identity
 from app.modules.rentals import service
 from app.modules.rentals.models import RentalPlanPurchase, RentalPlanShare
 from app.modules.scheduling.tests.helpers import API, facility, ok
+from app.ports import notifications
 from conftest import PASSWORD, add_staff, login, new_client
 
 
@@ -358,3 +360,103 @@ def test_an_unsigned_bound_waiver_blocks_a_portal_purchase_until_signed(client, 
     assert sign(client, owner, document).status_code == 200
     bought = ok(buy())
     assert ok(client.get(f"{API}/client-documents/{document['id']}", headers=owner), 200)["source_id"] == bought["id"]
+
+
+def _waivers_of(tenant, client_id: str) -> list[ClientDocument]:
+    with tenant_session(tenant.id) as session:
+        return list(session.scalars(select(ClientDocument).where(
+            ClientDocument.client_id == UUID(client_id), ClientDocument.binding_id.is_not(None))))  # fmt: skip
+
+
+def test_a_sale_refused_for_eligibility_issues_no_waiver(client, owner, f, tenant):
+    """The client-active and members-only checks run before the waiver is issued, as packages do."""
+    members = plan(client, owner, f, is_members_only=True)
+    bind_waiver(client, owner, members)
+    refused = sell(client, owner, members["id"], f.person)
+    assert refused.status_code == 422 and refused.json()["code"] == "membership-required"
+    assert _waivers_of(tenant, f.person) == []
+
+
+def test_a_share_holder_books_on_a_waivered_plan_only_after_signing(client, owner, f, tenant):
+    kid = relate(client, owner, f)
+    shared = plan(client, owner, f, is_shareable=True)
+    ok(client.patch(f"{API}/rental-types/{f.rtype}", headers=owner, json={"rental_plan_ids": [shared["id"]]}), 200)
+    bind_waiver(client, owner, shared)
+    assert (
+        sign(client, owner, stopped_by_waiver(client, owner, sell(client, owner, shared["id"], f.person))).status_code
+        == 200
+    )
+    bought = ok(sell(client, owner, shared["id"], f.person))
+    ok(client.put(f"{API}/rental-plan-purchases/{bought['id']}/shares", headers=owner, json={"client_ids": [kid]}), 200)
+
+    def book(hour):
+        return client.post(f"{API}/rentals", headers=owner | {"Idempotency-Key": f"r-{uuid4().hex}"}, json={
+            "location_id": f.location, "rental_type_id": f.rtype, "client_id": kid,
+            "resources": [{"resource_id": f.court}], "starts_at": f"2031-05-05T{hour}:00:00Z",
+            "ends_at": f"2031-05-05T{hour + 1}:00:00Z",
+            "charge": {"decision": "plan", "rental_plan_purchase_id": bought["id"]},
+        })  # fmt: skip
+
+    document = stopped_by_waiver(client, owner, book(15))  # the owner's signature does not cover the kid
+    assert document["client_id"] == kid
+    assert Decimal(ok(client.get(f"{API}/rental-plan-purchases/{bought['id']}", headers=owner), 200)["balance"]) == 5
+    assert sign(client, owner, document).status_code == 200
+    first = book(15)
+    assert first.status_code == 201, first.text
+    signed = ok(client.get(f"{API}/client-documents/{document['id']}", headers=owner), 200)
+    assert signed["source_type"] == "rental_plan_share"
+    assert book(17).status_code == 201  # one acceptance per share, not per booking
+
+
+def test_a_renewal_waits_for_a_valid_waiver_and_tells_the_client(client, owner, f, tenant, monkeypatch):
+    """Renewal needs a valid waiver when the binding is every_purchase or the signature lapsed; a purchase sold
+    before the binding existed is asked at its next renewal. It waits (as a first purchase does) and notifies."""
+    sent = []
+    monkeypatch.setattr(notifications, "send", lambda session, key, to, data: sent.append((key, to)))
+    person = new_client(client, owner, f.location, primary_email=f"r-{uuid4().hex[:6]}@example.com")
+    monthly = plan(client, owner, f, validity_days=30, is_auto_renew=True)
+    old = ok(sell(client, owner, monthly["id"], person["id"]))  # sold before the binding
+    bind_waiver(client, owner, monthly)
+    with (
+        clock.freeze(clock.now() + timedelta(days=31)),
+        tenant_session(tenant.id, actor=system_principal("tests")) as session,
+    ):
+        assert service.run_plan_day(session) == {"activated": 0, "expired": 1, "renewed": 0}
+        assert service.run_plan_day(session) == {"activated": 0, "expired": 0, "renewed": 0}  # still waiting
+        assert session.get(RentalPlanPurchase, UUID(old["id"])).renewal_waits_since is not None
+    assert [m for m in sent if m[0].startswith("rentals.")] == [
+        ("rentals.plan_renewal_waiting", person["primary_email"])
+    ]  # told once
+    [pending] = _waivers_of(tenant, person["id"])
+    assert pending.status == "pending"
+    document = ok(client.get(f"{API}/client-documents/{pending.id}", headers=owner), 200)
+    assert sign(client, owner, document).status_code == 200
+    with (
+        clock.freeze(clock.now() + timedelta(days=32)),
+        tenant_session(tenant.id, actor=system_principal("tests")) as session,
+    ):
+        assert service.run_plan_day(session) == {"activated": 0, "expired": 0, "renewed": 1}
+        successor = session.scalars(
+            select(RentalPlanPurchase).where(RentalPlanPurchase.renewed_from_purchase_id == UUID(old["id"]))
+        ).one()
+        assert session.get(RentalPlanPurchase, UUID(old["id"])).renewal_waits_since is None
+        assert session.get(ClientDocument, pending.id).source_id == successor.id  # every_purchase: used up
+
+
+def test_a_waiting_renewal_stops_when_it_can_no_longer_renew(client, owner, f, tenant):
+    monthly = plan(client, owner, f, validity_days=30, is_auto_renew=True)
+    old = ok(sell(client, owner, monthly["id"], f.person))
+    bind_waiver(client, owner, monthly)
+    with (
+        clock.freeze(clock.now() + timedelta(days=31)),
+        tenant_session(tenant.id, actor=system_principal("tests")) as session,
+    ):
+        service.run_plan_day(session)
+        assert session.get(RentalPlanPurchase, UUID(old["id"])).renewal_waits_since is not None
+    assert client.delete(f"{API}/rental-plans/{monthly['id']}", headers=owner).status_code == 204  # archived
+    with (
+        clock.freeze(clock.now() + timedelta(days=32)),
+        tenant_session(tenant.id, actor=system_principal("tests")) as session,
+    ):
+        assert service.run_plan_day(session)["renewed"] == 0
+        assert session.get(RentalPlanPurchase, UUID(old["id"])).renewal_waits_since is None  # no more retries

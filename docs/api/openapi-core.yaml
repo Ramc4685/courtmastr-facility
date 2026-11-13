@@ -3841,7 +3841,7 @@ paths:
         '422': {$ref: '#/components/responses/ValidationFailed'}
         default: {$ref: '#/components/responses/Problem'}
       x-problem-codes: [booking-conflict, blackout, series-too-large, rate-not-applicable, insufficient-plan-balance, idempotency-key-reused,
-        request-in-progress]
+        request-in-progress, document-required]
   /rentals/preview:
     post:
       operationId: previewRental
@@ -4089,7 +4089,7 @@ paths:
         '422': {$ref: '#/components/responses/ValidationFailed'}
         default: {$ref: '#/components/responses/Problem'}
       x-problem-codes: [booking-conflict, not-eligible, outside-booking-window, too-many-open-holds, insufficient-plan-balance,
-        idempotency-key-reused, request-in-progress]
+        idempotency-key-reused, request-in-progress, document-required]
   /portal/rentals/{rental_id}/confirm:
     post:
       operationId: confirmPortalRental

@@ -321,7 +321,7 @@ INT-13 analytics on registration pages (new 2026-11-13):
 - [ ] [wording] `AttendanceSource` has `video_join` (`backend/app/modules/programs/models.py:146`), and it now has a producer: the integrations join (`backend/app/modules/integrations/meetings.py:234`). README line 141 still lists virtual meeting links (CLS-08) as "Not built", though the link, the join window and the attendance mark exist in integrations (see `integrations/README.md`).
 - [ ] [undocumented] `selfservice.public_seats(..., limit)` (`backend/app/modules/programs/selfservice.py:195-217`, called at `backend/app/modules/integrations/feeds.py:359` with `limit=MAX_EVENTS`) passes the limit to `scheduling.service.session_window` (`backend/app/modules/scheduling/service.py:988-1003`) before the hidden, unlisted, visible-range and hides-full filters run. A page full of filtered-out sessions can crowd listed ones out of the result. README line 14 says only "the same listing rule" and does not mention this. The programs tests do not call `public_seats` directly; the rule is tested through integrations (`backend/app/modules/integrations/tests/test_feeds.py:234-256`).
 
-### rentals (22) — [evidence](drift/rentals.md)
+### rentals (26) — [evidence](drift/rentals.md)
 
 - [x] [wording] Line 13 says `router.py` serves "32 operations"; it registers 33 (`backend/app/modules/rentals/router.py:39-234`: 8 type/rate, 8 staff rental, 2 public, 5 portal, 5 plan, 5 purchase). The contract tag has 42 (`docs/api/openapi-core.yaml`); the 9 unserved are exactly `updateRental`, `replaceRentalPlanShares`, the 3 portal plan ops and the 4 locker ops. Docs batch.
 - [x] [stale-not-built] Line 82 says "Web: no portal booking screen". A portal rental booking flow exists: `web/src/features/portal/BookingsPage.tsx:97` (POST `/portal/rentals`), `:33` (confirm with card token), `:106` (abandon), `:192` (portal cancel), `:202` ("Book a rental" action). The file table (line 14) also omits this screen, listing only staff screens. Docs batch.
@@ -345,6 +345,10 @@ INT-13 analytics on registration pages (new 2026-11-13):
 - [ ] [undocumented] (2026-11-13) Desk plan sale accepts per-sale `quantity_total`, `invoice_routing`, `is_auto_renew` and `is_autopay` overrides (`sell_plan`, service.py:1668 onward); README line 40-43 and 110-115 do not mention them.
 - [ ] [undocumented] (2026-11-13) Waiver gate ordering is not in the README: `_require_documents` (service.py:1645) issues the pending document with the refusal, and `portal_buy_plan` (service.py:1925) checks it before any charge; the README does not say which location owns the issued document (the plan's).
 - [ ] [wording] (2026-11-13) README line 9 says models.py has "13 tables". It has 16 (models.py:161-597, `__tablename__` entries); the summary omits `rental_portal_setting` (221), `rental_plan_share` (578) and `locker_lease` (597).
+- [ ] [contract] (2026-11-13) `billSelectedRentals` (openapi-core C:4154) lists no `x-problem-codes`, but `bill_selected` can raise 409 `document-required` (rentals/service.py:886) and `payer-mismatch`.
+- [ ] [undocumented] (2026-11-13) README says turning auto-renew off ends a waiting renewal, but staff `update_purchase` rejects expired purchases with `plan-not-valid` (service.py:1792-1793); only the portal opt-out (service.py:2044) can stop a waiting one.
+- [ ] [undocumented] (2026-11-13) A renewal whose successor sale fails (validation, conflict or not-found, service.py:1907) ends silently and clears the wait (service.py:1867-1870); README 86-87 lists only plan archived or client no longer eligible.
+- [ ] [wording] (2026-11-13) README 97 says portal confirm takes no stored method; README 173-174 and the code accept `payment_method_id`.
 
 ### reporting (5) — [evidence](drift/reporting.md)
 
