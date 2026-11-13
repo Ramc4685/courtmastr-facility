@@ -33224,6 +33224,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
             /** Offer Expires At */
             offer_expires_at: string | null;
             /** Position */
@@ -35522,6 +35527,8 @@ export interface components {
         };
         /** PublicPortalConfig */
         PublicPortalConfig: {
+            /** Currency */
+            currency: string;
             /** Facility Name */
             facility_name: string;
             /** Locations */
@@ -35562,6 +35569,8 @@ export interface components {
             terms_text: string | null;
             /** Terms Version */
             terms_version: number;
+            /** Time Zone */
+            time_zone: string;
             /** Welcome Text */
             welcome_text: string | null;
         };
@@ -38867,6 +38876,8 @@ export interface components {
             first_name: string;
             /** Results */
             results: components["schemas"]["PortalAssessmentResultOut"][];
+            /** Time Zone */
+            time_zone: string;
         };
         /** ShiftCopy */
         ShiftCopy: {

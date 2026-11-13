@@ -265,6 +265,7 @@ def test_fit_05_share_link_is_revocable_and_expires(client, tenant, owner, locat
     shared = ok(client.post(lookup, headers=public, json={"token": token}))
     assert shared["first_name"] and len(shared["results"]) == 1 and len(shared["results"][0]["values"]) == 1
     assert "last_name" not in shared and "client_id" not in shared
+    assert shared["time_zone"] == ok(client.get(f"{API}/locations/{location_id}", headers=owner))["time_zone"]
     with tenant_session(tenant.id) as session:
         trail = session.scalars(select(AuditEvent).where(AuditEvent.entity_type == "progress_share_link")).all()
         assert trail and all(token not in str(e.changes) for e in trail)

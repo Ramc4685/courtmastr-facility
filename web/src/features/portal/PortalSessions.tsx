@@ -435,7 +435,7 @@ export function PortalSessions() {
                     <span className="text-sm text-muted">
                       {names.get(w.client_id)}
                       {w.position ? ` · position ${w.position}` : ''}
-                      {w.status === 'offered' && w.offer_expires_at ? ` · claim by ${formatDateTime(w.offer_expires_at)}` : ''}
+                      {w.status === 'offered' && w.offer_expires_at ? ` · claim by ${formatDateTime(w.offer_expires_at, zoneOf(w.location_id))}` : ''}
                     </span>
                   </span>
                   <span className="flex gap-2">

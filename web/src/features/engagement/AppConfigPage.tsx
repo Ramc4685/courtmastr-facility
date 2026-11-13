@@ -7,6 +7,7 @@ import { Card, PageHeader } from '../../components/PageHeader'
 import { ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useMe } from '../../lib/auth'
+import { APP_COLORS, contrastRatio } from '../../lib/brandTheme'
 import { FormError } from '../billing/shared'
 import { useBranding } from '../platform/branding'
 
@@ -30,36 +31,26 @@ export const TILE_LABELS: Record<string, string> = {
 }
 // try_us is for visitors, so the built-in home (mobile/src/lib/tiles.tsx) leaves it out.
 const BUILT_IN: Tile[] = Object.keys(TILE_LABELS).filter((type) => type !== 'try_us').map((type) => ({ type, caption: null, style: 'small' }))
-const BUNDLED = { primary: '#1F6FEB', accent: '#0E9384' }
 const label = (type: string) => TILE_LABELS[type] ?? type
 
 // Tenant brand colours are data, not our tokens: the preview applies the app's own readability rule
 // (mobile/src/lib/theme.ts) so staff see what members will see.
-function luminance(hex: string): number {
-  const n = parseInt(hex.slice(1), 16)
-  const ch = (c: number) => (c / 255 <= 0.03928 ? c / 255 / 12.92 : ((c / 255 + 0.055) / 1.055) ** 2.4)
-  return 0.2126 * ch((n >> 16) & 255) + 0.7152 * ch((n >> 8) & 255) + 0.0722 * ch(n & 255)
-}
-const contrast = (a: string, b: string) => {
-  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number]
-  return (hi + 0.05) / (lo + 0.05)
-}
 const isHex = (v: string | null | undefined): v is string => Boolean(v && /^#[0-9a-f]{6}$/i.test(v))
-const SURFACE = '#FFFFFF'
 export function readable(color: string): string {
   let rgb = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16))
   const hex = () => `#${rgb.map((c) => c.toString(16).padStart(2, '0')).join('')}`
-  for (let i = 0; i < 20 && contrast(hex(), SURFACE) < 4.5; i++) rgb = rgb.map((c) => Math.round(c - c * 0.12))
+  for (let i = 0; i < 20 && contrastRatio(hex(), APP_COLORS.surface) < 4.5; i++) rgb = rgb.map((c) => Math.round(c - c * 0.12))
   return hex().toUpperCase()
 }
-const onColor = (bg: string) => (contrast(bg, '#FFFFFF') >= contrast(bg, '#111827') ? '#FFFFFF' : '#111827')
+const onColor = (bg: string) =>
+  contrastRatio(bg, APP_COLORS.light) >= contrastRatio(bg, APP_COLORS.dark) ? APP_COLORS.light : APP_COLORS.dark
 
 type Brand = { primary_color?: string | null; accent_color?: string | null }
 
 export function AppPreview({ form, facility, brand }: { form: Form; facility: string; brand?: Brand }) {
   const on = form.is_enabled ?? false
-  const primary = readable(on && isHex(brand?.primary_color) ? brand.primary_color : BUNDLED.primary)
-  const accent = readable(on && isHex(brand?.accent_color) ? brand.accent_color : BUNDLED.accent)
+  const primary = readable(on && isHex(brand?.primary_color) ? brand.primary_color : APP_COLORS.primary)
+  const accent = readable(on && isHex(brand?.accent_color) ? brand.accent_color : APP_COLORS.accent)
   const layout = form.home_screen
   const tiles = layout ? (layout.tiles ?? []) : BUILT_IN
   const columns = layout?.design?.columns ?? 2

@@ -4,6 +4,10 @@
 
 const WHITE = '#ffffff'
 
+/** The member app's fixed colours (mobile/src/lib/theme.ts), mirrored for the staff app preview: its bundled brand,
+ * the surface it draws on, and the light and dark text it puts on a coloured bar. */
+export const APP_COLORS = { primary: '#1F6FEB', accent: '#0E9384', surface: '#FFFFFF', light: '#FFFFFF', dark: '#111827' } as const
+
 function channels(hex: string): [number, number, number] | null {
   const m = /^#([0-9a-f]{6})$/i.exec(hex)?.[1]
   if (!m) return null

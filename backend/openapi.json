@@ -53018,6 +53018,11 @@
             "title": "Id",
             "type": "string"
           },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
           "offer_expires_at": {
             "anyOf": [
               {
@@ -53081,6 +53086,7 @@
         },
         "required": [
           "id",
+          "location_id",
           "client_id",
           "target_kind",
           "session_id",
@@ -60597,6 +60603,10 @@
       },
       "PublicPortalConfig": {
         "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
           "facility_name": {
             "title": "Facility Name",
             "type": "string"
@@ -60616,6 +60626,7 @@
         "required": [
           "facility_name",
           "tenant_slug",
+          "currency",
           "locations"
         ],
         "title": "PublicPortalConfig",
@@ -60695,6 +60706,10 @@
             "title": "Terms Version",
             "type": "integer"
           },
+          "time_zone": {
+            "title": "Time Zone",
+            "type": "string"
+          },
           "welcome_text": {
             "anyOf": [
               {
@@ -60711,6 +60726,7 @@
           "location_id",
           "name",
           "slug",
+          "time_zone",
           "welcome_text",
           "terms_text",
           "terms_version",
@@ -71315,11 +71331,16 @@
             },
             "title": "Results",
             "type": "array"
+          },
+          "time_zone": {
+            "title": "Time Zone",
+            "type": "string"
           }
         },
         "required": [
           "first_name",
           "expires_at",
+          "time_zone",
           "results",
           "bests"
         ],

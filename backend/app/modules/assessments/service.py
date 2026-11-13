@@ -431,6 +431,7 @@ def shared_progress(session: Session, token: str) -> dict:
     return {
         "first_name": person.first_name,
         "expires_at": link.expires_at,
+        "time_zone": platform.service.location_time_zone(session, person.home_location_id),
         "results": recent["data"],
         "bests": _visible_bests(session, link.client_id),
     }

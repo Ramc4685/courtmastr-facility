@@ -8,7 +8,7 @@ import { ToastProvider } from '../../components/Toast'
 import { mockFetch } from '../../test/fetchMock'
 import { InboxPage } from '../portal/InboxPage'
 import { makePortalValue, PortalProvider, type PortalClient } from '../portal/shared'
-import { AppConfigPage } from './AppConfigPage'
+import { AppConfigPage, readable } from './AppConfigPage'
 import { CampaignsPage } from './CampaignsPage'
 import { SegmentsPage } from './LibraryPages'
 import { UnsubscribePage } from './UnsubscribePage'
@@ -165,5 +165,11 @@ describe('engagement', () => {
     mockFetch({ 'POST /api/v1/public/communication-preferences/lookup': { status: 410, body: { status: 410, code: 'token-expired' } } })
     wrap(<UnsubscribePage />)
     expect(await screen.findByRole('alert')).toHaveTextContent('not valid any more')
+  })
+})
+
+describe('readable', () => {
+  it('darkens a brand colour until it reads on the app surface, as the member app does', () => {
+    expect(['#1F6FEB', '#0E9384', '#ffeb3b', '#ffffff', '#1a4d8f'].map(readable)).toEqual(['#1F6FEB', '#0C8174', '#766D1B', '#767676', '#1A4D8F'])
   })
 })

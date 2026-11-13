@@ -201,5 +201,6 @@ class SharedProgressLookup(In):
 class SharedProgressOut(Out):
     first_name: str
     expires_at: datetime
+    time_zone: str  # the client's home location's IANA zone, for the dates shown
     results: list[PortalAssessmentResultOut]
     bests: list[PortalAssessmentBestOut]

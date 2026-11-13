@@ -54,7 +54,7 @@ export function ResultsTable({ results, zone }: { results: Result[]; zone?: stri
   )
 }
 
-function ShareLinks({ clientId }: { clientId: string }) {
+function ShareLinks({ clientId, zone }: { clientId: string; zone?: string }) {
   const qc = useQueryClient()
   const toast = useToast()
   const [label, setLabel] = useState('')
@@ -118,8 +118,8 @@ function ShareLinks({ clientId }: { clientId: string }) {
           empty={<p className="text-muted">No share links yet.</p>}
           columns={[
             { header: 'Label', cell: (l) => l.label ?? 'Untitled' },
-            { header: 'Created', cell: (l) => formatDateTime(l.created_at) },
-            { header: 'Works until', cell: (l) => formatDateTime(l.expires_at) },
+            { header: 'Created', cell: (l) => formatDateTime(l.created_at, zone) },
+            { header: 'Works until', cell: (l) => formatDateTime(l.expires_at, zone) },
             { header: 'Status', cell: (l) => <Badge tone={l.is_active ? 'success' : 'neutral'}>{l.is_active ? 'Active' : l.revoked_at ? 'Turned off' : 'Expired'}</Badge> },
             {
               header: 'Actions',
@@ -163,7 +163,7 @@ export function ProgressPage() {
             { header: 'Results', cell: valuesText },
           ]} />
         </section>
-        <ShareLinks clientId={actingFor.id} />
+        <ShareLinks clientId={actingFor.id} zone={zone} />
       </div>
     </PortalPage>
   )

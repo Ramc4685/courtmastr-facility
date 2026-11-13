@@ -25,14 +25,14 @@ export function PublicProgressPage() {
     const p = shared.data
     return (
       <div className="space-y-8">
-        <p className="text-muted">Read-only. This link works until {formatDateTime(p.expires_at)}.</p>
+        <p className="text-muted">Read-only. This link works until {formatDateTime(p.expires_at, p.time_zone)}.</p>
         <section aria-labelledby="bests" className="space-y-3">
           <h2 id="bests">Personal bests</h2>
-          <BestsTable bests={p.bests} />
+          <BestsTable bests={p.bests} zone={p.time_zone} />
         </section>
         <section aria-labelledby="results" className="space-y-3">
           <h2 id="results">Results</h2>
-          <ResultsTable results={p.results} />
+          <ResultsTable results={p.results} zone={p.time_zone} />
         </section>
       </div>
     )

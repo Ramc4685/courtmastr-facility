@@ -1809,9 +1809,11 @@ def public_portal_config(session: Session) -> dict:
     def allowed(row: PortalSettings, url: str | None) -> bool:
         return redirect_allowed(session, url, row.redirect_domains or [])
 
-    return {"facility_name": _facility(session), "tenant_slug": platform.service.get_tenant(session).slug,
+    tenant = platform.service.get_tenant(session)
+    return {"facility_name": _facility(session), "tenant_slug": tenant.slug, "currency": tenant.currency,
             "locations": [
         {"location_id": r.location_id, "name": platform.service.location_name(session, r.location_id), "slug": r.slug,
+         "time_zone": platform.service.location_time_zone(session, r.location_id),
          "welcome_text": r.welcome_text, "terms_text": r.terms_text, "terms_version": r.terms_version or 1,
          "allows_online_rentals": r.allows_online_rentals, "allows_online_purchases": r.allows_online_purchases,
          "allows_self_signup": r.allows_self_signup, "menu": r.menu or [], "social_links": r.social_links or {},

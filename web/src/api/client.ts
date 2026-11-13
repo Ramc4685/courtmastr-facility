@@ -87,9 +87,12 @@ function confirmIdentity(): Promise<boolean> {
 let TENANT_SLUG: string | undefined =
   import.meta.env.VITE_TENANT_SLUG ?? (import.meta.env.DEV || import.meta.env.MODE === 'test' ? 'courtside-demo' : undefined)
 
-/** /f/:slug pages name the facility in the URL (SSP-01); the API answers 404 when it differs from the session's. */
-export function setTenantSlug(slug: string) {
+/** /f/:slug pages name the facility in the URL (SSP-01); the API answers 404 when it differs from the session's.
+ * Returns the slug it replaced, for the caller to restore. */
+export function setTenantSlug(slug: string | undefined): string | undefined {
+  const previous = TENANT_SLUG
   TENANT_SLUG = slug
+  return previous
 }
 
 // Anonymous auth endpoints guarded by the pre-session token (security-baseline 5.3 item 4).

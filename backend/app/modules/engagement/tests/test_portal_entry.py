@@ -112,6 +112,9 @@ def test_menu_and_social_links_reach_the_public_config(client, owner, tenant, f)
     (location,) = [loc for loc in config["locations"] if loc["location_id"] == f.location]
     assert [item["key"] for item in location["menu"]] == ["programs", "rentals"]
     assert location["social_links"] == social and location["allows_self_signup"] is False
+    # Anonymous pages format money and wall times with these, never the browser's defaults.
+    zone = ok(client.get(f"{API}/locations/{f.location}", headers=owner), 200)["time_zone"]
+    assert (config["currency"], location["time_zone"]) == ("USD", zone)
 
 
 def test_public_branding_carries_the_tenant_colours(client, owner, tenant):

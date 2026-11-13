@@ -6,6 +6,7 @@ import { ADMIN, PASSWORD } from './a11y'
 // behind them (SSP-13, 07). Seeded demo tenant: courtside-demo (docs/dev/demo-accounts.md).
 const expect = baseExpect.configure({ timeout: 30_000 })
 const SLUG = 'courtside-demo'
+const TENANT = { 'x-tenant-slug': SLUG }
 
 async function scan(page: Page, label: string) {
   await expect(page.getByRole('status').filter({ hasText: /…$/ })).toHaveCount(0)
@@ -49,4 +50,37 @@ test('staff settings for the portal entry pass the scan', async ({ page }) => {
   await page.getByRole('textbox', { name: 'Portal main colour' }).fill('#ffeb3b')
   await expect(page.getByText(/Too light for readable contrast/)).toBeVisible()
   await scan(page, 'account settings')
+})
+
+test('guest checkout for a program passes the scan, with and without field errors (REG-12)', async ({ page }) => {
+  test.setTimeout(300_000)
+  await page.goto('/sign-in')
+  await page.getByRole('textbox', { name: 'Email' }).fill(ADMIN)
+  await page.getByRole('textbox', { name: 'Password' }).fill(PASSWORD)
+  const signedIn = page.waitForResponse((r) => r.url().endsWith('/api/v1/auth/sign-in') && r.ok())
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  const { csrf_token } = await (await signedIn).json()
+  const staff = () => ({ ...TENANT, 'x-csrf-token': csrf_token, 'idempotency-key': crypto.randomUUID() })
+
+  // The seed publishes one open camp with guest checkout off (its default); switch it on here and back at the end.
+  const groups: { id: string; registration_state: string }[] = await (await page.request.get('/api/v1/public/program-groups', { headers: TENANT })).json()
+  const camp = groups.find((g) => g.registration_state === 'open')
+  if (!camp) throw new Error('the demo seed publishes an open program group')
+  const config = `/api/v1/program-groups/${camp.id}/registration-config`
+  const before: { allows_guest_checkout: boolean } = await (await page.request.get(config, { headers: TENANT })).json()
+  const allowed = await page.request.put(config, { headers: staff(), data: { allows_guest_checkout: true } })
+  try {
+    expect(allowed.ok(), await allowed.text()).toBe(true)
+    for (const colorScheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme })
+      await page.goto(`/f/${SLUG}/programs/${camp.id}/guest`)
+      await expect(page.getByRole('heading', { level: 1, name: /^Register for/ })).toBeVisible()
+      await scan(page, `${colorScheme} guest checkout`)
+      await page.getByRole('button', { name: 'Continue to payment' }).click()
+      await expect(page.getByRole('textbox', { name: 'Email', exact: true })).toHaveAttribute('aria-invalid', 'true')
+      await scan(page, `${colorScheme} guest checkout with field errors`)
+    }
+  } finally {
+    await page.request.put(config, { headers: staff(), data: { allows_guest_checkout: before.allows_guest_checkout } })
+  }
 })

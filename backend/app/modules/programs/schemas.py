@@ -670,6 +670,7 @@ class PortalWaitlistJoin(In):
 
 class PortalWaitlistOut(Out):
     id: UUID
+    location_id: UUID
     client_id: UUID
     target_kind: str
     session_id: UUID | None

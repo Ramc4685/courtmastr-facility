@@ -9,9 +9,10 @@ import { SanitizedHtml } from '../../components/SanitizedHtml'
 import { EmptyState, ErrorState, LoadingState } from '../../components/States'
 import { useAuth } from '../../lib/auth'
 import { brandStyleSheet } from '../../lib/brandTheme'
-import { APP_NAME, formatMoney } from '../../lib/format'
+import { APP_NAME, formatDateTime, formatMoney } from '../../lib/format'
 import { MfaStep } from '../auth/mfa'
 import { PaymentMethodField } from '../billing/PaymentMethodField'
+import { useAttemptKey } from '../portal/shared'
 import { TenantLogo, useBranding } from '../platform/branding'
 
 type Config = Schemas['PublicPortalConfig']
@@ -22,8 +23,12 @@ const SOCIAL_LABEL: Record<string, string> = {
   facebook: 'Facebook', instagram: 'Instagram', x: 'X', youtube: 'YouTube', tiktok: 'TikTok', linkedin: 'LinkedIn',
 }
 
-export const usePortalConfig = () =>
-  useQuery({ queryKey: ['public', 'portal-config'], queryFn: () => api.get('/api/v1/public/portal-config'), staleTime: 5 * 60_000, retry: false })
+// Public query keys end with the /f/:slug tenant (undefined in the signed-in portal), so one facility's answers
+// never serve another's from the cache.
+export const usePortalConfig = () => {
+  const { slug } = useParams()
+  return useQuery({ queryKey: ['public', 'portal-config', slug], queryFn: () => api.get('/api/v1/public/portal-config'), staleTime: 5 * 60_000, retry: false })
+}
 
 /** The tenant's colours for the portal, kept only where they pass WCAG AA (lib/brandTheme). */
 export function BrandTheme() {
@@ -99,7 +104,7 @@ function Shell({ config, children }: { config: Config; children: ReactNode }) {
 
 function Landing({ config }: { config: Config }) {
   const { slug = '' } = useParams()
-  const programs = useQuery({ queryKey: ['public', 'program-groups'], queryFn: () => api.get('/api/v1/public/program-groups') })
+  const programs = useQuery({ queryKey: ['public', 'program-groups', slug], queryFn: () => api.get('/api/v1/public/program-groups') })
   return (
     <>
       <Title title={config.facility_name} facility={config.facility_name} />
@@ -241,18 +246,21 @@ function SignupConfirmPage({ config }: { config: Config }) {
   )
 }
 
+// Server pointers (without the slash) that have an input of their own; any other error shows in the top alert.
+const GUEST_FIELDS = ['payer/first_name', 'payer/last_name', 'payer/email', 'payer/birth_on', 'participants/0/first_name', 'participants/0/last_name', 'participants/0/birth_on']
+const FEE_FIELDS = ['program_fee_id', 'items/0/program_fee_id']
+
 type GuestForm = { first_name: string; last_name: string; email: string; birth_on: string; kid_first: string; kid_last: string; kid_birth_on: string; fee_id: string }
 
 /** Guest checkout (REG-12): no account, a new card only, and the place is held while the guest pays. */
 function GuestCheckoutPage({ config }: { config: Config }) {
-  const { groupId = '' } = useParams()
-  const group = useQuery({ queryKey: ['public', 'program-group', groupId], queryFn: () => api.get('/api/v1/public/program-groups/{program_group_id}', { path: { program_group_id: groupId } }) })
-  const terms = useQuery({ queryKey: ['public', 'portal-terms'], queryFn: () => api.get('/api/v1/public/portal-terms'), retry: false })
+  const { slug, groupId = '' } = useParams()
+  const group = useQuery({ queryKey: ['public', 'program-group', groupId, slug], queryFn: () => api.get('/api/v1/public/program-groups/{program_group_id}', { path: { program_group_id: groupId } }) })
+  const gate = useTermsGate()
   const [form, setForm] = useState<GuestForm>({ first_name: '', last_name: '', email: '', birth_on: '', kid_first: '', kid_last: '', kid_birth_on: '', fee_id: '' })
   const [checkout, setCheckout] = useState<Schemas['GuestCheckoutOut'] | null>(null)
   const [method, setMethod] = useState('')
-  const [agreed, setAgreed] = useState(false)
-  const [attempt] = useState(() => crypto.randomUUID())
+  const attempt = useAttemptKey()
   const start = useMutation({
     mutationFn: (g: Group) => {
       const forKid = Boolean(form.kid_first.trim())
@@ -271,13 +279,17 @@ function GuestCheckoutPage({ config }: { config: Config }) {
     mutationFn: () =>
       api.post('/api/v1/public/guest-checkouts/{checkout_id}/confirm', {
         path: { checkout_id: checkout?.id ?? '' },
-        body: { guest_token: checkout?.guest_token ?? '', method_token: method, terms_version_id: terms.data?.terms_version_id ?? null },
-        idempotencyKey: attempt,
+        body: { guest_token: checkout?.guest_token ?? '', method_token: method, terms_version_id: gate.versionId },
+        idempotencyKey: attempt.key,
       }),
     onSuccess: (done) => {
       const location = config.locations.find((l) => l.location_id === done.location_id)
       redirectAfter(location?.group_redirect_urls[groupId] ?? location?.redirect_url)
       setCheckout({ ...done, guest_token: checkout?.guest_token })
+    },
+    onError: (error) => {
+      attempt.settle(error)
+      gate.onError(error)
     },
   })
   if (group.isPending) return <LoadingState label="Loading the program" />
@@ -285,7 +297,8 @@ function GuestCheckoutPage({ config }: { config: Config }) {
   const g = group.data
   if (!g.allows_guest_checkout) return <Navigate to=".." replace />
   const errors = fieldErrors(start.error)
-  const needsTerms = Boolean(terms.data)
+  const shown = [...GUEST_FIELDS, ...(g.fees.length > 1 ? FEE_FIELDS : [])]
+  const zone = config.locations.find((l) => l.location_id === g.location_id)?.time_zone
   return (
     <div className="mx-auto max-w-lg">
       <Title title={`Register for ${g.name}`} facility={config.facility_name} />
@@ -295,35 +308,35 @@ function GuestCheckoutPage({ config }: { config: Config }) {
         </p>
       ) : checkout ? (
         <form className="mt-6 space-y-4" onSubmit={(e) => { e.preventDefault(); pay.mutate() }}>
-          <p>Total to pay now: <strong>{formatMoney(checkout.total_minor)}</strong>. Your place is held until {new Date(checkout.expires_at).toLocaleTimeString()}.</p>
+          <p>Total to pay now: <strong>{formatMoney(checkout.total_minor, config.currency)}</strong>. Your place is held until {formatDateTime(checkout.expires_at, zone)}.</p>
           {pay.error instanceof Error && <p role="alert" className="text-danger">{pay.error.message}</p>}
           <PaymentMethodField kind="card" label="Card" value={method} onChange={setMethod}
             provider={checkout.provider === 'fake' || checkout.provider === 'stripe' ? checkout.provider : null}
             keys={{ publishable_key: checkout.publishable_key, account_ref: checkout.account_ref }} />
-          {needsTerms && terms.data && <TermsBox terms={terms.data} agreed={agreed} onAgree={setAgreed} />}
-          <Button type="submit" className="w-full" loading={pay.isPending} disabled={!method || (needsTerms && !agreed)}>
+          {gate.box}
+          <Button type="submit" className="w-full" loading={pay.isPending} disabled={!method || !gate.ready}>
             Pay and register
           </Button>
         </form>
       ) : (
         <form className="mt-6 space-y-4" noValidate onSubmit={(e) => { e.preventDefault(); start.mutate(g) }}>
-          {start.error instanceof ApiError && !Object.keys(errors).length && <p role="alert" className="text-danger">{start.error.message}</p>}
+          {start.error instanceof ApiError && !Object.keys(errors).some((k) => shown.includes(k)) && <p role="alert" className="text-danger">{start.error.message}</p>}
           <fieldset className="space-y-3">
             <legend className="font-semibold">Your details</legend>
-            <Input label="First name" autoComplete="given-name" required value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
-            <Input label="Last name" autoComplete="family-name" required value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
-            <Input label="Email" type="email" autoComplete="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-            <Input label="Date of birth" type="date" autoComplete="bday" required value={form.birth_on} onChange={(e) => setForm({ ...form, birth_on: e.target.value })} />
+            <Input label="First name" autoComplete="given-name" required value={form.first_name} error={errors['payer/first_name']} onChange={(e) => setForm({ ...form, first_name: e.target.value })} />
+            <Input label="Last name" autoComplete="family-name" required value={form.last_name} error={errors['payer/last_name']} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
+            <Input label="Email" type="email" autoComplete="email" required value={form.email} error={errors['payer/email']} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            <Input label="Date of birth" type="date" autoComplete="bday" required value={form.birth_on} error={errors['payer/birth_on']} onChange={(e) => setForm({ ...form, birth_on: e.target.value })} />
           </fieldset>
           <fieldset className="space-y-3">
             <legend className="font-semibold">Registering someone else? (optional)</legend>
-            <Input label="Participant first name" value={form.kid_first} onChange={(e) => setForm({ ...form, kid_first: e.target.value })} />
-            <Input label="Participant last name" value={form.kid_last} onChange={(e) => setForm({ ...form, kid_last: e.target.value })} />
-            <Input label="Participant date of birth" type="date" required={Boolean(form.kid_first.trim())} value={form.kid_birth_on} onChange={(e) => setForm({ ...form, kid_birth_on: e.target.value })} />
+            <Input label="Participant first name" value={form.kid_first} error={errors['participants/0/first_name']} onChange={(e) => setForm({ ...form, kid_first: e.target.value })} />
+            <Input label="Participant last name" value={form.kid_last} error={errors['participants/0/last_name']} onChange={(e) => setForm({ ...form, kid_last: e.target.value })} />
+            <Input label="Participant date of birth" type="date" required={Boolean(form.kid_first.trim())} value={form.kid_birth_on} error={errors['participants/0/birth_on']} onChange={(e) => setForm({ ...form, kid_birth_on: e.target.value })} />
           </fieldset>
           {g.fees.length > 1 && (
-            <Select label="Fee" value={form.fee_id} onChange={(e) => setForm({ ...form, fee_id: e.target.value })} placeholder="Choose a fee"
-              options={g.fees.map((fee) => ({ value: fee.id, label: `${fee.description} · ${formatMoney(fee.amount_minor)}` }))} />
+            <Select label="Fee" value={form.fee_id} error={errors.program_fee_id ?? errors['items/0/program_fee_id']} onChange={(e) => setForm({ ...form, fee_id: e.target.value })} placeholder="Choose a fee"
+              options={g.fees.map((fee) => ({ value: fee.id, label: `${fee.description} · ${formatMoney(fee.amount_minor, config.currency)}` }))} />
           )}
           <Button type="submit" className="w-full" loading={start.isPending}>
             Continue to payment
@@ -348,10 +361,21 @@ export function TermsBox({ terms, agreed, onAgree }: { terms: Schemas['PortalTer
   )
 }
 
-/** Public facility pages under /f/:slug (SSP-01): the slug names the tenant for every call these pages make. */
+/** Public facility pages under /f/:slug (SSP-01): the slug names the tenant for every call these pages make. It is
+ * module state in the API client, so it is set before any page queries and the previous value comes back on leaving. */
 export function FacilityApp() {
   const { slug = '' } = useParams()
-  useState(() => setTenantSlug(slug)) // before the first query, once per mount
+  const [ready, setReady] = useState<string | null>(null)
+  useEffect(() => {
+    const previous = setTenantSlug(slug)
+    setReady(slug)
+    return () => void setTenantSlug(previous)
+  }, [slug])
+  if (ready !== slug) return <LoadingState label="Opening the facility page" />
+  return <FacilityPages slug={slug} />
+}
+
+function FacilityPages({ slug }: { slug: string }) {
   const config = usePortalConfig()
   if (config.isPending) return <LoadingState label="Opening the facility page" />
   if (config.isError) {
@@ -376,7 +400,8 @@ export function FacilityApp() {
 /** The portal terms step for a sale (SSP-14): the box to render, whether the buyer may proceed, the version to send
  * back, and an error handler that reloads the terms when they changed under the buyer (409 terms-changed). */
 export function useTermsGate() {
-  const terms = useQuery({ queryKey: ['public', 'portal-terms'], queryFn: () => api.get('/api/v1/public/portal-terms'), retry: false })
+  const { slug } = useParams()
+  const terms = useQuery({ queryKey: ['public', 'portal-terms', slug], queryFn: () => api.get('/api/v1/public/portal-terms'), retry: false })
   const [agreed, setAgreed] = useState(false)
   const shown = terms.data
   return {

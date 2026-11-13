@@ -413,6 +413,7 @@ class PublicPortalLocation(Out):
     location_id: UUID
     name: str
     slug: str
+    time_zone: str  # IANA; wall times on public pages are shown in it
     welcome_text: str | None
     terms_text: str | None
     terms_version: int
@@ -428,6 +429,7 @@ class PublicPortalLocation(Out):
 class PublicPortalConfig(Out):
     facility_name: str
     tenant_slug: str
+    currency: str  # ISO 4217; public prices are shown in it
     locations: list[PublicPortalLocation]
 
 
