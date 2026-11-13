@@ -5981,6 +5981,9 @@ components:
       description: One rental occurrence (rental_booking 1:1 booking). `status`, times and `version` are read from the booking.
       required: [id, booking_id, rental_type_id, client_id, starts_at, ends_at, status, charge_state]
       properties:
+        minor_override_reason:
+          type: [string, 'null']
+          description: why staff booked it in a minor's name (rentals.booking.override_minor); staff view only
         id: {type: string, format: uuid}
         location_id: {type: string, format: uuid}
         booking_id: {type: string, format: uuid}

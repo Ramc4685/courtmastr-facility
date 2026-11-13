@@ -66424,6 +66424,17 @@
             "title": "Location Id",
             "type": "string"
           },
+          "minor_override_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minor Override Reason"
+          },
           "parties": {
             "items": {
               "$ref": "#/components/schemas/PartyOut"

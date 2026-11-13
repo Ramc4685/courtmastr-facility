@@ -542,7 +542,7 @@ def _views(session: Db, rows: list[RentalBooking]) -> list[dict]:
                 "booked_via": row.booked_via, "cancelled_at": row.cancelled_at,
                 "amount_minor": amounts[row.id] if row.id in amounts else None, "charge_ids": list(dict.fromkeys(charges[row.id])),
                 "invoice_ids": invoices, "is_on_public_schedule": row.is_on_public_schedule, "title": booking["title"],
-                "version": booking["version"],
+                "version": booking["version"], "minor_override_reason": row.minor_override_reason,
             }
         )  # fmt: skip
     return views

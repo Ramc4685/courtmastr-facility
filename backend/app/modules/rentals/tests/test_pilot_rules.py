@@ -192,6 +192,8 @@ def test_a_minor_cannot_hold_a_rental_and_override_needs_the_key_and_a_reason(cl
             select(AuditEvent).where(AuditEvent.entity_id == allowed["rental"]["id"]).order_by(AuditEvent.id.desc())
         ).first()
     assert record.changes["minor_override_reason"] is True  # free text is flag-only
+    staff_view = ok(client.get(f"{API}/rentals/{allowed['rental']['id']}", headers=owner), 200)
+    assert staff_view["minor_override_reason"] == "Coach's own child"  # the stored reason, shown to staff
 
 
 def test_a_guardian_books_and_names_the_children_who_play(client, owner, f):
@@ -229,6 +231,7 @@ def test_portal_parent_books_in_own_name_with_the_child_playing(client, owner, t
     staff_view = ok(client.get(f"{API}/rentals/{checkout['rental']['id']}", headers=owner), 200)
     assert staff_view["parties"] == [{"client_id": kid, "is_charged": False}]
     assert "parties" not in checkout["rental"]  # the portal view carries no co-party ids (S-06)
+    assert "minor_override_reason" not in checkout["rental"]  # staff notes stay on the staff view
     stranger = new_client(client, owner, f.location)["id"]
     assert client.post(f"{API}/portal/rentals", headers=portal,
                        json=online(f, me, 16, 17) | {"player_client_ids": [stranger]}).status_code == 404  # fmt: skip

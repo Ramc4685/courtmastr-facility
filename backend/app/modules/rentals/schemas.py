@@ -286,6 +286,7 @@ class RentalOut(Out):
     is_on_public_schedule: bool
     title: str
     version: int
+    minor_override_reason: str | None = None  # why staff booked it in a minor's name (staff view only)
 
 
 class RentalCreated(Out):

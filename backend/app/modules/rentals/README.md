@@ -195,7 +195,9 @@ public-schedule control, no tax picker on rates, one resource per rental in the 
 - **Staff override.** `minor_override_reason` on create (and preview) needs `rentals.booking.override_minor`
   (admin, manager) and lifts both checks. The reason is kept on `rental_booking.minor_override_reason`; the audit
   record carries a flag only. The staff form asks for the reason only after the server refuses and only to holders
-  of the key.
+  of the key; the reason is cleared when the client changes. Staff see the stored reason on the rental (staff
+  view and list, never the portal view). The staff form names household members who will play (the client's active
+  relationships, sent as uncharged `parties`).
 - **Portal.** A parent books in their own name and names household members who will play
   (`player_client_ids`, each one the identity can act for, else 404). Acting for someone who is not an adult
   (`is_adult` false), the booking dialog books in the signed-in person's name, ticks the child as a player when

@@ -144,7 +144,19 @@ function NewRentalDialog({ ctx, onClose }: { ctx: Ctx; onClose: () => void }) {
   const [rule, setRule] = useState<Rule>(defaultRule(date))
   const [charge, setCharge] = useState<ChargeDecision>(BILL)
   const [minorReason, setMinorReason] = useState('')
+  const [players, setPlayers] = useState<string[]>([])
   const { can } = useAuth()
+  // Household members who may play (uncharged parties); a minor plays only on a guardian's booking.
+  const household = useQuery({
+    queryKey: ['clients', client?.id, 'relationships'],
+    queryFn: () => api.get('/api/v1/clients/{client_id}/relationships', { path: { client_id: client?.id ?? '' } }),
+    enabled: Boolean(client),
+  })
+  const pickClient = (next: ClientSummary | null) => {
+    setClient(next)
+    setPlayers([])
+    setMinorReason('') // a reason given for one client never carries to another
+  }
   const choices = type && type.resource_ids.length ? ctx.resources.filter((r) => type.resource_ids.includes(r.id)) : ctx.resources
 
   const body = () => ({
@@ -156,7 +168,7 @@ function NewRentalDialog({ ctx, onClose }: { ctx: Ctx; onClose: () => void }) {
     ends_at: toInstant(date, parseHhmm(end), ctx.timeZone),
     recurrence: repeat ? rule : null,
     charge: cleanCharge(charge),
-    parties: [],
+    parties: players.map((id) => ({ client_id: id, is_charged: false })),
     override_policy: false,
     minor_override_reason: minorReason.trim() || null,
   })
@@ -216,7 +228,25 @@ function NewRentalDialog({ ctx, onClose }: { ctx: Ctx; onClose: () => void }) {
           )
         )}
         <Select label="Rental type" value={typeId} error={e.rental_type_id} onChange={(ev) => setTypeId(ev.target.value)} options={active.map((t) => ({ value: t.id, label: t.name }))} />
-        <ClientPicker label="Client" value={client} onChange={setClient} required error={e.client_id} />
+        <ClientPicker label="Client" value={client} onChange={pickClient} required error={e.client_id} />
+        {household.data && household.data.filter((r) => r.status === 'active').length > 0 && (
+          <fieldset>
+            <legend className="mb-2 text-sm font-medium">Who else is playing (not charged)</legend>
+            <div className="flex flex-wrap gap-4">
+              {household.data
+                .filter((r) => r.status === 'active')
+                .map((r) => (
+                  <Checkbox
+                    key={r.id}
+                    label={`${r.other_client_name} (${r.label.toLowerCase()})`}
+                    checked={players.includes(r.other_client_id)}
+                    onChange={(ev) => setPlayers((now) => (ev.target.checked ? [...now, r.other_client_id] : now.filter((id) => id !== r.other_client_id)))}
+                  />
+                ))}
+            </div>
+            {e.parties && <p className="mt-1 text-sm text-danger">{e.parties}</p>}
+          </fieldset>
+        )}
         {p && p.birth_on_unknown && p.birth_on_unknown.length > 0 && (
           <p role="note" className="text-sm text-warning">
             No birth date on file for {p.birth_on_unknown.includes(client?.id ?? '') ? 'this client' : 'a player'}: they are treated as an adult. Check their age before booking.
@@ -340,7 +370,15 @@ function RentalList({ ctx, onCancel }: { ctx: Ctx; onCancel: (r: Rental) => void
       columns={[
         { header: '#', cell: (r) => r.booking_number },
         { header: 'When', cell: (r) => formatSpan(r.starts_at, r.ends_at, ctx.timeZone) },
-        { header: 'What', cell: (r) => `${r.title} · ${resourceNames(r, ctx.resources)}` },
+        {
+          header: 'What',
+          cell: (r) => (
+            <>
+              {`${r.title} · ${resourceNames(r, ctx.resources)}`}
+              {r.minor_override_reason && <span className="block text-xs text-muted">Booked for a minor: {r.minor_override_reason}</span>}
+            </>
+          ),
+        },
         { header: 'Charge', cell: (r) => <StateBadge rental={r} /> },
         { header: 'Amount', className: 'text-right', cell: (r) => <span className="tabular-nums">{money(r.amount_minor, ctx.currency)}</span> },
         {

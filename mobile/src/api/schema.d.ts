@@ -38349,6 +38349,8 @@ export interface components {
              * Format: uuid
              */
             location_id: string;
+            /** Minor Override Reason */
+            minor_override_reason?: string | null;
             /** Parties */
             parties: components["schemas"]["PartyOut"][];
             /**
