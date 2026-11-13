@@ -651,6 +651,10 @@ def _populate_engagement(client, tenant, post, location_id, person_id, identity_
     assert response.status_code == 202, response.text  # portal_signup (SSP-05)
     video = post("/videos", {"location_id": location_id, "title": "Warm-up", "url": "https://www.youtube.com/watch?v=abc",
                              "is_published": True})  # fmt: skip
+    response = client.put("/api/v1/app-config", headers=login(client, tenant),
+                          json={"is_enabled": True,
+                                "home_screen": {"tiles": [{"type": "book"}, {"type": "card"}]}})  # fmt: skip
+    assert response.status_code == 200, response.text
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
         device = DeviceRegistration(identity_id=identity_id, client_id=person_id, location_id=location_id,
                                     platform="ios", push_token=f"tok-{uuid4().hex}")  # fmt: skip

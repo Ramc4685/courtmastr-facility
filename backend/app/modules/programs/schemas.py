@@ -616,6 +616,7 @@ class BookingPolicyOut(Out):
 class PortalSessionListing(Out):
     session_id: UUID
     location_id: UUID
+    time_zone: str  # the session's location IANA zone: show its wall time there (APP-16)
     title: str | None
     starts_at: datetime
     ends_at: datetime

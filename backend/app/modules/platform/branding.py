@@ -25,9 +25,13 @@ PUBLIC_PATH = "/api/v1/public/objects"
 
 
 def public_url(row: StoredFile) -> str:
+    return public_url_for_key(row.object_key)
+
+
+def public_url_for_key(object_key: str) -> str:
     settings = get_settings()
     base = settings.storage.public_base_url or f"{settings.app.web_base_url}{PUBLIC_PATH}"
-    return f"{base.rstrip('/')}/{row.object_key}"
+    return f"{base.rstrip('/')}/{object_key}"
 
 
 def branding(session: Session) -> dict:

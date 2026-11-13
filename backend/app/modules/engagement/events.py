@@ -35,3 +35,9 @@ class PortalSignupConfirmed(Event):
     type: Literal["engagement.portal_signup.confirmed"] = "engagement.portal_signup.confirmed"
     client_id: UUID
     location_id: UUID
+
+
+class AppConfigUpdated(Event):
+    aggregate_type: ClassVar[str] = "app_config"
+    type: Literal["engagement.app_config.updated"] = "engagement.app_config.updated"
+    app_config_id: UUID

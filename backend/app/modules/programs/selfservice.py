@@ -6,6 +6,7 @@ it. A location with no default row uses `BUILT_IN` (module README). The acting c
 identity's own record or someone it may book for (`can_act_for(..., "book")`); anything else is 404.
 """
 
+from collections.abc import Callable
 from datetime import timedelta
 from uuid import UUID
 
@@ -30,6 +31,14 @@ BUILT_IN = {
     "hides_full_sessions": False, "booking_cutoff_minutes": 0, "allows_self_cancel": True,
     "cancel_notice_minutes": 0, "waitlist_mode": "auto_promote",
 }  # fmt: skip
+# Contexts above programs narrow the portal listing (engagement's app schedule flags, APP-18) without programs
+# importing them: each takes and returns the listing rows.
+_presenters: list[Callable[[Db, list[dict]], list[dict]]] = []
+
+
+def register_listing_presenter(present: Callable[[Db, list[dict]], list[dict]]) -> None:
+    if present not in _presenters:
+        _presenters.append(present)
 
 
 # --- policy (staff) -------------------------------------------------------------------------------------------
@@ -157,7 +166,7 @@ def list_listings(session: Db, principal: Principal, client_id: UUID | None, fil
         resource_id=filters.get("resource_id"),
     )  # fmt: skip
     member = memberships.service.is_member(session, subject)
-    out, cache = [], {}
+    out, cache, zones = [], {}, {}
     for seat in seats:
         key = (seat["location_id"], seat["reservation_type_id"])
         policy = cache.get(key) or cache.setdefault(key, effective(session, *key))
@@ -171,6 +180,8 @@ def list_listings(session: Db, principal: Principal, client_id: UUID | None, fil
         out.append(
             {
                 "session_id": seat["id"], "location_id": seat["location_id"],
+                "time_zone": zones.get(seat["location_id"]) or zones.setdefault(
+                    seat["location_id"], platform.service.location_time_zone(session, seat["location_id"])),
                 "title": seat["public_title"] or seat["title"], "starts_at": seat["starts_at"],
                 "ends_at": seat["ends_at"], "spots_left": max(seat["capacity"] - seat["booked_count"], 0),
                 "is_bookable": reason is None,
@@ -178,6 +189,8 @@ def list_listings(session: Db, principal: Principal, client_id: UUID | None, fil
                 "reason": reason, "reservation_type_id": seat["reservation_type_id"], "is_virtual": seat["is_virtual"],
             }
         )  # fmt: skip
+    for present in _presenters:
+        out = present(session, out)
     return out
 
 

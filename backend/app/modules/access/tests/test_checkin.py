@@ -334,3 +334,46 @@ def test_merge_and_erasure_handlers(client, tenant, owner, f):
         assert len(exported["check_ins"]) == 1 and exported["credentials"][0]["kind"] == "barcode"
         erased = subject._erase(session, f.person["id"])
     assert erased == {"retained_check_ins": 1, "revoked_credentials": 1}
+
+
+def test_wallet_pass_has_its_own_revocable_credential_accepted_at_the_door(client, tenant, owner, f):
+    import json
+
+    parent, portal = _portal(client, tenant, owner, f.loc)
+    issued = ok(client.post(f"{API}/portal/wallet-passes", headers=portal, json={"client_id": parent["id"]}), 201)
+    assert issued["format"] == "fake" and issued["is_signed"] is False
+    token = json.loads(issued["content"])["barcode"]["message"]
+    assert token.startswith("FHW") and len(token) == 43
+    # Only the token's hash is stored; the staff list never shows it.
+    stored = scalar(tenant, select(Credential.value).where(Credential.id == issued["credential_id"]))
+    assert token not in stored and stored.startswith("FHW#")
+    listed = ok(client.get(f"{API}/clients/{parent['id']}/credentials", headers=f.desk))["data"]
+    assert [c["value"] for c in listed if c["kind"] == "wallet_pass"] == ["Wallet pass"]
+    # Out of reach for strangers and for staff principals on the portal route.
+    assert client.post(f"{API}/portal/wallet-passes", headers=portal, json={"client_id": f.person["id"]}).status_code == 404
+    assert client.delete(f"{API}/portal/wallet-passes/{issued['credential_id']}", headers=owner).status_code == 404
+    # The staff window and the kiosk both admit the pass (lower-case scans too).
+    scan = ok(check_in(client, f.desk, {"credential_value": token.lower(), "location_id": f.loc}), 201)
+    assert scan["check_in"]["credential_id"] == issued["credential_id"]
+    _pair(client, tenant, owner, f.loc)
+    assert ok(client.post(f"{API}/kiosk/check-ins", json={"card_payload": token}), 201)["first_name"] == parent["first_name"]
+    # Issuing again (a new phone) revokes the old pass.
+    again = ok(client.post(f"{API}/portal/wallet-passes", headers=portal, json={"client_id": parent["id"]}), 201)
+    assert check_in(client, f.desk, {"credential_value": token, "location_id": f.loc}).status_code == 404
+    assert [p["credential_id"] for p in ok(client.get(f"{API}/portal/wallet-passes", headers=portal))["data"]] == [
+        again["credential_id"]
+    ]
+    # The member revokes it; staff clearing digital cards revokes it; disabling the client revokes it.
+    assert client.delete(f"{API}/portal/wallet-passes/{again['credential_id']}", headers=portal).status_code == 204
+    third = ok(client.post(f"{API}/portal/wallet-passes", headers=portal, json={"client_id": parent["id"]}), 201)
+    url = f"{API}/clients/{parent['id']}/credentials/revoke-all"
+    assert client.post(url, headers=f.desk, json={"kind": "app_card"}).status_code == 204
+    assert ok(client.get(f"{API}/portal/wallet-passes", headers=portal))["data"] == []
+    fourth = ok(client.post(f"{API}/portal/wallet-passes", headers=portal, json={"client_id": parent["id"]}), 201)
+    from app.modules.access import handlers
+
+    event = {"type": "clients.client.disabled", "client_id": parent["id"]}
+    handlers.on_client_disabled(str(tenant.id), str(uuid4()), event)
+    handlers.on_client_disabled(str(tenant.id), str(uuid4()), event)  # a second delivery finds nothing live
+    status = scalar(tenant, select(Credential.status).where(Credential.id == fourth["credential_id"]))
+    assert status == "revoked" and third["credential_id"] != fourth["credential_id"]

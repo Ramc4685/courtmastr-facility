@@ -1802,6 +1802,425 @@
         "title": "ApiKeyRotate",
         "type": "object"
       },
+      "AppConfigOut": {
+        "properties": {
+          "app_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App Name"
+          },
+          "card_number_mode": {
+            "title": "Card Number Mode",
+            "type": "string"
+          },
+          "directory_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Directory Name"
+          },
+          "features": {
+            "$ref": "#/components/schemas/AppFeatures"
+          },
+          "home_screen": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppHomeScreen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_enabled": {
+            "title": "Is Enabled",
+            "type": "boolean"
+          },
+          "is_listed_in_directory": {
+            "title": "Is Listed In Directory",
+            "type": "boolean"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/AppSchedule"
+          },
+          "tile_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tile Types",
+            "type": "array"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "mode",
+          "is_enabled",
+          "app_name",
+          "is_listed_in_directory",
+          "directory_name",
+          "card_number_mode",
+          "features",
+          "home_screen",
+          "schedule",
+          "tile_types",
+          "updated_at"
+        ],
+        "title": "AppConfigOut",
+        "type": "object"
+      },
+      "AppConfigReplace": {
+        "additionalProperties": false,
+        "description": "PUT replaces: an omitted field returns to its default.",
+        "properties": {
+          "app_name": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App Name"
+          },
+          "card_number_mode": {
+            "default": "auto_generate",
+            "enum": [
+              "auto_generate",
+              "manual_entry"
+            ],
+            "title": "Card Number Mode",
+            "type": "string"
+          },
+          "directory_name": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Directory Name"
+          },
+          "features": {
+            "$ref": "#/components/schemas/AppFeatures",
+            "default": {
+              "booking": true,
+              "membership_card": true,
+              "purchases": true,
+              "wallet_pass": true
+            }
+          },
+          "home_screen": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppHomeScreen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_enabled": {
+            "default": false,
+            "title": "Is Enabled",
+            "type": "boolean"
+          },
+          "is_listed_in_directory": {
+            "default": false,
+            "title": "Is Listed In Directory",
+            "type": "boolean"
+          },
+          "mode": {
+            "default": "shared",
+            "enum": [
+              "shared",
+              "branded"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/AppSchedule",
+            "default": {
+              "shows_full_sessions": true,
+              "shows_spots_left": true
+            }
+          }
+        },
+        "title": "AppConfigReplace",
+        "type": "object"
+      },
+      "AppDesign": {
+        "additionalProperties": false,
+        "properties": {
+          "columns": {
+            "default": 2,
+            "enum": [
+              1,
+              2
+            ],
+            "title": "Columns",
+            "type": "integer"
+          },
+          "corners": {
+            "default": "rounded",
+            "enum": [
+              "rounded",
+              "square"
+            ],
+            "title": "Corners",
+            "type": "string"
+          }
+        },
+        "title": "AppDesign",
+        "type": "object"
+      },
+      "AppDirectoryEntry": {
+        "properties": {
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon Url"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "title": "Tenant Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "slug",
+          "name",
+          "city",
+          "icon_url",
+          "host"
+        ],
+        "title": "AppDirectoryEntry",
+        "type": "object"
+      },
+      "AppDirectoryPage": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AppDirectoryEntry"
+            },
+            "title": "Data",
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AppDirectoryPage",
+        "type": "object"
+      },
+      "AppFeatures": {
+        "additionalProperties": false,
+        "properties": {
+          "booking": {
+            "default": true,
+            "title": "Booking",
+            "type": "boolean"
+          },
+          "membership_card": {
+            "default": true,
+            "title": "Membership Card",
+            "type": "boolean"
+          },
+          "purchases": {
+            "default": true,
+            "title": "Purchases",
+            "type": "boolean"
+          },
+          "wallet_pass": {
+            "default": true,
+            "title": "Wallet Pass",
+            "type": "boolean"
+          }
+        },
+        "title": "AppFeatures",
+        "type": "object"
+      },
+      "AppHomeScreen": {
+        "additionalProperties": false,
+        "description": "APP-04: ordered tiles from the tile catalogue (`tile_types`) and the global design.",
+        "properties": {
+          "design": {
+            "$ref": "#/components/schemas/AppDesign",
+            "default": {
+              "columns": 2,
+              "corners": "rounded"
+            }
+          },
+          "tiles": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AppTile"
+            },
+            "maxItems": 12,
+            "title": "Tiles",
+            "type": "array"
+          }
+        },
+        "title": "AppHomeScreen",
+        "type": "object"
+      },
+      "AppSchedule": {
+        "additionalProperties": false,
+        "description": "APP-18: narrows each session booking policy in the member listing; never loosens it.",
+        "properties": {
+          "days_ahead": {
+            "anyOf": [
+              {
+                "maximum": 365.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Ahead"
+          },
+          "shows_full_sessions": {
+            "default": true,
+            "title": "Shows Full Sessions",
+            "type": "boolean"
+          },
+          "shows_spots_left": {
+            "default": true,
+            "title": "Shows Spots Left",
+            "type": "boolean"
+          }
+        },
+        "title": "AppSchedule",
+        "type": "object"
+      },
+      "AppTheme": {
+        "description": "The tenant brand colours (platform branding), as the app reads them.",
+        "properties": {
+          "accent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accent"
+          },
+          "primary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary"
+          }
+        },
+        "title": "AppTheme",
+        "type": "object"
+      },
+      "AppTile": {
+        "additionalProperties": false,
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "style": {
+            "default": "small",
+            "enum": [
+              "large",
+              "small"
+            ],
+            "title": "Style",
+            "type": "string"
+          },
+          "type": {
+            "maxLength": 32,
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "AppTile",
+        "type": "object"
+      },
       "AssessmentFieldCreate": {
         "additionalProperties": false,
         "properties": {
@@ -40189,6 +40608,26 @@
         "title": "Page[PortalVideo]",
         "type": "object"
       },
+      "Page_PortalWalletPassOut_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PortalWalletPassOut"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[PortalWalletPassOut]",
+        "type": "object"
+      },
       "Page_PosSaleOut_": {
         "properties": {
           "data": {
@@ -48135,6 +48574,10 @@
             "title": "Starts At",
             "type": "string"
           },
+          "time_zone": {
+            "title": "Time Zone",
+            "type": "string"
+          },
           "title": {
             "anyOf": [
               {
@@ -48150,6 +48593,7 @@
         "required": [
           "session_id",
           "location_id",
+          "time_zone",
           "title",
           "starts_at",
           "ends_at",
@@ -48828,6 +49272,130 @@
           "offer_expires_at"
         ],
         "title": "PortalWaitlistOut",
+        "type": "object"
+      },
+      "PortalWalletPassCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "device_label": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Label"
+          }
+        },
+        "required": [
+          "client_id"
+        ],
+        "title": "PortalWalletPassCreate",
+        "type": "object"
+      },
+      "PortalWalletPassIssued": {
+        "description": "The pass document, returned once. `is_signed` is false while only the fake issuer exists (CHK-13 partial).",
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "credential_id": {
+            "format": "uuid",
+            "title": "Credential Id",
+            "type": "string"
+          },
+          "device_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Label"
+          },
+          "format": {
+            "title": "Format",
+            "type": "string"
+          },
+          "is_signed": {
+            "title": "Is Signed",
+            "type": "boolean"
+          },
+          "issued_at": {
+            "format": "date-time",
+            "title": "Issued At",
+            "type": "string"
+          },
+          "media_type": {
+            "title": "Media Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "credential_id",
+          "client_id",
+          "device_label",
+          "issued_at",
+          "format",
+          "media_type",
+          "content",
+          "is_signed"
+        ],
+        "title": "PortalWalletPassIssued",
+        "type": "object"
+      },
+      "PortalWalletPassOut": {
+        "properties": {
+          "client_id": {
+            "format": "uuid",
+            "title": "Client Id",
+            "type": "string"
+          },
+          "credential_id": {
+            "format": "uuid",
+            "title": "Credential Id",
+            "type": "string"
+          },
+          "device_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Label"
+          },
+          "issued_at": {
+            "format": "date-time",
+            "title": "Issued At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "credential_id",
+          "client_id",
+          "device_label",
+          "issued_at"
+        ],
+        "title": "PortalWalletPassOut",
         "type": "object"
       },
       "PosQuickClientCreate": {
@@ -53997,6 +54565,64 @@
           "provider"
         ],
         "title": "ProviderConnect",
+        "type": "object"
+      },
+      "PublicAppConfig": {
+        "properties": {
+          "app_name": {
+            "title": "App Name",
+            "type": "string"
+          },
+          "features": {
+            "$ref": "#/components/schemas/AppFeatures"
+          },
+          "home_screen": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppHomeScreen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "icon_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon Url"
+          },
+          "portal": {
+            "$ref": "#/components/schemas/PublicPortalConfig"
+          },
+          "schedule": {
+            "$ref": "#/components/schemas/AppSchedule"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "theme": {
+            "$ref": "#/components/schemas/AppTheme"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "app_name",
+          "theme",
+          "icon_url",
+          "features",
+          "home_screen",
+          "schedule",
+          "portal"
+        ],
+        "title": "PublicAppConfig",
         "type": "object"
       },
       "PublicBranding": {
@@ -75886,6 +76512,120 @@
         "summary": "Rotate Api Key",
         "tags": [
           "integrations"
+        ]
+      }
+    },
+    "/api/v1/app-config": {
+      "get": {
+        "description": "The tenant's member-app configuration (defaults until saved) and the tile catalogue.",
+        "operationId": "getAppConfig",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get App Config",
+        "tags": [
+          "engagement"
+        ]
+      },
+      "put": {
+        "description": "Replace it; needs the key at every location. Errors: invalid-app-config (with the pointer).",
+        "operationId": "putAppConfig",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppConfigReplace"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put App Config",
+        "tags": [
+          "engagement"
         ]
       }
     },
@@ -124341,6 +125081,191 @@
         ]
       }
     },
+    "/api/v1/portal/wallet-passes": {
+      "get": {
+        "operationId": "listWalletPasses",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "client_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Client Id"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PortalWalletPassOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Wallet Passes",
+        "tags": [
+          "access"
+        ]
+      },
+      "post": {
+        "description": "A wallet pass with its own long-lived credential; issuing again revokes the client's previous pass.",
+        "operationId": "issueWalletPass",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalWalletPassCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalWalletPassIssued"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Issue Wallet Pass",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/portal/wallet-passes/{credential_id}": {
+      "delete": {
+        "operationId": "revokeWalletPass",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "credential_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Credential Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Wallet Pass",
+        "tags": [
+          "access"
+        ]
+      }
+    },
     "/api/v1/pos-reports/daily-register": {
       "get": {
         "operationId": "getPosDailyRegisterReport",
@@ -130329,6 +131254,85 @@
         "summary": "Create Onboarding Link",
         "tags": [
           "billing"
+        ]
+      }
+    },
+    "/api/v1/public/app-config": {
+      "get": {
+        "description": "App bootstrap after picking a facility: theme, features, home layout, schedule flags, portal config.",
+        "operationId": "getPublicAppConfig",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAppConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Public App Config",
+        "tags": [
+          "engagement"
+        ]
+      }
+    },
+    "/api/v1/public/app-directory": {
+      "get": {
+        "description": "Shared app: facilities whose app is on and listed and whose portal is on and public, by name prefix.\nThe only cross-tenant read; returns the listing fields and nothing else.",
+        "operationId": "searchAppDirectory",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 60,
+              "minLength": 2,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppDirectoryPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search App Directory",
+        "tags": [
+          "engagement"
         ]
       }
     },

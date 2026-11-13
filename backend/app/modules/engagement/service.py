@@ -18,15 +18,18 @@ from sqlalchemy.orm import Session
 
 from app.core import audit, clock, events
 from app.core.auth import Principal, authorize, authorize_tenant_wide, scope_query, system_principal, tokens
+from app.core.db import platform as platform_db
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.pagination import ListQuery, paginate
 from app.core.settings import get_settings
-from app.modules import memberships, platform, scheduling
+from app.modules import memberships, platform, programs, scheduling
 from app.modules.clients import households, merge
 from app.modules.clients import service as clients
+from app.modules.engagement.domain import app_config as app_rules
 from app.modules.engagement.domain import rules
-from app.modules.engagement.events import CampaignSent, ConsentChanged, MessageBounced
+from app.modules.engagement.events import AppConfigUpdated, CampaignSent, ConsentChanged, MessageBounced
 from app.modules.engagement.models import (
+    AppConfig,
     AutomationRule,
     Campaign,
     CommunicationPreference,
@@ -1882,3 +1885,105 @@ def get_portal_video(session: Session, principal: Principal, video_id: UUID) -> 
     if row is None:
         raise NotFound()
     return row
+
+
+# --- member app configuration (APP-01, APP-02, APP-04, APP-05, APP-18) ----------------------------------------
+# One row per tenant; until staff save it the defaults below apply. It governs every location, so writes need the
+# content key at every location (authorize_tenant_wide).
+
+_APP_DEFAULTS = {
+    "mode": "shared", "is_enabled": False, "app_name": None, "is_listed_in_directory": False, "directory_name": None,
+    "card_number_mode": "auto_generate", "features": app_rules.clean_features({}), "home_screen": None,
+    "schedule": dict(app_rules.DEFAULT_SCHEDULE),
+}  # fmt: skip
+
+
+def _app_config(session: Session) -> AppConfig:
+    return session.scalar(select(AppConfig)) or AppConfig(**{k: (dict(v) if isinstance(v, dict) else v)
+                                                              for k, v in _APP_DEFAULTS.items()})  # fmt: skip
+
+
+def app_config_view(row: AppConfig) -> dict:
+    return {key: getattr(row, key) for key in _APP_DEFAULTS} | {
+        "features": {**_APP_DEFAULTS["features"], **(row.features or {})},
+        "schedule": {**app_rules.DEFAULT_SCHEDULE, **(row.schedule or {})},
+        "tile_types": list(app_rules.TILE_TYPES),
+        "updated_at": row.updated_at,
+    }
+
+
+def get_app_config(session: Session, principal: Principal) -> dict:
+    authorize(principal, _CONTENT)
+    return app_config_view(_app_config(session))
+
+
+def put_app_config(session: Session, principal: Principal, data: dict) -> dict:
+    """Replace the configuration (PUT: an omitted field returns to its default)."""
+    authorize_tenant_wide(principal, _CONTENT)
+    try:
+        cleaned = {
+            "home_screen": app_rules.clean_home_screen(data.get("home_screen")),
+            "schedule": app_rules.clean_schedule(data.get("schedule") or {}),
+            "features": app_rules.clean_features(data.get("features") or {}),
+        }
+    except app_rules.Invalid as error:
+        raise ValidationFailed(str(error), pointer=error.pointer, code="invalid-app-config") from None
+    row = _app_config(session)
+    for key, default in _APP_DEFAULTS.items():
+        value = cleaned[key] if key in cleaned else data.get(key, default)
+        if key in ("app_name", "directory_name") and isinstance(value, str):
+            value = value.strip() or None
+        setattr(row, key, value)
+    if row.id is None:
+        session.add(row)
+    session.flush()
+    audit.record(session, _CONTENT, row, changes=audit.diff(row))
+    events.publish(session, AppConfigUpdated(app_config_id=row.id), row.id)
+    return app_config_view(row)
+
+
+def public_app_config(session: Session) -> dict:
+    """Bootstrap payload for the app after it picks a facility: theme, features, home layout, portal config.
+    Anonymous (tenant from the host or X-Tenant-Slug). Colours are the tenant brand colours (one source for the
+    portal and the app); before the config is switched on, theme and layout stay empty so the app keeps its
+    bundled ones."""
+    row = _app_config(session)
+    tenant = platform.service.get_tenant(session)
+    enabled = row.is_enabled
+    brand = platform.branding.branding(session)
+    return {
+        "tenant_id": tenant.id,
+        "app_name": (enabled and row.app_name) or tenant.name,
+        "theme": {"primary": brand.get("primary_color"), "accent": brand.get("accent_color")} if enabled else {},
+        "icon_url": brand["tenant_logo_url"],
+        "features": {**_APP_DEFAULTS["features"], **(row.features or {})},
+        "home_screen": row.home_screen if enabled else None,
+        "schedule": {**app_rules.DEFAULT_SCHEDULE, **(row.schedule or {})},
+        "portal": public_portal_config(session),
+    }
+
+
+def present_schedule(session: Session, listings: list[dict]) -> list[dict]:
+    """APP-18: the tenant's schedule flags on the portal session listing (programs calls this, registered below).
+    They only narrow what each session booking policy already allows."""
+    row = session.scalar(select(AppConfig))
+    if row is None or not row.schedule:
+        return listings
+    schedule = {**app_rules.DEFAULT_SCHEDULE, **row.schedule}
+    days = schedule["days_ahead"]
+    horizon = clock.now() + timedelta(days=days) if days else None
+    shown = (app_rules.present_listing(item, schedule, horizon) for item in listings)
+    return [item for item in shown if item is not None]
+
+
+def search_app_directory(prefix: str, limit: int) -> list[dict]:
+    """Anonymous, rate limited by the router. The cross-tenant read lives in core.db.platform (listing fields only)."""
+    domain = get_settings().app.base_domain
+    return [
+        {"tenant_id": r.tenant_id, "slug": r.slug, "name": r.name, "city": r.city, "host": f"{r.slug}.{domain}",
+         "icon_url": platform.branding.public_url_for_key(r.logo_object_key) if r.logo_object_key else None}
+        for r in platform_db.search_app_directory(prefix.strip(), limit)
+    ]  # fmt: skip
+
+
+programs.selfservice.register_listing_presenter(present_schedule)

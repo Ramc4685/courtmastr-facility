@@ -233,6 +233,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/app-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get App Config
+         * @description The tenant's member-app configuration (defaults until saved) and the tile catalogue.
+         */
+        get: operations["getAppConfig"];
+        /**
+         * Put App Config
+         * @description Replace it; needs the key at every location. Errors: invalid-app-config (with the pointer).
+         */
+        put: operations["putAppConfig"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/assessment-fields/{assessment_field_id}": {
         parameters: {
             query?: never;
@@ -9715,6 +9739,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/wallet-passes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Wallet Passes */
+        get: operations["listWalletPasses"];
+        put?: never;
+        /**
+         * Issue Wallet Pass
+         * @description A wallet pass with its own long-lived credential; issuing again revokes the client's previous pass.
+         */
+        post: operations["issueWalletPass"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/wallet-passes/{credential_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke Wallet Pass */
+        delete: operations["revokeWalletPass"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pos-reports/daily-register": {
         parameters: {
             query?: never;
@@ -10849,6 +10911,47 @@ export interface paths {
         put?: never;
         /** Create Onboarding Link */
         post: operations["createOnboardingLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/app-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public App Config
+         * @description App bootstrap after picking a facility: theme, features, home layout, schedule flags, portal config.
+         */
+        get: operations["getPublicAppConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/app-directory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search App Directory
+         * @description Shared app: facilities whose app is on and listed and whose portal is on and public, by name prefix.
+         *     The only cross-tenant read; returns the listing fields and nothing else.
+         */
+        get: operations["searchAppDirectory"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -15488,6 +15591,197 @@ export interface components {
              * @default 1440
              */
             grace_minutes: number;
+        };
+        /** AppConfigOut */
+        AppConfigOut: {
+            /** App Name */
+            app_name: string | null;
+            /** Card Number Mode */
+            card_number_mode: string;
+            /** Directory Name */
+            directory_name: string | null;
+            features: components["schemas"]["AppFeatures"];
+            home_screen: components["schemas"]["AppHomeScreen"] | null;
+            /** Is Enabled */
+            is_enabled: boolean;
+            /** Is Listed In Directory */
+            is_listed_in_directory: boolean;
+            /** Mode */
+            mode: string;
+            schedule: components["schemas"]["AppSchedule"];
+            /** Tile Types */
+            tile_types: string[];
+            /** Updated At */
+            updated_at: string | null;
+        };
+        /**
+         * AppConfigReplace
+         * @description PUT replaces: an omitted field returns to its default.
+         */
+        AppConfigReplace: {
+            /** App Name */
+            app_name?: string | null;
+            /**
+             * Card Number Mode
+             * @default auto_generate
+             * @enum {string}
+             */
+            card_number_mode: "auto_generate" | "manual_entry";
+            /** Directory Name */
+            directory_name?: string | null;
+            /**
+             * @default {
+             *       "booking": true,
+             *       "membership_card": true,
+             *       "purchases": true,
+             *       "wallet_pass": true
+             *     }
+             */
+            features: components["schemas"]["AppFeatures"];
+            home_screen?: components["schemas"]["AppHomeScreen"] | null;
+            /**
+             * Is Enabled
+             * @default false
+             */
+            is_enabled: boolean;
+            /**
+             * Is Listed In Directory
+             * @default false
+             */
+            is_listed_in_directory: boolean;
+            /**
+             * Mode
+             * @default shared
+             * @enum {string}
+             */
+            mode: "shared" | "branded";
+            /**
+             * @default {
+             *       "shows_full_sessions": true,
+             *       "shows_spots_left": true
+             *     }
+             */
+            schedule: components["schemas"]["AppSchedule"];
+        };
+        /** AppDesign */
+        AppDesign: {
+            /**
+             * Columns
+             * @default 2
+             * @enum {integer}
+             */
+            columns: 1 | 2;
+            /**
+             * Corners
+             * @default rounded
+             * @enum {string}
+             */
+            corners: "rounded" | "square";
+        };
+        /** AppDirectoryEntry */
+        AppDirectoryEntry: {
+            /** City */
+            city: string | null;
+            /** Host */
+            host: string;
+            /** Icon Url */
+            icon_url: string | null;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /**
+             * Tenant Id
+             * Format: uuid
+             */
+            tenant_id: string;
+        };
+        /** AppDirectoryPage */
+        AppDirectoryPage: {
+            /** Data */
+            data: components["schemas"]["AppDirectoryEntry"][];
+        };
+        /** AppFeatures */
+        AppFeatures: {
+            /**
+             * Booking
+             * @default true
+             */
+            booking: boolean;
+            /**
+             * Membership Card
+             * @default true
+             */
+            membership_card: boolean;
+            /**
+             * Purchases
+             * @default true
+             */
+            purchases: boolean;
+            /**
+             * Wallet Pass
+             * @default true
+             */
+            wallet_pass: boolean;
+        };
+        /**
+         * AppHomeScreen
+         * @description APP-04: ordered tiles from the tile catalogue (`tile_types`) and the global design.
+         */
+        AppHomeScreen: {
+            /**
+             * @default {
+             *       "columns": 2,
+             *       "corners": "rounded"
+             *     }
+             */
+            design: components["schemas"]["AppDesign"];
+            /**
+             * Tiles
+             * @default []
+             */
+            tiles: components["schemas"]["AppTile"][];
+        };
+        /**
+         * AppSchedule
+         * @description APP-18: narrows each session booking policy in the member listing; never loosens it.
+         */
+        AppSchedule: {
+            /** Days Ahead */
+            days_ahead?: number | null;
+            /**
+             * Shows Full Sessions
+             * @default true
+             */
+            shows_full_sessions: boolean;
+            /**
+             * Shows Spots Left
+             * @default true
+             */
+            shows_spots_left: boolean;
+        };
+        /**
+         * AppTheme
+         * @description The tenant brand colours (platform branding), as the app reads them.
+         */
+        AppTheme: {
+            /** Accent */
+            accent?: string | null;
+            /** Primary */
+            primary?: string | null;
+        };
+        /** AppTile */
+        AppTile: {
+            /** Caption */
+            caption?: string | null;
+            /**
+             * Style
+             * @default small
+             * @enum {string}
+             */
+            style: "large" | "small";
+            /** Type */
+            type: string;
         };
         /** AssessmentFieldCreate */
         AssessmentFieldCreate: {
@@ -27420,6 +27714,12 @@ export interface components {
             data: components["schemas"]["PortalVideo"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[PortalWalletPassOut] */
+        Page_PortalWalletPassOut_: {
+            /** Data */
+            data: components["schemas"]["PortalWalletPassOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[PosSaleOut] */
         Page_PosSaleOut_: {
             /** Data */
@@ -30203,6 +30503,8 @@ export interface components {
              * Format: date-time
              */
             starts_at: string;
+            /** Time Zone */
+            time_zone: string;
             /** Title */
             title: string | null;
         };
@@ -30456,6 +30758,67 @@ export interface components {
             status: string;
             /** Target Kind */
             target_kind: string;
+        };
+        /** PortalWalletPassCreate */
+        PortalWalletPassCreate: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Device Label */
+            device_label?: string | null;
+        };
+        /**
+         * PortalWalletPassIssued
+         * @description The pass document, returned once. `is_signed` is false while only the fake issuer exists (CHK-13 partial).
+         */
+        PortalWalletPassIssued: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Content */
+            content: string;
+            /**
+             * Credential Id
+             * Format: uuid
+             */
+            credential_id: string;
+            /** Device Label */
+            device_label: string | null;
+            /** Format */
+            format: string;
+            /** Is Signed */
+            is_signed: boolean;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
+            /** Media Type */
+            media_type: string;
+        };
+        /** PortalWalletPassOut */
+        PortalWalletPassOut: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /**
+             * Credential Id
+             * Format: uuid
+             */
+            credential_id: string;
+            /** Device Label */
+            device_label: string | null;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
         };
         /** PosQuickClientCreate */
         PosQuickClientCreate: {
@@ -31983,6 +32346,23 @@ export interface components {
              * @enum {string}
              */
             provider: "stripe" | "fake";
+        };
+        /** PublicAppConfig */
+        PublicAppConfig: {
+            /** App Name */
+            app_name: string;
+            features: components["schemas"]["AppFeatures"];
+            home_screen: components["schemas"]["AppHomeScreen"] | null;
+            /** Icon Url */
+            icon_url: string | null;
+            portal: components["schemas"]["PublicPortalConfig"];
+            schedule: components["schemas"]["AppSchedule"];
+            /**
+             * Tenant Id
+             * Format: uuid
+             */
+            tenant_id: string;
+            theme: components["schemas"]["AppTheme"];
         };
         /** PublicBranding */
         PublicBranding: {
@@ -39307,6 +39687,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiKeyCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getAppConfig: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putAppConfig: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppConfigReplace"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppConfigOut"];
                 };
             };
             /** @description Validation Error */
@@ -62964,6 +63412,108 @@ export interface operations {
             };
         };
     };
+    listWalletPasses: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PortalWalletPassOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    issueWalletPass: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalWalletPassCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalWalletPassIssued"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revokeWalletPass: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                credential_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getPosDailyRegisterReport: {
         parameters: {
             query: {
@@ -65919,6 +66469,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OnboardingLink"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPublicAppConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicAppConfig"];
+                };
+            };
+        };
+    };
+    searchAppDirectory: {
+        parameters: {
+            query: {
+                q: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppDirectoryPage"];
                 };
             };
             /** @description Validation Error */

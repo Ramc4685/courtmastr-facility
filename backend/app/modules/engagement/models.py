@@ -605,3 +605,35 @@ class Video(TenantOwned, Timestamps, Base):
     url: Mapped[str]
     is_published: Mapped[bool] = mapped_column(server_default=text("true"), info={"audit": "value"})
     sort_order: Mapped[int] = mapped_column(server_default=text("0"))
+
+
+class AppMode(StrEnum):
+    SHARED = "shared"
+    BRANDED = "branded"
+
+
+class CardNumberMode(StrEnum):
+    AUTO_GENERATE = "auto_generate"
+    MANUAL_ENTRY = "manual_entry"
+
+
+class AppConfig(TenantOwned, Timestamps, Base):
+    """The tenant's member-app configuration (APP-01, APP-02, APP-04, APP-05, APP-18): one row per tenant.
+    `home_screen` and `schedule` are validated by `domain.app_config` before they are stored."""
+
+    __tablename__ = "app_config"
+    __table_args__ = tenant_args(
+        UniqueConstraint("tenant_id", name="uq_app_config_tenant"),
+        enum_check("mode", AppMode),
+        enum_check("card_number_mode", CardNumberMode),
+    )
+
+    mode: Mapped[str] = enum_column(server_default=text("'shared'"))
+    is_enabled: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
+    app_name: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    is_listed_in_directory: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
+    directory_name: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    card_number_mode: Mapped[str] = enum_column(server_default=text("'auto_generate'"))
+    features: Mapped[dict] = mapped_column(server_default=text("'{}'"))
+    home_screen: Mapped[dict | None]
+    schedule: Mapped[dict] = mapped_column(server_default=text("'{}'"))

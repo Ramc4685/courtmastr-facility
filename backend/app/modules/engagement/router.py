@@ -3,7 +3,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from app.core.api import TxRoute, camel_id
@@ -445,6 +445,21 @@ def list_portal_videos(query: Lists, ctx: Portal):
     return service.list_portal_videos(ctx.session, ctx.principal, query)
 
 
+# --- member app configuration (APP-01, APP-02, APP-04, APP-05, APP-18) ----------------------------------------
+
+
+@router.get("/app-config", response_model=s.AppConfigOut)
+def get_app_config(ctx: Content):
+    """The tenant's member-app configuration (defaults until saved) and the tile catalogue."""
+    return service.get_app_config(ctx.session, ctx.principal)
+
+
+@router.put("/app-config", response_model=s.AppConfigOut)
+def put_app_config(body: s.AppConfigReplace, ctx: Content):
+    """Replace it; needs the key at every location. Errors: invalid-app-config (with the pointer)."""
+    return service.put_app_config(ctx.session, ctx.principal, body.model_dump())
+
+
 # --- public: unsubscribe and preference centre (MKT-02), portal landing config (SSP-01) ----------------------
 
 
@@ -521,3 +536,20 @@ def confirm_portal_signup(body: s.PortalSignupConfirmIn, request: Request, respo
         return {"status": "signed_in", "access_token": result.access_token, "refresh_token": result.refresh_token}
     response.set_cookie(session_cookie(), f"{result.access_token}.{result.csrf_token}", **platform.auth.cookie_flags())
     return {"status": "signed_in", "csrf_token": result.csrf_token}
+
+
+@public.get("/public/app-config", response_model=s.PublicAppConfig, dependencies=[Depends(rate_limit("app-config"))])
+def get_public_app_config(session: Annotated[Session, Depends(public_session)]):
+    """App bootstrap after picking a facility: theme, features, home layout, schedule flags, portal config."""
+    return service.public_app_config(session)
+
+
+@public.get(
+    "/public/app-directory", response_model=s.AppDirectoryPage, dependencies=[Depends(rate_limit("app-directory"))]
+)
+def search_app_directory(
+    q: Annotated[str, Query(min_length=2, max_length=60)], limit: Annotated[int, Query(ge=1, le=20)] = 10
+):
+    """Shared app: facilities whose app is on and listed and whose portal is on and public, by name prefix.
+    The only cross-tenant read; returns the listing fields and nothing else."""
+    return {"data": service.search_app_directory(q, limit)}
