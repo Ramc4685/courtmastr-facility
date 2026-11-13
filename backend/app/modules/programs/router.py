@@ -453,8 +453,9 @@ def list_public_program_groups(session: Public, location_id: UUID | None = None)
 
 
 @public.get("/public/program-groups/{program_group_id}", response_model=s.PublicProgramGroup)
-def get_public_program_group(program_group_id: UUID, session: Public):
-    return groups.public_get(session, program_group_id)
+def get_public_program_group(program_group_id: UUID, session: Public, guest: bool = False):
+    """`guest=true`: the price a guest checkout pays, in full, without the payment plan (REG-12)."""
+    return groups.public_get(session, program_group_id, guest=guest)
 
 
 # --- group tools (REG-03, REG-04, REG-06, REG-08, REG-11, REG-13) --------------------------------------------
@@ -726,11 +727,16 @@ Guest = Annotated[Session, Depends(_guest_session)]
 _guest_limit = [Depends(rate_limit("guest-checkout"))]
 
 
-@public.post("/public/guest-checkouts", response_model=s.GuestCheckoutOut, status_code=201, dependencies=_guest_limit)
-def create_guest_checkout(body: s.GuestCheckoutCreate, session: Guest):
+@public.post("/public/guest-checkouts", response_model=s.GuestCheckoutOut, status_code=201,
+             dependencies=[Depends(rate_limit("guest-checkout-create"))])  # fmt: skip
+def create_guest_checkout(body: s.GuestCheckoutCreate, session: Guest, response: Response):
     """Hold places for a guest (no account) in programs that allow it. The answer carries the guest token, the
-    only key to confirm or abandon. Errors: capacity-full, registration-closed, guest-documents-required."""
-    return checkout.guest_create(session, body.model_dump())
+    only key to confirm or abandon. Errors: capacity-full, registration-closed, guest-documents-required,
+    rate-limited (per IP and per payer address)."""
+    held = checkout.guest_create(session, body.model_dump())
+    # per address too, counted only for a valid basket: a 429 here rolls its holds back
+    hit("guest-checkout-email", body.payer.email, response, tenant=session.info["tenant_id"])
+    return held
 
 
 @public.post(

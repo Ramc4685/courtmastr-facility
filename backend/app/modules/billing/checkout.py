@@ -10,7 +10,7 @@ link's return from 3-D Secure authentication (PAY-11).
 
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core import clock
@@ -18,7 +18,15 @@ from app.core.auth import system_principal
 from app.core.errors import Conflict, DomainError, NotFound, ValidationFailed
 from app.core.events import handles
 from app.modules.billing import catalogue, documents, methods, service
-from app.modules.billing.models import Charge, CouponRedemption, Invoice, InvoicePayLink, Payment, PaymentMethod
+from app.modules.billing.models import (
+    Charge,
+    CouponRedemption,
+    Invoice,
+    InvoicePayLink,
+    Payment,
+    PaymentAllocation,
+    PaymentMethod,
+)
 
 SECURED = ("succeeded", "processing")
 
@@ -145,9 +153,20 @@ def _covering(session: Session, invoice: Invoice, payment: Payment, part_minor: 
     session.flush()
     session.refresh(invoice)
     covered = ("paid", "payment_pending") if part_minor is None else ("paid", "payment_pending", "partially_paid")
-    if invoice.status not in covered or (part_minor is not None and payment.amount_minor < part_minor):
+    if invoice.status not in covered or (part_minor is not None and _landed(session, payment, invoice) < part_minor):
         raise _key_reused()
     return payment
+
+
+def _landed(session: Session, payment: Payment, invoice: Invoice) -> int:
+    """What of the payment is allocated to this invoice's charges (a replayed key may have spent the rest)."""
+    landed = session.scalar(
+        select(func.coalesce(func.sum(PaymentAllocation.amount_minor), 0))
+        .join(Charge, Charge.id == PaymentAllocation.charge_id)
+        .where(PaymentAllocation.payment_id == payment.id, Charge.invoice_id == invoice.id,
+               PaymentAllocation.status != "released")
+    )  # fmt: skip
+    return landed or 0
 
 
 def apply_coupon(session: Session, invoice: Invoice, code: str, client_id: UUID) -> int:

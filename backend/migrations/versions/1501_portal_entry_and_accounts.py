@@ -124,6 +124,7 @@ def upgrade() -> None:
         sa.Column("allows_guest_checkout", sa.Boolean(), server_default=sa.text("false"), nullable=False),
     )
     op.add_column("registration_checkout", sa.Column("guest_token_hash", sa.Text(), nullable=True))
+    op.add_column("registration_checkout", sa.Column("guest_details", jsonb, nullable=True))
     op.drop_constraint(op.f("ck_registration_checkout_channel"), "registration_checkout", type_="check")
     op.create_check_constraint(op.f("ck_registration_checkout_channel"), "registration_checkout", _CHANNELS_NEW)
 
@@ -131,6 +132,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_constraint(op.f("ck_registration_checkout_channel"), "registration_checkout", type_="check")
     op.create_check_constraint(op.f("ck_registration_checkout_channel"), "registration_checkout", _CHANNELS_OLD)
+    op.drop_column("registration_checkout", "guest_details")
     op.drop_column("registration_checkout", "guest_token_hash")
     op.drop_column("registration_config", "allows_guest_checkout")
     op.drop_table("terms_acceptance")

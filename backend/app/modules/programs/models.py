@@ -495,6 +495,8 @@ class RegistrationCheckout(TenantOwned, Timestamps, Base):
     expires_at: Mapped[datetime]
     completed_at: Mapped[datetime | None]
     guest_token_hash: Mapped[str | None]  # REG-12: digest of the token the guest's browser holds
+    # REG-12: the guest's payer, participants and items until payment; cleared once confirmed, abandoned or expired
+    guest_details: Mapped[dict | None] = mapped_column(JsonDict, info={"audit": "flag"})
 
 
 class SessionBookingPolicy(TenantOwned, Timestamps, Base):

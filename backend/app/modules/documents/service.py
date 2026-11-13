@@ -413,6 +413,13 @@ def requirements_for(
     }]  # fmt: skip
 
 
+def blocks_new_client(session: Session, scope_type: str, scope_id: UUID | None, *, online: bool = False) -> bool:
+    """Internal: would a client with no documents yet be blocked in this scope (a guest, before any client
+    record exists)? True when a blocking binding applies, since nothing of theirs can satisfy it."""
+    binding = _binding_for(session, scope_type, scope_id)
+    return binding is not None and (binding.is_enforced_online if online else binding.is_enforced_at_desk)
+
+
 def get_requirements(session: Session, principal: Principal, scope_type: str, scope_id: UUID | None, client_id: UUID):
     clients.service.load(session, principal, client_id, _READ)
     return {"requirements": requirements_for(session, scope_type, scope_id, client_id)}

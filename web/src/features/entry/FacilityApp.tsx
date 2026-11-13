@@ -255,7 +255,8 @@ type GuestForm = { first_name: string; last_name: string; email: string; birth_o
 /** Guest checkout (REG-12): no account, a new card only, and the place is held while the guest pays. */
 function GuestCheckoutPage({ config }: { config: Config }) {
   const { slug, groupId = '' } = useParams()
-  const group = useQuery({ queryKey: ['public', 'program-group', groupId, slug], queryFn: () => api.get('/api/v1/public/program-groups/{program_group_id}', { path: { program_group_id: groupId } }) })
+  // guest=true: the price a guest pays (in full), without the members' payment plan
+  const group = useQuery({ queryKey: ['public', 'program-group', groupId, slug, 'guest'], queryFn: () => api.get('/api/v1/public/program-groups/{program_group_id}', { path: { program_group_id: groupId }, query: { guest: true } }) })
   const gate = useTermsGate()
   const [form, setForm] = useState<GuestForm>({ first_name: '', last_name: '', email: '', birth_on: '', kid_first: '', kid_last: '', kid_birth_on: '', fee_id: '' })
   const [checkout, setCheckout] = useState<Schemas['GuestCheckoutOut'] | null>(null)

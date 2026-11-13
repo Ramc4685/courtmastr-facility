@@ -113,6 +113,7 @@ describe('guest checkout', { timeout: 20_000 }, () => {
   it('holds the place, shows the total in the tenant currency and the hold in the location zone, then pays', async () => {
     const calls = open(GUEST, routes({ [CONFIRM]: done }))
     const user = await fillAndContinue()
+    expect(calls.find((c) => c.url.includes('/public/program-groups/g1'))?.url).toContain('guest=true') // the price a guest pays
     expect(await screen.findByText('€90.00')).toBeInTheDocument()
     expect(screen.getByText(/held until .*12:30/)).toBeInTheDocument() // 18:30 UTC is 12:30 in Chicago
     expect(calls.find((c) => c.url.endsWith('/guest-checkouts'))?.body).toEqual({

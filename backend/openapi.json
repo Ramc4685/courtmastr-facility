@@ -27279,7 +27279,7 @@
             "items": {
               "$ref": "#/components/schemas/GuestParticipant"
             },
-            "maxItems": 6,
+            "maxItems": 4,
             "title": "Participants",
             "type": "array"
           },
@@ -27458,7 +27458,7 @@
           "participant": {
             "anyOf": [
               {
-                "maximum": 5.0,
+                "maximum": 3.0,
                 "minimum": 0.0,
                 "type": "integer"
               },
@@ -141788,7 +141788,7 @@
     },
     "/api/v1/public/guest-checkouts": {
       "post": {
-        "description": "Hold places for a guest (no account) in programs that allow it. The answer carries the guest token, the\nonly key to confirm or abandon. Errors: capacity-full, registration-closed, guest-documents-required.",
+        "description": "Hold places for a guest (no account) in programs that allow it. The answer carries the guest token, the\nonly key to confirm or abandon. Errors: capacity-full, registration-closed, guest-documents-required,\nrate-limited (per IP and per payer address).",
         "operationId": "createGuestCheckout",
         "requestBody": {
           "content": {
@@ -143151,6 +143151,7 @@
     },
     "/api/v1/public/program-groups/{program_group_id}": {
       "get": {
+        "description": "`guest=true`: the price a guest checkout pays, in full, without the payment plan (REG-12).",
         "operationId": "getPublicProgramGroup",
         "parameters": [
           {
@@ -143161,6 +143162,16 @@
               "format": "uuid",
               "title": "Program Group Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "guest",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Guest",
+              "type": "boolean"
             }
           }
         ],

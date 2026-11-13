@@ -12047,7 +12047,8 @@ export interface paths {
         /**
          * Create Guest Checkout
          * @description Hold places for a guest (no account) in programs that allow it. The answer carries the guest token, the
-         *     only key to confirm or abandon. Errors: capacity-full, registration-closed, guest-documents-required.
+         *     only key to confirm or abandon. Errors: capacity-full, registration-closed, guest-documents-required,
+         *     rate-limited (per IP and per payer address).
          */
         post: operations["createGuestCheckout"];
         delete?: never;
@@ -12561,7 +12562,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Public Program Group */
+        /**
+         * Get Public Program Group
+         * @description `guest=true`: the price a guest checkout pays, in full, without the payment plan (REG-12).
+         */
         get: operations["getPublicProgramGroup"];
         put?: never;
         post?: never;
@@ -72944,7 +72948,9 @@ export interface operations {
     };
     getPublicProgramGroup: {
         parameters: {
-            query?: never;
+            query?: {
+                guest?: boolean;
+            };
             header?: never;
             path: {
                 program_group_id: string;

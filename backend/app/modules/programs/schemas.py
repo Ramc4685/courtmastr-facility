@@ -521,13 +521,13 @@ class GuestParticipant(In):
 class GuestItem(In):
     program_group_id: UUID
     program_fee_id: UUID | None = None
-    participant: Annotated[int, Field(ge=0, le=5)] | None = None  # index into participants; null: the payer
+    participant: Annotated[int, Field(ge=0, le=3)] | None = None  # index into participants; null: the payer
 
 
 class GuestCheckoutCreate(In):
     location_id: UUID
     payer: GuestPayer
-    participants: Annotated[list[GuestParticipant], Field(max_length=6)] = []
+    participants: Annotated[list[GuestParticipant], Field(max_length=4)] = []
     items: Annotated[list[GuestItem], Field(min_length=1, max_length=10)]
 
 

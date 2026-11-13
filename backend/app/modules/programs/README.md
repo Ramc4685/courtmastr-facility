@@ -162,16 +162,34 @@ captain rosters (REG-26).
 
 ## Guest checkout (Phase 11 chip A: REG-12)
 
-- Per group, off by default (`registration_config.allows_guest_checkout`). `POST /public/guest-checkouts` makes the
-  payer and each participant new clients (`created_via=registration`, never matched by email), holds the places
-  like any basket and returns a `fhg_` guest token once; only its digest is kept and it is the only key for
-  `/confirm` and `/abandon` (a wrong token is 404). The checkout channel is `guest`; items record `public_link`.
-- Confirm pays the whole total now by a new card through `secure_online_checkout` (no stored methods, no account
-  credit, no instalments) after the portal terms check; a replay of a completed checkout returns it unchanged.
+- Per group, off by default (`registration_config.allows_guest_checkout`). `POST /public/guest-checkouts` holds the
+  places and keeps the payer's and participants' details on the checkout (`registration_checkout.guest_details`,
+  JSONB); no client record exists before payment. Each place is held on the groups' counters (`groups.hold_place`,
+  no roster row, since an enrolment needs a client), so capacity and linked session seats count it like any hold.
+  It returns a `fhg_` guest token once; only its digest is kept and it is the only key for `/confirm` and
+  `/abandon` (a wrong token is 404). The checkout channel is `guest`; items record `public_link`. The client field
+  policy is checked at create (the clients are created in a savepoint and rolled back), so a refusal is not late.
+- Confirm creates the payer and each participant as new, unverified clients (`created_via=registration`, never
+  matched by email), registers the held places, and pays the whole total now by a new card through
+  `secure_online_checkout` (no stored methods, no account credit, no instalments) after the portal terms check. A
+  payment that fails rolls the clients back. Confirm, abandon and expiry clear `guest_details`. A replay of a
+  completed checkout returns it unchanged. **Cost:** the payer is created in the confirm transaction, so the
+  payment row cannot be committed ahead of the provider call (billing waits 500 ms, then inserts it in the
+  caller's transaction); replay stays safe through the provider's idempotency key.
+- Guest clients raise `clients.client.created` with `source=guest`, and `clients.client.created` automations skip
+  them (as they skip imports): an automation never emails an unverified guest address.
+- Guests pay in full, so `GET /public/program-groups/{id}?guest=true` (the guest screen) shows the full fee and no
+  plan figures; without `guest` the member portal sees the plan.
+- **Owner decision: no past-due lockout for guests.** `/public/*` guest checkout sits outside the portal's past-due
+  lockout. A guest is never matched to an existing client, because doing so to enforce the lockout would tell an
+  anonymous caller whether an address belongs to a client. Staff see the new payer and merge duplicates.
 - **Assumption: documents.** A guest's email is unverified and documents are only sent to verified addresses, so a
   group with a blocking online document refuses guests (409 `guest-documents-required`). **Limit:** 3-D Secure
   cards fail for guests, since `secure_online_checkout` cancels a payment that needs action.
-- Rate limit bucket `guest-checkout` (20 per 15 minutes per IP, closed on Redis failure).
+- Rate limits, all closed on Redis failure: `guest-checkout-create` (5 baskets per 15 minutes per IP) and
+  `guest-checkout-email` (5 per hour per lowercased payer address, counted only for a valid basket: its 429 rolls
+  the holds back) on create; `guest-checkout` (20 per 15 minutes per IP) on confirm and abandon. A basket names at
+  most 4 participants and 10 places.
 ## Phase 11 B: virtual sessions, buy and book, deposits and instalments
 
 - Join link (SSP-18): `GET /portal/sessions/{id}/join-link` returns the meeting link only to the identity's own
@@ -184,7 +202,10 @@ captain rosters (REG-26).
 - Payment plans (REG-10, decision Q5): a group's registration config may set `payment_plan` = `deposit` (each fee's
   `deposit_minor` now, the rest on `balance_due_on`) or `instalments` (the rest in `instalment_count` equal parts
   every `instalment_unit` from `balance_due_on`). Rules we chose: a plan needs `immediate_card_payment`; the deposit
-  is the first row of the invoice's payment schedule and tax is paid with it; dates already past fall due today;
+  is the first row of the invoice's payment schedule and tax is paid with it; what is left for later is the billed
+  charge (after any discount) less the deposit, not the list fee; rows dated today or earlier (a `balance_due_on`
+  already past) are paid now with the deposit; the confirmed checkout reads its plan back from the invoice
+  schedule; the portal terms acceptance's subject is the checkout (the whole basket);
   no pay-later and no coupon with a plan; the card is saved as the autopay method so billing's autopay collects the
   instalments, and a payer without a new card must already have an autopay method. Staff checkout ignores plans
   (staff invoice in full and may set a schedule by hand).

@@ -190,6 +190,16 @@ def _release_place(session: Db, group: ProgramGroup) -> None:
     session.flush()
 
 
+def hold_place(session: Db, group: ProgramGroup) -> None:
+    """Internal: a place held with no roster row yet (a guest basket, before any client exists), or 409."""
+    _take_place(session, group)
+
+
+def release_place(session: Db, group: ProgramGroup) -> None:
+    """Internal: give back a place `hold_place` took."""
+    _release_place(session, group)
+
+
 def has_space(session: Db, group: ProgramGroup) -> bool:
     return all(n.capacity is None or n.enrolled_count < n.capacity for n in _chain(session, group))
 
@@ -721,7 +731,12 @@ def registration_state(session: Db, group: ProgramGroup, config: RegistrationCon
     return "open"
 
 
-def _public_view(session: Db, group: ProgramGroup, config: RegistrationConfig, *, children: bool) -> dict:
+def _public_view(
+    session: Db, group: ProgramGroup, config: RegistrationConfig, *, children: bool, guest: bool = False
+) -> dict:
+    """`guest`: the price a guest pays (always in full, REG-12), so no payment plan figures."""
+    plan = "pay_in_full" if guest else config.payment_plan
+    planned = plan != "pay_in_full"
     view = {
         "id": group.id, "location_id": group.location_id, "name": config.portal_publish_name or group.name,
         "description": config.online_description, "starts_on": group.starts_on, "ends_on": group.ends_on,
@@ -729,11 +744,12 @@ def _public_view(session: Db, group: ProgramGroup, config: RegistrationConfig, *
         "registration_state": registration_state(session, group, config),
         "payment_requirement": config.payment_requirement, "confirmation_message": config.confirmation_message,
         "closed_message": config.closed_message, "allows_guest_checkout": config.allows_guest_checkout,
-        "payment_plan": config.payment_plan, "balance_due_on": config.balance_due_on,
-        "instalment_count": config.instalment_count, "instalment_unit": config.instalment_unit,
+        "payment_plan": plan, "balance_due_on": config.balance_due_on if planned else None,
+        "instalment_count": config.instalment_count if planned else None,
+        "instalment_unit": config.instalment_unit if planned else None,
         "fees": [
             {"id": f.id, "fee_kind": f.fee_kind, "description": f.description, "amount_minor": f.amount_minor,
-             "deposit_minor": f.deposit_minor if config.payment_plan != "pay_in_full" else None}
+             "deposit_minor": f.deposit_minor if planned else None}
             for f in active_fees(session, group, online=True)
         ],
         "children": [],
@@ -746,7 +762,7 @@ def _public_view(session: Db, group: ProgramGroup, config: RegistrationConfig, *
         ):
             child_config = config_for(session, child.id)
             if child_config is not None and child_config.is_enabled:
-                view["children"].append(_public_view(session, child, child_config, children=False))
+                view["children"].append(_public_view(session, child, child_config, children=False, guest=guest))
     return view
 
 
@@ -769,11 +785,11 @@ def public_list(session: Db, location_id: UUID | None = None) -> list[dict]:
     return [_public_view(session, group, config, children=False) for group, config in session.execute(stmt)]
 
 
-def public_get(session: Db, group_id: UUID) -> dict:
+def public_get(session: Db, group_id: UUID, *, guest: bool = False) -> dict:
     found = session.execute(_published().where(ProgramGroup.id == group_id)).first()
     if found is None:
         raise NotFound()
-    return _public_view(session, found[0], found[1], children=True)
+    return _public_view(session, found[0], found[1], children=True, guest=guest)
 
 
 def published_group(session: Db, group_id: UUID) -> tuple[ProgramGroup, RegistrationConfig]:
@@ -795,11 +811,13 @@ def published_group(session: Db, group_id: UUID) -> tuple[ProgramGroup, Registra
 def enroll(
     session: Db, group: ProgramGroup, client_id: UUID, *, channel: str, fees: list[ProgramFee],
     payer_client_id: UUID | None = None, status: str = "enrolled", checkout_id: UUID | None = None,
-    hold_minutes: int = 15, comment: str | None = None,
+    hold_minutes: int = 15, comment: str | None = None, place_held: bool = False,
 ) -> Enrollment:  # fmt: skip
     """Internal: take the place (409 capacity-full, program-not-active), then the roster row (409
-    already-enrolled). A `pending` row is a checkout hold; charges are raised by `bill`."""
-    _take_place(session, group)
+    already-enrolled). A `pending` row is a checkout hold; charges are raised by `bill`. `place_held`: the
+    caller already holds the place (`hold_place`)."""
+    if not place_held:
+        _take_place(session, group)
     fee, now = (fees[0] if fees else None), clock.now()
     row = Enrollment(
         location_id=group.location_id, client_id=client_id, target_kind="group", program_group_id=group.id,

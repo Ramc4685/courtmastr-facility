@@ -8,7 +8,8 @@ must be someone it may buy for (`can_act_for(..., "buy")`). Anything else is 404
 """
 
 import hmac
-from datetime import timedelta
+import json
+from datetime import date, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
@@ -17,6 +18,7 @@ from sqlalchemy.orm import Session as Db
 from app.core import audit, clock
 from app.core.auth import Principal, authorize, tokens
 from app.core.errors import Conflict, NotFound, ValidationFailed
+from app.core.ids import new_id
 from app.modules import billing, clients, documents, platform
 from app.modules.programs import groups
 from app.modules.programs.models import Enrollment, ProgramFee, ProgramGroup, RegistrationCheckout
@@ -43,8 +45,8 @@ def _items(session: Db, checkout: RegistrationCheckout, *, live: bool = True) ->
     return list(session.scalars(stmt.order_by(Enrollment.created_at, Enrollment.id)))
 
 
-def _amount(session: Db, row: Enrollment) -> int:
-    fee = session.get(ProgramFee, row.program_fee_id) if row.program_fee_id else None
+def _amount(session: Db, fee_id: UUID | None) -> int:
+    fee = session.get(ProgramFee, fee_id) if fee_id else None
     return fee.amount_minor if fee is not None else 0
 
 
@@ -63,10 +65,11 @@ def _missing(session: Db, checkout: RegistrationCheckout, items: list[Enrollment
     return missing
 
 
-def _later(session: Db, checkout: RegistrationCheckout, items: list[Enrollment]) -> list[tuple]:
+def _later(session: Db, checkout: RegistrationCheckout, items: list[Enrollment], *, billed: bool = False) -> list:
     """REG-10 (decision Q5): what falls due after checkout under each group's payment plan, as (due_on, amount)
-    rows merged by date. A deposit plan leaves each fee's balance (fee less its deposit) on the balance date; an
-    instalment plan splits it into equal instalments from that date. Dates already passed fall due today."""
+    rows merged by date. A deposit plan leaves each place's balance (its price less the fee's deposit) on the
+    balance date; an instalment plan splits it into equal instalments from that date. `billed`: the price is the
+    charge billed (after any discount), else the list fee. A date already passed is due now, with the deposit."""
     today = platform.service.location_today(session, checkout.location_id)
     later: dict = {}
     for row in items:
@@ -74,7 +77,8 @@ def _later(session: Db, checkout: RegistrationCheckout, items: list[Enrollment])
         fee = session.get(ProgramFee, row.program_fee_id) if row.program_fee_id else None
         if config is None or config.payment_plan == "pay_in_full" or fee is None:
             continue
-        balance = fee.amount_minor - (fee.deposit_minor or 0)
+        price = billing.service.get_charge(session, row.charge_id).net_minor if billed and row.charge_id else None
+        balance = (fee.amount_minor if price is None else price) - (fee.deposit_minor or 0)
         if balance <= 0:
             continue
         start = max(config.balance_due_on, today)
@@ -83,28 +87,52 @@ def _later(session: Db, checkout: RegistrationCheckout, items: list[Enrollment])
         else:
             rows = billing.service.equal_instalments(balance, start, config.instalment_unit, config.instalment_count)
         for due_on, amount in rows:
-            later[due_on] = later.get(due_on, 0) + amount
+            if due_on > today:
+                later[due_on] = later.get(due_on, 0) + amount
     return sorted(later.items())
 
 
+def _scheduled_later(session: Db, checkout: RegistrationCheckout) -> list[tuple]:
+    """A completed checkout's plan, read back from its invoice's schedule: the rows after the invoice date."""
+    if checkout.invoice_id is None:
+        return []
+    invoice = billing.service.get_invoice_row(session, checkout.invoice_id)
+    return [(r.due_on, r.amount_minor) for r in billing.service.schedule_of(session, invoice.id)
+            if r.due_on > invoice.invoice_on]  # fmt: skip
+
+
 def view(session: Db, checkout: RegistrationCheckout) -> dict:
-    items = _items(session, checkout, live=checkout.status != "completed")
-    if checkout.status == "completed":
+    completed = checkout.status == "completed"
+    items = _items(session, checkout, live=not completed)
+    if completed:
         items = [row for row in items if row.status == "enrolled"]
-    names = {
-        g.id: g.name
-        for g in session.scalars(select(ProgramGroup).where(ProgramGroup.id.in_({r.program_group_id for r in items})))
-    }
+    held = (checkout.guest_details or {}).get("items", []) if checkout.status == "open" else []
+    group_ids = {r.program_group_id for r in items} | {UUID(i["program_group_id"]) for i in held}
+    names = {g.id: g.name for g in session.scalars(select(ProgramGroup).where(ProgramGroup.id.in_(group_ids)))}
     rows = [
         {
             "id": r.id, "client_id": r.client_id, "program_group_id": r.program_group_id,
             "client_name": clients.service.display_name(clients.service.get(session, r.client_id)),
             "program_group_name": names[r.program_group_id], "program_fee_id": r.program_fee_id,
-            "amount_minor": _amount(session, r), "status": r.status, "hold_expires_at": r.hold_expires_at,
+            "amount_minor": _amount(session, r.program_fee_id), "status": r.status,
+            "hold_expires_at": r.hold_expires_at,
         }
         for r in items
+    ] + [
+        {
+            "id": UUID(i["id"]), "client_id": None, "program_group_id": UUID(i["program_group_id"]),
+            "client_name": "{first_name} {last_name}".format(**_guest_person(checkout.guest_details, i)),
+            "program_group_name": names[UUID(i["program_group_id"])],
+            "program_fee_id": i["program_fee_id"] and UUID(i["program_fee_id"]),
+            "amount_minor": _amount(session, i["program_fee_id"] and UUID(i["program_fee_id"])), "status": "pending",
+            "hold_expires_at": checkout.expires_at,
+        }
+        for i in held
     ]  # fmt: skip
-    later = _later(session, checkout, items) if checkout.status == "open" else []
+    if checkout.status == "open":
+        later = _later(session, checkout, items)
+    else:
+        later = _scheduled_later(session, checkout) if completed else []
     total = sum(r["amount_minor"] for r in rows)
     return {c.key: getattr(checkout, c.key) for c in RegistrationCheckout.__table__.columns} | {
         "items": rows,
@@ -177,10 +205,11 @@ def _require_documents(session: Db, checkout: RegistrationCheckout, items: list[
     return accepted
 
 
-def _acknowledge_terms(session: Db, checkout: RegistrationCheckout, items: list[Enrollment], data: dict) -> None:
-    """SSP-14: the portal terms the payer was shown, recorded once per online checkout before payment."""
+def _acknowledge_terms(session: Db, checkout: RegistrationCheckout, data: dict) -> None:
+    """SSP-14: the portal terms the payer was shown, recorded once per online checkout (the whole basket) before
+    payment."""
     clients.terms.acknowledge(session, client_id=checkout.payer_client_id, terms_version_id=data.get("terms_version_id"),
-                              sale_kind="program", subject_id=items[0].program_group_id)  # fmt: skip
+                              sale_kind="program", subject_id=checkout.id)  # fmt: skip
 
 
 def _bill(session: Db, checkout: RegistrationCheckout, items: list[Enrollment], *, is_autopay: bool = False):
@@ -206,7 +235,11 @@ def _abandon(session: Db, checkout: RegistrationCheckout, *, status: str, actor:
         kind = "hold_expired" if status == "expired" else "early"
         groups.cancel(session, None, row, kind=kind, disposition="none", reason=f"checkout {status}", actor=actor)
         groups.promote_queue(session, row.program_group_id)
-    checkout.status = status
+    for item in (checkout.guest_details or {}).get("items", []):  # a guest's places, held with no roster row
+        group_id = UUID(item["program_group_id"])
+        groups.release_place(session, session.get(ProgramGroup, group_id))
+        groups.promote_queue(session, group_id)
+    checkout.status, checkout.guest_details = status, None  # the guest's details go with the basket
     session.flush()
 
 
@@ -371,7 +404,7 @@ def portal_confirm(session: Db, principal: Principal, checkout_id: UUID, data: d
     items = _items(session, checkout)
     if not items:
         raise Conflict("The basket is empty.", code="checkout-empty")
-    _acknowledge_terms(session, checkout, items, data)
+    _acknowledge_terms(session, checkout, data)
     accepted = _require_documents(session, checkout, items)
     requirement = _requirement(session, items)
     pay_later = bool(data.get("pay_later"))
@@ -384,6 +417,7 @@ def portal_confirm(session: Db, principal: Principal, checkout_id: UUID, data: d
     found = _bill(session, checkout, items, is_autopay=bool(later))
     checkout.invoice_id = found.id if found is not None else None
     if later and found is not None:
+        later = _later(session, checkout, items, billed=True)  # what was billed, after any discount
         _secure_plan(session, checkout, found, later, data, idempotency_key)
         _complete(session, checkout, items, accepted)
         audit.record(session, groups.ENROLL, checkout, location_id=checkout.location_id,
@@ -460,8 +494,11 @@ def portal_abandon(session: Db, principal: Principal, checkout_id: UUID) -> dict
 
 # --- guest (REG-12, phase-11 Q6) -------------------------------------------------------------------------------
 # Per group and off by default (registration_config.allows_guest_checkout). No login: the token handed back on
-# create (only its digest is kept) is the guest's key to confirm or abandon. Every participant and the payer are
-# new clients (never matched by email; staff merge duplicates). Pays in full by a new card only.
+# create (only its digest is kept) is the guest's key to confirm or abandon. Pays in full by a new card only.
+# Until the payment goes through, the guest's details wait on the checkout (guest_details) and the places are
+# held on the groups' counters with no roster row: no client record exists for an abandoned or retried basket,
+# and the details are cleared when it completes, is abandoned or expires. At confirm every participant and the
+# payer become new clients (never matched by email; staff merge duplicates), created unverified.
 
 GUEST_TOKEN_PREFIX = "fhg"
 
@@ -491,65 +528,97 @@ def _guest_group(session: Db, item: dict, location_id: UUID) -> ProgramGroup:
     return group
 
 
+def _guest_documents(session: Db, group_id: UUID) -> None:
+    """A program with a blocking online document needs a signed-in account (documents are signed in the portal
+    and links go only to verified addresses): 409 guest-documents-required."""
+    if documents.service.blocks_new_client(session, "program_group", group_id, online=True):
+        raise Conflict("This program needs documents signed in the member portal. Sign in to register.",
+                       code="guest-documents-required", program_group_id=str(group_id))  # fmt: skip
+
+
+def _guest_person(details: dict, item: dict) -> dict:
+    return details["payer"] if item["participant"] is None else details["participants"][item["participant"]]
+
+
+def _guest_clients(session: Db, location_id: UUID, details: dict) -> tuple[UUID, list[UUID]]:
+    """The payer and each participant as new, unverified clients; registration always requires an email
+    (data-model 1.7), so a participant shares the payer's."""
+    payer = details["payer"]
+
+    def create(person: dict, extra: dict) -> UUID:
+        data = {"first_name": person["first_name"], "last_name": person["last_name"], "home_location_id": location_id,
+                "birth_on": date.fromisoformat(person["birth_on"]), "primary_email": payer["email"]} | extra  # fmt: skip
+        return clients.service.create_self_service(session, data, created_via="registration").id
+
+    payer_id = create(payer, {"phone_mobile": payer.get("phone_mobile")})
+    return payer_id, [create(p, {}) for p in details["participants"]]
+
+
 def guest_create(session: Db, data: dict) -> dict:
-    """Hold the places for a guest. A program with a blocking online document needs a signed-in account
-    (documents are signed in the portal and links go only to verified addresses): 409 guest-documents-required."""
-    location_id, payer_data = data["location_id"], data["payer"]
+    """Hold the places for a guest and keep the guest's details on the checkout; no client is created yet."""
+    location_id = data["location_id"]
     chosen = [_guest_group(session, item, location_id) for item in data["items"]]
     if any(
         item.get("participant") is not None and item["participant"] >= len(data["participants"])
         for item in data["items"]
     ):
         raise ValidationFailed("Each item names one of the participants.", pointer="/items")
-    payer = clients.service.create_self_service(
-        session, {"first_name": payer_data["first_name"], "last_name": payer_data["last_name"],
-                  "home_location_id": location_id, "primary_email": payer_data["email"],
-                  "phone_mobile": payer_data.get("phone_mobile"), "birth_on": payer_data["birth_on"]},
-        created_via="registration",
-    )  # fmt: skip
-    people = [
-        clients.service.create_self_service(
-            # registration always requires an email (data-model 1.7): a guest's participant shares the payer's
-            session, {"first_name": p["first_name"], "last_name": p["last_name"], "birth_on": p["birth_on"],
-                      "primary_email": payer_data["email"], "home_location_id": location_id},
-            created_via="registration",
-        ).id
-        for p in data["participants"]
-    ]  # fmt: skip
+    pairs = [(item["program_group_id"], item.get("participant")) for item in data["items"]]
+    if len(set(pairs)) != len(pairs):
+        raise ValidationFailed("Each person takes one place in a program.", pointer="/items")
+    for group in chosen:
+        _guest_documents(session, group.id)
+    details = json.loads(json.dumps({"payer": data["payer"], "participants": data["participants"]}, default=str))
+    nested = session.begin_nested()
+    try:  # the client field policy refuses now, not after the card is charged; nothing is kept
+        _guest_clients(session, location_id, details)
+    finally:
+        nested.rollback()
+    held = []
+    for item, group in zip(data["items"], chosen, strict=True):
+        fee_ids = [item["program_fee_id"]] if item.get("program_fee_id") else []
+        fees = groups.chosen_fees(session, group, fee_ids, online=True, pointer="/program_fee_id")
+        groups.hold_place(session, group)
+        held.append({"id": str(new_id()), "program_group_id": str(group.id), "participant": item.get("participant"),
+                     "program_fee_id": str(fees[0].id) if fees else None})  # fmt: skip
     raw, hashed = tokens.mint(GUEST_TOKEN_PREFIX, session.info["tenant_id"])
     checkout = RegistrationCheckout(
-        location_id=location_id,
-        channel="guest",
-        payer_client_id=payer.id,
-        guest_token_hash=hashed,
-        expires_at=_expiry(),
-    )
+        location_id=location_id, channel="guest", guest_token_hash=hashed, expires_at=_expiry(),
+        guest_details=details | {"items": held},
+    )  # fmt: skip
     session.add(checkout)
     session.flush()
-    for item, group in zip(data["items"], chosen, strict=True):
-        participant = payer.id if item.get("participant") is None else people[item["participant"]]
-        for need in documents.service.requirements_for(session, "program_group", group.id, participant, online=True):
-            if need["is_blocking"] and not need["is_satisfied"]:
-                raise Conflict("This program needs documents signed in the member portal. Sign in to register.",
-                               code="guest-documents-required", program_group_id=str(group.id))  # fmt: skip
-        row = _add(session, checkout, group, participant, item.get("program_fee_id"), online=True, comment=None)
-        audit.record(session, groups.ENROLL, row, location_id=row.location_id, changes={"status": [None, "pending"]})
     audit.record(session, groups.ENROLL, checkout, location_id=location_id, changes={"status": [None, "open"],
-                 "channel": "guest"})  # fmt: skip
+                 "channel": "guest", "places": len(held)})  # fmt: skip
     return view(session, checkout) | {"guest_token": raw} | billing.documents.browser_processor(session)
 
 
 def guest_confirm(session: Db, checkout_id: UUID, data: dict, idempotency_key: str) -> dict:
-    """Bill the basket to the guest payer and take the whole amount now on the new card, through the same
-    secure_online_checkout every portal sale ends in. A payment that does not go through rolls it all back."""
+    """Create the guest's clients, register the held places, bill them to the guest payer and take the whole
+    amount now on the new card, through the same secure_online_checkout every portal sale ends in. A payment
+    that does not go through rolls it all back, the clients with it."""
     checkout = _guest(session, checkout_id, data["guest_token"])
     if checkout.status == "completed":  # a retry after the answer was lost: no generic replay on public routes
         return view(session, checkout)
-    items = _items(session, _open(checkout))
-    if not items:
+    details = _open(checkout).guest_details or {}
+    if not details.get("items"):
         raise Conflict("The basket is empty.", code="checkout-empty")
-    _acknowledge_terms(session, checkout, items, data)
-    accepted = _require_documents(session, checkout, items)
+    for item in details["items"]:  # a document bound since the places were held
+        _guest_documents(session, UUID(item["program_group_id"]))
+    checkout.payer_client_id, people = _guest_clients(session, checkout.location_id, details)
+    items = []
+    for item in details["items"]:
+        group = session.get(ProgramGroup, UUID(item["program_group_id"]))
+        fees = groups.chosen_fees(session, group, [UUID(item["program_fee_id"])] if item["program_fee_id"] else [],
+                                  online=True, pointer="/items")  # fmt: skip
+        participant = checkout.payer_client_id if item["participant"] is None else people[item["participant"]]
+        row = groups.enroll(
+            session, group, participant, channel="public_link", fees=fees, payer_client_id=checkout.payer_client_id,
+            status="pending", checkout_id=checkout.id, hold_minutes=HOLD_MINUTES, place_held=True,
+        )  # fmt: skip
+        audit.record(session, groups.ENROLL, row, location_id=row.location_id, changes={"status": [None, "pending"]})
+        items.append(row)
+    _acknowledge_terms(session, checkout, data)
     found = _bill(session, checkout, items)
     checkout.invoice_id = found.id if found is not None else None
     billing.checkout.secure_online_checkout(
@@ -557,7 +626,8 @@ def guest_confirm(session: Db, checkout_id: UUID, data: dict, idempotency_key: s
         total_minor=found.total_minor if found is not None else 0, invoice=found, idempotency_key=idempotency_key,
         method_token=data["method_token"], must_pay_now=True, coupon_code=data.get("coupon_code"),
     )  # fmt: skip
-    _complete(session, checkout, items, accepted)
+    checkout.guest_details = None  # the details now live on the client records
+    _complete(session, checkout, items, [])
     audit.record(
         session, groups.ENROLL, checkout, location_id=checkout.location_id, changes={"status": ["open", "completed"]}
     )

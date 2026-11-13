@@ -9,6 +9,7 @@ under `Unreleased` in the same change that makes the behaviour visible.
 ### Security
 - Secrets shown once (padlock combinations, API keys, webhook signing secrets, kiosk pairing codes, payment onboarding links) are no longer kept with retried requests; repeating such a request returns an error instead of the secret.
 - A payer locked out of the portal for a past-due balance can no longer buy a rental plan or pay for an event form registration there.
+- Guest program checkout keeps a guest's details on the basket until payment and creates their client records only once the card is charged; abandoned or expired baskets leave nothing behind. Guests are limited to 5 baskets per 15 minutes per network and per email address, with at most 4 participants each, and welcome automations no longer email a guest's unverified address.
 
 ### Added
 - Member app: staff design the home screen (tiles, order, captions and styling) with a live preview, and the app takes its colours from the account.
@@ -81,6 +82,8 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Sending a campaign to every client needs its own permission.
 
 ### Fixed
+- Program payment plans: a balance date that has already passed is charged at checkout, the amount left for later follows the price actually billed, and a confirmed checkout still shows what is due later.
+- Guest checkout shows the full price a guest pays instead of the members' deposit plan.
 - Signing in no longer flashes the sign-in page again before opening the page you asked for.
 - Accessibility: form errors are announced to screen readers, date and time fields show a focus ring on every Tab stop, the member portal's skip link moves focus, checkboxes have larger targets, and the calendar and portal no longer scroll sideways on narrow screens.
 - POS sales and payments make fewer database round trips.

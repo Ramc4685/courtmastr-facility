@@ -135,3 +135,21 @@ def test_a_recovered_payment_covers_only_what_it_paid_for(shop):
     with work(shop.tenant) as session:  # the refusal rolled back the sale and the recovery with it
         assert session.scalar(select(Payment.status).where(Payment.idempotency_key == key)) == "initiated"
     assert provider_payments(shop, key) == 1
+
+
+def test_a_partly_spent_payment_must_land_the_whole_part_on_this_invoice(shop):
+    """A reused key whose payment is mostly spent elsewhere does not secure a deposit it barely touches: what
+    counts is what landed on this invoice, not the payment's total."""
+    ready(shop)
+    key = uuid4().hex
+    with work(shop.tenant) as session:
+        first = _invoice(session, shop, 4000)
+        payment = svc.take_payment(
+            session, client_id=shop.client_id, location_id=shop.location_id, amount_minor=5000, tender_kind="card",
+            method_token="tok_card_ok", idempotency_key=key, origin="portal", invoice_id=first.id,
+        )  # fmt: skip
+        assert payment.status == "succeeded" and 0 < payment.unapplied_minor < 3000  # 4000 and its tax landed
+    with work(shop.tenant) as session, _Code(ValidationFailed, "idempotency-key-reused"):
+        _secure(session, shop, _invoice(session, shop, 10000), method_token="tok_card_ok", idempotency_key=key,
+                amount_minor=3000)  # fmt: skip
+    assert provider_payments(shop, key) == 1

@@ -10,7 +10,8 @@ class ClientCreated(Event):
     aggregate_type: ClassVar[str] = "client"
     type: Literal["clients.client.created"] = "clients.client.created"
     client_id: UUID
-    source: Literal["import"] | None = None  # set for a client created by a CSV import (automations skip it)
+    # set for a client created by a CSV import or a guest checkout (an unverified address): automations skip it
+    source: Literal["import", "guest"] | None = None
     import_job_id: UUID | None = None
 
 

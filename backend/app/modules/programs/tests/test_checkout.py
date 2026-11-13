@@ -233,6 +233,10 @@ def test_reg_10_deposit_and_instalment_plans(client, owner, tenant, f, mailbox):
     assert stored.status_code == 422
     paid = ok(client.post(confirm, headers=keyed(portal), json={"method_token": "tok_card_ok"}), 200)
     assert paid["status"] == "completed"
+    # the confirmed view keeps the plan, read back from the invoice schedule
+    assert (paid["total_minor"], paid["due_now_minor"]) == (9000, 3000)
+    assert [(i["due_on"], i["amount_minor"]) for i in paid["instalments"]] == [
+        ("2031-06-01", 2000), ("2031-07-01", 2000), ("2031-08-01", 2000)]  # fmt: skip
     bill = ok(client.get(f"{API}/invoices/{paid['invoice_id']}", headers=owner), 200)
     assert (bill["total_minor"], bill["balance_minor"], bill["status"]) == (9000, 6000, "partially_paid")
     schedule = ok(client.get(f"{API}/invoices/{paid['invoice_id']}/payment-schedule", headers=owner), 200)
@@ -247,3 +251,75 @@ def test_reg_10_deposit_and_instalment_plans(client, owner, tenant, f, mailbox):
         assert (run.succeeded_count, run.collected_minor) == (1, 2000)
     bill = ok(client.get(f"{API}/invoices/{paid['invoice_id']}", headers=owner), 200)
     assert (bill["balance_minor"], bill["status"], bill["dunning_state"]) == (4000, "partially_paid", "none")
+
+
+def plan_program(client, owner, f, balance_due_on: str = "2031-06-01", **fields) -> tuple[dict, dict]:
+    """A published deposit-plan program: 9000 with a 3000 deposit."""
+    camp = program(client, owner, f, **fields)
+    fee = ok(client.post(f"{API}/program-groups/{camp['id']}/fees", headers=owner,
+                         json={"description": "Camp", "amount_minor": 9000, "deposit_minor": 3000}))  # fmt: skip
+    body = {"is_enabled": True, "payment_requirement": "immediate_card_payment", "payment_plan": "deposit",
+            "balance_due_on": balance_due_on}  # fmt: skip
+    ok(client.put(f"{API}/program-groups/{camp['id']}/registration-config", headers=owner, json=body), 200)
+    ok(client.post(f"{API}/program-groups/{camp['id']}/publish", headers=owner), 200)
+    return camp, fee
+
+
+def test_a_discounted_plan_defers_what_was_billed_less_the_deposit(client, owner, tenant, f, mailbox, monkeypatch):
+    """The balance left for later is the billed charge (after discounts) less the deposit, not the list fee."""
+    from app.modules.programs import groups
+
+    real_bill = groups.bill
+
+    def discounted(session, row, fees):
+        ids = [billing.service.adjust_charge(session, charge_id, reason="Sibling", discount_minor=3000).id
+               for charge_id in real_bill(session, row, fees)]  # fmt: skip
+        row.charge_id = ids[0]
+        return ids
+
+    monkeypatch.setattr(groups, "bill", discounted)
+    camp, fee = plan_program(client, owner, f)
+    person, portal = member(client, tenant, owner, f, mailbox)
+    cart = basket(client, portal, f, PORTAL)
+    ok(add(client, portal, cart["id"], camp["id"], person["id"], PORTAL, program_fee_id=fee["id"]), 200)
+    paid = ok(client.post(f"{API}/{PORTAL}/{cart['id']}/confirm", headers=keyed(portal),
+                          json={"method_token": "tok_card_ok"}), 200)  # fmt: skip
+    bill = ok(client.get(f"{API}/invoices/{paid['invoice_id']}", headers=owner), 200)
+    assert (bill["total_minor"], bill["balance_minor"]) == (6000, 3000)  # the 3000 deposit was paid now
+    schedule = ok(client.get(f"{API}/invoices/{paid['invoice_id']}/payment-schedule", headers=owner), 200)
+    assert [(i["due_on"], i["amount_minor"]) for i in schedule["instalments"]][1:] == [("2031-06-01", 3000)]
+
+
+def test_a_balance_date_already_passed_is_due_now(client, owner, tenant, f, mailbox):
+    """A balance date in the past would land on the deposit's date and wait for autopay: it is paid now."""
+    camp, fee = plan_program(client, owner, f, balance_due_on="2020-01-01")
+    person, portal = member(client, tenant, owner, f, mailbox)
+    cart = basket(client, portal, f, PORTAL)
+    cart = ok(add(client, portal, cart["id"], camp["id"], person["id"], PORTAL, program_fee_id=fee["id"]), 200)
+    assert (cart["due_now_minor"], cart["instalments"]) == (9000, [])
+    paid = ok(client.post(f"{API}/{PORTAL}/{cart['id']}/confirm", headers=keyed(portal),
+                          json={"method_token": "tok_card_ok"}), 200)  # fmt: skip
+    bill = ok(client.get(f"{API}/invoices/{paid['invoice_id']}", headers=owner), 200)
+    assert (bill["total_minor"], bill["balance_minor"], bill["status"]) == (9000, 0, "paid")
+
+
+def test_terms_are_recorded_against_the_whole_basket(client, owner, tenant, f, mailbox):
+    from sqlalchemy import select
+
+    from app.modules.documents.models import TermsAcceptance
+    from app.modules.documents.tests.test_portal_terms import bind_terms, shown
+
+    first, first_fee = online(client, owner, f, "immediate_card_payment")
+    second, second_fee = online(client, owner, f, "immediate_card_payment", name="Second")
+    person, portal = member(client, tenant, owner, f, mailbox)
+    bind_terms(client, owner, f"Terms {uuid4().hex}")
+    cart = basket(client, portal, f, PORTAL)
+    ok(add(client, portal, cart["id"], first["id"], person["id"], PORTAL, program_fee_id=first_fee["id"]), 200)
+    ok(add(client, portal, cart["id"], second["id"], person["id"], PORTAL, program_fee_id=second_fee["id"]), 200)
+    ok(client.post(f"{API}/{PORTAL}/{cart['id']}/confirm", headers=keyed(portal),
+                   json={"method_token": "tok_card_ok", "terms_version_id": shown(client, tenant)}), 200)  # fmt: skip
+    with tenant_session(tenant.id) as session:
+        subjects = list(
+            session.scalars(select(TermsAcceptance.subject_id).where(TermsAcceptance.sale_kind == "program"))
+        )
+    assert subjects == [UUID(cart["id"])]

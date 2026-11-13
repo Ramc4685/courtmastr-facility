@@ -793,7 +793,7 @@ def _create(
         session, "clients.client.create", client, location_id=client.home_location_id,
         changes={"home_location_id": [None, str(client.home_location_id)], "created_via": [None, created_via]},
     )  # fmt: skip
-    source = "import" if created_via == "import" else None
+    source = {"import": "import", "registration": "guest"}.get(created_via)
     events.publish(session, ClientCreated(client_id=client.id, source=source, import_job_id=import_job_id), client.id)
     return client
 
