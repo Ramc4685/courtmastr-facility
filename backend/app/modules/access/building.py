@@ -25,7 +25,7 @@ from zoneinfo import ZoneInfo
 
 import redis
 import redis.asyncio as aioredis
-from sqlalchemy import column, delete, select, table
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.orm import Session
 
@@ -58,7 +58,6 @@ FAILURES_BEFORE_ALERT = 3  # failed light commands in a row before staff are ema
 REASSERT_EVERY = timedelta(minutes=5)  # a lit zone is told "on" again this often when the controller cannot report
 MAX_OVERRIDE = timedelta(hours=24)
 MIN_RUN_ON = timedelta(minutes=1)  # a court in play is never cut within the same minute
-_RESOURCE = table("resource", column("id"), column("location_id"))  # read under RLS; resources may not be imported
 log = logging.getLogger(__name__)
 
 notifications.register_template(
@@ -206,10 +205,7 @@ def rotate_door_credential(session: Session, principal: Principal, door_id: UUID
 
 def _check_resources(session: Session, location_id: UUID, resource_ids: list[UUID]) -> list[UUID]:
     ids = list(dict.fromkeys(resource_ids))
-    found = set(
-        session.scalars(select(_RESOURCE.c.id).where(_RESOURCE.c.id.in_(ids), _RESOURCE.c.location_id == location_id))
-    )
-    if len(found) != len(ids):
+    if len(scheduling.service.resource_ids_at(session, location_id, ids)) != len(ids):
         raise ValidationFailed("Pick courts at this location.", pointer="/resource_ids")
     return ids
 
@@ -771,14 +767,17 @@ def _desired(
         return {}
     mapped = _zone_resources(session, [z.id for z in zones])
     location_id = zones[0].location_id
-    lit = _lit_resources(session, location_id, {r for ids in mapped.values() for r in ids}, now)
+    below = scheduling.service.resource_descendants(session, {r for ids in mapped.values() for r in ids})
+    # a zone watches its resources and everything below them: a half court's booking holds the half, not the court
+    watched = {zone.id: [r for root in mapped[zone.id] for r in (root, *below[root])] for zone in zones}
+    lit = _lit_resources(session, location_id, {r for ids in watched.values() for r in ids}, now)
     run_on = max(timedelta(minutes=_cfg(session, location_id)["light_run_on_min"]), MIN_RUN_ON)
     found = {}
     for zone in zones:
         if zone.override_until_at and zone.override_until_at > now:
             found[zone.id] = (bool(zone.override_is_on), "override", None)
             continue
-        hit = next((lit[r] for r in mapped[zone.id] if r in lit), None)
+        hit = next((lit[r] for r in watched[zone.id] if r in lit), None)
         if hit is not None:
             found[zone.id] = (True, hit[0], min(hit[1], now + run_on))
         elif zone.lit_until_at and zone.lit_until_at > now:

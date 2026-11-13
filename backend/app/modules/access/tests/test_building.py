@@ -655,20 +655,31 @@ def test_member_opens_the_door_from_the_portal_inside_the_window_only(client, te
 def test_lights_follow_holds_without_flicker_and_light_child_zones(b, sim):
     first, second = book(b, 10, 11), book(b, 11, 12)  # back to back on the whole court
     half = book(b, 13, 14, resources=[b.half_a])
-    for hours, court, half_lit in ((9.95, True, True), (11, True, True), (12.2, False, False), (13, False, True)):
+    for hours, court, half_lit in ((9.95, True, True), (11, True, True), (12.2, False, False), (13, True, True)):
         with clock.freeze(at(hours)):
             tick(b)
             assert (sim.zones.get("relay-1"), sim.zones.get("relay-2")) == (court, half_lit), hours
     switched = [c for c in sim.calls if c[0] == "set_zone"]
-    # on once at 9:57 (both zones: the court's hold covers its halves), off once after the run-on, Court 1A on again
+    # on once at 9:57 (both zones: the court's hold covers its halves), off once after the run-on, then both on
+    # again for the half court: the parent court's zone watches what lies below it
     assert switched == [("set_zone", "relay-1", True), ("set_zone", "relay-2", True), ("set_zone", "relay-1", False),
-                        ("set_zone", "relay-2", False), ("set_zone", "relay-2", True)]  # fmt: skip
+                        ("set_zone", "relay-2", False), ("set_zone", "relay-1", True),
+                        ("set_zone", "relay-2", True)]  # fmt: skip
     with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
         scheduling.service.cancel_booking(session, scheduling.service.get_booking(session, UUID(half)))
     with clock.freeze(at(13.1)):
         tick(b)  # a cancelled booking is corrected on the next tick
         assert sim.zones["relay-2"] is False
     assert first and second
+
+
+def test_a_quarter_court_booking_lights_the_zones_mapped_to_its_ancestors(b, sim):
+    """Split courts: holds land on the booked resource and below, never above; zones mapped to the parent court
+    and to the half both light for a booking on the quarter."""
+    book(b, 10, 11, resources=[b.quarter])
+    with clock.freeze(at(10.5)):
+        tick(b)
+        assert (sim.zones.get("relay-1"), sim.zones.get("relay-2")) == (True, True)
 
 
 def test_lights_follow_the_booked_time_not_the_changeover_buffer(b, sim):

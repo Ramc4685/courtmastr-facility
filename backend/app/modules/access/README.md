@@ -176,7 +176,8 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
 - **Why in access.** The door decision is a check-in decision: it reuses `service._facts` plus `domain.evaluate`
   and writes a normal `check_in` on the `door` channel. Access may call scheduling, programs, clients and platform
   (overview section 2), which is everything this needs. It may not import resources or rentals: zone resources are
-  checked through a lightweight `resource` table read under RLS, and bookings are read through scheduling.
+  checked and their descendants found through scheduling's internal `resource_ids_at` and `resource_descendants`,
+  and bookings are read through scheduling.
 - **Port.** `unlock(device_ref, seconds)`, `push_code(device_ref, TimedCode)`, `revoke_code(device_ref, code_id)`,
   `set_zone(zone_ref, is_on)`, `read_zone(zone_ref) -> bool | None`, plus `supports_code_push` (when False, the keypad
   asks `POST /door/verify` for every code; the simulated adapter says True and also answers verify). Only `SimulatedBuildingControl` exists: it records calls (never a
@@ -263,8 +264,10 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   provider runs in-request"; a failure is logged and answered `409 device-unavailable`.
 - **Lights.** Computed, not scheduled. Every minute (`run_building_control` in `app.scheduler.EVERY_MINUTE`) each
   zone should be on when an override says so or when a confirmed rental, session or game holds one of its resources
-  between start minus lead-in and end plus run-on. Holds cover a resource and its descendants, so a booking on a
-  whole court lights its halves' zones too, and a zone may map several resources. The window uses the booked time,
+  between start minus lead-in and end plus run-on. Holds cover a resource and its descendants, never its ancestors,
+  so a zone watches each mapped resource and everything below it: a booking on a whole court lights its halves'
+  zones, and a booking on a half or quarter court lights the zone mapped to the parent court too (the CIRQT split
+  courts). A zone may map several resources. The window uses the booked time,
   never the changeover buffer; a location that wants the lights on through the buffer raises lead-in and run-on.
   Only changes are sent, so back-to-back bookings never flicker, a restarted scheduler or a missed tick catches up on
   the next one, and a cancelled or moved booking is corrected within a minute. A failed command is retried every
