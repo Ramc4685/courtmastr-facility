@@ -5,6 +5,7 @@ chunked job, the internal-error path and a successful email are covered."""
 from uuid import UUID, uuid4
 
 from app.core import idempotency
+from app.core.auth import Principal
 from app.modules.billing import bulk
 from app.modules.billing.tests.test_billing import API, work
 from app.modules.billing.tests.test_surface import _bulk, item
@@ -133,3 +134,45 @@ def test_a_job_stops_when_its_requester_may_no_longer_act(api, shop, monkeypatch
         assert bulk.run_job_chunk(session, made["id"]) is False
         row = session.get(bulk.BillingBulkAction, UUID(made["id"]))
         assert (row.status, row.failed_count) == ("completed_with_errors", 2)
+
+
+def test_an_api_key_adding_items_reaches_only_its_locations(client, api, shop, desk):
+    catalog_item = _catalog_item(api, shop)
+    west_client = UUID(new_client(client, shop.owner, desk.west)["id"])
+    key = Principal(
+        kind="api_key", tenant_id=shop.tenant.id, api_key_id=uuid4(), location_ids=frozenset({shop.location_id}),
+        permissions={"billing.charge.create": "all"},
+    )  # fmt: skip
+    data = {"client_ids": [shop.client_id, west_client]}
+    with work(shop.tenant) as session:
+        subjects = bulk._subjects(
+            session, key, "add_catalog_item", shop.location_id, data, {"catalog_item_id": catalog_item["id"]}
+        )
+    assert [error for _, _, _, error, _ in subjects] == [None, "client-not-found"]
+
+
+def test_a_job_an_api_key_started_stops_when_the_key_is_revoked(client, api, shop, monkeypatch):
+    monkeypatch.setattr(bulk, "IN_REQUEST_LIMIT", 1)
+    monkeypatch.setattr(bulk, "CHUNK_ITEMS", 1)
+    monkeypatch.setattr(bulk.run_bulk_action, "send", lambda *args: None)
+    ids = [api("POST", "/charges", item(shop, price), 201)["id"] for price in (100, 200, 300)]
+    made = api("POST", "/billing-bulk-actions", {"action": "reverse_charges", "location_id": str(shop.location_id),
+                                                 "charge_ids": ids, "params": {"reason": "x"}}, 202)  # fmt: skip
+    created = client.post(
+        f"{API}/api-keys",
+        headers=shop.owner,
+        json={"name": "Partner", "scopes": ["billing.charge.reverse"], "confirm_sensitive_scopes": True},
+    )
+    assert created.status_code == 201, created.text
+    key_id = UUID(created.json()["id"])
+    with work(shop.tenant) as session:  # as if the key had started it
+        row = session.get(bulk.BillingBulkAction, UUID(made["id"]))
+        row.requested_by_staff_user_id, row.requested_by_api_key_id = None, key_id
+    with work(shop.tenant) as session:
+        assert bulk.run_job_chunk(session, made["id"]) is True
+        assert (session.info["actor"].kind, session.info["actor"].api_key_id) == ("api_key", key_id)
+    assert client.delete(f"{API}/api-keys/{key_id}", headers=shop.owner).status_code == 204
+    with work(shop.tenant) as session:
+        assert bulk.run_job_chunk(session, made["id"]) is False
+        row = session.get(bulk.BillingBulkAction, UUID(made["id"]))
+        assert (row.status, row.done_count, row.failed_count) == ("completed_with_errors", 1, 2)

@@ -356,10 +356,12 @@ handlers re-read the object from the provider.
   as `skipped`; so is a clientless (POS) charge when invoicing (`charge-has-no-client`: it has no payer). A chunk
   that selects nothing while items are still pending fails them (`not-processed`) instead of re-running for
   ever. At most 1000 subjects. A dry run, or 25 items or fewer, runs in the request; more run as
-  `bulk.run_bulk_action`, a `chunked_actor` of 50 items (or 50 clients) per message, **as the person who started
-  it** (risk review; an action started by an API key has no requester and runs as the system): each chunk loads `requested_by` through `platform.staff.principal_for` and
-  re-checks the action's key at its location, so a revoked or disabled requester fails what is left
-  (`requester-not-allowed`), and audit rows name the person, not the system. Every item (or client group) is a
+  `bulk.run_bulk_action`, a `chunked_actor` of 50 items (or 50 clients) per message, **as the person or API key that
+  started it** (risk review): each chunk loads `requested_by_staff_user_id` through `platform.staff.principal_for`, or
+  `requested_by_api_key_id` (migration 1806) through `core.auth.deps.key_principal` (registered by integrations: the
+  key bounded by its creator, None once revoked or expired), and re-checks the action's key at its location, so a
+  revoked or disabled requester or key fails what is left (`requester-not-allowed`), and audit rows name the person
+  or key, not the system. Every item (or client group) is a
   savepoint, so a failure is recorded on its row (`error_code`, `internal-error` for an unexpected one) and the
   rest continue. A dry run does the same work and rolls each savepoint back (result ids are null); email and
   render dry runs run the send checks (`documents.check_invoice_send`: an address, a renderable invoice), so a
@@ -368,7 +370,7 @@ handlers re-read the object from the provider.
   the same location) is 409 `bulk-preview-stale` when any subject or amount differs, 422 at `/preview_id` when it
   is not such a dry run, 404 when it does not exist. `add_catalog_item` loads each client and checks its home
   location against a location-limited caller's locations (a client with no home location is out of reach for
-  them; an API key is not location-limited): unknown or out of reach is `skipped` / `client-not-found`. **The `Idempotency-Key` is required** (an API client could otherwise
+  them; an API key is held to its creator's locations, narrowed by its own): unknown or out of reach is `skipped` / `client-not-found`. **The `Idempotency-Key` is required** (an API client could otherwise
   run an add-item twice); scoped to the caller, it is bound to a hash of the request body: the same body replays
   the first action, another body is 409 `idempotency-key-reused`. `GET /billing-bulk-actions/{id}` and `/items`
   need `billing.charge.read` at the action's location. Not built: saved filter presets; bulk email of a client

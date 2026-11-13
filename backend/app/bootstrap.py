@@ -52,6 +52,7 @@ def bootstrap() -> None:
 
     deps.set_authenticator(platform.auth.authenticate)
     deps.set_authenticator(integrations.auth.authenticate, prefix="fhk")
+    deps.set_key_principal_loader(integrations.auth.principal_for_key)
     deps.set_csrf_verifier(platform.auth.verify_csrf)
     if settings.notifications.adapter != "noop":
         engagement.service.install_notifier()  # transactional notices go through the delivery log and suppressions

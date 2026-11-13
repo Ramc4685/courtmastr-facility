@@ -4,8 +4,8 @@ A request authorizes the action's key at the action's location, picks the subjec
 clients, at most `MAX_ITEMS`), stores one item per subject and either runs them at once (a dry run, or at most
 `IN_REQUEST_LIMIT` items) or enqueues `run_bulk_action`. Each item, or each client's group of charges when
 invoicing, is its own savepoint, so one failure is reported on its row and the rest go through. The job runs as
-the person who started it: their principal is re-loaded and re-authorized at each chunk, so a job outlives
-neither their account nor their key.
+the person or API key that started it: the principal is re-loaded and re-authorized at each chunk, so a job
+outlives neither the account, its permission, nor the key.
 """
 
 import hashlib
@@ -18,7 +18,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.core import audit, clock
-from app.core.auth import Principal, authorize
+from app.core.auth import Principal, authorize, deps
 from app.core.errors import Conflict, DomainError, NotFound, ValidationFailed
 from app.core.jobs import chunked_actor
 from app.core.pagination import ListQuery, paginate
@@ -62,7 +62,8 @@ def create_bulk_action(session: Session, principal: Principal, data: dict, idemp
         _check_preview(session, principal, data, subjects)
     row = BillingBulkAction(
         location_id=location_id, action=action, is_dry_run=bool(data.get("is_dry_run")), params=params,
-        item_count=len(subjects), requested_by_staff_user_id=service._staff_id(session), idempotency_key=key,
+        item_count=len(subjects), requested_by_staff_user_id=service._staff_id(session),
+        requested_by_api_key_id=principal.api_key_id, idempotency_key=key,
         request_hash=request_hash,
     )  # fmt: skip
     session.add(row)
@@ -185,7 +186,7 @@ def _subjects(
     if item is None:
         raise ValidationFailed("Choose an item of this location.", pointer="/params/catalog_item_id")
     fee = item.fee_minor - service._pct_discount(item.fee_minor, item.discount_pct, item.discount_minor or 0)
-    reach = principal.location_ids if principal.kind == "staff" else None  # None: every location
+    reach = principal.location_ids  # None: every location; a key is held to its creator's (and its own)
 
     def reachable(client_id: UUID) -> bool:  # unknown and out-of-reach clients look the same (404 rule)
         try:
@@ -302,15 +303,20 @@ def run_bulk_action(session: Session, billing_bulk_action_id: str) -> bool:
 
 
 def run_job_chunk(session: Session, billing_bulk_action_id: str) -> bool:
-    """The job runs as the person who started the action: re-loaded at each chunk, so a deactivated account or
-    a key taken away stops the rest (`requester-not-allowed`). An action an API key started runs as the system."""
+    """The job runs as the person or API key that started the action: re-loaded at each chunk, so a deactivated
+    account, a permission taken away or a revoked key stops the rest (`requester-not-allowed`). Only an action
+    neither started (a system job) runs as the system."""
     row = service._get(session, BillingBulkAction, UUID(billing_bulk_action_id))
-    if row.requested_by_staff_user_id is not None:
-        person = platform.staff.principal_for(session, row.requested_by_staff_user_id)
-        if person is None or not _allowed(person, KEYS[row.action], row.location_id):
+    if row.requested_by_staff_user_id is not None or row.requested_by_api_key_id is not None:
+        requester = (
+            platform.staff.principal_for(session, row.requested_by_staff_user_id)
+            if row.requested_by_staff_user_id is not None
+            else deps.key_principal(session, row.requested_by_api_key_id)
+        )
+        if requester is None or not _allowed(requester, KEYS[row.action], row.location_id):
             _fail_pending(session, row, "requester-not-allowed")
             return run_chunk(session, row.id)
-        session.info["actor"] = person
+        session.info["actor"] = requester
     return run_chunk(session, row.id)
 
 

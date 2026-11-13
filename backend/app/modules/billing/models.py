@@ -1146,6 +1146,8 @@ class BillingBulkAction(TenantOwned, Timestamps, Base):
     done_count: Mapped[int] = mapped_column(server_default=text("0"))
     failed_count: Mapped[int] = mapped_column(server_default=text("0"))
     requested_by_staff_user_id: Mapped[UUID | None]
+    # The API key that started it (integrations' api_key: no foreign key upward); its job re-authorizes the key.
+    requested_by_api_key_id: Mapped[UUID | None]
     idempotency_key: Mapped[str | None]
     request_hash: Mapped[str | None]  # the key is bound to the request body that first used it
     finished_at: Mapped[datetime | None]
