@@ -193,16 +193,17 @@ export function AppRoutes() {
           <Route path="setup" element={<RequirePermission permission="staff.time_entry.manage"><StaffSetupPage /></RequirePermission>} />
         </Route>
         <Route path="assessments/setup" element={<RequirePermission permission="assessments.definition.manage"><AssessmentSetupPage /></RequirePermission>} />
-        <Route path="engagement" element={<RequirePermission permission="engagement.campaign.read"><EngagementLayout /></RequirePermission>}>
-          <Route index element={<CampaignsPage />} />
-          <Route path="campaigns/:id" element={<CampaignDetailPage />} />
-          <Route path="templates" element={<MessageTemplatesPage />} />
-          <Route path="segments" element={<SegmentsPage />} />
-          <Route path="messages" element={<MessageLogPage />} />
+        {/* The member app pages have their own keys, so the area opens for those too; campaign pages keep campaign.read. */}
+        <Route path="engagement" element={<RequirePermission permission={['engagement.campaign.read', 'engagement.portal_settings.manage', ...MEMBER_CONTENT_KEYS]}><EngagementLayout /></RequirePermission>}>
+          <Route index element={<RequirePermission permission="engagement.campaign.read"><CampaignsPage /></RequirePermission>} />
+          <Route path="campaigns/:id" element={<RequirePermission permission="engagement.campaign.read"><CampaignDetailPage /></RequirePermission>} />
+          <Route path="templates" element={<RequirePermission permission="engagement.campaign.read"><MessageTemplatesPage /></RequirePermission>} />
+          <Route path="segments" element={<RequirePermission permission="engagement.campaign.read"><SegmentsPage /></RequirePermission>} />
+          <Route path="messages" element={<RequirePermission permission="engagement.campaign.read"><MessageLogPage /></RequirePermission>} />
           <Route path="suppressions" element={<RequirePermission permission="engagement.suppression.manage"><SuppressionsPage /></RequirePermission>} />
           <Route path="automations" element={<RequirePermission permission="engagement.automation.manage"><AutomationsPage /></RequirePermission>} />
           <Route path="reminders" element={<RequirePermission permission="engagement.notification_rule.manage"><RemindersPage /></RequirePermission>} />
-          <Route path="portal" element={<PortalSettingsPage />} />
+          <Route path="portal" element={<RequirePermission permission={['engagement.portal_settings.manage', 'engagement.app_content.manage']}><PortalSettingsPage /></RequirePermission>} />
           <Route path="app" element={<RequirePermission permission="engagement.app_content.manage"><AppConfigPage /></RequirePermission>} />
           <Route path="app-content" element={<RequirePermission permission={MEMBER_CONTENT_KEYS}><MemberContentPage /></RequirePermission>} />
         </Route>
