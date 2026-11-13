@@ -25,7 +25,7 @@ from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFail
 from app.core.ids import new_id
 from app.core.jobs import tenant_actor
 from app.core.pagination import ListQuery, paginate
-from app.modules import billing, clients, memberships, platform, resources, scheduling
+from app.modules import billing, clients, documents, memberships, platform, resources, scheduling
 from app.modules.rentals import events as ev
 from app.modules.rentals.domain import pricing
 from app.modules.rentals.models import (
@@ -1642,17 +1642,43 @@ def _sell(
     return row, invoice
 
 
+def _require_documents(session: Db, plan: RentalPlan, client_id: UUID, *, online: bool) -> UUID | None:
+    """The accepted document that satisfies the plan's waiver binding, or 409 document-required with the pending
+    document's id (ADR 0013, as packages do). The refusal commits so the document it issued survives; callers
+    run it before writing anything else. Renewals do not ask again."""
+    source = None
+    for need in documents.service.requirements_for(session, "rental_plan", plan.id, client_id, online=online):
+        if need["is_blocking"] and not need["is_satisfied"]:
+            pending = documents.service.ensure_pending(session, need["binding_id"], client_id, plan.location_id)
+            raise Conflict(  # persist: the pending document just issued must survive the refusal
+                "The client must accept the plan's document first.",
+                code="document-required",
+                persist=True,
+                document_id=str(pending.id),
+            )
+        source = need["satisfied_by_document_id"] or source
+    return source
+
+
+def _consume(session: Db, source: UUID | None, row: RentalPlanPurchase) -> None:
+    if source:
+        documents.service.consume(session, [source], ("rentals", "rental_plan_purchase", row.id))
+
+
 def sell_plan(session: Db, principal: Principal, data: dict) -> dict:
-    """Sell a plan at the desk (RNT-09). Members-only plans need a member; a member pays the member price."""
+    """Sell a plan at the desk (RNT-09). Members-only plans need a member; a member pays the member price. A
+    waiver bound to the plan must be accepted first (409 document-required)."""
     plan = session.get(RentalPlan, data["rental_plan_id"])
     if plan is None or plan.status != "active":
         raise ValidationFailed("Unknown or archived plan.", pointer="/rental_plan_id")
     authorize(principal, SELL, location_id=plan.location_id)
+    source = _require_documents(session, plan, data["client_id"], online=False)
     row, _ = _sell(
         session, plan, data["client_id"], via="staff", staff_user_id=principal.staff_user_id,
         quantity_total=data.get("quantity_total"), invoice_routing=data.get("invoice_routing"),
         is_auto_renew=data.get("is_auto_renew"), is_autopay=data.get("is_autopay"),
     )  # fmt: skip
+    _consume(session, source, row)
     return _purchase_view(session, row)
 
 
@@ -1903,7 +1929,9 @@ def portal_buy_plan(session: Db, principal: Principal, data: dict, idempotency_k
     plan = session.get(RentalPlan, data["rental_plan_id"])
     if plan is None or plan.status != "active" or not plan.is_sold_online:
         raise ValidationFailed("This plan is not sold online.", pointer="/rental_plan_id")
+    source = _require_documents(session, plan, subject, online=True)
     row, invoice = _sell(session, plan, subject, via="portal", invoice_routing="new_single")
+    _consume(session, source, row)
     payment = billing.checkout.secure_online_checkout(
         session, client_id=subject, location_id=row.location_id, total_minor=row.price_minor, invoice=invoice,
         idempotency_key=f"rental-plan:{idempotency_key}", method_token=data.get("method_token"),

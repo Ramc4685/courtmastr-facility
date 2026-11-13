@@ -63,6 +63,12 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
   a non-member (`membership-required`). Assumption: `active_members` and `paid_up_members` behave the same, because
   non-payment suspends a contract and a suspended contract is not active. Rental prices still treat every payer
   as a non-member (no member rates on bookings).
+- **Waivers on rental plans (owner decisions 2026-11-13, question 8; ADR 0013).** A document bound to a rental
+  plan (`scope_type = rental_plan`) blocks its sale until accepted, at the desk (`sell_plan`) and in the portal
+  (`portal_buy_plan`, before any charge): `documents.service.requirements_for`, then `ensure_pending` issues the
+  document and the sale answers 409 `document-required` with its `document_id`; once signed the sale goes through and
+  `consume` stamps the document with the purchase, so an `every_purchase` binding asks again next time. A renewal
+  does not ask again. The import contract allows `rentals.service -> app.modules.documents` (top-level package only).
 - "Capacity" for rentals is resource availability enforced by the hold exclusion constraint; rentals have no
   seat count.
 - A rate counts the booked resources that are in the type's resource list (linked resources such as lights do

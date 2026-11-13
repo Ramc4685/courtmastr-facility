@@ -12,6 +12,7 @@ from app.core import clock
 from app.core.auth import passwords, system_principal
 from app.core.db.session import tenant_session
 from app.modules import billing, clients, platform
+from app.modules.documents.tests.support import sign, template
 from app.modules.platform.models import Identity
 from app.modules.rentals import service
 from app.modules.rentals.models import RentalPlanPurchase, RentalPlanShare
@@ -309,3 +310,51 @@ def test_portal_purchase_members_only_and_opt_out(client, owner, f, tenant, monk
     assert ok(buy({"rental_plan_id": members["id"], "method_token": "tok_card_ok"}, f"k-{uuid4().hex}"))["is_owner"]
     discounted = ok(sell(client, owner, open_plan["id"], f.person))
     assert discounted["price_minor"] == 600 and Decimal(discounted["balance"]) == 5  # members pay the member price
+
+
+# --- waivers bound to a rental plan (owner decisions 2026-11-13, question 8; ADR 0013) ----------------------------
+
+
+def bind_waiver(client, owner, rental_plan) -> None:
+    waiver = template(client, owner)
+    ok(client.put(f"{API}/document-bindings", headers=owner, json={
+        "scope_type": "rental_plan", "scope_id": rental_plan["id"], "template_id": waiver["id"],
+        "frequency": "every_purchase",
+    }), 200)  # fmt: skip
+
+
+def stopped_by_waiver(client, owner, response) -> dict:
+    assert response.status_code == 409 and response.json()["code"] == "document-required", response.text
+    document = ok(client.get(f"{API}/client-documents/{response.json()['document_id']}", headers=owner), 200)
+    assert document["status"] == "pending"  # issued and kept despite the refusal
+    return document
+
+
+def test_an_unsigned_bound_waiver_blocks_a_desk_sale_until_signed(client, owner, f, tenant):
+    bound, unbound = plan(client, owner, f), plan(client, owner, f)
+    bind_waiver(client, owner, bound)
+    assert sell(client, owner, unbound["id"], f.person).status_code == 201  # a plan with no binding is unaffected
+    document = stopped_by_waiver(client, owner, sell(client, owner, bound["id"], f.person))
+    assert sign(client, owner, document).status_code == 200
+    sold = ok(sell(client, owner, bound["id"], f.person), 201)
+    assert ok(client.get(f"{API}/client-documents/{document['id']}", headers=owner), 200)["source_id"] == sold["id"]
+    stopped_by_waiver(client, owner, sell(client, owner, bound["id"], f.person))  # every purchase asks again
+
+
+def test_an_unsigned_bound_waiver_blocks_a_portal_purchase_until_signed(client, owner, f, tenant):
+    person, portal = portal_client(client, owner, tenant, f)
+    bound = plan(client, owner, f, is_sold_online=True)
+    bind_waiver(client, owner, bound)
+
+    def buy():
+        return client.post(f"{API}/portal/rental-plan-purchases", headers=portal | {"Idempotency-Key": uuid4().hex},
+                           json={"rental_plan_id": bound["id"], "method_token": "tok_card_ok"})  # fmt: skip
+
+    document = stopped_by_waiver(client, owner, buy())
+    with tenant_session(tenant.id) as session:  # nothing sold, nothing charged
+        assert (
+            session.scalars(select(RentalPlanPurchase).where(RentalPlanPurchase.client_id == UUID(person))).all() == []
+        )
+    assert sign(client, owner, document).status_code == 200
+    bought = ok(buy())
+    assert ok(client.get(f"{API}/client-documents/{document['id']}", headers=owner), 200)["source_id"] == bought["id"]

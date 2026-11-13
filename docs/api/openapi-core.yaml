@@ -4280,6 +4280,7 @@ paths:
       operationId: sellRentalPlan
       tags: [rentals]
       summary: Sell a plan to a client, with per-sale price or quantity changes
+      x-problem-codes: [document-required, membership-required]
       x-priority: P1
       x-permission: rentals.rental_plan.sell
       x-features: [RNT-09]
@@ -4371,6 +4372,8 @@ paths:
       summary: Buy a plan online for self or a related client
       description: P1 stub. Beneficiary checked by can_act_for(identity, client_id, buy); payer is the identity's own client
         and any stored payment method must be its own. Body will be portal-only with additionalProperties false.
+        A waiver bound to the plan refuses with 409 document-required before any charge (ADR 0013).
+      x-problem-codes: [document-required, membership-required]
       x-priority: P1
       x-permission: client:can_act_for
       x-features: [RNT-09]
