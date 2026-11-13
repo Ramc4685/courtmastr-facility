@@ -964,6 +964,29 @@ def set_sold_by(session: Session, principal: Principal, contract_id: UUID, staff
     return contract_view(session, contract)
 
 
+def bind_agreement(session: Session, principal: Principal, contract_id: UUID, client_document_id: UUID) -> dict:
+    """Bind a signed agreement to its contract (DOC-11): an accepted document of the owner's, issued from an
+    agreement template that is not a waiver (422 otherwise). A signed binding is not replaced by a different
+    document (409); binding the same one again changes nothing. The contract then shows it, and erasure keeps it as
+    it keeps signed waivers. A contract still waiting on its gating document keeps that one until it is accepted."""
+    contract = _load(session, principal, contract_id, _UPDATE)
+    doc = documents.service.load_document(session, principal, client_document_id, "documents.document.read")
+    signed = documents.service.is_signed(session, doc.id)
+    if doc.client_id != contract.owner_client_id or not signed or not documents.service.is_agreement(session, doc):
+        raise ValidationFailed("Bind a signed agreement of the contract's owner.", pointer="/client_document_id")
+    if contract.client_document_id == doc.id:
+        return contract_view(session, contract)
+    if contract.client_document_id is not None and documents.service.is_signed(session, contract.client_document_id):
+        raise Conflict("The contract already has a signed agreement.", code="invalid-state-transition")
+    if contract.status == "upcoming" and _is_gated(session, contract):
+        raise Conflict("The contract is waiting on its required document.", code="invalid-state-transition")
+    contract.client_document_id = doc.id
+    contract.version += 1
+    audit.record(session, _UPDATE, contract, location_id=contract.location_id, changes=audit.diff(contract))
+    session.flush()
+    return contract_view(session, contract)
+
+
 # --- price changes on a sold contract (MEM-13, ADR 0005 section 3) -----------------------------------------------
 
 

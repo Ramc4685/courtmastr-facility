@@ -231,6 +231,7 @@ class SessionBrief(Out):
     is_self_bookable: bool
     allows_free_booking: bool
     is_virtual: bool = False  # CLS-08: the meeting links are only on getSessionMeeting
+    is_direct_link_active: bool = False
 
 
 class SessionMeetingOut(Out):
@@ -637,3 +638,52 @@ class SlotList(Out):
 
 class SlotBook(In):
     starts_at: AwareDatetime
+
+
+# --- direct links (SCH-16), shared bookings (SCH-17, SSP-09), series merge (SCH-21) -----------------------
+
+
+class DirectLinkOut(Out):
+    session_id: UUID
+    is_active: bool
+    token: str | None = Field(description="Shown once, when the link is made; null when the link was already on.")
+    path: str | None = Field(
+        description="The web page with the token in the URL fragment; prefix the portal origin. Null with token."
+    )
+
+
+class DirectLinkResolve(In):
+    token: Annotated[str, StringConstraints(min_length=8, max_length=64)]
+
+
+class PublicDirectLinkOut(Out):
+    session_id: UUID
+    title: str
+    starts_at: datetime
+    ends_at: datetime
+    location_name: str
+    time_zone: str
+    spots_left: int
+
+
+class ParticipantAdd(In):
+    client_id: UUID
+
+
+class ParticipantUpdate(In):
+    attendance: Literal["scheduled", "attended", "no_show"]
+
+
+class ParticipantOut(Out):
+    id: UUID
+    booking_id: UUID
+    client_id: UUID
+    client_name: str | None
+    is_organiser: bool
+    attendance: Literal["scheduled", "attended", "no_show"]
+    attendance_marked_at: datetime | None
+    created_at: datetime
+
+
+class SeriesMerge(In):
+    booking_number: Annotated[int, Field(ge=1)]

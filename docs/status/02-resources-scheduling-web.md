@@ -40,12 +40,12 @@ Tests:
 | SCH-13 Multi-resource reservations | P0 | done | drawer resource picker | `BookingDrawer.test.tsx` | One primary resource plus any number of additional ones. |
 | SCH-14 Buffer times | P1 | done | drawer buffer line and override; dashed bands on the grid | `BookingDrawer.test.tsx` | The drawer says where the buffer comes from: the type, the location default, or this booking. |
 | SCH-15 Sub-venues | P1 | done | resources tree; calendar | e2e | A parent's booking appears on each child column as a non-interactive "held" band. |
-| SCH-16 Direct registration link | P1 | not built | | | No API. |
-| SCH-17 Shared bookings | P1 | not built | | | Needs modules 4 and 5. |
+| SCH-16 Direct registration link | P1 | done | `sharing.tsx` (SessionPanel, `/direct-link`) | `sharing.test.tsx`, `shared-post-billed.spec.ts` | Phase 14 C2. |
+| SCH-17 Shared bookings | P1 | done | `ParticipantsCard` in the booking drawer | `sharing.test.tsx` | Phase 14 C2. |
 | SCH-18 Trainer availability | P0 | done | Resources › Availability dialog; day view off-hours | `TimeGrid.test.tsx`, e2e | Weekly windows; phase 10 shades a trainer's off-hours on the day view and offers windows as bookable slots (with an optional extra resource). |
 | SCH-19 Staff calendar sync | P1 | not built | | | |
 | SCH-20 Embedded public schedule | P1 | not built | | | |
-| SCH-21 Merge series | P2 | not built | | | |
+| SCH-21 Merge series | P2 | done | `MergeSeriesForm` in the booking drawer | | Phase 14 C2. |
 | CLS-01 Register into a session | P0 | partial | session panel "Add a client" › Register | `SessionPanel.test.tsx` | Staff register with `pricing: free`. Package and payment registration waits for modules 5 and 8. |
 | CLS-02 Multi-enrolment | P0 | not built | | | No API. |
 | CLS-03 Roster and attendance | P0 | partial | session panel | `SessionPanel.test.tsx` | Roster, attendance marks (only changed marks are sent), remove. Moving a client to another session and notes are not built. |

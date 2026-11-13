@@ -13,6 +13,7 @@ import { CancelDialog } from '../programs/CancelDialog'
 import { SellPackageDialog } from '../packages/ClientPackagesTab'
 import { BatchBookDialog, MessageDialog, RebookDialog } from '../programs/SessionTools'
 import { useWorkingLocation } from './location'
+import { DirectLinkControls } from './sharing'
 
 type Attendance = Schemas['Participant']['attendance']
 const ATTENDANCE: { value: Attendance; label: string }[] = [
@@ -183,6 +184,7 @@ export function SessionPanel({ sessionId, canEdit }: { sessionId: string; canEdi
               <Checkbox label="Allow booking without a package" checked={s.allows_free_booking} disabled={flags.isPending} onChange={(e) => flags.mutate({ allows_free_booking: e.target.checked })} />
             </div>
           )}
+          {can('scheduling.registration_link.create') && <DirectLinkControls sessionId={sessionId} active={s.is_direct_link_active} />}
         </div>
       )}
 

@@ -139,3 +139,13 @@ upcoming contract (`sales_channel` import), so engagement sends no "membership s
 
 `PortalContractBuy.payment_method_id` pays what is due now with a card already on file (the owner's own; otherwise
 422 `payment-method-not-usable`), through `secure_online_checkout`.
+
+## Agreement binding (DOC-11, Phase 14 C2)
+
+`PUT /membership-contracts/{id}/agreement {client_document_id}` binds an issued agreement to the contract
+(`memberships.contract.update`, plus read reach on the document). The document must be a signed (accepted,
+not deleted) document of the contract's owner, issued from an agreement template that is not a waiver (422
+otherwise); a contract whose bound agreement is signed cannot be rebound (409). A contract still waiting on its
+gating document keeps that one.
+Erasure keeps both: contracts are financial records and signed documents are retained as evidence.
+Assumption: one bound document per contract; an unsigned binding can be replaced (audited).

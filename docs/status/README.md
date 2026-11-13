@@ -91,12 +91,12 @@ Lane detail: `02-resources-scheduling.md`, `02-resources-scheduling-web.md`.
 | SCH-13 Multi-resource reservations | P0 | done |  |
 | SCH-14 Buffer times | P1 | done |  |
 | SCH-15 Sub-venues | P1 | done |  |
-| SCH-16 Direct registration link | P1 | not built | No API. |
-| SCH-17 Shared bookings | P1 | not built | Needs modules 4 and 5. |
+| SCH-16 Direct registration link | P1 | done | Phase 14 C2 (`phase14-c2-shared-bookings.md`). |
+| SCH-17 Shared bookings | P1 | done | Phase 14 C2; no portal view. |
 | SCH-18 Trainer availability | P0 | done | Weekly windows; phase 10 shades a trainer's off-hours on the day view and offers windows as bookable slots (with an optional extra resource). |
 | SCH-19 Staff calendar sync | P1 | not built |  |
 | SCH-20 Embedded public schedule | P1 | not built |  |
-| SCH-21 Merge series | P2 | not built |  |
+| SCH-21 Merge series | P2 | done | Phase 14 C2. |
 
 ## Module 3: Rentals and events
 
@@ -213,7 +213,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | PKG-08 Sale through point of sale | P1 | done | Integration: sold as a POS cart line (POS-19), `sales_channel = pos`. Priced one-off plans only; no discounts on the line; removed from the client profile, not returned at the till. |
 | PKG-09 Online package sales | P1 | done | Portal Packages screen buys with a saved card or a new one (fake processor, or Stripe Elements in Stripe test mode); history and auto-renew opt-out; the Sessions screen buys a covering package and books in one flow (SSP-08, phase 11 B). |
 | PKG-10 Member-only plans | P1 | done |  |
-| PKG-11 Post-billed packages | P2 | not built | No tables, rate table or batch close. Not built here either. |
+| PKG-11 Post-billed packages | P2 | done | Phase 14 C2; tiered rates. |
 | PKG-12 Session registration, roster and attendance | P0 | done | Staff register a client into a session and pick the package that pays; the credit follows attendance marks and cancellation. Phase 10 chip E: "Book across sessions" pays with a package, a speed-register mode registers on pick with the first usable package, and "Sell a package" sells inline then preselects it. |
 | PKG-13 Remove a package and reverse or refund | P1 | done | Reversing the charge after sessions were used is a manager override (`packages.package.remove_override`, reason required, audited; question 16). |
 | PKG-14 Client ledger and balance views | P0 | done |  |
@@ -278,7 +278,7 @@ Lane detail: `07-waivers-documents.md`.
 | DOC-08 Documents bound to services | P0 | done |  |
 | DOC-09 GDPR consent document | P1 | done |  |
 | DOC-10 Legacy membership agreement template | P2 | partial | Per-version signer roles (client, guardian, co-signer), not per-section signing. |
-| DOC-11 Membership agreement instance | P2 | partial | No contract binding until memberships exist; no Word export by design. |
+| DOC-11 Membership agreement instance | P2 | done | Phase 14 C2: bound to its contract; no Word export by design. |
 | DOC-12 Signature capture hardware | v2-adapter | partial | Canvas is the only capture; no `SignatureCaptureAdapter` interface yet. |
 | DOC-13 Smartwaiver integration | v2-adapter | not built | Origin `external_provider` is reserved in the schema; no adapter or webhook. |
 | DOC-14 Self-service terms acknowledgment | P1 | done |  |
@@ -314,7 +314,7 @@ Lane detail: `08-billing-payments.md`, `08-billing-payments-web.md`.
 | BIL-15 Coupons | P0 | done |  |
 | BIL-16 Billing preferences | P0 | done |  |
 | BIL-17 Autopay defaults and per-invoice flag | P0 | done | Plan, then the billing setting for the sales channel (Phase 9 chip D). |
-| BIL-18 Post-billed package period close | P1 | not built | Belongs to `packages`. |
+| BIL-18 Post-billed package period close | P1 | done | Phase 14 C2, in `packages`. |
 | BIL-19 Accounts receivable report | P1 | partial | No export. Ageing is by invoice due date (backend gap). |
 | BIL-20 Collections tagging and reports | P1 | done | Tags, client profile, report (Phase 9 chip D). |
 | BIL-21 Client account credit | P0 | partial | Backend gaps carry over. |

@@ -37,6 +37,7 @@ def create_app() -> FastAPI:
     from app.modules.rentals.router import router as rentals_router
     from app.modules.reporting.router import router as reporting_router
     from app.modules.resources.router import router as resources_router
+    from app.modules.scheduling.router import public as scheduling_public
     from app.modules.scheduling.router import router as scheduling_router
     from app.modules.staff.router import router as staff_router
 
@@ -57,6 +58,7 @@ def create_app() -> FastAPI:
         app.include_router(each, prefix=API_PREFIX)
     for each in (resources_router, scheduling_router, programs_router, programs_public, programs_downloads):
         app.include_router(each, prefix=API_PREFIX)
+    app.include_router(scheduling_public, prefix=API_PREFIX)
     app.include_router(rentals_router, prefix=API_PREFIX)
     app.include_router(staff_router, prefix=API_PREFIX)
     app.include_router(assessments_router, prefix=API_PREFIX)

@@ -65,6 +65,7 @@ rate_limit:                           # security-baseline 6; fixed windows. clos
     guest-checkout-create: {limit: 5, window_sec: 900, closed: true}  # REG-12 guest baskets (place holds), per IP
     guest-checkout-email:  {limit: 5, window_sec: 3600, closed: true} # REG-12 guest baskets, per payer address
     document-link:    {limit: 20, window_sec: 900,  closed: true}   # token confirm (DOC-04), per IP
+    direct-link:      {limit: 30, window_sec: 300,  closed: true}   # direct registration link resolve (SCH-16), per IP
     mfa:              {limit: 10, window_sec: 60,   closed: true}   # second-factor code, per IP
     mfa-challenge:    {limit: 5,  window_sec: 300,  closed: true}   # codes per pending sign-in
     step-up:          {limit: 10, window_sec: 300,  closed: true}   # re-authentication, per IP

@@ -118,13 +118,43 @@ winner named. Moves delete and re-insert the booking's holds in one transaction 
 
 ## Not built
 
-Portal slot booking (programs calls `materialise_slot`), direct registration links (SCH-16; the token
-columns exist and are filled; operations `createSessionDirectLink`, `revokeSessionDirectLink`,
-`createSlotOfferDirectLink` and `resolveDirectLink`), public
-schedule (SCH-20; `getPublicSchedule`, `getPublicScheduleSettings` and `updatePublicScheduleSettings`, and the
-`scheduling.public_schedule.manage` key, which no route uses yet), calendar feeds (SCH-19), series merge (SCH-21;
-`mergeBookingSeries`), the `rpt_booking` and `rpt_session_fill`
-views, `enrollment_action` on reschedule. (Merge and erasure are handled since integration: `subject.py`.)
+Portal slot booking (programs calls `materialise_slot`), direct links for slot offers
+(`createSlotOfferDirectLink`), public schedule (SCH-20; `getPublicSchedule`, `getPublicScheduleSettings` and
+`updatePublicScheduleSettings`, and the `scheduling.public_schedule.manage` key, which no route uses yet), calendar
+feeds (SCH-19), the `rpt_booking` and `rpt_session_fill` views, `enrollment_action` on reschedule, a portal view
+of shared bookings. (Merge and erasure are handled since integration: `subject.py`.)
+
+## Direct links, shared bookings and series merge (Phase 14 C2, `sharing.py`)
+
+- **Direct registration link (SCH-16).** `POST /sessions/{id}/direct-link` turns the link on and returns
+  `path` (`/direct-link#token=...`) once (`secret_response`: never replayed). Only the token's sha256 digest is
+  stored, so while the link is on the same call returns its status with `token` and `path` null, and links
+  already sent keep working. `POST .../direct-link/regenerate` issues a new link (shown once) and the old one
+  stops working. The token rides in the URL fragment and reaches the API only in the body of
+  `POST /public/direct-links/resolve` (anonymous, rate limited `direct-link`, minimal fields). `DELETE` turns
+  it off and replaces the digest, so every copy sent before stops working. Booking from the page
+  is the portal's ordinary enrolment carrying `direct_link_token`, so a visitor signs in to the member portal
+  first. A live token (`service.has_live_link`) waives only the listing and self-booking checks: a `hidden`
+  listing mode, `list_only`, the policy's `visible_range_days` and `is_self_bookable = false`. That is
+  deliberate for a private link. Cutoff, membership, capacity and the package rule (a session without free
+  booking needs a package) still apply (`test_sharing.py`). Assumption: one link
+  per session (not per client), resolving only while the session is ahead and not cancelled.
+- **Shared bookings (SCH-17, SSP-09).** `booking_participant` lists the clients on a client's own booking
+  (one with an organiser), each with their own `attendance` (`scheduled`, `attended`, `no_show`; a no-show
+  needs `mark_exception`). A booking without an organiser, such as a class session, takes no participants
+  (409): its seats go through enrolments, which hold capacity, waivers and payment. Only the organiser's
+  active relatives can join; the organiser is listed once it is shared and cannot be removed. Erasure of a
+  client waits while they are a participant on a booking ahead, as it does for their own bookings.
+  Package credit is untouched here (scheduling does not import packages). Gates reuse the enrolment and
+  attendance keys. Client merge drops a loser's duplicate row; erasure keeps rows (bookings are kept).
+- **Series merge (SCH-21).** `POST /bookings/{id}/merge {booking_number}` moves the other reservation and its
+  series into this booking's series, creating one when this booking stands alone, and deletes the emptied
+  series. Same location, kind and client only (`merge-mismatch`); blocks and cancelled bookings are refused;
+  holds are not touched (times do not change). Needs `update_series` on both bookings. Every lock is taken
+  before any check, in one order: both series rows by id, then every booking of the two series by id. Refused with
+  `series-run-in-progress` (409) while either series has a pending or running series change, and with
+  `invalid-state-transition` when a booking changed series between the first read and the locks. Every booking
+  whose series changes is audited.
 
 ## Security hardening (wave 1, S-02 to S-04)
 

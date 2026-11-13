@@ -12,6 +12,7 @@ import { Tabs } from '../../components/Tabs'
 import { useToast } from '../../components/Toast'
 import { useAuth, useMe } from '../../lib/auth'
 import { addDays, formatDate, todayIn, toMinor } from '../../lib/format'
+import { ClosesTab, RatesTab } from './PostBilled'
 import { ClientLink, PACKAGE_TONE, RequiredDocument, StatusBadge, UNITS, moneyText, useClientNames, useMoney, useRevenueCategories, type PackageOut } from '../memberships/shared'
 
 type Plan = Schemas['PackagePlanOut']
@@ -398,9 +399,11 @@ export function PackagesPage() {
           ...(manage
             ? [
                 { id: 'plans', label: 'Plans', content: <PlansTab /> },
+                { id: 'rates', label: 'Post-billed rates', content: <RatesTab /> },
                 { id: 'settings', label: 'Preferences', content: <SettingsTab /> },
               ]
             : []),
+          ...(can('packages.period.close') ? [{ id: 'closes', label: 'Period close', content: <ClosesTab /> }] : []),
         ]}
       />
     </>

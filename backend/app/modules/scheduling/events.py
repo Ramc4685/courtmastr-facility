@@ -81,3 +81,46 @@ class ReservationTypeGrantsReplaced(Event):
     type: Literal["scheduling.reservation_type.grants_replaced"] = "scheduling.reservation_type.grants_replaced"
     reservation_type_id: UUID
     staff_user_count: int
+
+
+class DirectLinkChanged(Event):
+    """A session's direct registration link was turned on or revoked (SCH-16)."""
+
+    aggregate_type: ClassVar[str] = "session"
+    type: Literal["scheduling.session.direct_link_changed"] = "scheduling.session.direct_link_changed"
+    session_id: UUID
+    location_id: UUID
+    is_active: bool
+
+
+class _ParticipantEvent(Event):
+    aggregate_type: ClassVar[str] = "booking_participant"
+    participant_id: UUID
+    booking_id: UUID
+    location_id: UUID
+    client_id: UUID
+    attendance: str
+
+
+class ParticipantAdded(_ParticipantEvent):
+    """A client joined a shared booking (SCH-17, SSP-09)."""
+
+    type: Literal["scheduling.participant.added"] = "scheduling.participant.added"
+
+
+class ParticipantRemoved(_ParticipantEvent):
+    type: Literal["scheduling.participant.removed"] = "scheduling.participant.removed"
+
+
+class ParticipantAttendanceMarked(_ParticipantEvent):
+    type: Literal["scheduling.participant.attendance_marked"] = "scheduling.participant.attendance_marked"
+
+
+class SeriesMerged(Event):
+    """Another booking or series was merged into this series (SCH-21)."""
+
+    aggregate_type: ClassVar[str] = "booking_series"
+    type: Literal["scheduling.series.merged"] = "scheduling.series.merged"
+    booking_series_id: UUID
+    location_id: UUID
+    merged_booking_count: int

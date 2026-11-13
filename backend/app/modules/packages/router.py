@@ -18,8 +18,8 @@ from app.core.auth.deps import Ctx, current_ctx, public_session, require
 from app.core.errors import ValidationFailed
 from app.core.idempotency import KEY_PATTERN, idempotency
 from app.core.pagination import ListQuery, list_query
+from app.modules.packages import postbilled, service
 from app.modules.packages import schemas as s
-from app.modules.packages import service
 
 router = APIRouter(
     route_class=TxRoute, tags=["packages"], generate_unique_id_function=camel_id, dependencies=[Depends(idempotency)]
@@ -38,6 +38,7 @@ Manage = Annotated[Ctx, Depends(require("packages.plan.manage"))]
 Update = Annotated[Ctx, Depends(require("packages.package.update"))]
 Share = Annotated[Ctx, Depends(require("packages.package.share"))]
 Remove = Annotated[Ctx, Depends(require("packages.package.remove"))]
+Close = Annotated[Ctx, Depends(require(postbilled.CLOSE))]
 Portal = Annotated[Ctx, Depends(current_ctx)]
 ActFor = Annotated[UUID | None, Query(alias="client_id")]
 
@@ -112,6 +113,13 @@ def grant_complimentary_package(
 ):
     """Give a plan's package away: no charge, marked complimentary."""
     return service.grant_complimentary(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.post("/client-packages/post-billed", response_model=s.PackageOut, status_code=201)
+def open_post_billed_package(body: s.PostBilledPackageOpen, ctx: Sell):
+    """Open a post-billed package (PKG-11): nothing is charged now; used sessions are billed at a period close.
+    The reservation type needs an active post-billed rate."""
+    return postbilled.open_package(ctx.session, ctx.principal, body.model_dump())
 
 
 @router.get("/client-packages", response_model=s.Page[s.PackageOut])
@@ -253,3 +261,53 @@ def list_public_package_plans(query: Lists, session: Annotated[Session, Depends(
     """Plans sold online, for the tenant resolved from the host. Filters: reservation_type_id. q searches the
     name. `is_purchasable` is false for member-only plans until a signed-in member asks."""
     return service.public_list_plans(session, query)
+
+
+# --- post-billed rates (PKG-11) and period closes (BIL-18) -------------------------------------------------------
+
+
+@router.get("/post-billed-rates", response_model=s.Page[s.PostBilledRateOut])
+def list_post_billed_rates(query: Lists, ctx: Manage):
+    """Filters: reservation_type_id, is_active."""
+    return postbilled.list_rates(ctx.session, ctx.principal, query)
+
+
+@router.post("/post-billed-rates", response_model=s.PostBilledRateOut, status_code=201)
+def create_post_billed_rate(body: s.PostBilledRateCreate, ctx: Manage):
+    """One tier: every session of a close is billed at the tier with the highest min_sessions reached."""
+    return postbilled.create_rate(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.patch("/post-billed-rates/{post_billed_rate_id}", response_model=s.PostBilledRateOut)
+def update_post_billed_rate(post_billed_rate_id: UUID, body: s.PostBilledRateUpdate, ctx: Manage):
+    return postbilled.update_rate(ctx.session, ctx.principal, post_billed_rate_id, body.model_dump(exclude_unset=True))
+
+
+@router.post("/post-billed-closes/preview", response_model=s.PostBilledPreviewOut)
+def preview_post_billed_close(body: s.PostBilledCloseIn, ctx: Close):
+    """Every open post-billed package at the location with what a close on that date would bill."""
+    return postbilled.preview_close(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.post("/post-billed-closes", response_model=s.PostBilledCloseOut, status_code=201)
+def close_post_billed_period(body: s.PostBilledCloseIn, ctx: Close):
+    """Bill used sessions up to closing_on (one charge and invoice per package). Idempotent per location and
+    date: a repeat returns the first close, with the packages that failed (`failed`, retried by `/retry`)."""
+    return postbilled.close_period(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.get("/post-billed-closes", response_model=s.Page[s.PostBilledCloseOut])
+def list_post_billed_closes(query: Lists, ctx: Close):
+    """Past closes, newest first. Filters: location_id, closing_on."""
+    return postbilled.list_closes(ctx.session, ctx.principal, query)
+
+
+@router.get("/post-billed-closes/{post_billed_close_id}", response_model=s.PostBilledCloseOut)
+def get_post_billed_close(post_billed_close_id: UUID, ctx: Close):
+    return postbilled.get_close(ctx.session, ctx.principal, post_billed_close_id)
+
+
+@router.post("/post-billed-closes/{post_billed_close_id}/retry", response_model=s.PostBilledCloseOut)
+def retry_post_billed_close(post_billed_close_id: UUID, ctx: Close):
+    """Re-run only the packages listed in `failed` for this close's period; nobody else is billed again."""
+    return postbilled.retry_close(ctx.session, ctx.principal, post_billed_close_id)

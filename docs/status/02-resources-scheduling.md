@@ -40,12 +40,12 @@ Feature IDs and priorities are from `docs/discovery/parity-matrix.md`. Tests are
 | SCH-13 Multi-resource reservations | P0 | done (API) | `resources[]` on create and reschedule; exactly one primary | `test_conflict_table`, `test_hold_rows_*`, `test_a_resource_reached_twice_*` | All holds or none. |
 | SCH-14 Buffer times on sessions (per reservation type) | P1 | done (API) | type and settings defaults, per-booking override on create, `PATCH /bookings/{id}`, series patch | `test_buffers_are_inside_the_hold_and_add_up`, `test_buffer_defaults_*` | Additive gap (after of A plus before of B), 0 to 240 minutes in steps of 5. |
 | SCH-15 Sub-venues (parent/child resources) | P1 | done (API) | `parent_id` on resources; holds on self and all descendants, never ancestors; tree edits back-fill holds | `test_conflict_table` (parent, child, grandchild, sibling, uncle), `test_adding_and_moving_*` | Siblings stay bookable side by side. |
-| SCH-16 Direct registration link for a reservation | P1 | not built | | | `session.direct_link_token` is generated; no endpoint creates, revokes or resolves a link. |
-| SCH-17 Shared bookings for related clients | P1 | not built | | | Needs households (module 4) and packages (module 5). |
+| SCH-16 Direct registration link for a reservation | P1 | done | `sharing.py`, `/sessions/{id}/direct-link`, `/public/direct-links/resolve` | `test_sharing.py` | Phase 14 C2; token in the URL fragment; slot-offer links not built. |
+| SCH-17 Shared bookings for related clients | P1 | done | `booking_participant`, `/bookings/{id}/participants` | `test_sharing.py` | Phase 14 C2; per-participant attendance; no portal view. |
 | SCH-18 Trainer/coach availability scheduling | P0 | done (API) | trainers are `resource` rows (`kind: trainer`); `GET/POST /resources/{id}/availability-windows`, `PATCH/DELETE /availability-windows/{id}`; `GET /availability` (free time per resource); coach `own` reach | `test_resources.py::test_availability_windows`, `test_calendar.py::test_availability_*`, `test_permissions_per_role_*` | Phase 10: slot offers derive bookable trainer slots; the calendar returns `resource_hours` (`test_edges.py`). |
 | SCH-19 Staff calendar sync (Google / Outlook) | P1 | not built | | | |
 | SCH-20 Embedded public schedule / schedule data for external sites | P1 | not built | | | |
-| SCH-21 Merge two reservations into one linked series | P2 | not built | | | |
+| SCH-21 Merge two reservations into one linked series | P2 | done | `service.merge_series`, `/bookings/{id}/merge` | `test_sharing.py` | Phase 14 C2. |
 
 ### Session side of CLS (prefix owned by build module 6; thin slice shipped here)
 
@@ -68,8 +68,8 @@ Feature IDs and priorities are from `docs/discovery/parity-matrix.md`. Tests are
 | Priority | done (API) | partial | not built |
 |---|---|---|---|
 | P0 (16) | 16 | 0 | 0 |
-| P1 (12) | 8 | 0 | 4 (SCH-16, SCH-17, SCH-19, SCH-20) |
-| P2 (2) | 1 | 0 | 1 (SCH-21) |
+| P1 (12) | 10 | 0 | 2 (SCH-19, SCH-20) |
+| P2 (2) | 2 | 0 | 0 |
 
 ## Definition of done, item by item
 

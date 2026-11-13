@@ -91,7 +91,7 @@ have no screen. Phase 11 B built the portal pages for MEM-09 and PKG-09 (saved o
 | PKG-08 Sale through point of sale | P1 | not built | none | none | POS module. |
 | PKG-09 Online package sales | P1 | done | plan online settings; portal Packages and Sessions (buy and book) | `booking.test.tsx`; `e2e/portal-booking.spec.ts` | Phase 11 B. |
 | PKG-10 Member-only plans | P1 | done | plan dialog members-only checkboxes | backend | |
-| PKG-11 Post-billed packages | P2 | not built | none | none | No tables, rate table or batch close. Not built here either. |
+| PKG-11 Post-billed packages | P2 | done | `PostBilled.tsx` (rates tab, open dialog) | `shared-post-billed.spec.ts` | Phase 14 C2. |
 | PKG-12 Session registration, roster and attendance | P0 | done | Session panel: Pay with, Speed register, Sell a package inline; Book across sessions pays with a package | backend `test_credits`, `test_session_desk` | |
 | PKG-13 Remove a package and reverse or refund | P1 | done | Remove dialog (removal quote, billing mode, override reason when sessions were used) | backend, Vitest `desk.test` | |
 | PKG-14 Client ledger and balance views | P0 | done | client Packages tab; Ledger dialog with adjustment | backend; Vitest ledger test; e2e scan | Available = granted − reserved − consumed − forfeited. |
