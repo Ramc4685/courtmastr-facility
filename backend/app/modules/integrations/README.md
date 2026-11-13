@@ -62,8 +62,14 @@ through `service.adapter_for`.
 - **QuickBooks connection.** Creating one returns `authorize_url`; the provider sends the browser to the web
   page `/integrations/quickbooks/callback`, which POSTs `{state, code, realm_id, error}` to
   `/external-connections/oauth/callback` (the OIDC sign-in pattern: a GET that changes state would break the
-  no-mutating-GET rule). The state is sealed with AES-GCM under the tenant (connection, staff user, ten-minute
-  expiry) and works once; a forged, expired or used state is `403 state-invalid`. Credentials are sealed the
+  no-mutating-GET rule). The callback is a staff route (`integrations.connection.manage`, a person): the
+  state is sealed with AES-GCM under the tenant (connection, the staff user who started it, ten-minute
+  expiry), completes only for that same user (so a planted link does nothing: OAuth CSRF) and works once; a
+  forged, expired, used or someone else's state is `403 state-invalid`. The company id is never taken on the
+  browser's word: it must be digits, and `AccountingConnect.token_company_id` asks the provider which company
+  the new token opens (Intuit: the company-info read); a mismatch fails the connection (`realm-mismatch`).
+  `app.claim_provider_account` (migration 1702) registers the company for webhook routing and refuses one
+  already routed to another tenant (`409 account-in-use`). Credentials are sealed the
   same way and refreshed within five minutes of expiry. `return_url` must be on `app.web_base_url`. The
   webhook (`intuit-signature`, HMAC-SHA256) stores each notification once in the inbound log; the sync is
   one-way, so nothing else happens. It answers 401 while QuickBooks is off, and outside dev and test whenever
@@ -109,8 +115,7 @@ through `service.adapter_for`.
 - The sync runs inside the request (at most 31 past days, idempotent per day) rather than as a job.
 - Not built for QuickBooks: `sync_from` and `auto_sync` are stored but nothing reads them yet (no scheduled
   sync); no `mappings-incomplete` refusal, sub-category inheritance or `needs_reauth` notice (ADR 0012); the
-  platform realm lookup is kept on disconnect (`register_provider_account` is insert-only, a core function), so
-  a realm cannot move to another tenant.
+  platform realm lookup is kept on disconnect, so a company cannot move to another tenant without support.
 - Team feeds walk the owner's games by start time and keep the team's, scanning at most 1000 (leagues has no
   team filter on `list_games`). Feeds carry at most 1000 events.
 - The public schedule and its settings live here, not in scheduling (contract tag `scheduling`), because

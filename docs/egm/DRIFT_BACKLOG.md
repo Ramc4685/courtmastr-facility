@@ -125,7 +125,7 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [ ] [undocumented] A row that hits a database IntegrityError is `failed`/`invalid` with code `already-exists` (service.py:321-325). README line 58-59 describes only refusals and `unexpected`.
 - [ ] [wording] README line 113 says the commit hits `entitlements.enforce_limit` "inside `clients._create`". The function is `clients.service._create` (backend/app/modules/clients/service.py:756, call at :769).
 
-### integrations (39 open, 5 closed) — [evidence](drift/integrations.md)
+### integrations (38 open, 6 closed) — [evidence](drift/integrations.md)
 
 INT-07 QuickBooks (new 2026-11-13):
 
@@ -146,7 +146,7 @@ INT-07 QuickBooks (new 2026-11-13):
 - [ ] [missing] `getSyncMappings` can refresh and reseal credentials, so a GET writes (`backend/app/modules/integrations/quickbooks.py:71-81, 223`).
 - [x] [undocumented] Security: `receive_webhook` verified through `FakeQuickBooks` (a public secret) unless all three `FH_QUICKBOOKS_*` variables were set, whatever `quickbooks_enabled` said. Fixed: 401 while QuickBooks is off, and outside dev and test whenever the simulated adapter is in use; both tested.
 - [ ] [contract] `receiveQuickBooksEvents`: the yaml says `200` no content and `429`; the code returns `{"stored": n}` and neither inbound QuickBooks route has a rate limit (`backend/app/modules/integrations/router.py:157, 214-219`).
-- [ ] [missing] `register_provider_account` is `ON CONFLICT DO NOTHING` and disconnect never removes the lookup row, so a disconnected realm keeps routing to its tenant and a second tenant cannot claim it (`backend/migrations/versions/0301_billing_module.py:351-356`, `backend/app/modules/integrations/quickbooks.py:152`, `service.py:674-688`). Not tested.
+- [x] [missing] Fixed for the silent part: `app.claim_provider_account` now refuses a realm routed to another tenant (`409 account-in-use`), and the realm is verified against the token. Still true: `register_provider_account` is `ON CONFLICT DO NOTHING` and disconnect never removes the lookup row, so a disconnected realm keeps routing to its tenant and a second tenant cannot claim it (`backend/migrations/versions/0301_billing_module.py:351-356`, `backend/app/modules/integrations/quickbooks.py:152`, `service.py:674-688`). Not tested.
 - [ ] [undocumented] `run_sync` leaves out: already-failed days count as `failed` unless `retries_failed`; today and later are refused; a body `location_id` is ignored when the connection has one (`backend/app/modules/integrations/quickbooks.py:268-285`).
 - [x] [wording] Stale docstrings in `adapters/accounting.py`, `ports/accounting.py` and `integrations/router.py`. Fixed.
 - [ ] [stale-not-built] `docs/status/16-integrations.md:22` says OAuth, mappings and sync are not built; they exist now (the mapping table and screen do not).

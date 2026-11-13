@@ -104,52 +104,58 @@ def start(session: Session, row: ExternalConnection, principal: Principal, retur
     return _port(session, row.location_id).authorize_url(state=state, redirect_uri=redirect_uri())
 
 
-def tenant_of_state(state: str | None) -> UUID | None:
-    head = (state or "").split(".", 1)[0]
-    try:
-        return UUID(hex=head) if len(head) == 32 else None
-    except ValueError:
-        return None
-
-
-def complete(session: Session, state: str, code: str | None, company_id: str | None, error: str | None) -> dict:
-    """Exchange the code and activate the connection. Any failure after the state checks out marks the
-    connection `error` (committed) and is reported in the result, with where to send the browser next."""
-    result = _complete(session, state, code, company_id, error)
-    row, outcome = result
+def complete(
+    session: Session, principal: Principal, state: str, code: str | None, company_id: str | None, error: str | None
+) -> dict:
+    """Exchange the code and activate the connection, for the staff user who started it only (the state seals
+    their id, so a link planted on someone else does nothing: OAuth CSRF). Any failure after the state checks
+    out marks the connection `error`, which also uses the state up, and is reported in the result."""
+    row, outcome = _complete(session, principal, state, code, company_id, error)
     back = row.settings.get("return_url", get_settings().app.web_base_url)
     return {"external_connection_id": row.id, "status": outcome, "return_url": back}
 
 
+def _fail(session: Session, row: ExternalConnection, reason: str) -> tuple[ExternalConnection, str]:
+    row.status, row.last_error, row.last_error_at = ConnectionStatus.ERROR, reason[:200], clock.now()
+    audit.record(session, "integrations.connection.authorize", row, location_id=row.location_id,
+                 changes=audit.diff(row))  # fmt: skip
+    return row, "error"
+
+
 def _complete(
-    session: Session, state: str, code: str | None, company_id: str | None, error: str | None
+    session: Session, principal: Principal, state: str, code: str | None, company_id: str | None, error: str | None
 ) -> tuple[ExternalConnection, str]:
     tenant_id = session.info["tenant_id"]
+    head, _, sealed = state.partition(".")
     try:
-        payload = json.loads(crypto.decrypt(state.split(".", 1)[1], tenant_id))
+        if head != tenant_id.hex:
+            raise ValueError("other tenant")
+        payload = json.loads(crypto.decrypt(sealed, tenant_id))
     except Exception:  # any malformed, forged or other-tenant state (AES-GCM raises InvalidTag)
         raise PermissionDenied("This connection link is not valid", code="state-invalid") from None
-    row = session.get(ExternalConnection, UUID(payload["c"]))
+    if payload["u"] != str(principal.staff_user_id):
+        raise PermissionDenied("This connection link was started by someone else", code="state-invalid")
+    row = session.get(ExternalConnection, UUID(payload["c"]), with_for_update=True)
     if row is None or row.status != ConnectionStatus.PENDING or payload["x"] < clock.now().timestamp():
         raise PermissionDenied("This connection link has expired", code="state-invalid")
     if error or not code or not company_id:
-        row.status, row.last_error, row.last_error_at = ConnectionStatus.ERROR, (error or "no code")[:200], clock.now()
-        audit.record(session, "integrations.connection.authorize", row, location_id=row.location_id,
-                     changes=audit.diff(row))  # fmt: skip
-        return row, "error"
+        return _fail(session, row, error or "no code")
+    if not company_id.isdigit():
+        return _fail(session, row, "realm-invalid")
+    port = _port(session, row.location_id)
     try:
-        creds = _port(session, row.location_id).exchange_code(
-            code=code, company_id=company_id, redirect_uri=redirect_uri()
-        )
+        creds = port.exchange_code(code=code, company_id=company_id, redirect_uri=redirect_uri())
+        verified = port.token_company_id(creds)
     except Exception as exc:  # the provider boundary: record it, never leak it
-        row.status, row.last_error, row.last_error_at = ConnectionStatus.ERROR, type(exc).__name__, clock.now()
-        audit.record(session, "integrations.connection.authorize", row, location_id=row.location_id,
-                     changes=audit.diff(row))  # fmt: skip
-        return row, "error"
+        return _fail(session, row, type(exc).__name__)
+    if verified != company_id:  # the browser named a company the token does not open
+        return _fail(session, row, "realm-mismatch")
+    claimed = session.scalar(text("SELECT app.claim_provider_account(:p, :r)"), {"p": PROVIDER.value, "r": company_id})
+    if not claimed:
+        raise Conflict("This QuickBooks company is connected to another account", code="account-in-use")
     _seal(row, creds, tenant_id)
     row.status, row.external_account_id, row.connected_at = ConnectionStatus.ACTIVE, company_id, clock.now()
-    row.connected_by_staff_user_id, row.last_error = UUID(payload["u"]), None
-    session.execute(text("SELECT app.register_provider_account(:p, :r)"), {"p": PROVIDER.value, "r": company_id})
+    row.connected_by_staff_user_id, row.last_error = principal.staff_user_id, None
     audit.record(
         session, "integrations.connection.authorize", row, location_id=row.location_id, changes=audit.diff(row)
     )

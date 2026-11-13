@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import json
+import secrets
 import time
 from dataclasses import asdict
 from pathlib import Path
@@ -98,12 +99,19 @@ class FakeQuickBooks:
     WEBHOOK_SECRET = "fake-quickbooks-verifier"  # noqa: S105  (a public test value, never a real verifier)
 
     def authorize_url(self, *, state: str, redirect_uri: str) -> str:
-        return f"{redirect_uri}?{urlencode({'state': state, 'code': 'fake-code', 'realm_id': '9130000000000001'})}"
+        realm = str(secrets.randbelow(10**15) + 10**15)  # a fresh simulated company per authorisation
+        return f"{redirect_uri}?{urlencode({'state': state, 'code': f'fake-code.{realm}', 'realm_id': realm})}"
 
     def exchange_code(self, *, code: str, company_id: str, redirect_uri: str) -> Credentials:
-        if code != "fake-code":
+        prefix, _, realm = code.partition(".")
+        if prefix != "fake-code" or not realm.isdigit():
             raise ValueError("invalid_grant")
-        return Credentials(f"fake-at-{code}", f"fake-rt-{code}", time.time() + 3600, company_id)
+        # the token belongs to the company the code was issued for, whatever the browser claims
+        return Credentials(f"fake-at.{realm}", f"fake-rt.{realm}", time.time() + 3600, company_id)
+
+    def token_company_id(self, credentials: Credentials) -> str | None:
+        realm = credentials.access_token.split(".")[1].rstrip("+")
+        return realm if realm == credentials.company_id else None
 
     def refresh(self, credentials: Credentials) -> Credentials:
         return Credentials(credentials.access_token + "+", credentials.refresh_token, time.time() + 3600,
@@ -159,6 +167,19 @@ class QuickBooksConnect:
 
     def exchange_code(self, *, code: str, company_id: str, redirect_uri: str) -> Credentials:
         return self._token({"grant_type": "authorization_code", "code": code, "redirect_uri": redirect_uri}, company_id)
+
+    def token_company_id(self, credentials: Credentials) -> str | None:
+        """Reads the company's own record with the token: Intuit answers 401 or 403 for a realm the token was
+        not issued for, so a realm id the browser invented never verifies."""
+        response = self.client.get(
+            f"/v3/company/{credentials.company_id}/companyinfo/{credentials.company_id}",
+            params={"minorversion": "73"},
+            headers={"Authorization": f"Bearer {credentials.access_token}", "Accept": "application/json"},
+        )
+        if response.status_code in (401, 403, 404):
+            return None
+        response.raise_for_status()
+        return str(response.json()["CompanyInfo"]["Id"])
 
     def refresh(self, credentials: Credentials) -> Credentials:
         form = {"grant_type": "refresh_token", "refresh_token": credentials.refresh_token}

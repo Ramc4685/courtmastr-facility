@@ -4991,8 +4991,9 @@ export interface paths {
         put?: never;
         /**
          * Complete External Connection O Auth
-         * @description Posted by the web app's callback page with what the provider sent back. Authenticated by the sealed
-         *     state (tenant, connection, staff user, ten-minute expiry), never by a session. Errors: state-invalid.
+         * @description Posted by the web app's callback page, in the signed-in session of the staff user who started the
+         *     connection; the sealed state (tenant, connection, that user, ten-minute expiry) must match them and works
+         *     once. Errors: state-invalid, account-in-use.
          */
         post: operations["completeExternalConnectionOAuth"];
         delete?: never;
@@ -26165,7 +26166,10 @@ export interface components {
             code?: string | null;
             /** Error */
             error?: string | null;
-            /** Realm Id */
+            /**
+             * Realm Id
+             * @description The provider's company id: digits only, and verified against the token
+             */
             realm_id?: string | null;
             /** State */
             state: string;
@@ -51993,7 +51997,10 @@ export interface operations {
     completeExternalConnectionOAuth: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };

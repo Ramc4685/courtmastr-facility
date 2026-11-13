@@ -16,7 +16,7 @@ from app.core import ratelimit
 from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, current_ctx, public_session, request_session, require
 from app.core.auth.principal import system_principal
-from app.core.errors import NotFound, PermissionDenied
+from app.core.errors import NotFound
 from app.core.idempotency import idempotency, secret_response
 from app.core.pagination import ListQuery, list_query
 from app.core.ratelimit import rate_limit
@@ -156,16 +156,15 @@ def create_external_connection(
     return s.ExternalConnectionOut.model_validate(row).model_dump() | {"authorize_url": authorize_url}
 
 
-@inbound.post("/external-connections/oauth/callback", response_model=s.OAuthCallbackOut)
-def complete_external_connection_o_auth(body: s.OAuthCallbackIn, request: Request):
-    """Posted by the web app's callback page with what the provider sent back. Authenticated by the sealed
-    state (tenant, connection, staff user, ten-minute expiry), never by a session. Errors: state-invalid."""
-    tenant_id = quickbooks.tenant_of_state(body.state)
-    if tenant_id is None:
-        raise PermissionDenied("This connection link is not valid", code="state-invalid")
-    session = request_session(request, tenant_id)
-    session.info["actor"] = system_principal("quickbooks oauth")
-    return quickbooks.complete(session, body.state, body.code, body.realm_id, body.error)
+@router.post("/external-connections/oauth/callback", response_model=s.OAuthCallbackOut)
+def complete_external_connection_o_auth(
+    body: s.OAuthCallbackIn, ctx: Ctx = Depends(require("integrations.connection.manage"))
+):
+    """Posted by the web app's callback page, in the signed-in session of the staff user who started the
+    connection; the sealed state (tenant, connection, that user, ten-minute expiry) must match them and works
+    once. Errors: state-invalid, account-in-use."""
+    service._require_person(ctx.principal)
+    return quickbooks.complete(ctx.session, ctx.principal, body.state, body.code, body.realm_id, body.error)
 
 
 @router.get("/external-connections/{external_connection_id}", response_model=s.ExternalConnectionOut)

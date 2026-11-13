@@ -165,7 +165,9 @@ class SyncRun(In):
 class OAuthCallbackIn(In):
     state: Annotated[str, StringConstraints(min_length=1, max_length=2000)]
     code: Annotated[str, StringConstraints(max_length=1000)] | None = None
-    realm_id: Annotated[str, StringConstraints(max_length=50)] | None = None
+    realm_id: Annotated[str, StringConstraints(pattern=r"^[0-9]{1,20}$")] | None = Field(
+        None, description="The provider's company id: digits only, and verified against the token"
+    )
     error: Annotated[str, StringConstraints(max_length=200)] | None = None
 
 

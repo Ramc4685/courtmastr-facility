@@ -12,13 +12,14 @@ import pytest
 from sqlalchemy import text
 
 from app.adapters.accounting import FakeQuickBooks, QuickBooksConnect, QuickBooksOnline, _webhook_signature
-from app.core import clock
+from app.core import clock, crypto
 from app.core.db.platform import platform_engine
 from app.core.db.session import tenant_session
 from app.core.ids import new_id
 from app.core.settings import get_settings
 from app.modules.integrations.models import ExternalConnection
 from app.ports.accounting import Credentials
+from conftest import add_staff, login, make_tenant
 
 API = "/api/v1"
 CREDS = Credentials("at-1", "rt-1", 2_000_000_000, "4620816365")
@@ -34,6 +35,11 @@ def _intuit(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"access_token": "at-2", "refresh_token": "rt-2", "expires_in": 3600})
     if request.url.path.endswith("/tokens/revoke"):
         return httpx.Response(200)
+    if "/companyinfo/" in request.url.path:  # the token opens company 4620816365 only
+        realm = request.url.path.rsplit("/", 1)[1]
+        if realm != "4620816365" or request.headers["authorization"] != "Bearer at-2":
+            return httpx.Response(403)
+        return httpx.Response(200, json={"CompanyInfo": {"Id": realm, "CompanyName": "Sample"}})
     if request.url.path.endswith("/query"):
         entity = "Class" if "from Class" in request.url.params["query"] else "Account"
         return httpx.Response(200, json={"QueryResponse": {entity: [{"Id": "7", "Name": f"{entity} seven"}]}})
@@ -45,7 +51,10 @@ def _real() -> QuickBooksConnect:
     return QuickBooksConnect(client_id="cid", client_secret="secret", webhook_verifier="verifier", client=http)
 
 
-ADAPTERS = {"fake": (FakeQuickBooks, FakeQuickBooks.WEBHOOK_SECRET, "fake-code"), "real": (_real, "verifier", "ok")}
+ADAPTERS = {
+    "fake": (FakeQuickBooks, FakeQuickBooks.WEBHOOK_SECRET, "fake-code.4620816365"),
+    "real": (_real, "verifier", "ok"),
+}
 
 
 @pytest.mark.parametrize("name", ADAPTERS)
@@ -56,6 +65,9 @@ def test_accounting_connect_contract(name):
     assert parse_qs(urlparse(url).query)["state"] == ["s.t"]
     creds = adapter.exchange_code(code=code, company_id="4620816365", redirect_uri="https://app.example/cb")
     assert creds.company_id == "4620816365" and creds.access_token and creds.expires_at > clock.now().timestamp()
+    assert adapter.token_company_id(creds) == "4620816365"
+    claimed = adapter.exchange_code(code=code, company_id="1111111111", redirect_uri="https://app.example/cb")
+    assert adapter.token_company_id(claimed) is None  # a company the token was not issued for never verifies
     refreshed = adapter.refresh(creds)
     assert refreshed.access_token and refreshed.company_id == creds.company_id
     assert adapter.revoke(creds) is None
@@ -103,19 +115,23 @@ def _connect(client, owner) -> dict:
     return started.json()
 
 
-def _callback(client, authorize_url: str, **override):
-    """What the web callback page does: post back what the provider put in the query."""
-    query = {k: v[0] for k, v in parse_qs(urlparse(authorize_url).query).items()} | override
+def _query(authorize_url: str) -> dict:
+    return {k: v[0] for k, v in parse_qs(urlparse(authorize_url).query).items()}
+
+
+def _callback(client, headers, authorize_url: str, **override):
+    """What the web callback page does, in the signed-in staff session: post back the provider's query."""
+    query = _query(authorize_url) | override
     body = {"state": query["state"], "code": query.get("code") or None, "realm_id": query.get("realm_id"),
             "error": query.get("error")}  # fmt: skip
-    return client.post(f"{API}/external-connections/oauth/callback", json=body)
+    return client.post(f"{API}/external-connections/oauth/callback", headers=headers, json=body)
 
 
 def test_oauth_round_trip_activates_and_seals_credentials(client, tenant, owner, enabled):
     started = _connect(client, owner)
     assert started["status"] == "pending" and started["authorize_url"]
-    realm = str(new_id().int % 10**15)  # unique per run: the platform lookup outlives the test tenant
-    done = _callback(client, started["authorize_url"], realm_id=realm)
+    realm = _query(started["authorize_url"])["realm_id"]  # the simulated provider mints a fresh company
+    done = _callback(client, owner, started["authorize_url"])
     assert done.status_code == 200 and done.json()["status"] == "connected", done.text
     assert done.json()["return_url"].startswith(get_settings().app.web_base_url)
     connection = client.get(f"{API}/external-connections/{started['id']}", headers=owner).json()
@@ -129,20 +145,59 @@ def test_oauth_round_trip_activates_and_seals_credentials(client, tenant, owner,
                  "AND provider_account_ref = :r"), {"r": realm}
         ).scalar()  # fmt: skip
     assert routed == tenant.id
-    assert _callback(client, started["authorize_url"]).status_code == 403  # a used state never works twice
+    assert _callback(client, owner, started["authorize_url"]).status_code == 403  # a replayed state is refused
 
 
-def test_forged_expired_and_refused_states(client, owner, enabled):
+def test_forged_expired_and_refused_states(client, tenant, owner, enabled):
     started = _connect(client, owner)
     url = started["authorize_url"]
-    state = parse_qs(urlparse(url).query)["state"][0]
-    assert _callback(client, url, state=state[:-4] + "AAAA").status_code == 403
-    assert _callback(client, url, state="nothex.x").status_code == 403
-    with clock.freeze(clock.now() + timedelta(minutes=11)):
-        assert _callback(client, url).status_code == 403
-    refused = _callback(client, url, error="access_denied", code="")
+    state = _query(url)["state"]
+    assert _callback(client, owner, url, state=state[:-4] + "AAAA").status_code == 403
+    assert _callback(client, owner, url, state="nothex.x").status_code == 403
+    # an expired state: the genuine payload with its expiry in the past (freezing the clock would end the session)
+    payload = json.loads(crypto.decrypt(state.split(".", 1)[1], tenant.id)) | {"x": clock.now().timestamp() - 1}
+    late = f"{tenant.id.hex}.{crypto.encrypt(json.dumps(payload), tenant.id)}"
+    assert _callback(client, owner, url, state=late).status_code == 403
+    refused = _callback(client, owner, url, error="access_denied", code="")
     assert refused.status_code == 200 and refused.json()["status"] == "error"
     assert client.get(f"{API}/external-connections/{started['id']}", headers=owner).json()["status"] == "error"
+
+
+def test_the_callback_completes_only_for_the_staff_user_who_started_it(client, tenant, owner, enabled):
+    started = _connect(client, owner)
+    email, _ = add_staff(tenant, "owner")
+    colleague = login(client, tenant, email)
+    stolen = _callback(client, colleague, started["authorize_url"])  # a link planted on someone else (CSRF)
+    assert (stolen.status_code, stolen.json()["code"]) == (403, "state-invalid")
+    assert _callback(client, {}, started["authorize_url"]).status_code == 401
+    assert _callback(client, owner, started["authorize_url"]).json()["status"] == "connected"
+
+
+def test_a_company_the_token_does_not_open_is_refused(client, owner, enabled):
+    started = _connect(client, owner)
+    other_realm = str(int(_query(started["authorize_url"])["realm_id"]) + 1)
+    done = _callback(client, owner, started["authorize_url"], realm_id=other_realm)
+    assert done.json()["status"] == "error"
+    connection = client.get(f"{API}/external-connections/{started['id']}", headers=owner).json()
+    assert (connection["status"], connection["last_error"], connection["external_account_id"]) == (
+        "error",
+        "realm-mismatch",
+        None,
+    )
+    assert _callback(client, owner, started["authorize_url"], realm_id="12ab").status_code == 422
+
+
+def test_a_company_routed_to_another_tenant_is_refused(client, owner, enabled):
+    first = _connect(client, owner)
+    assert _callback(client, owner, first["authorize_url"]).json()["status"] == "connected"
+    realm = _query(first["authorize_url"])["realm_id"]
+    rival_tenant = make_tenant()
+    rival = login(client, rival_tenant)
+    started = _connect(client, rival)
+    # the rival somehow holds a genuine code for the same company: the platform lookup still refuses it
+    taken = _callback(client, rival, started["authorize_url"], code=f"fake-code.{realm}", realm_id=realm)
+    assert (taken.status_code, taken.json()["code"]) == (409, "account-in-use")
+    assert client.get(f"{API}/external-connections/{started['id']}", headers=rival).json()["status"] == "pending"
 
 
 def test_return_url_must_be_on_this_app(client, owner, enabled):
@@ -152,7 +207,7 @@ def test_return_url_must_be_on_this_app(client, owner, enabled):
 
 def test_mappings_settings_sync_retry_and_disconnect(client, owner, enabled):
     started = _connect(client, owner)
-    _callback(client, started["authorize_url"])
+    _callback(client, owner, started["authorize_url"])
     base = f"{API}/external-connections/{started['id']}"
     mappings = client.get(f"{base}/sync-mappings", headers=owner).json()
     assert {"id": "4", "name": "Sales of Product Income"} in mappings["external_options"]["accounts"]
@@ -216,7 +271,7 @@ def test_the_simulated_secret_verifies_nothing_outside_dev_and_test(client, enab
 def test_pending_connection_is_not_connected_and_keys_map_once_across_kinds(client, owner, enabled):
     started = _connect(client, owner)
     assert started["connected_at"] is None
-    _callback(client, started["authorize_url"], realm_id=str(new_id().int % 10**15))
+    _callback(client, owner, started["authorize_url"])
     base = f"{API}/external-connections/{started['id']}"
     clash = {"mappings": [{"kind": "ledger_account", "local_key": "k", "external_id": "1"},
                           {"kind": "tax_account", "local_key": "k", "external_id": "2"}]}  # fmt: skip

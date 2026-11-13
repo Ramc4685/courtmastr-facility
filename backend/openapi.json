@@ -34977,13 +34977,14 @@
           "realm_id": {
             "anyOf": [
               {
-                "maxLength": 50,
+                "pattern": "^[0-9]{1,20}$",
                 "type": "string"
               },
               {
                 "type": "null"
               }
             ],
+            "description": "The provider's company id: digits only, and verified against the token",
             "title": "Realm Id"
           },
           "state": {
@@ -102293,8 +102294,29 @@
     },
     "/api/v1/external-connections/oauth/callback": {
       "post": {
-        "description": "Posted by the web app's callback page with what the provider sent back. Authenticated by the sealed\nstate (tenant, connection, staff user, ten-minute expiry), never by a session. Errors: state-invalid.",
+        "description": "Posted by the web app's callback page, in the signed-in session of the staff user who started the\nconnection; the sealed state (tenant, connection, that user, ten-minute expiry) must match them and works\nonce. Errors: state-invalid, account-in-use.",
         "operationId": "completeExternalConnectionOAuth",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
