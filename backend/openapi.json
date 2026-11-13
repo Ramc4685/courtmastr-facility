@@ -472,6 +472,7 @@
             "type": "string"
           },
           "requires_paid_entry": {
+            "description": "Refuse door codes and door entry to a person with any balance due on their account (not only this booking's charge: access cannot read rental charges).",
             "title": "Requires Paid Entry",
             "type": "boolean"
           },
@@ -596,6 +597,7 @@
                 "type": "null"
               }
             ],
+            "description": "Refuse door codes and door entry to a person with any balance due on their account (not only this booking's charge: access cannot read rental charges).",
             "title": "Requires Paid Entry"
           },
           "staff_early_minutes": {

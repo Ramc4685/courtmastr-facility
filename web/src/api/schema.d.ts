@@ -17329,7 +17329,10 @@ export interface components {
              * Format: uuid
              */
             location_id: string;
-            /** Requires Paid Entry */
+            /**
+             * Requires Paid Entry
+             * @description Refuse door codes and door entry to a person with any balance due on their account (not only this booking's charge: access cannot read rental charges).
+             */
             requires_paid_entry: boolean;
             /** Staff Early Minutes */
             staff_early_minutes: number;
@@ -17350,7 +17353,10 @@ export interface components {
             light_lead_in_min?: number | null;
             /** Light Run On Min */
             light_run_on_min?: number | null;
-            /** Requires Paid Entry */
+            /**
+             * Requires Paid Entry
+             * @description Refuse door codes and door entry to a person with any balance due on their account (not only this booking's charge: access cannot read rental charges).
+             */
             requires_paid_entry?: boolean | null;
             /** Staff Early Minutes */
             staff_early_minutes?: number | null;

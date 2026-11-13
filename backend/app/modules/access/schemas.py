@@ -207,7 +207,9 @@ class AccessSettingsOut(Out):
     entry_code_grace_min: int
     light_lead_in_min: int
     light_run_on_min: int
-    requires_paid_entry: bool
+    requires_paid_entry: bool = Field(
+        description="Refuse door codes and door entry to a person with any balance due on their account (not only this booking's charge: access cannot read rental charges)."
+    )
     door_alert_bad_codes_per_hour: int
 
 
@@ -219,7 +221,10 @@ class AccessSettingsWrite(In):
     entry_code_grace_min: int | None = Field(None, ge=0, le=240)
     light_lead_in_min: int | None = Field(None, ge=0, le=120)
     light_run_on_min: int | None = Field(None, ge=0, le=120)
-    requires_paid_entry: bool | None = None
+    requires_paid_entry: bool | None = Field(
+        None,
+        description="Refuse door codes and door entry to a person with any balance due on their account (not only this booking's charge: access cannot read rental charges).",
+    )
     door_alert_bad_codes_per_hour: int | None = Field(None, ge=1, le=10000)
 
 

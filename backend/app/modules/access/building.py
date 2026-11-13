@@ -42,7 +42,7 @@ from app.modules.access.domain.evaluate import evaluate
 from app.modules.access.models import BuildingEvent, DoorDevice, EntryCode, LightingZone, LightingZoneResource
 from app.ports import building_control, notifications
 from app.ports.building_control import BuildingControlError, TimedCode
-from app.ports.email import EmailMessage, send_after_commit
+from app.ports.email import EmailMessage, send_after_commit_then
 
 DEVICE, UNLOCK, LIGHTS, READ = "access.device.manage", "access.door.unlock", "access.lighting.override", service.READ
 CODE_KINDS = ("rental", "session")  # bookings whose party gets a door code
@@ -271,7 +271,8 @@ def _window(booking: dict, cfg: dict) -> tuple[datetime, datetime]:
 
 
 def _doors(session: Session, location_id: UUID) -> list[DoorDevice]:
-    return list(session.scalars(select(DoorDevice).where(DoorDevice.location_id == location_id, DoorDevice.is_active)))
+    return list(session.scalars(select(DoorDevice).where(
+        DoorDevice.location_id == location_id, DoorDevice.is_active).order_by(DoorDevice.name, DoorDevice.id)))  # fmt: skip
 
 
 def _trusted_birth_on(client) -> date | None:
@@ -354,8 +355,27 @@ def _email_code(session: Session, row: EntryCode, client) -> bool:
         "with the people playing with you. You can also see it, and open the door, from your booking in the app.\n"
         + (f"If the door does not open, call us on {location.phone}.\n" if location.phone else "")
     )
-    send_after_commit(session, EmailMessage(client.primary_email, f"Your door code for {location.name}", body))
+    tenant_id, code_id = str(session.info["tenant_id"]), str(row.id)
+    send_after_commit_then(session, EmailMessage(client.primary_email, f"Your door code for {location.name}", body),
+                           lambda: _notified(tenant_id, code_id))  # fmt: skip
     return True
+
+
+def _notified(tenant_id: str, code_id: str) -> None:
+    from app.modules.access import jobs  # jobs imports this module
+
+    jobs.mark_code_notified.fn(tenant_id, code_id)
+
+
+def mark_notified(session: Session, entry_code_id) -> None:
+    """Internal (after the email adapter accepted a code email): `notified_at` is set only on a real hand-off, so
+    the tick keeps retrying until one happens."""
+    row = session.scalar(select(EntryCode).where(
+        EntryCode.id == UUID(str(entry_code_id)), EntryCode.notified_at.is_(None)).with_for_update())  # fmt: skip
+    if row is None:
+        return
+    row.notified_at = clock.now()
+    audit.record(session, "access.entry_code.notify", row, location_id=row.location_id, changes={"notified": True})
 
 
 def _push(session: Session, row: EntryCode, code: str) -> None:
@@ -396,8 +416,7 @@ def _issue(session: Session, booking: dict, client_id: UUID, window: tuple[datet
     )
     _event(session, location_id, "code_issued", entry_code_id=row.id)
     _push(session, row, code)
-    if deliver_code_to(session, row, client_id):
-        row.notified_at = clock.now()
+    deliver_code_to(session, row, client_id)  # notified_at is set once the email adapter accepts it
     return row
 
 
@@ -445,6 +464,8 @@ def sync_booking_code(session: Session, booking_id: UUID, booking: dict | None =
                 _withhold(session, booking, client_id)
             continue
         if row is not None and (row.valid_from_at, row.valid_until_at) == window:
+            if row.notified_at is None and window[1] > now:  # never handed off: try again each tick
+                deliver_code_to(session, row, client_id)
             kept.append(row)
             continue
         if row is not None:

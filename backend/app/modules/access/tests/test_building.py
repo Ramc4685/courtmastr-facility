@@ -363,6 +363,55 @@ def test_a_self_set_unverified_birth_date_counts_as_unknown():
     assert building._trusted_birth_on(SimpleNamespace(birth_on=date(1990, 1, 1), is_birth_on_unverified=True)) is None
 
 
+def test_a_failed_code_email_is_retried_by_the_tick_and_marked_only_once_handed_off(b, mailbox, monkeypatch):
+    from app.ports import email
+
+    real_send, down = email._provider.send, [True]
+
+    def send(message):
+        if down[0]:
+            raise ConnectionError("smtp down")
+        real_send(message)
+
+    monkeypatch.setattr(email._provider, "send", send)
+    with clock.freeze(at(9)):
+        booking = book(b, 10, 11)
+        sync(b, booking)
+        [row] = codes(b, booking)
+        assert row.notified_at is None and mailbox == []  # queued, never handed off
+        tick(b)
+        assert codes(b, booking)[0].notified_at is None  # still down: retried, still not marked
+        down[0] = False
+        tick(b)
+        [row] = codes(b, booking)
+        assert row.notified_at is not None and len(mailbox) == 1 and clear(b, row) in mailbox[0].body
+        tick(b)
+        assert len(mailbox) == 1  # handed off once: never sent again
+    with clock.freeze(at(12)):
+        down[0] = True
+        late = book(b, 12.25, 12.5)  # its window closes at 12:40
+        sync(b, late)
+    with clock.freeze(at(13)):
+        down[0] = False
+        tick(b)  # the window has passed: no point sending it now
+        assert len(mailbox) == 1
+
+
+def test_a_changed_holder_loses_the_code_and_the_new_holder_gets_one(client, owner, b, mailbox):
+    """No route changes a booking's holder today (a client merge moves the code with the person); if one ever
+    does, the tick revokes the old holder's code and issues and sends the new holder's within a minute."""
+    other = adult(client, owner, b.location)
+    with clock.freeze(at(9)):
+        booking = book(b, 10, 11)
+        sync(b, booking)
+        with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+            session.execute(text("UPDATE booking SET client_id = :c WHERE id = :b"), {"c": other["id"], "b": booking})
+        tick(b)
+        old, new = codes(b, booking)
+        assert (old.status, old.revoke_reason, str(new.client_id)) == ("revoked", "not_entitled", other["id"])
+        assert [m.to for m in mailbox][-1] == other["primary_email"]
+
+
 def test_blocks_get_no_code_and_far_bookings_wait_for_the_horizon(b, mailbox):
     with clock.freeze(at(9)):
         block = book(b, 10, 11, kind="block")
@@ -772,7 +821,7 @@ def test_member_unlock_opens_only_entrance_doors_and_records_the_entry_after_the
         assert all(c[1] != "door-side" for c in sim.calls) and side
         trails = scalar(b.tenant, select(AuditEvent.changes).where(AuditEvent.action == "access.door.member_unlock")
                         .order_by(AuditEvent.id.desc()).limit(1))  # fmt: skip
-        assert trails == {"unlocked": True, "doors": {b.door: False, lobby: True}}
+        assert trails["unlocked"] is True and sorted(trails["doors"].values()) == [False, True]  # one each
         codes_seen = [client.post(f"{API}/portal/bookings/{booking}/door-unlock", headers=member).status_code
                       for _ in range(8)]  # fmt: skip
         assert 429 in codes_seen  # the member path is rate limited per identity

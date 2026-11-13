@@ -230,7 +230,12 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   now refuses the person). A whole-group enrolment's codes are issued by the minute tick.
 - **Delivery.** Email through the email port directly (`send_after_commit`), not the engagement notification log,
   which stores bodies. A rental's holder gets it; every client registered on a session gets it, at issue and on later
-  enrollment (`programs.enrollment.created`). There is no SMS channel, so no SMS. The portal (`GET /portal/entry-codes`)
+  enrollment (`programs.enrollment.created`). `notified_at` is set only once the email adapter has accepted the
+  message (after commit, `send_after_commit_then` in the email port, then the `mark_code_notified` actor); until then
+  the tick sends it again every minute while the window is open or upcoming, and never after it has passed. A changed
+  holder: no route changes a booking's holder today (a client merge moves the code with the person); if one ever
+  does, the tick revokes the old holder's code and issues and sends the new holder's within a minute, so no event was
+  added. There is no SMS channel, so no SMS. The portal (`GET /portal/entry-codes`)
   and the app read the same field. The location phone travels with the email, the portal list and the refusal,
   because the fallback when a code fails is a phone call and a staff remote unlock.
 - **The door.** `POST /door/verify` with `Authorization: Bearer fhb_...` (the door's own credential, shown once, rotatable;
@@ -319,7 +324,8 @@ to the bookings, the safe default.
 
 - "Unpaid when payment is required": tentative bookings never get a code, and with `requires_paid_entry` the holder
   must have no balance due. Access cannot see the booking's own charge (its source is rentals, which access may not
-  import), so a paid booking by someone with another open balance is refused too.
+  import; its charges are keyed by rentals' own rows, not the booking), so a paid booking by someone with another
+  open balance is refused too. The setting's API description says exactly that.
 - Participants of a shared booking (other than its holder) get no code. A code checks in its own person, so a group
   entering together uses one code each or one code for the group (the code's owner is the one checked in).
 - A door check-in may consume a membership visit, like any check-in.
