@@ -56,6 +56,16 @@ def _holds_both(principal: Principal, report_key: str) -> bool:
     return service._holds(principal, REGISTRY[report_key].permission) and service._holds(principal, service.EXPORT)
 
 
+def _owner_may_send(owner: Principal, report_key: str, location_id: UUID) -> bool:
+    """Both keys at the schedule's location, as when it was made (`_check`)."""
+    try:
+        for key in (REGISTRY[report_key].permission, service.EXPORT):
+            authorize(owner, key, location_id=location_id)
+    except DomainError:
+        return False
+    return True
+
+
 def _check(session: Session, principal: Principal, saved: SavedReport, data: dict) -> None:
     """Shape rules the CHECK constraints also hold, as 422s with pointers; the location in the caller's set;
     every recipient an active staff user who may run and export this report."""
@@ -182,8 +192,8 @@ def _deliver(session: Session, schedule: ReportSchedule, today: date) -> int:
     schedule.last_run_on = today
     saved = session.get_one(SavedReport, schedule.saved_report_id)
     owner = platform.staff.principal_for(session, schedule.owner_staff_user_id)
-    if owner is None or not _holds_both(owner, saved.report_key):
-        # Deactivated, or lost the report's keys: the schedule stops rather than mail on in their name.
+    if owner is None or not _owner_may_send(owner, saved.report_key, schedule.location_id):
+        # Deactivated, lost the report's keys or the schedule's location: it stops rather than mail on in their name.
         schedule.is_active = False
         audit.record(session, "reporting.report_schedule.deactivate", schedule,
                      changes={"is_active": [True, False], "cause": "owner_lost_access"})  # fmt: skip
@@ -218,17 +228,19 @@ def run_due_schedule(session: Session) -> bool:
         .with_for_update(skip_locked=True)
     )  # fmt: skip
     for schedule in session.scalars(stmt):
-        local_now = now.astimezone(ZoneInfo(platform.service.location_time_zone(session, schedule.location_id)))
-        if is_due(schedule, local_now):
-            today = local_now.date()
-            try:
-                with session.begin_nested():
-                    _deliver(session, schedule, today)
-            except Exception:  # a bug in one schedule must not starve the rest: it rolls back, its claim stays
-                log.exception("report schedule %s failed; next try on its next due day", schedule.id)
-                schedule.last_run_on = today
-                audit.record(session, "reporting.report_schedule.run", schedule,
-                             changes={"last_run_on": today.isoformat(), "sent": 0, "failed": True})  # fmt: skip
-            session.flush()
-            return True
+        today = now.date()  # the claim's day if the location's zone cannot even be read
+        try:
+            with session.begin_nested():
+                local_now = now.astimezone(ZoneInfo(platform.service.location_time_zone(session, schedule.location_id)))
+                if not is_due(schedule, local_now):
+                    continue
+                today = local_now.date()
+                _deliver(session, schedule, today)
+        except Exception:  # a bug in one schedule must not starve the rest: it rolls back, its claim stays
+            log.exception("report schedule %s failed; next try on its next due day", schedule.id)
+            schedule.last_run_on = today
+            audit.record(session, "reporting.report_schedule.run", schedule,
+                         changes={"last_run_on": today.isoformat(), "sent": 0, "failed": True})  # fmt: skip
+        session.flush()
+        return True
     return False
