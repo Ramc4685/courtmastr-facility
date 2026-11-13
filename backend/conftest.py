@@ -1302,18 +1302,21 @@ def _populate_building(post, tenant, location_id, space) -> dict:
     an entry code for populate()'s booking, written directly (the booking is not inside the issue window)."""
     from datetime import timedelta
 
+    from sqlalchemy import select
+
     from app.core import crypto
     from app.modules.access.models import EntryCode
+    from app.modules.clients.models import Client
 
     door = post("/door-devices", {"location_id": location_id, "name": "Main door", "device_ref": "door-1"})
     zone = post("/lighting-zones", {"location_id": location_id, "name": "Court 1 lights", "zone_ref": "relay-1",
                                     "resource_ids": [space["resource_id"]]})  # fmt: skip
     post(f"/door-devices/{door['id']}/unlock", {"reason": "Populate"})
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
-        now = clock.now()
+        now, person = clock.now(), session.scalar(select(Client.id).order_by(Client.id).limit(1))
         session.add(EntryCode(
-            location_id=location_id, booking_id=space["booking_id"], code_hash=f"pop-{uuid4().hex}",
-            code_ciphertext=crypto.encrypt("123456", tenant.id), valid_from_at=now, valid_until_at=now + timedelta(hours=1),
+            location_id=location_id, booking_id=space["booking_id"], client_id=person, code_hash=f"pop-{uuid4().hex}",
+            code_ciphertext=crypto.encrypt("12345678", tenant.id), valid_from_at=now, valid_until_at=now + timedelta(hours=1),
         ))  # fmt: skip
     return {"door_device_id": door["id"], "lighting_zone_id": zone["id"]}
 

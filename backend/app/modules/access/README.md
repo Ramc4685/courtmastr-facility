@@ -189,8 +189,8 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
 - **Keys.** `access.device.manage` (doors, zones, credentials), `access.door.unlock` (staff remote unlock, reason
   required), and one new key, `access.lighting.override` (Admin, Manager), added to the matrix because holding a
   court's lights for a period is a different power from managing devices. Reads use `access.checkin.read`.
-- **Codes.** One eight-digit code per confirmed rental or session booking at a location with an active door, shared by
-  its party, valid from start minus `entry_code_early_min` to end plus `entry_code_grace_min`, issued at most seven
+- **Codes.** One eight-digit code per person entitled to a confirmed booking at a location with an active door (a
+  rental's holder; each client enrolled on a session; migration 1973 adds `entry_code.client_id`), never shared, valid from start minus `entry_code_early_min` to end plus `entry_code_grace_min`, issued at most seven
   days ahead. Issued by the booking created, rescheduled and cancelled handlers, and by the minute tick (a checkout
   hold confirmed by `confirm_booking` publishes no event, and the tick catches anything a handler missed). A moved
   booking's code is revoked and a new one issued and sent; a cancelled booking's code is revoked; codes are pushed
@@ -207,6 +207,13 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   minor's code goes to their adult guardians (`clients.households.guardian_ids`), never the child; a minor with no
   adult guardian gets none sent. The portal list and "open the door" answer only a caller who is a known adult.
   Shortcut: the enrollment's payer is not consulted (programs does not expose it); guardianship links decide.
+- **Entitlement at the door.** Every verify and portal unlock re-checks, for every kind of code, that the booking is
+  still confirmed and the person still entitled (still the holder, still enrolled), that the code's window equals the
+  live booking's window (a moved booking's old code fails at once, before any handler runs), that the person passes
+  the known-adult rule (a session participant who is a minor needs an adult guardian) and the check-in evaluation.
+  Handlers revoke as soon as entitlement ends: booking cancelled or moved, session cancelled, enrolment cancelled or
+  moved (`recheck_client_codes`), and a payment failed, refunded, voided or disputed (revoked when the evaluation
+  now refuses the person). A whole-group enrolment's codes are issued by the minute tick.
 - **Delivery.** Email through the email port directly (`send_after_commit`), not the engagement notification log,
   which stores bodies. A rental's holder gets it; every client registered on a session gets it, at issue and on later
   enrollment (`programs.enrollment.created`). There is no SMS channel, so no SMS. The portal (`GET /portal/entry-codes`)
@@ -250,8 +257,8 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
 - "Unpaid when payment is required": tentative bookings never get a code, and with `requires_paid_entry` the holder
   must have no balance due. Access cannot see the booking's own charge (its source is rentals, which access may not
   import), so a paid booking by someone with another open balance is refused too.
-- Session codes have no single holder, so a session entry writes a building event and no check-in, and the portal
-  list and member unlock cover the booking holder (rentals) only. Participants of a shared booking are not emailed.
+- Participants of a shared booking (other than its holder) get no code. A code checks in its own person, so a group
+  entering together uses one code each or one code for the group (the code's owner is the one checked in).
 - A door check-in may consume a membership visit, like any check-in.
 - The status line compares with the last command, not with `read_zone`: no controller reports state yet.
 - A zone never commanded shows as not in sync until the first tick sends its state.

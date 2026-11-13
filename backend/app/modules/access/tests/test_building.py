@@ -202,6 +202,64 @@ def test_reschedule_reissues_and_cancel_revokes_through_the_handlers(b, sim, mai
         ]
 
 
+def test_a_session_code_is_its_persons_and_dies_with_the_enrolment(client, tenant, owner, b, mailbox):
+    """Each participant has their own code; cancelling the enrolment is refused at the door at once (before any
+    handler runs) and the handler revokes it. A participant's code checks that participant in."""
+    other = adult(client, owner, b.location)
+    with clock.freeze(at(9)):
+        lesson = book(b, 10, 11, kind="session", resources=[b.court2])
+    seat = scalar(tenant, select(Session.id).where(Session.booking_id == UUID(lesson)))
+    mine, theirs = (
+        ok(client.post(f"{API}/enrollments", headers=owner, json={"session_id": str(seat), "client_id": p["id"]}))
+        for p in (b.person, other)
+    )
+    with clock.freeze(at(9)):
+        sync(b, lesson)
+        by_person = {str(c.client_id): clear(b, c) for c in codes(b, lesson)}
+    assert set(by_person) == {b.person["id"], other["id"]} and len(set(by_person.values())) == 2
+    ok(client.post(f"{API}/enrollments/{mine['id']}/cancel", headers=owner, json={}), 200)
+    with clock.freeze(at(9.8)):
+        assert verify(client, b, by_person[b.person["id"]])["result"] == "deny"
+        assert details_of(b, "entry_denied")[-1] == "not_entitled"
+        assert verify(client, b, by_person[other["id"]])["result"] == "allow"
+        assert scalar(tenant, select(CheckIn.client_id).where(CheckIn.channel == "door")) == UUID(other["id"])
+        handlers.on_enrollment_ended.fn(str(tenant.id), str(uuid4()), {
+            "enrollment_id": mine["id"], "session_id": str(seat), "client_id": b.person["id"],
+            "cancel_kind": "staff_removed"})  # fmt: skip
+        statuses = {str(c.client_id): (c.status, c.revoke_reason) for c in codes(b, lesson)}
+    assert statuses == {b.person["id"]: ("revoked", "not_entitled"), other["id"]: ("active", None)}
+    assert theirs
+
+
+def test_a_moved_booking_fails_its_old_code_at_once_and_a_failed_payment_revokes(client, b):
+    with clock.freeze(at(9.8)):
+        booking = book(b, 10, 11)
+        sync(b, booking)
+        code = clear(b, codes(b, booking)[0])
+        with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+            row = scheduling.service.get_booking(session, UUID(booking))
+            scheduling.service.reschedule_booking(session, row, starts_at=at(12), ends_at=at(13))
+        assert verify(client, b, code)["result"] == "deny"  # the live booking's window, not the stored one
+        assert details_of(b, "entry_denied")[-1] == "rescheduled"
+        sync(b, booking)
+        fresh = codes(b, booking)[-1]
+        with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+            session.execute(building.EntryCode.__table__.update().values(valid_from_at=at(9.5), valid_until_at=at(12))
+                            .where(building.EntryCode.id == fresh.id))  # fmt: skip
+        assert verify(client, b, clear(b, fresh))["result"] == "deny"  # a stored window that drifted is refused
+        handlers.on_payment_changed.fn(str(b.tenant.id), str(uuid4()), {"payment_id": str(uuid4()),
+                                       "client_id": b.person["id"]})  # fmt: skip
+        assert codes(b, booking)[-1].status == "active"  # nothing owed: the code stands
+        category = ok(client.post(f"{API}/revenue-categories", headers=login(client, b.tenant, b.tenant.owner_email),
+                                  json={"code": "FEE", "label": "Fees"}))  # fmt: skip
+        ok(client.post(f"{API}/charges", headers=login(client, b.tenant, b.tenant.owner_email), json={
+            "client_id": b.person["id"], "location_id": b.location, "description": "Court hire",
+            "unit_price_minor": 4000, "revenue_category_id": category["id"]}))  # fmt: skip
+        handlers.on_payment_changed.fn(str(b.tenant.id), str(uuid4()), {"payment_id": str(uuid4()),
+                                       "client_id": b.person["id"]})  # fmt: skip
+        assert (codes(b, booking)[-1].status, codes(b, booking)[-1].revoke_reason) == ("revoked", "refused")
+
+
 def test_codes_never_go_to_a_minor_or_someone_of_unknown_age(client, tenant, owner, b, mailbox):
     """Rentals held by a minor or a dateless client get no code (logged once); on a session, an adult gets their
     own, a minor's goes to their adult guardian, and a minor with no adult guardian's goes to nobody."""
@@ -231,7 +289,8 @@ def test_codes_never_go_to_a_minor_or_someone_of_unknown_age(client, tenant, own
         held = book(b, 14, 15)
         sync(b, held)
         member = portal(client, tenant, b.person)
-        assert len(ok(client.get(f"{API}/portal/entry-codes", headers=member), 200)["data"]) == 1
+        listed = ok(client.get(f"{API}/portal/entry-codes", headers=member), 200)["data"]
+        assert sorted(c["booking_id"] for c in listed) == sorted([lesson, held])  # their session and their rental
         with tenant_session(tenant.id, actor=system_principal("tests")) as session:
             clients.service.get(session, UUID(b.person["id"])).birth_on = None
         assert ok(client.get(f"{API}/portal/entry-codes", headers=member), 200)["data"] == []

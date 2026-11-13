@@ -505,15 +505,18 @@ class LightingZoneResource(TenantOwned, Timestamps, Base):
 
 
 class EntryCode(TenantOwned, Timestamps, Base):
-    """The door code of one booking, shared by its party. Only a keyed hash (lookup) and the AES-GCM sealed code
-    (shown again to its owner) are stored; both are never audited. One active code per booking."""
+    """One person's door code for one booking: a rental's holder, or one participant of a session. Only a keyed
+    hash (lookup) and the AES-GCM sealed code (shown again to its owner) are stored; both are never audited. One
+    active code per booking and person."""
 
     __tablename__ = "entry_code"
     __table_args__ = tenant_args(
         *tfk("location_id", "location", index=False),
         *tfk("booking_id", "booking"),
+        *tfk("client_id", "client"),
         enum_check("status", EntryCodeStatus),
         CheckConstraint("valid_until_at > valid_from_at", name="window"),
+        CheckConstraint("status <> 'active' OR client_id IS NOT NULL", name="person"),
         CheckConstraint("(status = 'revoked') = (revoked_at IS NOT NULL)", name="revoked"),
         Index(
             "uq_entry_code_active",
@@ -524,12 +527,18 @@ class EntryCode(TenantOwned, Timestamps, Base):
             postgresql_where=text("status = 'active'"),
         ),  # fmt: skip
         Index(
-            "uq_entry_code_booking", "tenant_id", "booking_id", unique=True, postgresql_where=text("status = 'active'")
+            "uq_entry_code_booking",
+            "tenant_id",
+            "booking_id",
+            "client_id",
+            unique=True,
+            postgresql_where=text("status = 'active'"),
         ),  # fmt: skip
     )
 
     location_id: Mapped[UUID]
     booking_id: Mapped[UUID]
+    client_id: Mapped[UUID | None]  # whose code it is (a minor's goes to their adult guardians); None only on old rows
     code_hash: Mapped[str] = mapped_column(info={"audit": "never"})
     code_ciphertext: Mapped[str] = mapped_column(info={"audit": "never"})
     valid_from_at: Mapped[datetime]

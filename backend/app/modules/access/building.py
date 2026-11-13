@@ -274,12 +274,27 @@ def is_known_adult(session: Session, client_id: UUID, location_id: UUID | None) 
     return not clients.service.is_minor(client, today, platform.service.minor_age(session))
 
 
-def _recipients(session: Session, booking: dict) -> list[UUID]:
-    """The party a code belongs to: a rental's holder, or everyone registered on a session."""
-    if booking["kind"] == "session" and booking["session"]:
+def _entitled(session: Session, booking: dict | None) -> list[UUID]:
+    """Who holds a code for the booking now: a live (confirmed) rental's holder, or each client enrolled on a live
+    session. Empty for anything cancelled, tentative or of another kind."""
+    if booking is None or booking["status"] != "confirmed" or booking["kind"] not in CODE_KINDS:
+        return []
+    if booking["kind"] == "session":
+        if not booking["session"]:
+            return []
         roster = programs.service.get_roster(session, system_principal("access"), booking["session"]["id"])
         return [row["client_id"] for row in roster["participants"]]
     return [booking["client_id"]] if booking["client_id"] else []
+
+
+def _may_hold(session: Session, client_id: UUID, location_id: UUID, kind: str) -> bool:
+    """The known-adult rule for holding a code in an unmanned building: a rental's holder is a known adult; a
+    session participant is one, or has an adult guardian their code goes to."""
+    if is_known_adult(session, client_id, location_id):
+        return True
+    return kind == "session" and any(
+        is_known_adult(session, g, location_id) for g in clients.households.guardian_ids(session, client_id)
+    )
 
 
 def deliver_code_to(session: Session, row: EntryCode, client_id: UUID) -> bool:
@@ -331,7 +346,7 @@ def _push(session: Session, row: EntryCode, code: str) -> None:
     row.pushed_at = clock.now()
 
 
-def _issue(session: Session, booking: dict, window: tuple[datetime, datetime]) -> EntryCode:
+def _issue(session: Session, booking: dict, client_id: UUID, window: tuple[datetime, datetime]) -> EntryCode:
     location_id = booking["location_id"]
     for _ in range(20):  # a clash with another live code at the location is rare; the index is the backstop
         code = f"{secrets.randbelow(10**CODE_DIGITS):0{CODE_DIGITS}d}"
@@ -341,7 +356,7 @@ def _issue(session: Session, booking: dict, window: tuple[datetime, datetime]) -
         if taken is None:
             break
     row = EntryCode(
-        location_id=location_id, booking_id=booking["id"], code_hash=digest,
+        location_id=location_id, booking_id=booking["id"], client_id=client_id, code_hash=digest,
         code_ciphertext=crypto.encrypt(code, session.info["tenant_id"]), valid_from_at=window[0], valid_until_at=window[1],
     )  # fmt: skip
     session.add(row)
@@ -355,7 +370,7 @@ def _issue(session: Session, booking: dict, window: tuple[datetime, datetime]) -
     )
     _event(session, location_id, "code_issued", entry_code_id=row.id)
     _push(session, row, code)
-    if any([deliver_code_to(session, row, client_id) for client_id in _recipients(session, booking)]):
+    if deliver_code_to(session, row, client_id):
         row.notified_at = clock.now()
     return row
 
@@ -376,48 +391,62 @@ def _revoke(session: Session, row: EntryCode, reason: str) -> None:
     session.flush()
 
 
-def sync_booking_code(session: Session, booking_id: UUID, booking: dict | None = None) -> EntryCode | None:
-    """Internal, idempotent (event handlers and the tick): the booking's one active code matches its state. A
-    cancelled or no longer confirmed booking loses its code; a moved one (its window changed) gets a new code,
-    sent again; a confirmed rental or session at a location with a door gets one up to CODE_HORIZON ahead."""
+def sync_booking_code(session: Session, booking_id: UUID, booking: dict | None = None) -> list[EntryCode]:
+    """Internal, idempotent (event handlers and the tick): the booking's active codes match its state and party.
+    Someone no longer entitled (a cancelled booking, an ended enrolment) loses their code; a moved booking (its window
+    changed) gets new codes, sent again; each entitled person at a location with a door gets one up to CODE_HORIZON
+    ahead, if they pass the known-adult rule."""
     booking = booking or _booking(session, booking_id)
-    active = session.scalar(
-        select(EntryCode).where(EntryCode.booking_id == booking_id, EntryCode.status == "active").with_for_update()
-    )
-    if booking is None or booking["status"] != "confirmed" or booking["kind"] not in CODE_KINDS:
-        if active is not None:
-            _revoke(session, active, "cancelled")
-        return None
+    active = {row.client_id: row for row in session.scalars(
+        select(EntryCode).where(EntryCode.booking_id == booking_id, EntryCode.status == "active").with_for_update())}  # fmt: skip
+    entitled = _entitled(session, booking)
+    for client_id, row in active.items():
+        if client_id not in entitled:
+            _revoke(session, row, "not_entitled" if entitled else "cancelled")
+    if not entitled or booking is None:
+        return []
     now, window = clock.now(), _window(booking, _cfg(session, booking["location_id"]))
-    if active is not None and (active.valid_from_at, active.valid_until_at) == window:
-        return active
-    if active is not None:
-        _revoke(session, active, "rescheduled")
-    if window[1] <= now or booking["starts_at"] > now + CODE_HORIZON or not _doors(session, booking["location_id"]):
-        return None
-    if booking["kind"] == "rental" and not (
-        booking["client_id"] and is_known_adult(session, booking["client_id"], booking["location_id"])
-    ):
-        _withhold(session, booking)
-        return None
-    return _issue(session, booking, window)
+    issuable = (
+        window[1] > now and booking["starts_at"] <= now + CODE_HORIZON and _doors(session, booking["location_id"])
+    )
+    kept = []
+    for client_id in entitled:
+        row = active.get(client_id)
+        if row is not None and (row.valid_from_at, row.valid_until_at) == window:
+            kept.append(row)
+            continue
+        if row is not None:
+            _revoke(session, row, "rescheduled")
+        if not issuable:
+            continue
+        if not _may_hold(session, client_id, booking["location_id"], booking["kind"]):
+            _withhold(session, booking, client_id)
+            continue
+        kept.append(_issue(session, booking, client_id, window))
+    return kept
 
 
-def _withhold(session: Session, booking: dict) -> None:
-    """A rental held by a minor or someone of unknown age gets no code; logged once per booking for staff."""
-    detail = f"holder_not_known_adult:booking:{booking['booking_number']}"
+def recheck_client_codes(session: Session, client_id: UUID) -> None:
+    """Internal (enrolment ended or moved, a payment failed or was refunded): each of the client's active codes is
+    revoked when they are no longer entitled to it or the check-in evaluation now refuses them."""
+    rows = session.scalars(
+        select(EntryCode).where(EntryCode.client_id == client_id, EntryCode.status == "active").with_for_update()
+    ).all()
+    for row in rows:
+        if client_id not in _entitled(session, _booking(session, row.booking_id)):
+            _revoke(session, row, "not_entitled")
+        elif _refusal(session, client_id, row.location_id):
+            _revoke(session, row, "refused")
+
+
+def _withhold(session: Session, booking: dict, client_id: UUID) -> None:
+    """A person failing the known-adult rule gets no code; logged once per booking and person for staff."""
+    detail = f"not_known_adult:booking:{booking['booking_number']}:client:{client_id}"
     seen = session.scalar(select(BuildingEvent.id).where(
         BuildingEvent.location_id == booking["location_id"], BuildingEvent.kind == "code_withheld",
         BuildingEvent.detail == detail))  # fmt: skip
     if seen is None:
         _event(session, booking["location_id"], "code_withheld", detail=detail)
-
-
-def on_enrolled(session: Session, booking_id: UUID, client_id: UUID) -> None:
-    """Internal: someone registered on a session that already has a code gets it too."""
-    row = session.scalar(select(EntryCode).where(EntryCode.booking_id == booking_id, EntryCode.status == "active"))
-    if row is not None and row.valid_until_at > clock.now():
-        deliver_code_to(session, row, client_id)
 
 
 # --- the door ------------------------------------------------------------------------------------------------
@@ -434,20 +463,26 @@ def door_for_token(session: Session, raw: str) -> DoorDevice | None:
 
 
 def _admit(session: Session, row: EntryCode, booking: dict | None):
-    """(refusal reason or None, check-in) for an entry on this code now. Writes the door check-in when admitted."""
-    now = clock.now()
-    if not (row.valid_from_at <= now < row.valid_until_at):
+    """(refusal reason or None, check-in) for an entry on this code now, re-checked at the door for every kind of
+    code: the booking (or enrolment) is still live and the person still entitled, the window is the live booking's
+    (a moved booking's old code fails at once), the person passes the known-adult rule and the check-in evaluation.
+    Writes the person's door check-in when admitted."""
+    now, person = clock.now(), row.client_id
+    if person is None or person not in _entitled(session, booking):
+        return ("not_entitled" if _entitled(session, booking) else "booking_cancelled"), None
+    assert booking is not None
+    window = _window(booking, _cfg(session, row.location_id))
+    if (row.valid_from_at, row.valid_until_at) != window:
+        return "rescheduled", None
+    if not (window[0] <= now < window[1]):
         return "outside_window", None
-    if booking is None or booking["status"] != "confirmed":
-        return "booking_cancelled", None
-    holder = booking["client_id"]
-    if holder is None:  # a session: the code is the party's; nobody in particular is checked in
-        return None, None
-    reason = _refusal(session, holder, row.location_id)
+    if not _may_hold(session, person, row.location_id, booking["kind"]):
+        return "not_known_adult", None
+    reason = _refusal(session, person, row.location_id)
     if reason:
         return reason, None
     check_in, decision, _ = service._check_in(
-        session, client=clients.service.get(session, holder), location_id=row.location_id, channel="door",
+        session, client=clients.service.get(session, person), location_id=row.location_id, channel="door",
         identified_by="credential", credential=None,
     )  # fmt: skip
     return (decision.denial_reason if check_in.result == "denied" else None), check_in
@@ -542,22 +577,19 @@ def _phone(session: Session, location_id: UUID) -> str | None:
 
 
 def _my_codes(session: Session, principal: Principal):
-    """Codes of rentals held by the caller or someone they act for, shown only when the caller is a known adult."""
+    """Codes of the caller and of anyone they act for, shown only when the caller is a known adult."""
     mine = service._portal_clients(session, principal)  # 404s a principal without an identity
     identity_id = principal.identity_id
     assert identity_id is not None
     me = [c for c in mine if clients.households.authority(session, identity_id, c) == "self"]
     if not any(is_known_adult(session, c, clients.service.get(session, c).home_location_id) for c in me):
         mine = []
-    held = scheduling.service.booking_ids(
-        client_ids=mine, status="confirmed", starts_from=clock.now() - timedelta(days=1)
-    )
-    return select(EntryCode).where(EntryCode.status == "active", EntryCode.booking_id.in_(held),
+    return select(EntryCode).where(EntryCode.status == "active", EntryCode.client_id.in_(mine),
                                    EntryCode.valid_until_at > clock.now())  # fmt: skip
 
 
 def list_portal_entry_codes(session: Session, principal: Principal) -> list[dict]:
-    """The caller's (and dependants') live door codes, one per rental booking, for the portal and the app."""
+    """The caller's (and dependants') live door codes, one per booking and person, for the portal and the app."""
     rows = session.scalars(_my_codes(session, principal).order_by(EntryCode.valid_from_at)).all()
     tenant_id, now = session.info["tenant_id"], clock.now()
     phones = {lid: _phone(session, lid) for lid in {row.location_id for row in rows}}
@@ -574,7 +606,9 @@ def list_portal_entry_codes(session: Session, principal: Principal) -> list[dict
 def member_unlock(session: Session, principal: Principal, booking_id: UUID) -> dict:
     """ "Open the door" from the portal: the same decision as the keypad, for the booking's holder or someone who
     may act for them, inside the code's window. Opens every active door of the location."""
-    row = session.scalar(_my_codes(session, principal).where(EntryCode.booking_id == booking_id).with_for_update())
+    row = session.scalar(
+        _my_codes(session, principal).where(EntryCode.booking_id == booking_id).order_by(EntryCode.id).limit(1)
+    )
     if row is None:
         raise NotFound()
     reason, check_in = _admit(session, row, _booking(session, booking_id))
