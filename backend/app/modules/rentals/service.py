@@ -704,10 +704,12 @@ def _purchase_for(session: Db, purchase_id: UUID, client_id: UUID, rtype: Rental
         or (
             purchase.client_id != client_id
             and not (plan.is_shareable and client_id in _shared_with(session, purchase.id))
-            and not _guardian_spends_players_plan(session, purchase.client_id, client_id, rows)
+            and not _guardian_spends_players_plan(session, purchase.client_id, client_id, rows, rtype)
         )  # a plan made unshareable later ignores its old share rows
     ):
         raise ValidationFailed("Unknown plan for this client.", pointer=pointer)
+    # hook: share-holder waiver gate. claude/owner-decisions-1 gates share-holders on the plan's waiver; once both
+    # branches merge, a holder spending someone else's plan (a share or a guardian) must pass it here too.
     allowed = set(
         session.scalars(
             select(RentalTypeRentalPlan.rental_plan_id).where(RentalTypeRentalPlan.rental_type_id == rtype.id)
@@ -728,11 +730,19 @@ def _purchase_for(session: Db, purchase_id: UUID, client_id: UUID, rtype: Rental
     return purchase
 
 
-def _guardian_spends_players_plan(session: Db, owner: UUID, holder: UUID, rows: list[RentalBooking]) -> bool:
-    """A plan bought in a child's name: the child never holds a rental (the minors rule), so the guardian who
-    holds it may spend the child's plan when the child is one of its players."""
-    played = select(RentalParty.client_id).where(RentalParty.rental_booking_id.in_([r.id for r in rows]))
-    return owner in set(session.scalars(played)) and holder in clients.households.guardian_ids(session, owner)
+def _guardian_spends_players_plan(
+    session: Db, owner: UUID, holder: UUID, rows: list[RentalBooking], rtype: RentalType
+) -> bool:
+    """A plan bought in a child's name: the child never holds a rental (the minors rule), so a guardian holding the
+    rental may spend it, but only while the owner is a minor (on the first date; an unknown birth date is not, so
+    this fails closed) and only on occurrences the child plays, every one of them."""
+    first = min(r.starts_at for r in rows).astimezone(_zone(session, rtype.location_id)).date()
+    if not _is_minor(session, owner, first) or holder not in clients.households.guardian_ids(session, owner):
+        return False
+    played = select(RentalParty.rental_booking_id).where(
+        RentalParty.rental_booking_id.in_([r.id for r in rows]), RentalParty.client_id == owner
+    )
+    return set(session.scalars(played)) == {r.id for r in rows}
 
 
 def _cover(session: Db, purchase_id: UUID, client_id: UUID, rtype: RentalType, rows: list[RentalBooking]) -> Decimal:

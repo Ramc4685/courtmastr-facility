@@ -379,6 +379,46 @@ def test_a_guardian_spends_a_plan_bought_in_the_childs_name_when_the_child_plays
             "minor-needs-guardian")  # fmt: skip
 
 
+def _junior_plan(client, owner, f, holder: str) -> dict:
+    plan = ok(client.post(f"{API}/rental-plans", headers=owner, json={
+        "location_id": f.location, "name": f"Junior hours {uuid4().hex[:6]}", "rental_type_id": f.rtype,
+        "model": "per_hour", "quantity": "5", "price_minor": 6000, "revenue_category_id": f.category,
+    }))  # fmt: skip
+    purchase = ok(client.post(f"{API}/rental-plan-purchases", headers=owner | {"Idempotency-Key": uuid4().hex},
+                              json={"rental_plan_id": plan["id"], "client_id": holder}))  # fmt: skip
+    return {"decision": "plan", "rental_plan_purchase_id": purchase["id"]}
+
+
+def test_a_guardian_spends_a_childs_plan_only_on_dates_the_child_plays(client, owner, f):
+    parent, kid = family(client, owner, f)
+    cover = _junior_plan(client, owner, f, kid)
+    played = ok(rent(client, owner, body(f, parent, 15, 16, parties=[{"client_id": kid}],
+                                         charge={"decision": "unbilled"})))["rental"]  # fmt: skip
+    alone = ok(rent(client, owner, body(f, parent, 17, 18, charge={"decision": "unbilled"})))["rental"]
+    both = {"rental_ids": [played["id"], alone["id"]], "charge": cover}
+    refused(client.post(f"{API}/rentals/charges", headers=owner | {"Idempotency-Key": uuid4().hex}, json=both),
+            422, "validation-failed")  # the child does not play the second date  # fmt: skip
+    one = {"rental_ids": [played["id"]], "charge": cover}
+    billed = ok(client.post(f"{API}/rentals/charges", headers=owner | {"Idempotency-Key": uuid4().hex}, json=one), 200)
+    assert billed["rentals"][0]["charge_state"] == "plan_covered"
+
+
+def test_a_guardian_never_spends_a_grown_childs_plan(client, owner, f):
+    parent, kid = family(client, owner, f)
+    ok(client.patch(f"{API}/clients/{kid}", headers=owner, json={"birth_on": "1990-01-01"}), 200)  # an adult now
+    cover = _junior_plan(client, owner, f, kid)
+    refused(rent(client, owner, body(f, parent, 15, 16, charge=cover, parties=[{"client_id": kid}])), 422,
+            "validation-failed")  # an adult's plan is shared only through plan sharing  # fmt: skip
+
+
+@pytest.mark.skip(reason="claude/owner-decisions-1 adds the share-holder waiver gate; enable once both branches merge")
+def test_a_guardian_spending_a_childs_plan_passes_the_share_waiver_gate(client, owner, f):
+    """Once claude/owner-decisions-1 lands, a share-holder must have the plan's waiver signed before spending it.
+    The guardian path in `_purchase_for` (marked "hook: share-holder waiver gate") must pass the same gate: a
+    guardian without the signed waiver is refused with that branch's code, and signing it lets the booking through."""
+    raise NotImplementedError
+
+
 def test_the_minor_age_is_the_tenant_setting(client, owner, f):
     _, kid = family(client, owner, f)
     ok(client.patch(f"{API}/tenant", headers=owner, json={"settings": {"minor_age": 8}}), 200)

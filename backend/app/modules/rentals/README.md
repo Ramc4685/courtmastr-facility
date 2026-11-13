@@ -229,8 +229,13 @@ public-schedule control, no tax picker on rates, one resource per rental in the 
   offer the child as a player. Decided for the pilot: the guardian is the person answerable for the child at the court. The portal rental view still carries no
   co-party ids (S-06).
 - **A child's own plan.** A rental plan bought in a child's name can be spent by a guardian holding the rental
-  when the child is one of its players (`_purchase_for`, staff and portal); otherwise it stays the child's alone.
-  The ledger records the holder as the user.
+  (`_purchase_for`, staff and portal) only while the plan's owner is a minor on the first date (an unknown birth
+  date is not, so it fails closed), the holder is one of the child's guardians (the minors rule's test), and the
+  child is a listed player on every occurrence the plan pays for; otherwise it stays the child's alone (a grown
+  child shares through plan sharing). The ledger records the holder as the user. **Merge note:**
+  `claude/owner-decisions-1` adds a waiver gate for share-holders; this guardian path must pass it too once both
+  branches land (hook comment "share-holder waiver gate" in `_purchase_for`, skipped test
+  `test_a_guardian_spending_a_childs_plan_passes_the_share_waiver_gate`).
 - **Coaching** keeps its own rules: a parent may register a child for a session alone (tested here, unchanged).
 - **Open question for the owner.** Should a child's own membership earn the member price when a parent (not a
   member) holds the booking and the child plays? Today the price follows the holder only.
