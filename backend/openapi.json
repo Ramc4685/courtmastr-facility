@@ -789,6 +789,26 @@
         "title": "AdapterOut",
         "type": "object"
       },
+      "AgeConfirmation": {
+        "additionalProperties": false,
+        "description": "Staff saw the person's ID once. Send the birth date only to correct it; no document detail is taken.",
+        "properties": {
+          "birth_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birth On"
+          }
+        },
+        "title": "AgeConfirmation",
+        "type": "object"
+      },
       "AgeGroupOut": {
         "properties": {
           "id": {
@@ -908,6 +928,74 @@
           }
         },
         "title": "AgeGroupWrite",
+        "type": "object"
+      },
+      "AgeReviewItem": {
+        "description": "One client in the staff age-check queue. birth_on is null without clients.client.read_sensitive.",
+        "properties": {
+          "birth_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birth On"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_via": {
+            "title": "Created Via",
+            "type": "string"
+          },
+          "earliest_booking_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earliest Booking At"
+          },
+          "first_name": {
+            "title": "First Name",
+            "type": "string"
+          },
+          "home_location_id": {
+            "format": "uuid",
+            "title": "Home Location Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_name": {
+            "title": "Last Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "first_name",
+          "last_name",
+          "home_location_id",
+          "birth_on",
+          "earliest_booking_at",
+          "created_via",
+          "created_at"
+        ],
+        "title": "AgeReviewItem",
         "type": "object"
       },
       "AgeingReport": {
@@ -13869,6 +13957,40 @@
             ],
             "title": "Address Line2"
           },
+          "age_confirmation_reset": {
+            "default": false,
+            "title": "Age Confirmation Reset",
+            "type": "boolean"
+          },
+          "age_confirmed": {
+            "default": false,
+            "title": "Age Confirmed",
+            "type": "boolean"
+          },
+          "age_confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Confirmed At"
+          },
+          "age_confirmed_by_staff_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Confirmed By Staff User Id"
+          },
           "birth_on": {
             "anyOf": [
               {
@@ -14492,6 +14614,11 @@
               }
             ],
             "title": "Comments"
+          },
+          "confirm_age": {
+            "default": false,
+            "title": "Confirm Age",
+            "type": "boolean"
           },
           "country_code": {
             "anyOf": [
@@ -27998,6 +28125,11 @@
       "GuestCheckoutCreate": {
         "additionalProperties": false,
         "properties": {
+          "birth_on_declared": {
+            "const": true,
+            "title": "Birth On Declared",
+            "type": "boolean"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/GuestItem"
@@ -28028,7 +28160,8 @@
         "required": [
           "location_id",
           "payer",
-          "items"
+          "items",
+          "birth_on_declared"
         ],
         "title": "GuestCheckoutCreate",
         "type": "object"
@@ -41989,6 +42122,26 @@
         "title": "Page[AgeGroupOut]",
         "type": "object"
       },
+      "Page_AgeReviewItem_": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AgeReviewItem"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "page": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": [
+          "data",
+          "page"
+        ],
+        "title": "Page[AgeReviewItem]",
+        "type": "object"
+      },
       "Page_ApiKeyOut_": {
         "properties": {
           "data": {
@@ -48592,6 +48745,17 @@
             ],
             "title": "Address Line2"
           },
+          "age_confirmed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Confirmed"
+          },
           "authority": {
             "enum": [
               "self",
@@ -48645,6 +48809,17 @@
             "default": {},
             "title": "Custom Values",
             "type": "object"
+          },
+          "entry_code_notice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Code Notice"
           },
           "first_name": {
             "title": "First Name",
@@ -49610,6 +49785,11 @@
             "title": "Birth On",
             "type": "string"
           },
+          "birth_on_declared": {
+            "const": true,
+            "title": "Birth On Declared",
+            "type": "boolean"
+          },
           "email": {
             "anyOf": [
               {
@@ -49661,7 +49841,8 @@
           "relationship_type_id",
           "first_name",
           "last_name",
-          "birth_on"
+          "birth_on",
+          "birth_on_declared"
         ],
         "title": "PortalDependentCreate",
         "type": "object"
@@ -52481,6 +52662,17 @@
             "title": "Amount Due Minor",
             "type": "integer"
           },
+          "entry_code_notice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Code Notice"
+          },
           "expires_at": {
             "anyOf": [
               {
@@ -53833,16 +54025,14 @@
         "description": "Public self-registration (SSP-05). The answer is the same whether or not the address is known.",
         "properties": {
           "birth_on": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Birth On"
+            "format": "date",
+            "title": "Birth On",
+            "type": "string"
+          },
+          "birth_on_declared": {
+            "const": true,
+            "title": "Birth On Declared",
+            "type": "boolean"
           },
           "email": {
             "maxLength": 254,
@@ -53885,7 +54075,9 @@
           "location_id",
           "email",
           "first_name",
-          "last_name"
+          "last_name",
+          "birth_on",
+          "birth_on_declared"
         ],
         "title": "PortalSignupIn",
         "type": "object"
@@ -95217,6 +95409,145 @@
         ]
       }
     },
+    "/api/v1/client-age-reviews": {
+      "get": {
+        "description": "Clients whose self-declared birth date waits for staff, people with an online booking first (earliest\nbooking soonest). Filter: location_id. Sort: earliest_booking_at. `include=total` is the dashboard count.",
+        "operationId": "listClientAgeReviews",
+        "parameters": [
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque keyset cursor from page.next_cursor",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Opaque keyset cursor from page.next_cursor",
+              "title": "Cursor"
+            }
+          },
+          {
+            "description": "Comma-separated allow-listed fields; - prefix for descending",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated allow-listed fields; - prefix for descending",
+              "title": "Sort"
+            }
+          },
+          {
+            "description": "`total` adds page.total",
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`total` adds page.total",
+              "title": "Include"
+            }
+          },
+          {
+            "description": "Free-text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Free-text search",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AgeReviewItem_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Client Age Reviews",
+        "tags": [
+          "clients"
+        ]
+      }
+    },
     "/api/v1/client-alerts/{alert_id}": {
       "patch": {
         "operationId": "updateClientAlert",
@@ -99901,6 +100232,86 @@
         ],
         "x-api-key-scopes": [
           "billing.refund.create"
+        ]
+      }
+    },
+    "/api/v1/clients/{client_id}/age-confirmation": {
+      "post": {
+        "description": "Staff confirm a self-declared birth date once (ID seen in person or by photo); after that entry is\nself-service. Clears the flag even when the date is unchanged. Errors: birth-date-required.",
+        "operationId": "confirmClientAge",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "client_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Client Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AgeConfirmation"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Client Age",
+        "tags": [
+          "clients"
         ]
       }
     },

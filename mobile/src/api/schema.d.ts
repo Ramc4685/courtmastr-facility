@@ -2331,6 +2331,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/client-age-reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Client Age Reviews
+         * @description Clients whose self-declared birth date waits for staff, people with an online booking first (earliest
+         *     booking soonest). Filter: location_id. Sort: earliest_booking_at. `include=total` is the dashboard count.
+         */
+        get: operations["listClientAgeReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/client-alerts/{alert_id}": {
         parameters: {
             query?: never;
@@ -3181,6 +3202,27 @@ export interface paths {
          * @description One refund per payment, newest first, each to its original method. Errors: refund-exceeds-unapplied.
          */
         post: operations["refundAccountCredit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clients/{client_id}/age-confirmation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Client Age
+         * @description Staff confirm a self-declared birth date once (ID seen in person or by photo); after that entry is
+         *     self-service. Clears the flag even when the date is unchanged. Errors: birth-date-required.
+         */
+        post: operations["confirmClientAge"];
         delete?: never;
         options?: never;
         head?: never;
@@ -17226,6 +17268,14 @@ export interface components {
              */
             status: "connected" | "simulated" | "not_configured";
         };
+        /**
+         * AgeConfirmation
+         * @description Staff saw the person's ID once. Send the birth date only to correct it; no document detail is taken.
+         */
+        AgeConfirmation: {
+            /** Birth On */
+            birth_on?: string | null;
+        };
         /** AgeGroupOut */
         AgeGroupOut: {
             /**
@@ -17256,6 +17306,37 @@ export interface components {
             name?: string | null;
             /** Sort Order */
             sort_order?: number | null;
+        };
+        /**
+         * AgeReviewItem
+         * @description One client in the staff age-check queue. birth_on is null without clients.client.read_sensitive.
+         */
+        AgeReviewItem: {
+            /** Birth On */
+            birth_on: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created Via */
+            created_via: string;
+            /** Earliest Booking At */
+            earliest_booking_at: string | null;
+            /** First Name */
+            first_name: string;
+            /**
+             * Home Location Id
+             * Format: uuid
+             */
+            home_location_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Name */
+            last_name: string;
         };
         /** AgeingReport */
         AgeingReport: {
@@ -21533,6 +21614,20 @@ export interface components {
             address_line1: string | null;
             /** Address Line2 */
             address_line2: string | null;
+            /**
+             * Age Confirmation Reset
+             * @default false
+             */
+            age_confirmation_reset: boolean;
+            /**
+             * Age Confirmed
+             * @default false
+             */
+            age_confirmed: boolean;
+            /** Age Confirmed At */
+            age_confirmed_at?: string | null;
+            /** Age Confirmed By Staff User Id */
+            age_confirmed_by_staff_user_id?: string | null;
             /** Birth On */
             birth_on: string | null;
             /** City */
@@ -21689,6 +21784,11 @@ export interface components {
             client_category_id?: string | null;
             /** Comments */
             comments?: string | null;
+            /**
+             * Confirm Age
+             * @default false
+             */
+            confirm_age: boolean;
             /** Country Code */
             country_code?: string | null;
             /** Custom Values */
@@ -25787,6 +25887,11 @@ export interface components {
         };
         /** GuestCheckoutCreate */
         GuestCheckoutCreate: {
+            /**
+             * Birth On Declared
+             * @constant
+             */
+            birth_on_declared: true;
             /** Items */
             items: components["schemas"]["GuestItem"][];
             /**
@@ -30192,6 +30297,12 @@ export interface components {
             data: components["schemas"]["AgeGroupOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[AgeReviewItem] */
+        Page_AgeReviewItem_: {
+            /** Data */
+            data: components["schemas"]["AgeReviewItem"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[ApiKeyOut] */
         Page_ApiKeyOut_: {
             /** Data */
@@ -32405,6 +32516,8 @@ export interface components {
             address_line1?: string | null;
             /** Address Line2 */
             address_line2?: string | null;
+            /** Age Confirmed */
+            age_confirmed?: boolean | null;
             /**
              * Authority
              * @enum {string}
@@ -32425,6 +32538,8 @@ export interface components {
             custom_values: {
                 [key: string]: unknown;
             };
+            /** Entry Code Notice */
+            entry_code_notice?: string | null;
             /** First Name */
             first_name: string;
             /** Gender */
@@ -32731,6 +32846,11 @@ export interface components {
              * Format: date
              */
             birth_on: string;
+            /**
+             * Birth On Declared
+             * @constant
+             */
+            birth_on_declared: true;
             /** Email */
             email?: string | null;
             /** First Name */
@@ -33794,6 +33914,8 @@ export interface components {
         PortalRentalCheckout: {
             /** Amount Due Minor */
             amount_due_minor: number;
+            /** Entry Code Notice */
+            entry_code_notice?: string | null;
             /** Expires At */
             expires_at: string | null;
             /** Invoice Id */
@@ -34290,8 +34412,16 @@ export interface components {
          * @description Public self-registration (SSP-05). The answer is the same whether or not the address is known.
          */
         PortalSignupIn: {
-            /** Birth On */
-            birth_on?: string | null;
+            /**
+             * Birth On
+             * Format: date
+             */
+            birth_on: string;
+            /**
+             * Birth On Declared
+             * @constant
+             */
+            birth_on_declared: true;
             /** Email */
             email: string;
             /** First Name */
@@ -49583,6 +49713,49 @@ export interface operations {
             };
         };
     };
+    listClientAgeReviews: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AgeReviewItem_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     updateClientAlert: {
         parameters: {
             query?: never;
@@ -51835,6 +52008,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RefundOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirmClientAge: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                client_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AgeConfirmation"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientOut"];
                 };
             };
             /** @description Validation Error */
