@@ -14,14 +14,14 @@ Feature status against the parity matrix: `docs/status/16-integrations.md`.
 | `transport.py` | resolves and checks a webhook URL, then sends pinned to the checked address (no redirects) |
 | `service.py` | staff commands with both permission gates and audit, then fan-out, delivery, re-evaluation, export, directory |
 | `handlers.py` | the outbox subscriber that fans events out, and the staff-deactivated handler |
-| `jobs.py` | `deliver_webhook` (one attempt, reschedules itself) and an unscheduled sweep |
+| `jobs.py` | `deliver_webhook` (one attempt, reschedules itself), an unscheduled sweep, and `sync_accounting_job` (chunked: one QuickBooks day per chunk; its dead letter marks the sync failed). The sync start is audited as `integrations.sync.start`; each day as `integrations.sync.run` under the system actor `integrations.sync` |
 | `router.py` | the endpoints in `docs/api/openapi-programs.yaml` tag integrations, all `require()`-gated; `inbound` holds the provider webhooks, registered before billing's `/webhooks/{provider}` |
 | `reference.py` | the generated public API reference: `x-api-key-scopes` on every operation a key may call (added in `app.main`'s OpenAPI hook), listed by `GET /api-reference` |
 | `feeds.py` | calendar feeds (`calendar_feed`: staff, team and member schedules as iCalendar) and the embeddable public schedule (`public_schedule_setting`, `GET /public/schedule`) |
 | `domain/ical.py` | RFC 5545 text: escaping, 75-octet folding, UTC stamps |
 | `meetings.py` | virtual sessions (INT-09): the Zoom connection (a tenant's Server-to-Server app), `video_meeting` per session (pasted link or Zoom), and the member join |
 | `analytics.py` | analytics on registration pages (INT-13): the `google_analytics` connection's settings and the anonymous `GET /public/analytics-config` |
-| `quickbooks.py` | QuickBooks Online (INT-07): OAuth round trip with a sealed state, sealed credentials and refresh, mappings, settings, the in-request sync and retry, the verified webhook |
+| `quickbooks.py` | QuickBooks Online (INT-07): OAuth round trip with a sealed state, sealed credentials and refresh, mappings, settings, the queued sync (one committed day per chunk) and retry, the verified webhook |
 
 Ports added: `app/ports/accounting.py` (adapters: `FakeAccounting`, `JsonFileAccounting`, `QuickBooksOnline`;
 the connection side `AccountingConnect`: `FakeQuickBooks` and `QuickBooksConnect`)
@@ -59,8 +59,12 @@ through `service.adapter_for`.
   Teredo) are refused outright as `embedded-ipv4`, because Python 3.12 calls NAT64 and IPv4-compatible
   addresses global (W2-04).
 - **Accounting export.** One row per (connection, location, business day), idempotent. The doc number is
-  `FH-<LOCATION SLUG>-<YYYYMMDD>` and the request id `{tenant}:qbo_je:{export id}`. Unbalanced days fail and
-  record the error. QuickBooks is refused (`provider-not-configured`) unless `integrations.quickbooks_enabled`.
+  `FH-<LOCATION SLUG>-<YYYYMMDD>`; the request id is a UUIDv5 of `(connection, location, day)`, so a
+  rolled-back attempt that mints a new row still dedupes at the provider. Only a finished day exports: a day on
+  or after the location's own today is refused (422), whatever the UTC date. Unbalanced days fail and record
+  the error. Outside dev and test the simulated poster fails the day (`provider-not-configured` in its error),
+  because it would otherwise mark a day posted with nothing
+  sent). QuickBooks is refused (`provider-not-configured`) unless `integrations.quickbooks_enabled`.
 - **QuickBooks connection.** Creating one returns `authorize_url`; the provider sends the browser to the web
   page `/integrations/quickbooks/callback`, which POSTs `{state, code, realm_id, error}` to
   `/external-connections/oauth/callback` (the OIDC sign-in pattern: a GET that changes state would break the
@@ -90,9 +94,10 @@ through `service.adapter_for`.
   deactivated staff owner or an inactive member identity makes the feed 404. Any staff user may own a feed
   (rbac-matrix section 7); a team feed needs a league game key; `revoke_any` lets a manager see and disable,
   never edit or re-enable, other people's feeds within their locations.
-- **Public schedule.** Off until a location publishes it. Shows only sessions that pass scheduling's own public
-  gate (`scheduling.service.session_window`: confirmed and self-bookable, the portal listing's source) and,
-  when turned on, every other booking as a busy time per resource with no title or name, never beyond
+- **Public schedule.** Off until a location publishes it. Shows only sessions the portal listing would show
+  (`programs.selfservice.public_seats`: confirmed and self-bookable, and not under a hidden or unlisted policy,
+  beyond the policy's visible range, or full where the policy hides full sessions) and, when turned on, the
+  location's other bookings (at most 1000) as busy times per resource with no title or name, never beyond
   `days_ahead` (1 to 31).
 - **Virtual sessions (INT-09).** A Zoom connection is the tenant's own Server-to-Server OAuth app (account id,
   client id, secret), checked by asking Zoom for a token for that account (the token request names the
@@ -143,7 +148,11 @@ through `service.adapter_for`.
 - QuickBooks app credentials come from `FH_QUICKBOOKS_CLIENT_ID`, `FH_QUICKBOOKS_CLIENT_SECRET` and
   `FH_QUICKBOOKS_WEBHOOK_VERIFIER` read in `quickbooks.connector()`, because core settings were frozen this
   phase; without all three the simulated adapter is used. Move them to `core.settings` when it opens.
-- The sync runs inside the request (at most 31 past days, idempotent per day) rather than as a job.
+- `POST .../sync` (at most 31 past days, the location's dates) only queues: the chunked job
+  `sync_accounting_job` posts one day per committed chunk, with the connection's `settings.sync` as its status
+  and cursor, so a failure on a later day never rolls back days already posted. A second sync while one runs is
+  `409 sync-in-progress`. Due tokens are refreshed under a row lock in a chunk of their own, so a rotated
+  refresh token commits before anything that might roll back.
 - Zoom: a Server-to-Server app per tenant instead of a marketplace OAuth app (ADR 0012 section 5 names
   account-level authorisation; this needs no platform Zoom app and no browser flow). The client id `simulated`
   selects the simulated adapter in dev and test only (core settings were frozen). Not built: `/webhooks/zoom`
@@ -152,7 +161,8 @@ through `service.adapter_for`.
   meeting; a cancelled session refuses joins), `virtual_room` host resources and holds, the access modes
   (`open`, `logged_in`; the join is always `booked_only`), and the 40-minute basic-plan warning.
 - A connection that was disconnected keeps its row, so reconnecting the same provider at the same location is
-  `409 already-exists` (`uq_external_connection`); reconnect needs a new location scope or support.
+  `409 already-exists` (`uq_external_connection`); reconnect needs a new location scope or support. A pending
+  or errored connection (an abandoned or failed consent) never blocks: a new attempt takes over its row.
 - Not built for QuickBooks: `sync_from` and `auto_sync` are stored but nothing reads them yet (no scheduled
   sync); no `mappings-incomplete` refusal, sub-category inheritance or `needs_reauth` notice (ADR 0012).
 - Team feeds walk the owner's games by start time and keep the team's, scanning at most 1000 (leagues has no

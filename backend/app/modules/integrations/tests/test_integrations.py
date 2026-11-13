@@ -6,7 +6,7 @@ import http.server
 import json
 import threading
 import time
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from unittest import mock
 from uuid import UUID, uuid4
 
@@ -585,7 +585,8 @@ def test_accounting_export_posts_a_day_once(client, tenant, owner, monkeypatch, 
     location = _location(client, owner)
     person = new_client(client, owner, location)
     charge = {"client_id": person["id"], "location_id": location, "description": "Court", "unit_price_minor": 2500}
-    assert client.post(f"{API}/charges", headers=owner, json=charge).status_code == 201
+    with clock.freeze(clock.now() - timedelta(days=2)):  # only a finished day can be exported
+        assert client.post(f"{API}/charges", headers=owner, json=charge).status_code == 201
     business_on = scalar(tenant, text(f"SELECT max(effective_on) FROM ledger_entry WHERE location_id = '{location}'"))
     connection = client.post(
         f"{API}/external-connections", headers=owner, json={"provider": "accounting_file", "location_id": location}
@@ -607,6 +608,29 @@ def test_accounting_export_posts_a_day_once(client, tenant, owner, monkeypatch, 
     assert client.post(f"{API}/accounting-exports", headers=owner, json=run | {"location_id": other}).status_code == 422
     quickbooks = client.post(f"{API}/external-connections", headers=owner, json={"provider": "quickbooks_online"})
     assert (quickbooks.status_code, quickbooks.json()["code"]) == (422, "provider-not-configured")
+
+
+def test_accounting_export_refuses_the_locations_unfinished_day(client, owner):
+    location = _location(client, owner)
+    connection = client.post(
+        f"{API}/external-connections", headers=owner, json={"provider": "accounting_file", "location_id": location}
+    ).json()
+    run = {"external_connection_id": connection["id"], "location_id": location}
+    with clock.freeze(datetime(2026, 3, 10, 2, 0, tzinfo=UTC)):  # UTC is on the 10th; Chicago is on the 9th, 8pm
+        today = client.post(f"{API}/accounting-exports", headers=owner, json=run | {"business_on": "2026-03-09"})
+        assert today.status_code == 422, today.text
+        done = client.post(f"{API}/accounting-exports", headers=owner, json=run | {"business_on": "2026-03-08"})
+        assert done.json()["status"] == "skipped", done.text
+
+
+def test_simulated_accounting_is_refused_outside_dev_and_test(client, tenant, owner, monkeypatch):
+    from app.modules.integrations.models import ExternalConnection
+
+    monkeypatch.setattr(get_settings(), "env", "production")
+    with tenant_session(tenant.id) as session:
+        row = ExternalConnection(provider="quickbooks_online", status="active", settings={})
+        with pytest.raises(Exception, match="not configured"):
+            service._accounting_adapter(session, row)
 
 
 def test_quickbooks_adapter_posts_an_idempotent_journal_entry():

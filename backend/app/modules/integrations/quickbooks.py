@@ -80,7 +80,11 @@ def _seal(row: ExternalConnection, credentials: Credentials, tenant_id: UUID) ->
 
 
 def credentials(session: Session, row: ExternalConnection) -> Credentials:
-    """The connection's current tokens, refreshed (and resealed) when they expire within five minutes."""
+    """The connection's current tokens, refreshed (and resealed) when they expire within five minutes. The row is
+    locked first, so two workers never both spend the single-use refresh token."""
+    session.flush()
+    session.execute(select(ExternalConnection.id).where(ExternalConnection.id == row.id).with_for_update())
+    session.refresh(row, attribute_names=["credentials_ciphertext"])
     if not row.credentials_ciphertext:
         raise Conflict("The connection has no credentials", code="invalid-state-transition")
     tenant_id = session.info["tenant_id"]
@@ -92,9 +96,24 @@ def credentials(session: Session, row: ExternalConnection) -> Credentials:
     return fresh
 
 
+def refresh_if_due(session: Session, row: ExternalConnection) -> bool:
+    """Internal (sync_chunk): refresh due tokens as a step of their own, so they commit before any posting that
+    might roll back. True when the tokens were rotated; a failure is left to the export, which records it."""
+    before = row.credentials_ciphertext
+    try:
+        credentials(session, row)
+    except Exception:  # the provider boundary: the day's export attempt reports it
+        return False
+    return row.credentials_ciphertext != before
+
+
 def journal_poster(session: Session, row: ExternalConnection) -> Any:
-    """Internal (service._accounting_adapter): the AccountingSync adapter for a QuickBooks connection."""
-    return connector().journal_poster(credentials(session, row))
+    """Internal (service._accounting_adapter): the AccountingSync adapter for a QuickBooks connection. The
+    simulated adapter is refused outside dev and test: it would mark days posted with nothing sent."""
+    adapter = connector()
+    if _simulated_outside_dev(adapter):
+        raise ValidationFailed("QuickBooks Online is not configured", code="provider-not-configured")
+    return adapter.journal_poster(credentials(session, row))
 
 
 # --- the OAuth round trip ----------------------------------------------------------------------------------
@@ -147,7 +166,9 @@ def _complete(
     if payload["u"] != str(principal.staff_user_id):
         raise PermissionDenied("This connection link was started by someone else", code="state-invalid")
     row = session.get(ExternalConnection, UUID(payload["c"]), with_for_update=True)
-    if row is None or row.status != ConnectionStatus.PENDING or payload["x"] < clock.now().timestamp():
+    # a retried attempt takes over the row (create_external_connection): an earlier starter's link dies with it
+    stale = row is not None and str(row.connected_by_staff_user_id) != payload["u"]
+    if row is None or stale or row.status != ConnectionStatus.PENDING or payload["x"] < clock.now().timestamp():
         raise PermissionDenied("This connection link has expired", code="state-invalid")
     if error or not code or not company_id:
         return _fail(session, row, error or "no code")
@@ -289,40 +310,99 @@ def put_mappings(session: Session, principal: Principal, connection_id: UUID, ma
 
 
 def run_sync(session: Session, principal: Principal, connection_id: UUID, data: dict) -> dict:
-    """Export each day in [from, to] for the connection's location (or the one named). Idempotent per day: a
-    finished day is returned unchanged; `retries_failed` re-attempts failed ones (others are always attempted).
-    shortcut: runs in the request, capped at 31 days; move to a chunked job when ranges need to be longer."""
-    from app.modules.integrations import service
+    """Queue the export of each day in [from, to] for the connection's location (or the one named). Dates are the
+    location's own; the default is its yesterday. The chunked job `sync_accounting_job` posts one day per
+    committed chunk, so a failure on a later day never rolls back days already posted, and the connection row
+    (`settings.sync`) is its status. Idempotent per day; `retries_failed` re-attempts failed days."""
+    from app.modules import platform
 
     row = _load(session, principal, connection_id, "integrations.sync.run")
+    session.refresh(row, with_for_update=True)
     if row.status != ConnectionStatus.ACTIVE:
         raise Conflict("The connection is not active")
+    if (row.settings or {}).get("sync", {}).get("status") == "running":
+        raise Conflict("A sync is already running for this connection", code="sync-in-progress")
     location_id = row.location_id or data.get("location_id")
     if location_id is None:
         raise ValidationFailed("Name the location to sync", pointer="/location_id")
-    today = clock.now().date()
+    authorize(principal, "integrations.sync.run", location_id=location_id)
+    try:
+        today = platform.service.location_today(session, location_id)
+    except NotFound:
+        raise ValidationFailed("Unknown location", pointer="/location_id") from None
     first, last = data.get("from") or today - timedelta(days=1), data.get("to") or today - timedelta(days=1)
     if last < first or (last - first).days >= MAX_SYNC_DAYS or last >= today:
         raise ValidationFailed(f"Pick up to {MAX_SYNC_DAYS} past days", pointer="/to")
-    counts: dict[str, int] = {}
-    day: date = first
-    while day <= last:
+    job: dict[str, Any] = {
+        "status": "running", "location_id": str(location_id), "next_on": first.isoformat(),
+        "last_on": last.isoformat(), "retries_failed": bool(data.get("retries_failed")), "counts": {},
+    }  # fmt: skip
+    row.settings = {**(row.settings or {}), "sync": job}
+    audit.record(session, "integrations.sync.start", row, location_id=location_id, changes=audit.diff(row))
+    session.flush()
+    tenant_id, ident = str(session.info["tenant_id"]), str(row.id)
+
+    def enqueue() -> None:
+        from app.modules.integrations.jobs import sync_accounting_job
+
+        sync_accounting_job.send(tenant_id, ident)
+
+    session.info.setdefault("after_commit", []).append(enqueue)
+    return _sync_view(row)
+
+
+def _sync_view(row: ExternalConnection) -> dict:
+    job = row.settings["sync"]
+    return {
+        "status": job["status"], "counts": job["counts"],
+        "status_url": f"/api/v1/accounting-exports?external_connection_id={row.id}&location_id={job['location_id']}",
+    }  # fmt: skip
+
+
+def sync_chunk(session: Session, connection_id: UUID) -> bool:
+    """One day of a queued sync (internal, the chunked job). Returns True while days remain."""
+    from app.core.auth import system_principal
+    from app.modules.integrations import service
+
+    row = session.get(ExternalConnection, connection_id, with_for_update=True)
+    job = dict((row.settings or {}).get("sync") or {}) if row is not None else {}
+    if row is None or job.get("status") != "running":
+        return False
+    counts = dict(job["counts"])
+    rotates = row.provider == PROVIDER and get_settings().integrations.quickbooks_enabled
+    if row.status == ConnectionStatus.ACTIVE and rotates and refresh_if_due(session, row):
+        return True  # the rotated tokens commit on their own before the next chunk posts anything
+    if row.status != ConnectionStatus.ACTIVE:
+        job["status"] = "failed"
+    else:
+        day, location_id = date.fromisoformat(job["next_on"]), UUID(job["location_id"])
         existing = session.scalar(
             select(AccountingExport.status).where(
                 AccountingExport.external_connection_id == row.id, AccountingExport.location_id == location_id,
                 AccountingExport.business_on == day,
             )
         )  # fmt: skip
-        if existing == ExportStatus.FAILED and not data.get("retries_failed"):
-            counts["failed"] = counts.get("failed", 0) + 1
+        if existing == ExportStatus.FAILED and not job["retries_failed"]:
+            outcome = ExportStatus.FAILED.value
         else:
-            export = service.export_accounting_day(session, principal, row.id, location_id, day)
-            counts[export.status] = counts.get(export.status, 0) + 1
-        day += timedelta(days=1)
-    return {
-        "status": "completed", "counts": counts,
-        "status_url": f"/api/v1/accounting-exports?external_connection_id={row.id}&location_id={location_id}",
-    }  # fmt: skip
+            principal = system_principal("integrations.sync")
+            outcome = service.export_accounting_day(session, principal, row.id, location_id, day).status
+        counts[outcome] = counts.get(outcome, 0) + 1
+        job["next_on"] = (day + timedelta(days=1)).isoformat()
+        if day >= date.fromisoformat(job["last_on"]):
+            job["status"] = "completed"
+    job["counts"] = counts
+    row.settings = {**row.settings, "sync": job}
+    session.flush()
+    return job["status"] == "running"
+
+
+def fail_sync(session: Session, connection_id: UUID) -> None:
+    """Dead letter: a chunk kept failing, so the sync stops and a new one may start."""
+    row = session.get(ExternalConnection, connection_id, with_for_update=True)
+    if row is not None and (row.settings or {}).get("sync", {}).get("status") == "running":
+        row.settings = {**row.settings, "sync": {**row.settings["sync"], "status": "failed"}}
+        session.flush()
 
 
 def retry_export(session: Session, principal: Principal, export_id: UUID) -> AccountingExport:

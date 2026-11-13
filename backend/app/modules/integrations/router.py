@@ -201,8 +201,9 @@ def put_sync_mappings(
 
 @router.post("/external-connections/{external_connection_id}/sync", response_model=s.SyncRunOut, status_code=202)
 def run_sync(external_connection_id: UUID, body: s.SyncRun, ctx: Ctx = Depends(require("integrations.sync.run"))):
-    """Export each past day in the range (default yesterday, at most 31 days) for the connection's location.
-    Idempotent per day. Errors: invalid-state-transition, validation-failed."""
+    """Queue the export of each finished day in the range (the location's own dates; default its yesterday, at
+    most 31 days). A job posts one committed day at a time; follow `status_url`. Idempotent per day.
+    Errors: invalid-state-transition, sync-in-progress, validation-failed."""
     return quickbooks.run_sync(ctx.session, ctx.principal, external_connection_id, body.model_dump(by_alias=True))
 
 

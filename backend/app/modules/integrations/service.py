@@ -9,7 +9,7 @@ import json
 import secrets
 from datetime import date, datetime, timedelta
 from typing import Any
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from sqlalchemy import Select, any_, func, literal, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -656,12 +656,24 @@ def create_external_connection(
         )
     _check_locations(session, principal, [location_id] if location_id else None, "/location_id")
     oauth = data["provider"] == Provider.QUICKBOOKS_ONLINE  # connected only once the OAuth round trip completes
-    row = ExternalConnection(
-        provider=data["provider"], location_id=location_id, status=ConnectionStatus.ACTIVE,
-        settings=data.get("settings") or {}, connected_by_staff_user_id=principal.staff_user_id,
-        connected_at=None if oauth else clock.now(),
+    fields = {
+        "status": ConnectionStatus.ACTIVE, "settings": data.get("settings") or {}, "credentials_ciphertext": None,
+        "connected_by_staff_user_id": principal.staff_user_id, "connected_at": None if oauth else clock.now(),
+        "external_account_id": None, "external_account_name": None, "last_error": None, "last_error_at": None,
+    }  # fmt: skip
+    # an abandoned or failed consent never blocks a new attempt: it takes over that row (uq_external_connection)
+    row = session.scalar(
+        select(ExternalConnection).where(
+            ExternalConnection.provider == data["provider"],
+            ExternalConnection.location_id.is_not_distinct_from(location_id),
+            ExternalConnection.status.in_([ConnectionStatus.PENDING, ConnectionStatus.ERROR]),
+        ).with_for_update()
     )  # fmt: skip
-    session.add(row)
+    if row is None:
+        row = ExternalConnection(provider=data["provider"], location_id=location_id)
+        session.add(row)
+    for name, value in fields.items():
+        setattr(row, name, value)
     session.flush()
     authorize_url = None
     if row.provider == Provider.QUICKBOOKS_ONLINE:
@@ -725,6 +737,8 @@ def _accounting_adapter(session: Session, connection: ExternalConnection) -> Any
         return JsonFileAccounting(cfg.accounting_file_dir)
     if connection.provider == Provider.QUICKBOOKS_ONLINE and cfg.quickbooks_enabled:
         return quickbooks.journal_poster(session, connection)  # refreshes the tokens when they are due
+    if get_settings().env not in ("dev", "test"):  # a simulated post would mark the day posted with nothing sent
+        raise ValidationFailed("QuickBooks Online is not configured", code="provider-not-configured")
     return FakeAccounting()
 
 
@@ -752,6 +766,8 @@ def export_accounting_day(
         location = platform.service.get_location(session, principal, location_id)
     except NotFound:
         raise ValidationFailed("Unknown location", pointer="/location_id") from None
+    if business_on >= platform.service.location_today(session, location_id):
+        raise ValidationFailed("Only a finished day can be exported", pointer="/business_on")
     export = session.scalar(
         select(AccountingExport).where(
             AccountingExport.external_connection_id == connection.id,
@@ -819,7 +835,9 @@ def _post_journal(
         memo=f"FacilityHub daily summary {export.business_on.isoformat()}", lines=out,
     )  # fmt: skip
     adapter = adapter_for(session, _accounting_adapter(session, connection), "accounting", location_id)
-    return adapter.post_journal(entry, request_id=f"{session.info['tenant_id']}:qbo_je:{export.id}"), unmapped
+    # derived from the day, not the row id: a rolled-back attempt mints a new row, and the provider must still dedupe
+    request_id = str(uuid5(NAMESPACE_URL, f"qbo_je:{connection.id}:{location_id}:{export.business_on.isoformat()}"))
+    return adapter.post_journal(entry, request_id=request_id), unmapped
 
 
 def list_accounting_exports(session: Session, principal: Principal, query: ListQuery) -> dict:
