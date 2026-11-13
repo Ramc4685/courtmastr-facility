@@ -1,96 +1,68 @@
 # Lead handoff
 
-State for the next lead session. Written 2026-11-13 00:10 (America/Chicago) by the outgoing lead. Roles and
-routing: `docs/dev/agent-roles.md`. You are the lead: run on Fable, route and review, never write product code.
-Update or delete this file once you have taken over; it is a snapshot, not a living status page.
+State for the next lead session. Written 2026-11-13 09:55 (America/Chicago). Roles and routing:
+`docs/dev/agent-roles.md`. You are the lead: route and review, never write product code. This is a snapshot;
+the living records are `docs/status/feature-ledger.md` (every feature and its state),
+`docs/status/overnight-2026-11-13.md` (what merged and why), `docs/status/production-readiness-2026-11-13.md`
+(gaps against standards) and `docs/status/owner-decisions-2026-11-13.md` (the owner's answers).
 
 ## Where things stand
 
-- **Main** is at `eaff7a0` (merge of Phase 14 batch 1), migration head `1401`. Dev database migrated and seeded.
-  Focused tests on main after the merge: 1,678 passed (programs forms and tools, lockers and plans, league depth,
-  billing collections, `tests/test_security.py`). The phase branch's full gate passed on `ac16d7b`; `31a6176`
-  added the erasure/index fix with 3,455 targeted tests.
-- **Browser self-test on main, 2026-11-13 00:25:** as the demo owner, the twelve new staff screens (lockers,
-  event forms, program setup, leagues, venues, stats, scores, rentals, rental setup, collections, notices,
-  expiring cards) render with no error alert and no failed API call; an anonymous registration on the public
-  Open Day form returned a confirmation and the staff list count moved to 1 of 120. Not checked: the member
-  portal rental-plan purchase, and any create or edit on the league and locker screens.
-- **CI does not run.** Every job on main (latest `3bc2f60`, and the four runs before it) fails in two seconds
-  with GitHub's annotation "recent account payments have failed or your spending limit needs to be increased".
-  Until the owner fixes Billing & plans, a pull request gates nothing: the full gate still runs on the laptop.
-- **Pushing:** main is at `3bc2f60` and matches origin. The owner still pushes main. Builders may push
-  `claude/<name>` branches (`agent-roles.md`, "Gating through pull requests"). Guard confirmed 2026-11-13:
-  `git push --dry-run origin main` is blocked.
-- **Features:** 283 planned across Phases 8 to 15. Done on main: Phases 8, 9, 10 (81) plus Phase 14 batch 1 (40) = 121.
+- **Local `main` is at `9e70852` plus docs commits, and is not pushed.** The owner pushes main; the guard blocks it
+  for agents. The same commits are on `claude/overnight-integration` (draft PR #5).
+- **CI is fully green on `9e70852`:** backend 6,379 passed, Playwright 82 passed, web and api-diff pass. Migration
+  head `1562`.
+- **On main:** Phases 8 to 12, 14 and 15, the EGM drift fixes, and the fixes found by the first full CI runs
+  (portal guard tests, API-key allow-list, seven portal browser tests, OpenAPI built at startup).
+- **Ledger:** 453 features; 368 done, 38 partial, 25 parked, 20 deferred, 2 not built. The counts move as the
+  branches below land; have them recounted from the rows, not by arithmetic.
 
-## Work left, in order
+## Branches in flight (local only, none merged)
 
-Half-built work first. Start fresh Opus chips (one slice each, own worktree via `make lane-env` then
-`make lane-db`); do not wake the old sessions, their contexts are over a thousand messages long.
+| Branch | What | State | Before it merges |
+|---|---|---|---|
+| `claude/hardening-pass` | log redaction, card detector, TLS, Stripe CSP, CI pins and new jobs, retention, framing for public league pages, analytics removed (migration `1951`) | two review rounds being fixed | Fable verification; `1951` re-pointed onto main's head; run `make stack-up stack-smoke` once |
+| `claude/phase9-orphans-2` (contains `claude/phase9-orphans`) | refunds, item edits, bulk actions, then ACH returns, card masking, client discounts, payout reconciliation (migrations `1801`+) | fixing two blocking money defects from review, then the rest | Opus review, Fable risk review, verification |
+| `claude/phase13-member-communication-2` (contains `...-communication`) | email port, consent, campaigns with the minors rule, push with quiet hours; then the remaining P0s, P1s and every screen (migrations `1901`+) | part 1 under Fable risk review; part 2 building | reconcile its `core/api.py` edits with the hardening branch |
+| `claude/owner-decisions-1` | kiosk session booking and package purchase, rental-plan waiver gate with ADR, POS report key, struck keys (migrations `1961`+) | building | Opus review, Fable risk review |
 
-| # | Work | Features | State | Where |
-|---|---|---|---|---|
-| 1 | Phase 14 chip B2: public league site | 12 (LGE-17 to 24, LGE-33, CLS-07, MKT-18, PLT-12) | not started | plan `docs/planning/phase-14.md` |
-| 2 | Phase 14 chip C2 | 7 (SCH-16, SCH-17, SSP-09, SCH-21, BIL-18, PKG-11, DOC-11) | not started | same plan |
-| 3 | Phase 12 reports and exports | 46 | chips A, B, C mostly built, nothing on the phase branch | below |
-| 4 | Phase 11 self-service and member app | 36 | chips A, B, C1 have WIP commits plus uncommitted files | below |
-| 5 | Phase 15 integrations and API | 42 | not started | `docs/planning/phase-features.md` |
-
-Phase 14 parked: REG-25, DOC-10, POS-20. Phases 13 (needs email and push accounts) and 16 (needs hosting and a
-first facility) stay parked. After Phase 15: final acceptance against `docs/BRIEF.md` (risk reviewer).
-
-### Paused branches (all under `.claude/worktrees/`, all based on a main before Phase 14)
-
-| Work | Worktree | Branch | Ahead of old main | Uncommitted files | Lane databases |
-|---|---|---|---|---|---|
-| Phase 12 coordinator (plan `docs/planning/phase-12.md`, `last_30_days` fix) | `phase12-wave4-54830f` | `claude/phase12-wave4-54830f` | 5 | 0 | `facilityhub_p12` |
-| Phase 12 chip A: export engine and dashboard | `zen-villani-6f6232` | `claude/friendly-pare-3f8f20` | 9 | 0 | `facilityhub_p12a` |
-| Phase 12 chip B: money, membership, package reports | `lucid-goodall-afdf73` | `claude/lucid-goodall-afdf73` | 8 | 0 | `facilityhub_p12b` |
-| Phase 12 chip C: client, desk, program, POS reports | `zealous-grothendieck-d62ae1` | `claude/zealous-grothendieck-d62ae1` | 5 | 0 | `facilityhub_p12c` |
-| Phase 11 coordinator (plan `docs/planning/phase-11.md`) | `phase11-wave3-48da13` | `claude/phase11-wave3-48da13` | 8 | 0 | none |
-| Phase 11 chip A: portal entry and accounts | `infallible-greider-c965ff` | `claude/infallible-greider-c965ff` | 5 | **12** | `facilityhub_p11a` |
-| Phase 11 chip B: portal booking and buying | `compassionate-tu-167363` | `claude/compassionate-tu-167363` | 6 | **15** | `facilityhub_p11b` |
-| Phase 11 chip C1: member app core | `eager-elion-8095b5` | `claude/eager-elion-8095b5` | 6 | **18** | `facilityhub_p11c1` |
-| "What's New" side work (owner has not decided whether to keep it) | `brave-heisenberg-bef4b6` | `claude/brave-heisenberg-bef4b6` | 0 | 3 | none |
-
-**Do not remove a worktree with uncommitted files** (Phase 11 chips, brave-heisenberg). Commit them as WIP on
-their branch first, or have the new chip start in that worktree.
+All four first migrations revise `1562`. Whichever merges first keeps it; each later one is re-pointed by its own
+builder onto main's head at that moment, with its lane database rebuilt from scratch.
 
 ## Traps learned the hard way
 
-1. **Stale lane databases.** A lane database migrated before main was merged in reports `head` but silently
-   lacks main's newer migrations (this cost a 68-minute gate and about 2,000 errors). Every lane database in the
-   table above is in that state. After merging main into a branch: `make lane-drop`, `make lane-db`,
-   `make migrate seed`. Never `upgrade` an old lane database.
-2. **Memory.** 16 GB Mac. One full gate (about 68 minutes: pytest then web then Playwright) at a time; chips run
-   only their module's tests and stop their servers. See the capacity note in `agent-roles.md`.
-3. **Guards.** `git push` is blocked (owner pushes). GateGuard wants the facts stated before the first Bash,
-   Edit or Write. The EGM hook blocks a commit until `docs/egm/drift/<module>.md` is fresh for every changed
-   module (use the `drift` agent). Do not work around any of them.
-4. **Node.** CI and the gate use Node 22 (`.nvmrc`); Node 26 breaks a jsdom web test.
-5. **New portal routes** that take money must be added to the past-due lockout list in billing; a guard test
-   on main fails otherwise.
+1. **A chip's "tests pass" is not CI.** Three phases merged without their own CI run (pushes were blocked) and
+   each broke something only CI caught: portal guard tests, a pinned permission set, seven browser specs. Before
+   merging a branch that never had CI, run `tests/` (the whole cross-cutting directory),
+   `app/modules/billing/tests/test_collections.py` and the affected modules yourself in its worktree.
+2. **Fixes regress.** Verification passes found a new defect in a previous fix more than once (post-billed
+   credit-back took five rounds). Verify fix commits against the findings before merging; do not trust the report.
+3. **The push guard needs the push to be the whole command:** `git push origin claude/<name>` with nothing chained.
+4. **Stale lane databases** look current but lack newer migrations. After merging main: `make lane-drop`,
+   `make lane-db`, `make seed`.
+5. **Generated files:** never hand-merge `backend/openapi.json` or `web/src/api/schema.d.ts`; after every merge run
+   `make openapi web-api` on main and commit any difference.
+6. **Sessions cannot be started from a scheduled check**; use background agents with `isolation: worktree`.
+7. **Memory:** 16 GB. Builders run module tests only, no `-n`, never tests and servers together. Five or six
+   builders at once has held at 40 to 50% free.
+8. **Node 22** for web and Playwright.
 
 ## Waiting on the owner
 
-- GitHub Actions billing (see "CI does not run" above): fix the payment method or raise the spending limit.
-- Catalog-item list access: require `billing.item.manage`, or keep it open to any signed-in staff member.
-- Platform models: relax the rule that only platform code reads them, or change the six modules that do.
-- Billing collections (`billing/collections.py`): expiring-cards list and collections profile/report are not
-  limited by staff location; flagged by two reviewers. Decide the policy, then fix.
-- Keep or drop the "What's New" work in `brave-heisenberg-bef4b6`.
+- Push `main`.
+- Interview questions still open: 11 (who may read platform models), 12 (collections by staff location, built as a
+  droppable commit), 15 (kiosk: built as two droppable commits), 17, 18, the transfer-ownership and close-tenant
+  keys, the 20 partner integrations, housekeeping (What's New worktree, attribution trailers, push guard).
+- Children's data rules (age threshold, consent, public display of minors): the largest open product decision; see
+  the production-readiness review, item 3.
+- Goodwill credit (BIL-21) ledger treatment; card surcharging (PAY-14).
+- Provider accounts when a pilot is chosen: Amazon SES, Expo with Apple and Firebase, Intuit, Zoom.
+- Phase 16 (hosting) waits on the AWS Activate decision.
 
-## Decided, not built
+## Cleanup not done
 
-- Public event forms get double opt-in later (P1 row under Phase 14 deferred items).
-- Repo reshaping to stop merge conflicts: timestamp migration names, a schema check at the start of every gate,
-  per-module test fixtures and navigation fragments, generated files regenerated not hand-merged.
-- Small fix: unbounded `sort_order: int` in the older resource schemas can cause a 500.
-- Phase 11's security review must cover `search_app_directory` in `core/db/platform.py`.
-- Duplicated helpers across Phase 14 chips (CSV `_cell` x3, `_pdf`/`_csv` attachment x4, `_zone` x3).
-
-## Reporting
-
-The owner wants an update every 30 to 60 minutes while work runs: per phase planned / done / in progress /
-remaining, what merged, what needs them, EGM drift counts (`docs/egm/DRIFT_BACKLOG.md`: 184 open), machine load.
-The old session's hourly cron dies with it; set a new one.
+- Old Phase 11 worktrees `infallible-greider-c965ff`, `compassionate-tu-167363`, `eager-elion-8095b5` hold their
+  original uncommitted files. That work was recovered into the merged Phase 11 branch but not verified file by
+  file; remove them only when the owner agrees.
+- `brave-heisenberg-bef4b6` ("What's New"): owner has not decided.
+- Pull requests #1 to #4 are open on GitHub; they show as merged once main is pushed.
