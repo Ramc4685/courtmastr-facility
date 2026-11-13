@@ -377,7 +377,10 @@ def _rate_input(session: Db, rate: RentalRate) -> pricing.Rate:
 class _Priced:
     """A charge decision priced: the lines, the taxes they will carry and what billing gets told."""
 
-    def __init__(self, session: Db, rtype: RentalType, decision: dict, occurrences: list[pricing.Occurrence], on: date):
+    def __init__(
+        self, session: Db, rtype: RentalType, decision: dict, occurrences: list[pricing.Occurrence], on: date,
+        client_id: UUID | None,
+    ):  # fmt: skip
         custom = decision.get("custom_rate")
         if custom:
             self.rate = pricing.Rate(
@@ -398,7 +401,7 @@ class _Priced:
             selected = session.scalars(select(RentalRateTax.tax_id).where(RentalRateTax.rental_rate_id == row.id)).all()
         if decision.get("tax_ids") is not None:
             selected = decision["tax_ids"]
-        self.lines = pricing.price(self.rate, occurrences, grouping=decision.get("line_grouping"))
+        self.lines = _price_for(session, self.rate, occurrences, client_id, decision.get("line_grouping"))
         try:
             pricing.apply_discount(self.lines, decision.get("discount_minor") or 0)
         except ValueError:
@@ -427,6 +430,39 @@ class _Priced:
             "tax_minor": tax, "total_minor": subtotal + tax, "deposit_minor": pricing.deposit_of(subtotal + tax, deposit_pct),
             "currency": currency,
         }  # fmt: skip
+
+
+def _member_pricing(session: Db, client_id: UUID | None, on: date) -> tuple[bool, frozenset]:
+    """Whether the payer pays member prices on a local date, and under which membership type. The one
+    definition is memberships' `eligibility` (owner decision 13): an active contract, owned or shared, at any
+    location, overdue or used up; never suspended, frozen, expired or cancelled."""
+    if client_id is None:
+        return False, frozenset()
+    found = memberships.service.eligibility(session, client_id, on)
+    return (True, frozenset({found["membership_type_id"]})) if found["is_member"] else (False, frozenset())
+
+
+def _price_for(
+    session: Db, rate: pricing.Rate, occurrences: list[pricing.Occurrence], client_id: UUID | None,
+    grouping: str | None = None,
+) -> list[pricing.Line]:
+    """The rental price for quote and charge alike: each occurrence at the payer's member status on its own
+    local date (a recurring rental that outlives a membership pays the guest price after it). `flat` is one
+    charge for the whole request, priced on the first date."""
+    groups: dict[tuple, list[pricing.Occurrence]] = {}
+    status: dict[date, tuple[bool, frozenset]] = {}
+    first = min(occurrences, key=lambda o: o.index).starts_at.date()
+    for occurrence in occurrences:
+        on = first if rate.basis == "flat" else occurrence.starts_at.date()
+        if on not in status:
+            status[on] = _member_pricing(session, client_id, on)
+        groups.setdefault(status[on], []).append(occurrence)
+    lines = [
+        line
+        for (is_member, types), group in groups.items()
+        for line in pricing.price(rate, group, is_member=is_member, member_types=types, grouping=grouping)
+    ]
+    return sorted(lines, key=lambda line: (line.occurrence_index or 0, str(line.resource_id or ""), -line.unit_amount_minor))
 
 
 def _currency(session: Db) -> str:
@@ -723,14 +759,16 @@ def _decide(
             raise ValidationFailed("Choose the plan.", pointer="/charge/rental_plan_purchase_id")
         _cover(session, decision["rental_plan_purchase_id"], client_id, rtype, rows)
         return None, []
-    priced = _price_rows(session, rtype, decision, rows)
+    priced = _price_rows(session, rtype, decision, rows, client_id)
     posted = _post_lines(session, priced, rows, rtype, client_id, decision)
     return priced.quote(_currency(session), rtype.deposit_pct), _route(session, decision, posted, client_id)
 
 
-def _price_rows(session: Db, rtype: RentalType, decision: dict, rows: list[RentalBooking]) -> _Priced:
+def _price_rows(
+    session: Db, rtype: RentalType, decision: dict, rows: list[RentalBooking], client_id: UUID
+) -> _Priced:
     occurrences = _occurrence_inputs(session, rows, _type_resources(session, rtype.id))
-    return _Priced(session, rtype, decision, occurrences, occurrences[0].starts_at.date())
+    return _Priced(session, rtype, decision, occurrences, occurrences[0].starts_at.date(), client_id)
 
 
 def _check_override(principal: Principal, decision: dict, location_id: UUID) -> None:
@@ -808,9 +846,9 @@ def preview_rental(session: Db, principal: Principal, data: dict) -> dict:
             if o["status"] == "ok"
         ]  # fmt: skip
         if occurrences:
-            quote = _Priced(session, rtype, data["charge"], occurrences, occurrences[0].starts_at.date()).quote(
-                _currency(session), rtype.deposit_pct
-            )
+            quote = _Priced(
+                session, rtype, data["charge"], occurrences, occurrences[0].starts_at.date(), data["client_id"]
+            ).quote(_currency(session), rtype.deposit_pct)
     return {
         "occurrences": result["occurrences"], "requested_count": result["requested_count"],
         "conflict_count": result["conflict_count"], "quote": quote,
@@ -840,7 +878,7 @@ def create_rental(session: Db, principal: Principal, data: dict) -> dict:
     for row in rows:
         audit.record(
             session, CREATE, row, location_id=row.location_id,
-            changes={"charge_state": [None, row.charge_state], "rental_type_id": [None, str(row.rental_type_id)]},
+            changes={"charge_state": [None, row.charge_state], "rental_type_id": [None, str(row.rental_type_id)]} | flag,
         )  # fmt: skip
     first = min(rows, key=lambda r: r.starts_at)
     return result | {"rental": _view(session, first), "quote": quote, "invoice_ids": invoice_ids}
@@ -871,7 +909,7 @@ def bill_selected(session: Db, principal: Principal, data: dict) -> dict:
     if data.get("preview"):
         if decision["decision"] != "bill":
             raise ValidationFailed("Only a bill decision has a quote.", pointer="/charge/decision")
-        quote = _price_rows(session, rtype, decision, sorted(rows, key=lambda r: r.starts_at)).quote(
+        quote = _price_rows(session, rtype, decision, sorted(rows, key=lambda r: r.starts_at), client_id).quote(
             _currency(session), rtype.deposit_pct
         )
         return {"quote": quote, "rentals": _views(session, rows), "invoice_ids": []}
@@ -1265,10 +1303,12 @@ def _check_online_slot(session: Db, rtype: RentalType, starts_at: datetime, ends
 
 
 def search_availability(
-    session: Db, type_id: UUID, on: date, *, length_min: int | None = None, resource_id: UUID | None = None
+    session: Db, type_id: UUID, on: date, *, length_min: int | None = None, resource_id: UUID | None = None,
+    client_id: UUID | None = None,
 ) -> list[dict]:
     """Advisory slots (RNT-06): free ranges of the type's resources on a local date, snapped to the grid,
-    with room for the type's buffers, priced with the online rate. The hold insert at checkout decides."""
+    with room for the type's buffers, priced with the online rate for `client_id` (anonymous: the guest
+    price) through the same `_price_for` as the charge. The hold insert at checkout decides."""
     rtype = _online_type(session, type_id)
     limits = _limits(session, rtype)
     length = length_min or rtype.default_length_min or rtype.min_length_min
@@ -1299,12 +1339,14 @@ def search_availability(
             while cursor + timedelta(minutes=length) + after <= gap["ends_at"]:
                 if cursor >= earliest and (latest is None or cursor < latest):
                     finish = cursor + timedelta(minutes=length)
-                    lines = pricing.price(rate, [pricing.Occurrence(0, cursor, finish, (column["resource_id"],))])
+                    occurrence = pricing.Occurrence(0, cursor, finish, (column["resource_id"],))
+                    lines = _price_for(session, rate, [occurrence], client_id)
                     slots.append(
                         {
                             "starts_at": cursor, "ends_at": finish, "resource_id": column["resource_id"],
                             "resource_name": names.get(column["resource_id"], ""),
-                            "price_minor": sum(line.amount_minor for line in lines), "is_member_price": False,
+                            "price_minor": sum(line.amount_minor for line in lines),
+                            "is_member_price": any(line.is_member_price for line in lines),
                         }
                     )  # fmt: skip
                 cursor += step
@@ -1317,6 +1359,11 @@ def _portal_client(session: Db, principal: Principal, client_id: UUID) -> UUID:
     if client_id not in clients.service.client_ids_for_identity(session, principal.identity_id):
         raise NotFound()
     return client_id
+
+
+def portal_availability(session: Db, principal: Principal, client_id: UUID, type_id: UUID, on: date, **kw) -> list:
+    """The open times priced for the client who will hold the rental (member prices), as the checkout charges."""
+    return search_availability(session, type_id, on, client_id=_portal_client(session, principal, client_id), **kw)
 
 
 def _portal_rental(

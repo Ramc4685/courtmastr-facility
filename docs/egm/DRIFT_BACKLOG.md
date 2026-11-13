@@ -426,3 +426,18 @@ Found by re-running the drift reports against this branch's code. Merge these in
 - [ ] [stale-not-built] README:94 "reports outside P0 not built"; catalogue.py:7-9 registers 17 more (reports/money.py, reports/memberships.py)
 - [ ] [undocumented] no assumptions for income_balances, underpaid_items, accrued_session_revenue, package_sales, deferred_membership_revenue; no list of the 27 registered reports
 - [ ] [wording] views.py now has 9 views from migration 1621; other contexts' rpt_rental_* still unread
+
+### rentals (+12) — [evidence](drift/rentals.md)
+
+- [ ] [stale-not-built] models.py:1-2 says `locker_lease` "is not built"; LockerLease is at models.py:594-598, README L85-108 says built
+- [ ] [missing] README:136-137 "secured" via `billing.checkout.is_secured`; rentals never calls it (service.py:1533-1557, 1492-1506)
+- [ ] [contract] `PortalRentalConfirm` (openapi-core.yaml:6122-6134) has `save_payment_method`, no `terms_version_id`; code has `save_method`, `terms_version_id` (schemas.py:454-455)
+- [ ] [contract] confirmPortalRental problem codes still `payment-declined`/402 (openapi-core.yaml:4165,4174); code and README:154-155 use 409 `payment-failed`, 422 `payment-method-not-usable`
+- [ ] [contract] `rental-portal-settings` GET/PUT (router.py:160,165), `horizon_days` (schemas.py:87,410) and `beyond-horizon` (service.py:1337) in no `docs/api/*.yaml`
+- [ ] [contract] `updateRentalPlanPurchase`, `portalOptOutRentalPlanAutoRenew`, `renewLockerLease` routed (router.py:262,303,334) but not in `docs/api/*.yaml`; README:15 says router serves openapi-core.yaml routes
+- [ ] [undocumented] portal confirm acknowledges portal terms (service.py:1543-1544); README:152-155 and the L80-83 cross-context list omit `clients.terms`
+- [ ] [undocumented] file table L7-16 omits schemas.py, permissions.py, LockersPage.tsx, portal BookingsPage/RentalPlansPage, RentalSetupPage online-booking card and share dialog
+- [ ] [undocumented] keys `rental_type.manage`, `rental_plan.manage/sell/share/remove`, `public_listing.publish` unnamed (permissions.py:14-26)
+- [ ] [undocumented] public-schedule, PATCH purchase, cancel purchase, plan archive and portal abandon routes not described (router.py:137,201,262,275; service.py:1635,1779,1809)
+- [ ] [wording] README:9 "13 tables"; models.py defines 16 (adds rental_portal_setting, rental_plan_share, locker_lease)
+- [ ] [wording] README:75-76 "confirm takes no stored method" contradicts L152-153 and schemas.py:452-453

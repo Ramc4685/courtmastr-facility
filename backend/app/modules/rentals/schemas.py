@@ -423,6 +423,17 @@ class RentalSlot(Out):
     is_member_price: bool
 
 
+class PortalRentalSlot(Out):
+    """An open time priced for the signed-in client (portal schema, never the public one)."""
+
+    starts_at: datetime
+    ends_at: datetime
+    resource_id: UUID
+    resource_name: str
+    price_minor: int
+    is_member_price: bool
+
+
 class PortalRentalCreate(In):
     rental_type_id: UUID
     client_id: UUID

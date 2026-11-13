@@ -3998,17 +3998,13 @@ paths:
       - name: resource_id
         in: query
         schema: {type: string, format: uuid}
-      - name: client_id
-        in: query
-        schema: {type: string, format: uuid}
-        description: 'Signed-in only: member price and eligibility'
       - {$ref: '#/components/parameters/Limit'}
       - {$ref: '#/components/parameters/Cursor'}
       - {$ref: '#/components/parameters/Sort'}
       - {$ref: '#/components/parameters/Include'}
       responses:
         '200':
-          description: OK
+          description: OK (guest prices; signed-in members use searchPortalRentalAvailability)
           content:
             application/json:
               schema:
@@ -4021,6 +4017,56 @@ paths:
                   page: {$ref: '#/components/schemas/PageInfo'}
         '422': {$ref: '#/components/responses/ValidationFailed'}
         '429': {$ref: '#/components/responses/RateLimited'}
+        default: {$ref: '#/components/responses/Problem'}
+  /portal/rental-availability:
+    get:
+      operationId: searchPortalRentalAvailability
+      tags: [rentals]
+      summary: Bookable slots priced for the client who will hold the rental
+      description: 'The public search priced for `client_id` (self or a client the identity holds direct access to): member
+        prices from the same pricing function as the checkout charge, membership read on the slot''s local date. Advisory
+        only; a membership that lapses before checkout is charged the guest price, which the checkout quote shows.'
+      x-priority: P0
+      x-permission: client:can_act_for
+      x-features: [RNT-06, RNT-02]
+      parameters:
+      - name: client_id
+        in: query
+        schema: {type: string, format: uuid}
+        required: true
+      - name: rental_type_id
+        in: query
+        schema: {type: string, format: uuid}
+        required: true
+      - name: 'on'
+        in: query
+        schema: {type: string, format: date}
+        required: true
+        description: Location-local date
+      - name: length_min
+        in: query
+        schema: {type: integer}
+      - name: resource_id
+        in: query
+        schema: {type: string, format: uuid}
+      - {$ref: '#/components/parameters/Limit'}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, page]
+                properties:
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/PortalRentalSlot'}
+                  page: {$ref: '#/components/schemas/PageInfo'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/PermissionDenied'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '422': {$ref: '#/components/responses/ValidationFailed'}
         default: {$ref: '#/components/responses/Problem'}
   /portal/rentals:
     get:
@@ -5997,6 +6043,16 @@ components:
     RentalSlot:
       type: object
       required: [starts_at, ends_at, resource_id, price_minor]
+      properties:
+        starts_at: {type: string, format: date-time}
+        ends_at: {type: string, format: date-time}
+        resource_id: {type: string, format: uuid}
+        resource_name: {type: string}
+        price_minor: {type: integer, description: Minor units of tenant.currency}
+        is_member_price: {type: boolean}
+    PortalRentalSlot:
+      type: object
+      required: [starts_at, ends_at, resource_id, resource_name, price_minor, is_member_price]
       properties:
         starts_at: {type: string, format: date-time}
         ends_at: {type: string, format: date-time}

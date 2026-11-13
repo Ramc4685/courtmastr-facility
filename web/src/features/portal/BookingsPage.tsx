@@ -39,7 +39,7 @@ function bookingLimits(t: Pick<RentalType, 'min_lead_min' | 'max_length_min' | '
 }
 
 /** Pay the held checkout. The hold is the server's; we only show what it answers. */
-function PayCheckout({ checkout, onDone }: { checkout: Checkout; onDone: (c: Checkout) => void }) {
+function PayCheckout({ checkout, quotedMinor, onDone }: { checkout: Checkout; quotedMinor: number | null; onDone: (c: Checkout) => void }) {
   const qc = useQueryClient()
   const { money, zoneOf } = usePortal()
   const pay = usePaymentChoice(checkout.rental.client_id)
@@ -87,6 +87,11 @@ function PayCheckout({ checkout, onDone }: { checkout: Checkout; onDone: (c: Che
           <span>{money(q.total_minor)}</span>
         </li>
       </ul>
+      {quotedMinor !== null && quotedMinor !== q.subtotal_minor && (
+        <p role="status" className="rounded-md border border-warning bg-warning/10 px-3 py-2 text-sm">
+          The price changed since you picked this time: it is {money(q.subtotal_minor)} before tax, not {money(quotedMinor)}. This happens when a membership no longer covers the date. You pay the price shown here.
+        </p>
+      )}
       <p className="font-medium">Due now: {money(checkout.amount_due_minor)}</p>
       {checkout.expires_at && <p className="text-sm text-muted">We are holding this time until {formatDateTime(checkout.expires_at, zoneOf(checkout.rental.location_id))}.</p>}
       <FormError error={confirm.error} />
@@ -156,7 +161,7 @@ function BookRentalDialog({ onClose }: { onClose: () => void }) {
         </div>
       )
     }
-    if (checkout) return <PayCheckout checkout={checkout} onDone={setResult} />
+    if (checkout) return <PayCheckout checkout={checkout} quotedMinor={quoted} onDone={setResult} />
     if (types.isPending) return <LoadingState />
     if (types.isError) return <ErrorState error={types.error} />
     if (!type) return <EmptyState title="Nothing can be booked online right now" />
@@ -191,7 +196,10 @@ function BookRentalDialog({ onClose }: { onClose: () => void }) {
                     <span>
                       {timeIn(s.starts_at, zone)} · {s.resource_name}
                     </span>
-                    <span>{money(s.price_minor)}</span>
+                    <span>
+                      {money(s.price_minor)}
+                      {s.is_member_price && <span className="ml-1 text-xs text-muted">member price</span>}
+                    </span>
                   </Button>
                 </li>
               ))}

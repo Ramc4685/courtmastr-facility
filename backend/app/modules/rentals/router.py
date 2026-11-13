@@ -168,6 +168,18 @@ def put_rental_portal_settings(location_id: UUID, body: s.RentalPortalSettings, 
     return service.put_portal_settings(ctx.session, ctx.principal, location_id, body.model_dump())
 
 
+@staff.get("/portal/rental-availability", response_model=s.Page[s.PortalRentalSlot])
+def search_portal_rental_availability(
+    ctx: Client, client_id: UUID, rental_type_id: UUID, on: Annotated[date, Query(alias="on")],
+    length_min: int | None = None, resource_id: UUID | None = None, limit: Annotated[int, Query(ge=1, le=200)] = 200,
+):  # fmt: skip
+    """The open times priced for the client who will hold the rental: member prices, as the checkout charges."""
+    slots = service.portal_availability(
+        ctx.session, ctx.principal, client_id, rental_type_id, on, length_min=length_min, resource_id=resource_id
+    )
+    return {"data": slots[:limit], "page": {"next_cursor": None, "has_more": len(slots) > limit}}
+
+
 @staff.get("/portal/rentals", response_model=s.Page[s.PortalRentalOut])
 def list_portal_rentals(query: Lists, ctx: Client):
     return service.list_portal_rentals(ctx.session, ctx.principal, query)
