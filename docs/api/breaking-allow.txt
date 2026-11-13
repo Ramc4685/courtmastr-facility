@@ -22,3 +22,28 @@ PUT /api/v1/locations/{location_id}/portal-settings removed the required propert
 GET /api/v1/public/portal-config removed the required property `locations/items/allows_online_rentals` from the response with the `200` status
 GET /api/v1/public/portal-config removed the required property `locations/items/terms_text` from the response with the `200` status
 GET /api/v1/public/portal-config removed the required property `locations/items/terms_version` from the response with the `200` status
+
+# Phase 9 orphans: refunds gain the `initiated` status (a row written before the processor call, PAY-05), and
+# POST /billing-bulk-actions now takes a stored, location-scoped action (BIL-02) and answers 202. The only client is
+# the web workbench, updated in the same change. Remove after merge.
+POST /api/v1/billing-bulk-actions request property `action` was restricted to a list of enum values
+POST /api/v1/billing-bulk-actions the request property `action` became required
+POST /api/v1/billing-bulk-actions the request property `location_id` became required
+POST /api/v1/billing-bulk-actions request property `charge_ids` list-of-types was narrowed by removing types `null` from media type `application/json`
+POST /api/v1/billing-bulk-actions request property `location_id` list-of-types was narrowed by removing types `null` from media type `application/json`
+POST /api/v1/billing-bulk-actions the `charge_ids` request property's maxItems was set to `1000`
+POST /api/v1/billing-bulk-actions removed the success response with the status `200`
+POST /api/v1/clients/{client_id}/account-credit/refund added the new `initiated` enum value to the `items/status` response property for the response status `201`
+GET /api/v1/clients/{client_id}/statement added the new `initiated` enum value to the `refunds/items/status` response property for the response status `200`
+POST /api/v1/invoices/{invoice_id}/mark-paid added the new `initiated` enum value to the `refunds/items/status` response property for the response status `201`
+POST /api/v1/payments added the new `initiated` enum value to the `refunds/items/status` response property for the response status `201`
+GET /api/v1/payments/{payment_id} added the new `initiated` enum value to the `refunds/items/status` response property for the response status `200`
+POST /api/v1/payments/{payment_id}/allocations added the new `initiated` enum value to the `refunds/items/status` response property for the response status `200`
+DELETE /api/v1/payments/{payment_id}/allocations/{payment_allocation_id} added the new `initiated` enum value to the `refunds/items/status` response property for the response status `200`
+POST /api/v1/payments/{payment_id}/cancel added the new `initiated` enum value to the `refunds/items/status` response property for the response status `200`
+POST /api/v1/payments/{payment_id}/confirm added the new `initiated` enum value to the `refunds/items/status` response property for the response status `200`
+POST /api/v1/payments/{payment_id}/refunds added the new `initiated` enum value to the `status` response property for the response status `201`
+POST /api/v1/payments/{payment_id}/void added the new `initiated` enum value to the `refunds/items/status` response property for the response status `200`
+POST /api/v1/portal/payments added the new `initiated` enum value to the `payment/anyOf[subschema #1: PortalPaymentDetail]/refunds/items/status` response property for the response status `201`
+POST /api/v1/portal/payments/{payment_id}/confirm added the new `initiated` enum value to the `payment/anyOf[subschema #1: PortalPaymentDetail]/refunds/items/status` response property for the response status `200`
+GET /api/v1/refunds added the new `initiated` enum value to the `data/items/status` response property for the response status `200`

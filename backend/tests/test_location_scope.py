@@ -38,11 +38,13 @@ _TABLES = {
 LOCATION_BOUND_WRITES = {"markInvoicePaid", "cancelPayment", "confirmPayment"}
 # Reviewed: id routes whose key is client-following or tenant-wide, so a limited admin may reach them anywhere.
 # Backlog 18: billing.invoice.read/send and billing.payment.read stay client-following (spec section 6).
+# get/listBillingBulkAction(Items): billing.charge.read at the route; the service authorizes at the action's location.
 # get/setClientAccessMode: the access mode is one row per client that every location enforces (CHK-08), so it follows the client.
 CLIENT_OR_TENANT_ROUTES = {
     "client": set("""
         applyAccountCredit attachPaymentMethod clearClientDocumentPaperSigned clearWaiverOverride
-        createSetupIntent getAccountCredit getAutopayRun getCharge getClientBillingSummary
+        createSetupIntent getAccountCredit getAutopayRun getBillingBulkAction listBillingBulkActionItems
+        getCharge getClientBillingSummary
         getClientDocument getClientDocumentFile getClientPackage getClientStatement getClientStatementPdf
         getDocumentLocationSettings getDocumentTemplate getInvoice getInvoiceDocument getInvoicePdf
         getMembershipContract
