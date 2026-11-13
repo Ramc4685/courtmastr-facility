@@ -164,7 +164,7 @@ def test_unique_indexes_on_tenant_tables_lead_with_tenant_id():
 
 def test_force_rls_holds_even_for_the_table_owner(two_tenants):
     """FORCE ROW LEVEL SECURITY: the migration role owns the tables and still reads nothing without a tenant."""
-    owner = create_engine(get_settings().db_url("owner"))
+    owner = create_engine(get_settings().db_url("owner"), hide_parameters=True)
     with owner.connect() as conn:
         assert conn.execute(text("SELECT current_user")).scalar() == "fh_owner"
         for table in (*TENANT_TABLES, "tenant"):

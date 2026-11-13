@@ -23,7 +23,7 @@ class TenantRef:
 
 @cache
 def platform_engine() -> Engine:
-    return create_engine(get_settings().db_url("platform"), pool_size=2, pool_pre_ping=True)
+    return create_engine(get_settings().db_url("platform"), pool_size=2, pool_pre_ping=True, hide_parameters=True)
 
 
 def resolve_tenant(*, host: str | None = None, slug: str | None = None) -> TenantRef | None:

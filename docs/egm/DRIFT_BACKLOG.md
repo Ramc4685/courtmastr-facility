@@ -373,6 +373,12 @@ Found by re-running the drift reports against this branch's code. Merge these in
 - [ ] [undocumented] service.location_todays (service.py:335) not in README:9 service row (README:326 names only earliest_today)
 - [ ] [wording] README:42-44 auth_session.target_client_id FK still absent (models.py:517) though clients context now exists; "waiting on other contexts" no longer holds
 
+### platform (+3, refresh 2026-11-13) — [evidence](drift/platform.md)
+
+- [ ] [wording] README:16 and README:69-70 name only `imports` as a `register_purge` caller and only the tenant export and imports as `on_dead_letter` users; `programs/subject.py:119`, `leagues/jobs.py:15` and `integrations/jobs.py:34` also register
+- [ ] [contract] README:17,347 `plan-limit-reached` (entitlements.py:146) vs `entitlement-limit-reached` in openapi-core.yaml:620,1876,1982
+- [ ] [contract] README:183-187 says writable `ip_policy` / `default_ip_policy` are gone (schemas.py:394, staff.py:225); openapi-core.yaml:4872,4903,4975,4988,4994 still declare them
+
 ### reporting (+3) — [evidence](drift/reporting.md)
 
 - [ ] [stale-not-built] README:94 "reports outside P0 not built"; catalogue.py:7-9 registers 17 more (reports/money.py, reports/memberships.py)
