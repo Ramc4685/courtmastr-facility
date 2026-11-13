@@ -20,6 +20,7 @@ class SimulatedBuildingControl:
     scopes: list[tuple] = field(default_factory=list)  # (operation, tenant_id, location_id, address) per call
     zones: dict[str, bool] = field(default_factory=dict)
     pushed: set[str] = field(default_factory=set)
+    timeouts: list[float] = field(default_factory=list)  # the request timeout each unlock was given
     hang_seconds: float = 1.0
     _failures: list[list] = field(default_factory=list)  # [operation, remaining, kind]
 
@@ -31,6 +32,7 @@ class SimulatedBuildingControl:
         self.scopes.clear()
         self.zones.clear()
         self.pushed.clear()
+        self.timeouts.clear()
         self._failures.clear()
 
     def _call(self, operation: str, *args) -> None:
@@ -48,8 +50,9 @@ class SimulatedBuildingControl:
     def _scope(self, operation: str, tenant_id: str, location_id: str, address: str) -> None:
         self.scopes.append((operation, tenant_id, location_id, address))
 
-    def unlock(self, tenant_id: str, location_id: str, device_ref: str, *, seconds: int) -> None:
+    def unlock(self, tenant_id: str, location_id: str, device_ref: str, *, seconds: int, timeout: float) -> None:
         self._scope("unlock", tenant_id, location_id, device_ref)
+        self.timeouts.append(timeout)
         self._call("unlock", device_ref, seconds)
 
     def push_code(self, tenant_id: str, location_id: str, device_ref: str, code: TimedCode) -> None:

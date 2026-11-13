@@ -38,8 +38,10 @@ class BuildingController(Protocol):
     simulated: bool
     supports_code_push: bool  # False: the keypad asks us (POST /door/verify) for every code
 
-    def unlock(self, tenant_id: str, location_id: str, device_ref: str, *, seconds: int) -> None:
-        """Release the door now for `seconds`, then relock."""
+    def unlock(self, tenant_id: str, location_id: str, device_ref: str, *, seconds: int, timeout: float) -> None:
+        """Release the door now for `seconds`, then relock. `timeout` is what is left of the caller's deadline: the
+        adapter's own request timeout. Past it the adapter must give up and never release the door later (the
+        caller has already told the person it failed or is unknown)."""
         ...
 
     def push_code(self, tenant_id: str, location_id: str, device_ref: str, code: TimedCode) -> None: ...

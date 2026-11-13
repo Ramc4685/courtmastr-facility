@@ -19,8 +19,10 @@ import asyncio
 import concurrent.futures
 import logging
 import secrets
+import threading
 import time
 from datetime import datetime, timedelta
+from typing import Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -799,28 +801,78 @@ def verify_code(session: Session, door: DoorDevice, code: str) -> dict:
     return dict(DENY) if reason else {"result": "allow", "unlock_seconds": door.unlock_seconds}
 
 
-_DEVICE_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="door-unlock")
+_DEVICE_WORKERS = 4
+_DEVICE_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=_DEVICE_WORKERS, thread_name_prefix="door-unlock")
+_DEVICE_FREE = threading.BoundedSemaphore(_DEVICE_WORKERS)  # a free worker, or the unlock is refused (no queue)
+Outcome = Literal["opened", "failed", "unknown", "busy"]
 
 
-def _release(session: Session, door: DoorDevice, staff_user_id: UUID | None = None) -> bool:
-    """Release one door now, bounded by DEVICE_TIMEOUT. Runs in the request (someone is standing at the door, and a
-    queued unlock that lands late opens it for nobody, README) before this request writes or locks anything. A
-    failure or a hang is recorded as `command_failed` and answered False."""
-    call = _DEVICE_POOL.submit(
-        lambda: building_control.get().unlock(*_site(door), door.device_ref, seconds=door.unlock_seconds)
-    )
+def _device_unlock(site: tuple[str, str], device_ref: str, seconds: int, deadline: float, started) -> bool:
+    """The worker. `started` is set before the deadline check, so the caller knows whether the adapter may be
+    called; a worker that only starts after its deadline returns False without reaching the adapter (a late start
+    must never open the door after the person was told it failed). Otherwise the adapter gets what is left as its
+    own request timeout."""
     try:
-        call.result(timeout=DEVICE_TIMEOUT)
+        started.set()
+        left = deadline - time.monotonic()
+        if left <= 0:
+            return False
+        building_control.get().unlock(*site, device_ref, seconds=seconds, timeout=left)
         return True
-    except (BuildingControlError, concurrent.futures.TimeoutError):
+    finally:
+        _DEVICE_FREE.release()
+
+
+def _release(session: Session, door: DoorDevice, staff_user_id: UUID | None = None) -> Outcome:
+    """Release one door now under an absolute deadline (DEVICE_TIMEOUT). Runs in the request (someone is standing at
+    the door) before this request writes or locks anything. `busy`: no worker free, refused at once, nothing sent.
+    `failed`: the adapter refused, or the call never reached it (cancelled, or started past its deadline).
+    `unknown`: still in flight at the deadline, so the door may yet open; recorded and staff are told."""
+    if not _DEVICE_FREE.acquire(blocking=False):
+        return "busy"
+    deadline, started = time.monotonic() + DEVICE_TIMEOUT, threading.Event()
+    try:
+        call = _DEVICE_POOL.submit(_device_unlock, _site(door), door.device_ref, door.unlock_seconds, deadline, started)
+    except BaseException:
+        _DEVICE_FREE.release()
+        raise
+    try:
+        outcome: Outcome = "opened" if call.result(timeout=DEVICE_TIMEOUT) else "failed"
+    except BuildingControlError:
+        outcome = "failed"
+    except concurrent.futures.TimeoutError:
+        if call.cancel():  # never started: its worker slot is ours to free
+            _DEVICE_FREE.release()
+            outcome = "failed"
+        else:
+            outcome = "unknown" if started.is_set() else "failed"
+    if outcome == "failed":
         _event(session, door.location_id, "command_failed", door_device_id=door.id, detail="unlock",
                staff_user_id=staff_user_id)  # fmt: skip
-        return False
+    elif outcome == "unknown":
+        _event(session, door.location_id, "command_failed", door_device_id=door.id, detail="unlock:unknown",
+               staff_user_id=staff_user_id)  # fmt: skip
+        _alert(session, door.location_id, f"Door {door.name}", 1, "an unlock that did not confirm in time and may "
+               "have opened the door")  # fmt: skip
+    return outcome
+
+
+_AUDIT_OUTCOME = {"opened": True, "failed": False, "unknown": "unknown"}
 
 
 def _unavailable() -> DomainError:
     return DomainError("The door did not respond. Try again, or open it by hand.", status=409,
                        code="device-unavailable", persist=True)  # fmt: skip
+
+
+def _busy() -> DomainError:
+    return DomainError("Every door line is busy. Try again in a moment.", status=409, code="device-busy")
+
+
+def _unknown(phone: str | None = None) -> DomainError:
+    return DomainError("The door did not confirm in time; it may have opened. Check before trying again."
+                       + (f" If it is still locked, call {phone}." if phone else ""), status=409,
+                       code="device-outcome-unknown", persist=True)  # fmt: skip
 
 
 def remote_unlock(session: Session, principal: Principal, door_id: UUID, data: dict) -> dict:
@@ -829,11 +881,14 @@ def remote_unlock(session: Session, principal: Principal, door_id: UUID, data: d
     door = _loaded(session, principal, DoorDevice, door_id, UNLOCK)
     if not door.is_active:
         raise Conflict("This door is retired.", code="invalid-state-transition")
-    opened = _release(session, door, principal.staff_user_id)
-    audit.record(
-        session, UNLOCK, door, location_id=door.location_id, changes={"unlocked": opened}, reason=data["reason"]
-    )
-    if not opened:
+    outcome = _release(session, door, principal.staff_user_id)
+    if outcome == "busy":
+        raise _busy()
+    audit.record(session, UNLOCK, door, location_id=door.location_id, changes={"unlocked": _AUDIT_OUTCOME[outcome]},
+                 reason=data["reason"])  # fmt: skip
+    if outcome == "unknown":
+        raise _unknown()
+    if outcome == "failed":
         raise _unavailable()
     return event_view(_event(session, door.location_id, "remote_unlock", door_device_id=door.id,
                              staff_user_id=principal.staff_user_id, detail="staff"))  # fmt: skip
@@ -915,11 +970,15 @@ def member_unlock(session: Session, principal: Principal, booking_id: UUID) -> d
     doors = [d for d in _doors(session, row.location_id) if d.is_entrance]
     if not doors:
         raise Conflict("This location has no entrance door to open.", code="invalid-state-transition")
-    opened = {door.id: _release(session, door) for door in doors}
+    outcomes = {door.id: _release(session, door) for door in doors}
+    if all(o == "busy" for o in outcomes.values()):
+        raise _busy()
+    opened = {k: o == "opened" for k, o in outcomes.items()}
     audit.record(session, "access.door.member_unlock", row, location_id=row.location_id, changes={
-        "unlocked": any(opened.values()), "doors": {str(k): v for k, v in opened.items()}})  # fmt: skip
+        "unlocked": any(opened.values()),
+        "doors": {str(k): _AUDIT_OUTCOME.get(o, "busy") for k, o in outcomes.items()}})  # fmt: skip
     if not any(opened.values()):
-        raise _unavailable()
+        raise _unknown(_phone(session, row.location_id)) if "unknown" in outcomes.values() else _unavailable()
     check_in = _enter(session, row)
     last = None
     for door in doors:

@@ -884,14 +884,53 @@ def door_check_ins(f) -> int:
         return len(session.scalars(select(CheckIn.id).where(CheckIn.channel == "door")).all())
 
 
-def test_a_failed_or_hung_staff_unlock_is_audited_and_bounded(client, owner, b, sim, monkeypatch):
+def test_a_hung_staff_unlock_is_bounded_recorded_as_unknown_and_staff_are_told(client, owner, b, sim, monkeypatch):
+    """The adapter gets what is left of the deadline as its own timeout; a call still in flight at the deadline may
+    yet open the door, so the outcome is `unknown` (never `unlocked: false`) and the 409 says so."""
     monkeypatch.setattr(building, "DEVICE_TIMEOUT", 0.2)
-    sim.fail("unlock", kind="hang")  # the adapter sleeps a second: longer than the bound
+    sim.fail("unlock", kind="hang")  # a stuck controller: sleeps a second, ignoring its timeout
     began = time.monotonic()
     dead = client.post(f"{API}/door-devices/{b.door}/unlock", headers=owner, json={"reason": "Phone call"})
     assert dead.status_code == 409 and time.monotonic() - began < 0.9
+    assert dead.json()["code"] == "device-outcome-unknown" and "may have opened" in dead.json()["detail"]
+    assert len(sim.timeouts) == 1 and 0 < sim.timeouts[0] <= 0.2
     trail = scalar(b.tenant, select(AuditEvent).where(AuditEvent.action == "access.door.unlock"))
-    assert trail.reason == "Phone call" and trail.changes == {"unlocked": False}
+    assert trail.reason == "Phone call" and trail.changes == {"unlocked": "unknown"}
+    assert details_of(b, "command_failed") == ["unlock:unknown"]
+
+
+def test_an_unlock_that_starts_after_its_deadline_never_reaches_the_adapter(client, owner, b, sim, monkeypatch):
+    """A worker that only gets going after the caller gave up must not open the door later."""
+    import concurrent.futures
+
+    monkeypatch.setattr(building, "DEVICE_TIMEOUT", 0.1)
+    real = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+
+    class Late:  # every call starts 0.3 s late: after its 0.1 s deadline
+        def submit(self, fn, *args):
+            return real.submit(lambda: (time.sleep(0.3), fn(*args))[1])
+
+    monkeypatch.setattr(building, "_DEVICE_POOL", Late())
+    dead = client.post(f"{API}/door-devices/{b.door}/unlock", headers=owner, json={"reason": "Phone call"})
+    assert dead.status_code == 409 and dead.json()["code"] == "device-unavailable"
+    real.shutdown(wait=True)  # the late worker has run by now
+    assert not [c for c in sim.calls if c[0] == "unlock"]
+    trail = scalar(b.tenant, select(AuditEvent).where(AuditEvent.action == "access.door.unlock"))
+    assert trail.changes == {"unlocked": False}
+
+
+def test_with_every_device_worker_busy_an_unlock_is_refused_at_once(client, owner, b, sim, monkeypatch):
+    import threading
+
+    full = threading.BoundedSemaphore(1)
+    full.acquire()
+    monkeypatch.setattr(building, "_DEVICE_FREE", full)
+    began = time.monotonic()
+    busy = client.post(f"{API}/door-devices/{b.door}/unlock", headers=owner, json={"reason": "Phone call"})
+    assert busy.status_code == 409 and busy.json()["code"] == "device-busy" and time.monotonic() - began < 0.5
+    assert not [c for c in sim.calls if c[0] == "unlock"]
+    full.release()
+    assert ok(client.post(f"{API}/door-devices/{b.door}/unlock", headers=owner, json={"reason": "Again"}))
 
 
 def test_member_unlock_opens_only_entrance_doors_and_records_the_entry_after_the_unlock(

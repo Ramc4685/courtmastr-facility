@@ -179,7 +179,7 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   checked and their descendants found through scheduling's internal `resource_ids_at` and `resource_descendants`,
   and bookings are read through scheduling.
 - **Port.** Every method names the site first, `(tenant_id, location_id, ...)`, so one adapter serving every tenant
-  routes by site and never acts on a bare address: `unlock(..., device_ref, seconds)`, `push_code(..., device_ref,
+  routes by site and never acts on a bare address: `unlock(..., device_ref, seconds, timeout)`, `push_code(..., device_ref,
   TimedCode)`, `revoke_code(..., device_ref, code_id)`, `set_zone(..., zone_ref, is_on)`, `read_zone(..., zone_ref)
   -> bool | None`, plus `supports_code_push` (when False, the keypad
   asks `POST /door/verify` for every code; the simulated adapter says True and also answers verify). Only `SimulatedBuildingControl` exists: it records calls (never a
@@ -299,10 +299,14 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   A staff remote unlock and the member's "open the door" (`POST /portal/bookings/{id}/door-unlock`, same decision as
   the keypad) call the controller in the request: someone is waiting at the door and a queued unlock that lands late
   opens it for nobody. This is a deliberate exception to "only the payment provider runs in-request". Each call is
-  bounded by `DEVICE_TIMEOUT` (3 s, on a small thread pool, so a hung controller cannot hold the request) and is made
-  before the request writes or locks anything (deviation, named: the request's connection stays checked out for
-  those seconds, holding no row lock). A failure or timeout writes `command_failed` and answers
-  `409 device-unavailable`; the staff unlock is audited either way (`unlocked: false` on failure). The member path
+  given an absolute deadline (`DEVICE_TIMEOUT`, 3 s) and is made before the request writes or locks anything
+  (deviation, named: the request's connection stays checked out for those seconds, holding no row lock). Four
+  workers, no queue: with none free the unlock is refused at once (`409 device-busy`, nothing sent). The worker
+  checks the deadline immediately before calling the adapter (a worker that starts late never reaches it) and passes
+  what is left as the adapter's own request timeout; a call not yet started is cancelled. Refused or never sent:
+  `command_failed` (`unlock`), `409 device-unavailable`, audited `unlocked: false`. Still in flight at the deadline:
+  the door may yet open, so it is `unknown`, never `false`: `command_failed` (`unlock:unknown`), the location's alert
+  address is emailed, `409 device-outcome-unknown` ("it may have opened"), audited `unlocked: "unknown"`. The member path
   opens only doors marked `is_entrance` (migration 1977; doors registered before it were marked), each with its own
   result in the audit row; the entry (the person's `door` check-in and the `member_unlock` rows) is recorded only once
   at least one door opened. It is rate limited per signed-in identity (`door-member-unlock`, 6 per 5 minutes).
