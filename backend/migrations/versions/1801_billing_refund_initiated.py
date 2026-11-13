@@ -31,7 +31,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute("UPDATE refund SET status = 'cancelled' WHERE status = 'initiated'")
+    # An `initiated` refund may already have been paid out by the processor: cancelling it would lose that money
+    # from the books. Let the sweep finish every one first.
+    left = op.get_bind().execute(sa.text("SELECT count(*) FROM refund WHERE status = 'initiated'")).scalar()
+    if left:
+        raise RuntimeError(f"{left} refund(s) are still `initiated`; run the billing sweep before downgrading.")
     op.drop_constraint(op.f("ck_refund_status"), "refund", type_="check")
     op.create_check_constraint("status", "refund", _OLD)
     op.drop_index("ix_refund_initiated", table_name="refund")
