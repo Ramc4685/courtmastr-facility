@@ -64,13 +64,18 @@ def test_inactive_or_cancelled_session_links_do_not_resolve(client, owner, tenan
     resolve = lambda t: client.post(f"{API}/public/direct-links/resolve", headers=public, json={"token": t})  # noqa: E731
     refused(resolve(stored), 404, "link-invalid")  # off until staff turn it on
     first = ok(client.post(f"{API}/sessions/{seat}/direct-link", headers=owner), 200)["token"]
-    token = ok(client.post(f"{API}/sessions/{seat}/direct-link", headers=owner), 200)["token"]
-    assert token != first  # shown once: asking again issues a new link and the old copy stops working
+    status = ok(client.post(f"{API}/sessions/{seat}/direct-link", headers=owner), 200)
+    assert (status["is_active"], status["token"], status["path"]) == (True, None, None)  # links already sent live on
+    ok(resolve(first), 200)
+    token = ok(client.post(f"{API}/sessions/{seat}/direct-link/regenerate", headers=owner), 200)["token"]
+    assert token != first  # an explicit new link replaces the old one
     refused(resolve(first), 404, "link-invalid")
     ok(resolve(token), 200)
     ok(client.post(f"{API}/bookings/{booking['id']}/cancel", headers=owner, json={"version": booking["version"]}), 200)
     refused(resolve(token), 404, "link-invalid")
     refused(client.post(f"{API}/sessions/{seat}/direct-link", headers=owner), 409, "invalid-state-transition")
+    refused(client.post(f"{API}/sessions/{seat}/direct-link/regenerate", headers=owner), 409,
+            "invalid-state-transition")  # fmt: skip
 
 
 def test_a_link_books_a_private_session_only_while_it_is_live(client, owner, tenant, f, mailbox):
@@ -92,6 +97,32 @@ def test_a_link_books_a_private_session_only_while_it_is_live(client, owner, ten
     late = client.post(f"{API}/portal/enrollments", headers=other_portal,
                        json={"client_id": other["id"], "session_id": seat, "direct_link_token": link["token"]})  # fmt: skip
     refused(late, 409, "policy-violation")  # revoked: the old link books nothing
+
+
+def test_a_link_still_applies_cutoff_membership_capacity_and_package_rules(client, owner, tenant, f, mailbox):
+    policy(client, owner, f, requires_active_membership=True)
+    free = {"capacity": 1, "is_self_bookable": False, "allows_free_booking": True}
+    seat = ok(book(client, owner, f, [f.court], at(13, SOON), at(14, SOON), kind="session", session=free))
+    seat = seat["booking"]["session"]["id"]
+    paid = {"capacity": 5, "is_self_bookable": False, "allows_free_booking": False}
+    priced = ok(book(client, owner, f, [f.court], at(15, SOON), at(16, SOON), kind="session", session=paid))
+    priced = priced["booking"]["session"]["id"]
+    links = {sid: ok(client.post(f"{API}/sessions/{sid}/direct-link", headers=owner), 200)["token"]
+             for sid in (seat, priced)}  # fmt: skip
+    person, portal = member(client, tenant, owner, f, mailbox)
+
+    def enrol(sid, who=person, headers=portal):
+        body = {"client_id": who["id"], "session_id": sid, "direct_link_token": links[sid]}
+        return client.post(f"{API}/portal/enrollments", headers=headers, json=body)
+
+    assert enrol(seat).json().get("reason") == "members-only"  # membership still required
+    policy(client, owner, f, booking_cutoff_minutes=60 * 24 * 30)
+    assert enrol(seat).json().get("reason") == "cutoff-passed"
+    policy(client, owner, f)
+    refused(enrol(priced), 409, "entitlement-not-eligible")  # a paid session still needs a package
+    ok(enrol(seat))
+    other, other_portal = member(client, tenant, owner, f, mailbox)
+    refused(enrol(seat, other, other_portal), 409, "capacity-full")
 
 
 # --- shared bookings (SCH-17, SSP-09) -----------------------------------------------------------------------

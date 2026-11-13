@@ -8,6 +8,7 @@ Revises: 1441
 """
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 from alembic import op
 
 from app.core.db.rls import enable_rls
@@ -76,6 +77,7 @@ def upgrade() -> None:
         sa.Column("package_count", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column("session_count", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column("total_minor", sa.BigInteger(), server_default=sa.text("0"), nullable=False),
+        sa.Column("failures", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'[]'"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(

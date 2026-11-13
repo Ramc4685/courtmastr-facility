@@ -99,6 +99,7 @@ export function ClosesTab() {
       setPreview(null)
       void qc.invalidateQueries({ queryKey: ['post-billed-closes'] })
       toast('success', `Billed ${done.session_count} sessions across ${done.package_count} packages`)
+      if (done.failed.length > 0) toast('error', `${done.failed.length} packages could not be billed; retry them from Past closes`)
     },
     onError: (e) => toast('error', e.message),
   })
@@ -109,6 +110,7 @@ export function ClosesTab() {
     { header: 'Packages', cell: (c) => c.package_count, className: 'tabular' },
     { header: 'Sessions', cell: (c) => c.session_count, className: 'tabular' },
     { header: 'Billed', cell: (c) => money(c.total_minor), className: 'tabular' },
+    { header: 'Failed', cell: (c) => <RetryFailed close={c} /> },
   ]
   const billable = (preview?.lines ?? []).filter((l) => !l.skipped_reason)
   return (
@@ -177,6 +179,29 @@ export function ClosesTab() {
 }
 
 /** PKG-11: open a post-billed package for a client; nothing is charged until a period close. */
+/** Packages a close could not bill, with a retry that re-runs only those for the same period. */
+function RetryFailed({ close }: { close: Schemas['PostBilledCloseOut'] }) {
+  const qc = useQueryClient()
+  const toast = useToast()
+  const retry = useMutation({
+    mutationFn: () => api.post('/api/v1/post-billed-closes/{post_billed_close_id}/retry', { path: { post_billed_close_id: close.id } }),
+    onSuccess: (done) => {
+      void qc.invalidateQueries({ queryKey: ['post-billed-closes'] })
+      toast(done.failed.length ? 'error' : 'success', done.failed.length ? `${done.failed.length} packages still failing` : 'Failed packages billed')
+    },
+    onError: (e) => toast('error', e.message),
+  })
+  if (close.failed.length === 0) return <span className="text-muted">None</span>
+  return (
+    <span className="flex items-center gap-2">
+      <Badge tone="danger">{close.failed.length} failed</Badge>
+      <Button size="sm" variant="secondary" loading={retry.isPending} onClick={() => retry.mutate()} aria-label={`Retry failed packages for ${formatDate(close.closing_on)}`}>
+        Retry
+      </Button>
+    </span>
+  )
+}
+
 export function OpenPostBilledDialog({ clientId, onClose }: { clientId: string; onClose: () => void }) {
   const qc = useQueryClient()
   const toast = useToast()

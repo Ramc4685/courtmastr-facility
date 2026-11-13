@@ -25,8 +25,9 @@ run in CI only).
 
 ## Assumptions
 
-- One direct link per session, shown once: only its digest is stored, each new link replaces the last, and
-  turning it off replaces the digest. Booking from the link is the portal's ordinary enrolment, so the visitor
+- One direct link per session, shown once: only its digest is stored. Asking again while it is on returns its
+  status only; an explicit regenerate or turning it off replaces it. The link waives hidden, list-only, the
+  visible range and self-booking, nothing else. Booking from the link is the portal's ordinary enrolment, so the visitor
   signs in first.
 - Shared booking participants must be active relatives of the organiser, and only a client's own booking
   (with an organiser) can be shared; class sessions take seats through enrolments only. Package credit is
@@ -36,16 +37,15 @@ run in CI only).
 - Rate tiers are whole-count: every session of the period bills at the highest tier the count reaches; tier 1
   always exists.
 - A post-billed package ends at a close only once nothing is held or used after the closing date; a renewal
-  stays post-billed; a credit restored after billing is credited at the next close; one failing package does
-  not stop a close.
+  stays post-billed; a credit restored after billing is credited at the next close (or counted as handled when
+  staff already reversed the charge by hand); one failing package does not stop a close, its failure is kept on
+  the close and can be retried alone. Its reservation type must belong to its location.
 - One bound agreement per contract, signed and of the agreement kind; a signed binding is not replaced.
 
 ## Not built
 
 Direct links for slot offers; extra billed items on a post-billed rate; refunding money already paid for a
-credited session; an automatic (scheduled) close; a portal view of shared bookings; a check that a post-billed
-package's reservation type belongs to its location (blocked by the packages-to-scheduling import boundary);
-picking a package on the direct-link page (it books free sessions only).
+credited session; an automatic (scheduled) close; a portal view of shared bookings; picking a package on the direct-link page (it books free sessions only).
 
 ## Handovers
 

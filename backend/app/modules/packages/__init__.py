@@ -7,6 +7,10 @@ Public interface for routers, jobs and other contexts: `service`. Booking contex
 """
 
 from app.modules.packages import models, permissions  # isort: skip
-from app.modules.packages import handlers, service
+from app.modules.packages import (
+    handlers,
+    postbilled,  # after service, which it builds on
+    service,
+)
 
-__all__ = ["handlers", "models", "permissions", "service"]
+__all__ = ["handlers", "models", "permissions", "postbilled", "service"]

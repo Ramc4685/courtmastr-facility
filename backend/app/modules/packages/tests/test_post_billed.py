@@ -257,3 +257,55 @@ def test_rates_are_required_and_closes_cannot_run_ahead(client, w):
 def test_front_desk_cannot_close_a_period(client, w):
     email, _ = add_staff(w.tenant, "front_desk", all_locations=True)
     refused(close(client, w, DAY, headers=login(client, w.tenant, email)), 403, "permission-denied")
+
+
+def test_a_hand_reversed_line_does_not_stop_later_usage_being_billed(client, w):
+    rate(client, w, 1, 1000)
+    package = open_package(client, w)
+    use(w, package, DAY)
+    restored = use(w, package, DAY)
+    [line] = ok(close(client, w, DAY), 201)["lines"]
+    with at(DAY), tx(w.tenant) as session:  # staff correct the attendance and also reverse the invoice line
+        service.restore_credit(session, **restored)
+        billing.service.reverse(session, UUID(line["charge_id"]), reason="Corrected by hand")
+    later = DAY + timedelta(days=1)
+    use(w, package, later)
+    done = ok(close(client, w, later), 201)
+    assert (done["session_count"], done["failed"]) == (1, [])  # the credit counts as handled; new usage bills
+    assert billed_sessions(w) == 1
+    assert ok(close(client, w, later + timedelta(days=1)), 201)["failed"] == []
+
+
+def test_failures_are_stored_returned_again_and_retried_alone(client, w, monkeypatch):
+    rate(client, w, 1, 1000)
+    good, bad = open_package(client, w), open_package(client, w, name="Second")
+    use(w, good, DAY)
+    use(w, bad, DAY)
+    real = billing.service.post_charge
+
+    def flaky(session, **kwargs):
+        if kwargs["description"].startswith("Second"):
+            raise ValidationFailed("No.", pointer="/x")
+        return real(session, **kwargs)
+
+    monkeypatch.setattr(billing.service, "post_charge", flaky)
+    first = ok(close(client, w, DAY), 201)
+    assert [f["client_package_id"] for f in first["failed"]] == [bad["id"]]
+    assert ok(close(client, w, DAY), 201)["failed"] == first["failed"]  # a repeat close still shows it
+    path = f"{API}/post-billed-closes/{first['id']}"
+    assert ok(client.get(path, headers=w.owner), 200)["failed"] == first["failed"]
+    monkeypatch.setattr(billing.service, "post_charge", real)
+    with at(DAY):
+        retried = ok(client.post(f"{path}/retry", headers=w.owner), 200)
+    assert (retried["failed"], retried["package_count"], retried["session_count"]) == ([], 2, 2)
+    assert sorted(c.quantity for c in charges(w.tenant, w.person["id"])) == [1, 1]  # the good package not again
+    with at(DAY):
+        assert ok(client.post(f"{path}/retry", headers=w.owner), 200)["package_count"] == 2  # nothing left
+
+
+def test_a_post_billed_package_needs_a_reservation_type_of_its_location(client, w):
+    rate(client, w, 1, 1000)
+    elsewhere = location(client, w.owner)
+    body = {"client_id": w.person["id"], "location_id": elsewhere, "reservation_type_id": w.type_id}
+    with at(DAY):
+        refused(client.post(f"{API}/client-packages/post-billed", headers=w.owner, json=body), 422, "validation-failed")

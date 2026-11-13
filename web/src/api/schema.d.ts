@@ -10570,7 +10570,7 @@ export interface paths {
         /**
          * Close Post Billed Period
          * @description Bill used sessions up to closing_on (one charge and invoice per package). Idempotent per location and
-         *     date: a repeat returns the first close.
+         *     date: a repeat returns the first close, with the packages that failed (`failed`, retried by `/retry`).
          */
         post: operations["closePostBilledPeriod"];
         delete?: never;
@@ -10610,6 +10610,26 @@ export interface paths {
         get: operations["getPostBilledClose"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/post-billed-closes/{post_billed_close_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Post Billed Close
+         * @description Re-run only the packages listed in `failed` for this close's period; nobody else is billed again.
+         */
+        post: operations["retryPostBilledClose"];
         delete?: never;
         options?: never;
         head?: never;
@@ -13894,8 +13914,8 @@ export interface paths {
         put?: never;
         /**
          * Create Session Direct Link
-         * @description Issue the session's link and turn it on; the token is shown once, and a new call replaces the previous
-         *     link. Share `path` (token in the fragment).
+         * @description Turn the session's link on and show it once (share `path`, token in the fragment). When the link is
+         *     already on, returns its status only: the token cannot be shown again and links already sent keep working.
          */
         post: operations["createSessionDirectLink"];
         /**
@@ -13903,6 +13923,26 @@ export interface paths {
          * @description Stop the link; every copy already sent stops working. A new link has a new token.
          */
         delete: operations["revokeSessionDirectLink"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sessions/{schedule_session_id}/direct-link/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Regenerate Session Direct Link
+         * @description Issue a new link (shown once) and turn it on; the previous link stops working.
+         */
+        post: operations["regenerateSessionDirectLink"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -21523,16 +21563,19 @@ export interface components {
             is_active: boolean;
             /**
              * Path
-             * @description The web page with the token in the URL fragment; prefix the portal origin.
+             * @description The web page with the token in the URL fragment; prefix the portal origin. Null with token.
              */
-            path: string;
+            path: string | null;
             /**
              * Session Id
              * Format: uuid
              */
             session_id: string;
-            /** Token */
-            token: string;
+            /**
+             * Token
+             * @description Shown once, when the link is made; null when the link was already on.
+             */
+            token: string | null;
         };
         /** DirectLinkResolve */
         DirectLinkResolve: {
@@ -67167,6 +67210,40 @@ export interface operations {
             };
         };
     };
+    retryPostBilledClose: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                post_billed_close_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostBilledCloseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     listPostBilledRates: {
         parameters: {
             query?: {
@@ -75599,6 +75676,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    regenerateSessionDirectLink: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                schedule_session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DirectLinkOut"];
+                };
             };
             /** @description Validation Error */
             422: {

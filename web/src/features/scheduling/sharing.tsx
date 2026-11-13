@@ -18,7 +18,7 @@ const ATTENDANCE: { value: Attendance; label: string }[] = [
   { value: 'no_show', label: 'No-show' },
 ]
 
-/** SCH-16: issue a session's direct registration link (shown once; a new one replaces it) or turn it off. */
+/** SCH-16: turn a session's direct registration link on (shown once), replace it with a new one, or turn it off. */
 export function DirectLinkControls({ sessionId, active }: { sessionId: string; active: boolean }) {
   const qc = useQueryClient()
   const toast = useToast()
@@ -26,9 +26,10 @@ export function DirectLinkControls({ sessionId, active }: { sessionId: string; a
   const path = { schedule_session_id: sessionId }
   const done = () => void qc.invalidateQueries({ queryKey: ['session', sessionId] })
   const create = useMutation({
-    mutationFn: () => api.post('/api/v1/sessions/{schedule_session_id}/direct-link', { path }),
+    mutationFn: () =>
+      active ? api.post('/api/v1/sessions/{schedule_session_id}/direct-link/regenerate', { path }) : api.post('/api/v1/sessions/{schedule_session_id}/direct-link', { path }),
     onSuccess: (out) => {
-      setLink(window.location.origin + out.path)
+      setLink(out.path ? window.location.origin + out.path : null)
       done()
     },
     onError: (e) => toast('error', e.message),
@@ -64,7 +65,8 @@ export function DirectLinkControls({ sessionId, active }: { sessionId: string; a
           </Button>
         </div>
       )}
-      <p className="text-xs text-muted">Anyone with the link can book this session, even when it is not listed online. The link is shown once; a new link stops the old one.</p>
+      {active && !link && <p className="text-sm text-muted">The link was shown when it was made and cannot be shown again. Links already sent keep working; a new link stops them.</p>}
+      <p className="text-xs text-muted">Anyone with the link can book this session, even when it is not listed online.</p>
     </div>
   )
 }

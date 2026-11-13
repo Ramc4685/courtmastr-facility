@@ -633,8 +633,10 @@ class SlotBook(In):
 class DirectLinkOut(Out):
     session_id: UUID
     is_active: bool
-    token: str
-    path: str = Field(description="The web page with the token in the URL fragment; prefix the portal origin.")
+    token: str | None = Field(description="Shown once, when the link is made; null when the link was already on.")
+    path: str | None = Field(
+        description="The web page with the token in the URL fragment; prefix the portal origin. Null with token."
+    )
 
 
 class DirectLinkResolve(In):

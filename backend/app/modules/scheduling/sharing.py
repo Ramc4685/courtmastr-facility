@@ -1,9 +1,10 @@
 """Direct registration links (SCH-16) and shared bookings (SCH-17, SSP-09).
 
 A session's `direct_link_token` column holds only the sha256 digest of the link's token (before the first link, a
-random value nobody holds), and resolves only while `is_direct_link_active` is on. Each issue returns a new token
-once and replaces the previous link; the link may be forwarded (one link goes to many clients); revoking replaces
-the digest, so every copy sent before stops working. The token rides in the URL fragment of the web page and reaches the API only in a POST
+random value nobody holds), and resolves only while `is_direct_link_active` is on. Turning a link on shows its
+token once; asking again while it is on returns its status only, so links already sent keep working. Only an
+explicit regenerate (or turning it off) replaces the digest, and every copy sent before stops working. The link
+may be forwarded (one link goes to many clients). The token rides in the URL fragment of the web page and reaches the API only in a POST
 body. Booking from the link is the portal's ordinary enrolment, which already accepts unlisted sessions.
 
 A shared booking is one booking with several clients on it, each with their own attendance. The booking's client
@@ -55,12 +56,14 @@ def _link_changed(session: Db, seat: Session, was: bool, now: bool) -> None:
     session.flush()
 
 
-def create_link(session: Db, principal: Principal, session_id: UUID) -> dict:
-    """Issue a new link and turn it on. The token is shown once (only its digest is stored), so each call
-    replaces the previous link and copies already sent stop working."""
+def create_link(session: Db, principal: Principal, session_id: UUID, *, regenerate: bool = False) -> dict:
+    """Turn the link on with a new token, shown once (only its digest is stored). While it is on, a plain call
+    returns the status without a token; `regenerate` issues a new one and the old link stops working."""
     seat, booking = _link_seat(session, principal, session_id)
     if booking.status == "cancelled":
         raise Conflict("A cancelled session cannot be shared.", code="invalid-state-transition")
+    if seat.is_direct_link_active and not regenerate:
+        return {"session_id": seat.id, "is_active": True, "token": None, "path": None}
     token, was = secrets.token_urlsafe(24), seat.is_direct_link_active
     seat.direct_link_token, seat.is_direct_link_active = digest(token), True
     _link_changed(session, seat, was, True)

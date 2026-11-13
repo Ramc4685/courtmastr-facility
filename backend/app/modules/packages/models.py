@@ -12,7 +12,7 @@ from enum import StrEnum
 from uuid import UUID
 
 from sqlalchemy import BigInteger, CheckConstraint, Index, Numeric, UniqueConstraint, text
-from sqlalchemy.dialects.postgresql import DATERANGE, Range
+from sqlalchemy.dialects.postgresql import DATERANGE, JSONB, Range
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base, TenantOwned, Timestamps, enum_check, enum_column, tenant_args, tfk
@@ -536,6 +536,8 @@ class PostBilledClose(TenantOwned, Timestamps, Base):
     package_count: Mapped[int] = mapped_column(server_default=text("0"))
     session_count: Mapped[int] = mapped_column(server_default=text("0"))
     total_minor: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
+    # Packages that failed at this close ({client_package_id, code}); a retry re-runs only these.
+    failures: Mapped[list[dict]] = mapped_column(JSONB, server_default=text("'[]'"))
 
 
 class PostBilledLine(TenantOwned, Timestamps, Base):

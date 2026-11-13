@@ -15,11 +15,13 @@ date; one with auto-renew stays open. Each package bills in its own savepoint, s
 rest of the close goes ahead; the failed package is billed at a later close.
 """
 
+from collections.abc import Callable
 from datetime import date, datetime, timedelta
+from functools import partial
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import Range
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -43,6 +45,14 @@ from app.modules.packages.models import (
 
 CLOSE = "packages.period.close"
 CONSTRAINT_CODES["uq_post_billed_rate_tier"] = "rate-tier-exists"
+
+# Packages may not import scheduling, which owns reservation types; app.bootstrap registers the lookup.
+_type_location: Callable[[Session, UUID], UUID | None] | None = None
+
+
+def register_type_location(lookup: Callable[[Session, UUID], UUID | None]) -> None:
+    global _type_location
+    _type_location = lookup
 
 
 # --- rates -------------------------------------------------------------------------------------------------------
@@ -103,6 +113,10 @@ def open_package(session: Session, principal: Principal, data: dict) -> dict:
     location_id = data["location_id"]
     authorize(principal, service._SELL, location_id=location_id)
     clients.service.require_active(session, data["client_id"])
+    if _type_location is None:
+        raise RuntimeError("packages.postbilled needs register_type_location (app.bootstrap)")
+    if _type_location(session, data["reservation_type_id"]) != location_id:
+        raise ValidationFailed("Choose a reservation type of this location.", pointer="/reservation_type_id")
     has_rate = select(PostBilledRate.id).where(
         PostBilledRate.reservation_type_id == data["reservation_type_id"], PostBilledRate.is_active
     )
@@ -160,12 +174,35 @@ def _restored(session: Session, package: ClientPackage) -> list[PostBilledUsage]
     return list(session.scalars(stmt.order_by(u.id)))
 
 
-def _plan(session: Session, location_id: UUID, closing_on: date, *, lock: bool) -> list[dict]:
+def _plan(
+    session: Session, location_id: UUID, closing_on: date, *, lock: bool, only: set[UUID] | None = None
+) -> list[dict]:
     """Every open post-billed package at the location, plus any other (ended, removed) with usage still to bill or
-    a billed credit to give back: owed usage is billed once, through `post_billed_usage`."""
-    p = ClientPackage
-    stmt = select(p).where(p.location_id == location_id, p.billing_mode == "post_billed")
-    packages = list(session.scalars((stmt.with_for_update() if lock else stmt).order_by(p.id)))
+    a billed credit to give back: owed usage is billed once, through `post_billed_usage`. Ended packages with
+    nothing owed are neither read nor locked."""
+    p, e, u = ClientPackage, CreditLedgerEntry, PostBilledUsage
+    billed = select(u.source_id).where(u.client_package_id == p.id, u.credited_at.is_(None)).correlate(p)
+    unbilled = (
+        select(e.source_id)
+        .where(e.client_package_id == p.id, e.source_id.is_not(None), e.source_id.not_in(billed))
+        .group_by(e.source_type, e.source_id)
+        .having(func.sum(e.consumed_delta) > 0)
+        .correlate(p)
+    )
+    net = (
+        select(func.coalesce(func.sum(e.consumed_delta), 0))
+        .where(e.client_package_id == u.client_package_id, e.source_type == u.source_type, e.source_id == u.source_id)
+        .correlate(u)
+        .scalar_subquery()
+    )
+    restored = select(u.id).where(u.client_package_id == p.id, u.credited_at.is_(None), net <= 0).correlate(p)
+    stmt = select(p).where(
+        p.location_id == location_id, p.billing_mode == "post_billed",
+        or_(p.status == "active", unbilled.exists(), restored.exists()),
+    )  # fmt: skip
+    if only is not None:
+        stmt = stmt.where(p.id.in_(only))
+    packages = list(session.scalars((stmt.with_for_update(of=p) if lock else stmt).order_by(p.id)))
     zone = ZoneInfo(platform.service.location_time_zone(session, location_id))
     usage = {pkg.id: _usage(session, pkg, closing_on, zone) for pkg in packages}
     credits = {pkg.id: _restored(session, pkg) for pkg in packages}
@@ -202,12 +239,16 @@ def _close_view(session: Session, close: PostBilledClose) -> dict:
     line = PostBilledLine
     lines = list(session.scalars(select(line).where(line.post_billed_close_id == close.id).order_by(line.id)))
     names = clients.service.display_names(session, [row.client_id for row in lines])
-    return {c.key: getattr(close, c.key) for c in PostBilledClose.__table__.columns} | {
-        "lines": [
-            {c.key: getattr(row, c.key) for c in line.__table__.columns} | {"client_name": names.get(row.client_id)}
-            for row in lines
-        ]
-    }
+    return (
+        {c.key: getattr(close, c.key) for c in PostBilledClose.__table__.columns}
+        | {"failed": close.failures}
+        | {
+            "lines": [
+                {c.key: getattr(row, c.key) for c in line.__table__.columns} | {"client_name": names.get(row.client_id)}
+                for row in lines
+            ]
+        }
+    )
 
 
 def preview_close(session: Session, principal: Principal, data: dict) -> dict:
@@ -244,20 +285,7 @@ def close_period(session: Session, principal: Principal, data: dict) -> dict:
         won = _existing(session, location_id, closing_on)
         assert won is not None
         return _close_view(session, won)
-    billable, failed = [], []
-    for line in _plan(session, location_id, closing_on, lock=True):
-        if not (line["rate"] or line["credits"]):
-            continue
-        try:
-            with session.begin_nested():
-                _credit_back(session, line)
-                if line["rate"]:
-                    _bill(session, close, line, closing_on)
-        except (DomainError, IntegrityError) as exc:  # this package waits for a later close
-            failed.append({"client_package_id": line["client_package_id"], "code": getattr(exc, "code", "conflict")})
-            continue
-        if line["rate"]:
-            billable.append(line)
+    billable, close.failures = _run(session, close, _plan(session, location_id, closing_on, lock=True))
     close.package_count = len(billable)
     close.session_count = sum(line["session_count"] for line in billable)
     close.total_minor = sum(line["total_minor"] for line in billable)
@@ -268,19 +296,72 @@ def close_period(session: Session, principal: Principal, data: dict) -> dict:
     closed = PostBilledPeriodClosed(post_billed_close_id=close.id, location_id=location_id, package_count=len(billable))
     events.publish(session, closed, close.id)
     session.flush()
-    return _close_view(session, close) | {"failed": failed}
+    return _close_view(session, close)
+
+
+def _run(session: Session, close: PostBilledClose, lines: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Credit back, then bill, each package, each step in its own savepoint: a failing credit-back never takes the
+    billing of new usage down with it, and one failing package never stops the rest. Returns the lines billed and
+    one failure per package ({client_package_id, code}), which the close keeps for a retry."""
+    billed: list[dict] = []
+    failed: dict[UUID, str] = {}
+    for line in lines:
+        steps: list[tuple[str, Callable[[], None]]] = []
+        if line["credits"]:
+            steps.append(("credit", partial(_credit_back, session, line)))
+        if line["rate"]:
+            steps.append(("bill", partial(_bill, session, close, line, close.closing_on)))
+        for name, step in steps:
+            try:
+                with session.begin_nested():
+                    step()
+            except (DomainError, IntegrityError) as exc:
+                failed.setdefault(line["client_package_id"], exc.code if isinstance(exc, DomainError) else "conflict")
+            else:
+                if name == "bill":
+                    billed.append(line)
+    return billed, [{"client_package_id": str(pid), "code": code} for pid, code in failed.items()]
+
+
+def retry_close(session: Session, principal: Principal, close_id: UUID) -> dict:
+    """Re-run only the packages that failed at this close, for its period; the rest are not billed again."""
+    close = session.get(PostBilledClose, close_id, with_for_update=True)
+    if close is None or not (principal.location_ids is None or close.location_id in principal.location_ids):
+        raise NotFound()
+    authorize(principal, CLOSE, location_id=close.location_id)
+    ids = {UUID(f["client_package_id"]) for f in close.failures}
+    if not ids:
+        return _close_view(session, close)
+    lines = _plan(session, close.location_id, close.closing_on, lock=True, only=ids)
+    done = set(session.scalars(select(PostBilledLine.client_package_id).where(
+        PostBilledLine.post_billed_close_id == close.id, PostBilledLine.client_package_id.in_(ids))))  # fmt: skip
+    for line in lines:
+        if line["client_package_id"] in done:  # billed here already; only its credit-back failed
+            line["rate"] = None
+    billable, close.failures = _run(session, close, lines)
+    close.package_count += len(billable)
+    close.session_count += sum(line["session_count"] for line in billable)
+    close.total_minor += sum(line["total_minor"] for line in billable)
+    audit.record(
+        session, CLOSE, close, location_id=close.location_id,
+        changes={"retried": len(ids), "billed": len(billable), "still_failing": len(close.failures)},
+    )  # fmt: skip
+    session.flush()
+    return _close_view(session, close)
 
 
 def _credit_back(session: Session, line: dict) -> None:
-    """Give back billed sessions whose credit was restored: adjust each line's charge down, or reverse it."""
+    """Give back billed sessions whose credit was restored: adjust each line's charge down, or reverse it. A charge
+    staff already reversed or changed by hand is left alone: the credit counts as handled (audited)."""
     by_line: dict[UUID, list[PostBilledUsage]] = {}
     for usage in line["credits"]:
         by_line.setdefault(usage.post_billed_line_id, []).append(usage)
     now = clock.now()
     for line_id, rows in by_line.items():
         billed = session.get_one(PostBilledLine, line_id)
-        if billed.charge_id is not None:
-            charge = billing.service.get_charge(session, billed.charge_id)
+        charge = billing.service.get_charge(session, billed.charge_id) if billed.charge_id else None
+        by_hand = charge is not None and (charge.status != "active" or charge.kind == "reversal")
+        if charge is not None and not by_hand:
             left, reason = charge.quantity - len(rows), "Post-billed sessions credited back"
             if left > 0:
                 billed.charge_id = billing.service.adjust_charge(session, charge.id, reason=reason, quantity=left).id
@@ -288,7 +369,8 @@ def _credit_back(session: Session, line: dict) -> None:
                 billing.service.reverse(session, charge.id, reason=reason)
         for usage in rows:
             usage.credited_at = now
-        audit.record(session, CLOSE, billed, changes={"credited_sessions": len(rows)})
+        changes = {"credited_sessions": len(rows)} | ({"charge_changed_by_hand": True} if by_hand else {})
+        audit.record(session, CLOSE, billed, changes=changes)
     session.flush()
 
 

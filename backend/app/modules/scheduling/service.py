@@ -971,6 +971,11 @@ def series_sessions(session: Db, series_id: UUID, starts_from) -> list[UUID]:
     )
 
 
+def reservation_type_location(session: Db, reservation_type_id: UUID) -> UUID | None:
+    """Internal (packages, wired in bootstrap): the location a reservation type belongs to, or None."""
+    return session.scalar(select(ReservationType.location_id).where(ReservationType.id == reservation_type_id))
+
+
 def check_location_archive(session: Db, location_id: UUID) -> None:
     """Internal, registered with platform: a location with a confirmed booking or a live checkout hold still to
     start is not archived. Blocks do not count."""
@@ -2166,9 +2171,15 @@ def merge_series(session: Db, principal: Principal, booking_id: UUID, data: dict
     with their occurrences (renumbered after this series' passes) and the emptied series row goes."""
     number = data["booking_number"]
     other_id = session.scalar(select(Booking.id).where(Booking.booking_number == number))
-    # Both rows locked in id order, so two opposite merges cannot deadlock.
+    # Every lock first, in one order (series ids, then booking ids), so opposite merges cannot deadlock.
     pair = [booking_id] if other_id is None else sorted({booking_id, other_id})
-    session.execute(select(Booking.id).where(Booking.id.in_(pair)).order_by(Booking.id).with_for_update())
+    seen = dict(session.execute(select(Booking.id, Booking.booking_series_id).where(Booking.id.in_(pair))).all())
+    series_ids = sorted({sid for sid in seen.values() if sid})
+    if series_ids:
+        stmt = select(BookingSeries.id).where(BookingSeries.id.in_(series_ids)).order_by(BookingSeries.id)
+        session.execute(stmt.with_for_update())
+    rows = select(Booking.id).where(Booking.id.in_(pair) | Booking.booking_series_id.in_(series_ids))
+    session.execute(rows.order_by(Booking.id).with_for_update())
     booking = _own(session, principal, booking_id, UPDATE_SERIES)
     other = session.get(Booking, other_id) if other_id is not None else None
     if other is None or not (
@@ -2184,6 +2195,8 @@ def merge_series(session: Db, principal: Principal, booking_id: UUID, data: dict
         raise Conflict("Only bookings of the same location, kind and client can be linked.", code="merge-mismatch")
     if booking.kind == "block" or "cancelled" in (booking.status, other.status):
         raise Conflict("Only live reservations can be linked.", code="invalid-state-transition")
+    if {booking.id: booking.booking_series_id, other.id: other.booking_series_id} != seen:
+        raise Conflict("The bookings changed while linking; try again.", code="invalid-state-transition")
     series = {sid for sid in (booking.booking_series_id, other.booking_series_id) if sid}
     busy = select(BookingSeriesRun.id).where(
         BookingSeriesRun.booking_series_id.in_(series), BookingSeriesRun.status.in_(("pending", "running"))

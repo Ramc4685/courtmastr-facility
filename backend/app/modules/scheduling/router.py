@@ -333,9 +333,16 @@ def book_slot_offer_slot(slot_offer_id: UUID, body: s.SlotBook, ctx: Ctx = Depen
 @router.post("/sessions/{schedule_session_id}/direct-link", response_model=s.DirectLinkOut)
 @secret_response
 def create_session_direct_link(schedule_session_id: UUID, ctx: Ctx = Depends(require(sharing.LINK))):
-    """Issue the session's link and turn it on; the token is shown once, and a new call replaces the previous
-    link. Share `path` (token in the fragment)."""
+    """Turn the session's link on and show it once (share `path`, token in the fragment). When the link is
+    already on, returns its status only: the token cannot be shown again and links already sent keep working."""
     return sharing.create_link(ctx.session, ctx.principal, schedule_session_id)
+
+
+@router.post("/sessions/{schedule_session_id}/direct-link/regenerate", response_model=s.DirectLinkOut)
+@secret_response
+def regenerate_session_direct_link(schedule_session_id: UUID, ctx: Ctx = Depends(require(sharing.LINK))):
+    """Issue a new link (shown once) and turn it on; the previous link stops working."""
+    return sharing.create_link(ctx.session, ctx.principal, schedule_session_id, regenerate=True)
 
 
 @router.delete("/sessions/{schedule_session_id}/direct-link", status_code=204)

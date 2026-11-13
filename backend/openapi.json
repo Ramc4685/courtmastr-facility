@@ -18734,9 +18734,16 @@
             "type": "boolean"
           },
           "path": {
-            "description": "The web page with the token in the URL fragment; prefix the portal origin.",
-            "title": "Path",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The web page with the token in the URL fragment; prefix the portal origin. Null with token.",
+            "title": "Path"
           },
           "session_id": {
             "format": "uuid",
@@ -18744,8 +18751,16 @@
             "type": "string"
           },
           "token": {
-            "title": "Token",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Shown once, when the link is made; null when the link was already on.",
+            "title": "Token"
           }
         },
         "required": [
@@ -131776,7 +131791,7 @@
         ]
       },
       "post": {
-        "description": "Bill used sessions up to closing_on (one charge and invoice per package). Idempotent per location and\ndate: a repeat returns the first close.",
+        "description": "Bill used sessions up to closing_on (one charge and invoice per package). Idempotent per location and\ndate: a repeat returns the first close, with the packages that failed (`failed`, retried by `/retry`).",
         "operationId": "closePostBilledPeriod",
         "parameters": [
           {
@@ -131957,6 +131972,69 @@
           }
         },
         "summary": "Get Post Billed Close",
+        "tags": [
+          "packages"
+        ]
+      }
+    },
+    "/api/v1/post-billed-closes/{post_billed_close_id}/retry": {
+      "post": {
+        "description": "Re-run only the packages listed in `failed` for this close's period; nobody else is billed again.",
+        "operationId": "retryPostBilledClose",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "post_billed_close_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Post Billed Close Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostBilledCloseOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Post Billed Close",
         "tags": [
           "packages"
         ]
@@ -148853,7 +148931,7 @@
         ]
       },
       "post": {
-        "description": "Issue the session's link and turn it on; the token is shown once, and a new call replaces the previous\nlink. Share `path` (token in the fragment).",
+        "description": "Turn the session's link on and show it once (share `path`, token in the fragment). When the link is\nalready on, returns its status only: the token cannot be shown again and links already sent keep working.",
         "operationId": "createSessionDirectLink",
         "parameters": [
           {
@@ -148909,6 +148987,69 @@
           }
         },
         "summary": "Create Session Direct Link",
+        "tags": [
+          "scheduling"
+        ]
+      }
+    },
+    "/api/v1/sessions/{schedule_session_id}/direct-link/regenerate": {
+      "post": {
+        "description": "Issue a new link (shown once) and turn it on; the previous link stops working.",
+        "operationId": "regenerateSessionDirectLink",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Session Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectLinkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Regenerate Session Direct Link",
         "tags": [
           "scheduling"
         ]

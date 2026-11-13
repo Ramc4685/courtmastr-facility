@@ -42,9 +42,7 @@ its own savepoint; idempotent through `uq_client_package_previous` and the serie
 ## Not built (by name)
 
 - Post-billed: extra billed items on a rate, refunding money already paid for a credited session (the credit
-  lowers the charge; the excess stays as account credit), a scheduled
-  (automatic) close, a check that the reservation type is used at the package's location (packages may not
-  import scheduling, which owns `reservation_type`).
+  lowers the charge; the excess stays as account credit), a scheduled (automatic) close.
 - "Account credit applied by default" at sale (the setting is stored). Autopay of package invoices and the POS
   sale (PKG-08) were wired at integration (`docs/status/README.md`). Reports (PKG-15), API keys (PKG-16), the expiry
   notice (`expiry_notice_days` is stored), ad-hoc packages built at sale without a plan, coupons.
@@ -55,8 +53,10 @@ Web screens exist since the integration (staff and portal; `docs/status/README.m
 ## Post-billed packages and the period close (PKG-11, BIL-18; `postbilled.py`)
 
 - A post-billed package is an unlimited `client_package` with `billing_mode = 'post_billed'` and price 0,
-  opened with `POST /client-packages/post-billed`: nothing is charged at the sale. Its reservation type needs
-  an active `post_billed_rate`.
+  opened with `POST /client-packages/post-billed`: nothing is charged at the sale. Its reservation type must
+  belong to the package's location (422) and needs an active `post_billed_rate`. Packages may not import
+  scheduling, so `app.bootstrap` registers `scheduling.service.reservation_type_location` with
+  `postbilled.register_type_location`.
 - **Rates.** Tiers per reservation type (`min_sessions`, `per_session_minor`, optional revenue category). A
   close bills every session of a package at the tier with the highest `min_sessions` its count reaches
   (assumption: whole-count tiers, not marginal bands). Active tiers always include `min_sessions = 1` (422
@@ -66,12 +66,17 @@ Web screens exist since the integration (staff and portal; `docs/status/README.m
   package with usage still to bill is picked up, whatever its status (ended or removed). A credit restored after
   it was billed is credited at the next close: the line's charge is adjusted down (`billing.service.adjust_charge`)
   or reversed when nothing is left, and the usage row gets `credited_at` (used again later, it is billed again).
+  When staff already reversed or changed that charge by hand, the credit counts as handled (audited
+  `charge_changed_by_hand`) and nothing more is posted.
 - **The close** (`POST /post-billed-closes`, gate `packages.period.close`, location scoped) writes one
   `post_billed_close` per location and date, then per package a `post_billed_line`, one
   `billing.service.post_charge` and one `create_invoice_for_charges`. A close always covers every package of
   the location (no package filter). Idempotent per period: a repeat returns the first. `closing_on` cannot be
-  after the location's today. Each package bills in its own savepoint: a failure is listed in `failed`
-  (`client_package_id`, `code`) and that package is billed at a later close. A package without auto-renew ends
+  after the location's today. Per package the credit-back and the billing each run in their own savepoint, so
+  a failed credit-back never stops new usage being billed. Failures are kept on the close (`failures`, returned
+  as `failed`: `client_package_id`, `code`) and shown again on a repeat close; `POST
+  /post-billed-closes/{id}/retry` re-runs only those packages for that period (nobody else is billed again);
+  otherwise they are picked up by a later close. Ended packages with nothing owed are neither read nor locked. A package without auto-renew ends
   at a close only when nothing is held and nothing was used after the closing date. A renewal stays
   post-billed. `POST /post-billed-closes/preview` shows the same lines without writing.
 - `post_billed_line` is a financial record: merge repoints its client, erasure keeps it.

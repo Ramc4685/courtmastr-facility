@@ -286,7 +286,7 @@ def preview_post_billed_close(body: s.PostBilledCloseIn, ctx: Close):
 @router.post("/post-billed-closes", response_model=s.PostBilledCloseOut, status_code=201)
 def close_post_billed_period(body: s.PostBilledCloseIn, ctx: Close):
     """Bill used sessions up to closing_on (one charge and invoice per package). Idempotent per location and
-    date: a repeat returns the first close."""
+    date: a repeat returns the first close, with the packages that failed (`failed`, retried by `/retry`)."""
     return postbilled.close_period(ctx.session, ctx.principal, body.model_dump())
 
 
@@ -299,3 +299,9 @@ def list_post_billed_closes(query: Lists, ctx: Close):
 @router.get("/post-billed-closes/{post_billed_close_id}", response_model=s.PostBilledCloseOut)
 def get_post_billed_close(post_billed_close_id: UUID, ctx: Close):
     return postbilled.get_close(ctx.session, ctx.principal, post_billed_close_id)
+
+
+@router.post("/post-billed-closes/{post_billed_close_id}/retry", response_model=s.PostBilledCloseOut)
+def retry_post_billed_close(post_billed_close_id: UUID, ctx: Close):
+    """Re-run only the packages listed in `failed` for this close's period; nobody else is billed again."""
+    return postbilled.retry_close(ctx.session, ctx.principal, post_billed_close_id)
