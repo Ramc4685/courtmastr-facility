@@ -114,6 +114,8 @@ class Tenant(Timestamps, Base):
         CheckConstraint(
             "email_sending_state IN ('active', 'marketing_paused', 'suspended')", name="email_sending_state"
         ),
+        CheckConstraint("brand_primary_color ~ '^#[0-9a-f]{6}$'", name="brand_primary_color"),
+        CheckConstraint("brand_accent_color ~ '^#[0-9a-f]{6}$'", name="brand_accent_color"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=new_id, server_default=text("app.uuid_v7()"))
@@ -131,6 +133,9 @@ class Tenant(Timestamps, Base):
     billing_locked_through_on: Mapped[date | None]
     email_sending_state: Mapped[str] = enum_column(server_default=text("'active'"))
     is_listed_in_app_directory: Mapped[bool] = _false()
+    # SSP-14 portal theme; the portal falls back to its own colours where one fails WCAG AA contrast
+    brand_primary_color: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    brand_accent_color: Mapped[str | None] = mapped_column(info={"audit": "value"})
     app_directory_name: Mapped[str | None]
     settings: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))
     # Staff may act only from these networks when it is non-empty; no role bypasses it (PLT-07).

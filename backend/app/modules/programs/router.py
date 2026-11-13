@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from app.core.api import TxRoute, camel_id
+from app.core.auth import system_principal
 from app.core.auth.deps import Ctx, current_ctx, public_session, require
 from app.core.idempotency import KEY_PATTERN, idempotency
 from app.core.pagination import ListQuery, list_query
@@ -163,9 +164,12 @@ def update_program_group(program_group_id: UUID, body: s.ProgramGroupUpdate, ctx
 
 
 @router.delete("/program-groups/{program_group_id}", status_code=204)
-def delete_program_group(program_group_id: UUID, ctx: Ctx = GroupDelete):
-    """Soft delete of the node and its subtree. Errors: has-registrations."""
-    groups.delete_group(ctx.session, ctx.principal, program_group_id)
+def delete_program_group(program_group_id: UUID, ctx: Ctx = GroupDelete, cancel_guest_holds: bool = False):
+    """Soft delete of the node and its subtree. `cancel_guest_holds=true` first abandons the open guest baskets
+    holding a place in it (the whole basket; the guest can no longer pay); the flag also needs
+    programs.registration_config.manage. Errors: has-registrations,
+    has-guest-holds (without the flag, or a guest's payment is in flight)."""
+    groups.delete_group(ctx.session, ctx.principal, program_group_id, cancel_guest_holds=cancel_guest_holds)
     return Response(status_code=204)
 
 
@@ -180,8 +184,12 @@ def complete_program_group(program_group_id: UUID, ctx: Ctx = GroupManage):
 
 
 @router.post("/program-groups/{program_group_id}/archive", response_model=s.ProgramGroupOut)
-def archive_program_group(program_group_id: UUID, ctx: Ctx = GroupManage):
-    return groups.group_view(ctx.session, groups.archive_group(ctx.session, ctx.principal, program_group_id))
+def archive_program_group(program_group_id: UUID, ctx: Ctx = GroupManage, cancel_guest_holds: bool = False):
+    """`cancel_guest_holds=true` first abandons the open guest baskets holding a place in it or its subtree; the flag
+    also needs programs.registration_config.manage. Errors:
+    invalid-transition, has-guest-holds (a guest basket holds a place, without the flag or with a payment in flight)."""
+    row = groups.archive_group(ctx.session, ctx.principal, program_group_id, cancel_guest_holds=cancel_guest_holds)
+    return groups.group_view(ctx.session, row)
 
 
 @router.post("/program-groups/{program_group_id}/reopen", response_model=s.ProgramGroupOut)
@@ -445,8 +453,9 @@ def list_public_program_groups(session: Public, location_id: UUID | None = None)
 
 
 @public.get("/public/program-groups/{program_group_id}", response_model=s.PublicProgramGroup)
-def get_public_program_group(program_group_id: UUID, session: Public):
-    return groups.public_get(session, program_group_id)
+def get_public_program_group(program_group_id: UUID, session: Public, guest: bool = False):
+    """`guest=true`: the price a guest checkout pays, in full, without the payment plan (REG-12)."""
+    return groups.public_get(session, program_group_id, guest=guest)
 
 
 # --- group tools (REG-03, REG-04, REG-06, REG-08, REG-11, REG-13) --------------------------------------------
@@ -704,3 +713,56 @@ def create_public_form_submission(
     # or duplicate attempts cannot burn someone else's allowance.
     hit("public-form-email", body.contact_email, response, tenant=session.info["tenant_id"])
     return receipt
+
+
+# --- guest checkout (REG-12): anonymous, rate limited, its own schemas -----------------------------------------
+
+
+def _guest_session(session: Public) -> Session:
+    session.info["actor"] = system_principal("guest checkout")
+    return session
+
+
+Guest = Annotated[Session, Depends(_guest_session)]
+
+
+def _guest_rate_limit(name: str):
+    """Per-IP bucket keyed like the hold cap: an IPv6 client by its /64 (checkout.guest_ip_key)."""
+
+    def dependency(response: Response) -> None:
+        hit(name, checkout.guest_ip_key(), response)
+
+    return dependency
+
+
+_guest_limit = [Depends(_guest_rate_limit("guest-checkout"))]
+
+
+@public.post("/public/guest-checkouts", response_model=s.GuestCheckoutOut, status_code=201,
+             dependencies=[Depends(_guest_rate_limit("guest-checkout-create"))])  # fmt: skip
+def create_guest_checkout(body: s.GuestCheckoutCreate, session: Guest, response: Response):
+    """Hold places for a guest (no account) in programs that allow it. The answer carries the guest token, the
+    only key to confirm or abandon. Errors: capacity-full, registration-closed, guest-documents-required,
+    too-many-held-places (unpaid places per program per IP), rate-limited (per IP and per payer address)."""
+    held = checkout.guest_create(session, body.model_dump())
+    # per address too, counted only for a valid basket: a 429 here rolls its holds back
+    hit("guest-checkout-email", body.payer.email, response, tenant=session.info["tenant_id"])
+    return held
+
+
+@public.post(
+    "/public/guest-checkouts/{checkout_id}/confirm", response_model=s.GuestCheckoutOut, dependencies=_guest_limit
+)
+def confirm_guest_checkout(
+    checkout_id: UUID, body: s.GuestCheckoutConfirm, session: Guest, idempotency_key: RequiredKey
+):
+    """Pay in full by a new card and register. Errors: payment-failed, checkout-expired, terms-changed,
+    program-not-active, registration-closed (the program stopped taking registrations while the place was held)."""
+    return checkout.guest_confirm(session, checkout_id, body.model_dump(), idempotency_key)
+
+
+@public.post(
+    "/public/guest-checkouts/{checkout_id}/abandon", response_model=s.GuestCheckoutOut, dependencies=_guest_limit
+)
+def abandon_guest_checkout(checkout_id: UUID, body: s.GuestCheckoutToken, session: Guest):
+    return checkout.guest_abandon(session, checkout_id, body.guest_token)

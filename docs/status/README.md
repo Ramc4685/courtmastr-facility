@@ -18,7 +18,7 @@ isolation and audit, and has a staff screen. **Partial** names what is missing. 
 | **All** | 204 | 109 | 56 | 39 |
 Module 1 (platform core) is done, with OIDC, MFA and step-up since Phase 8; its Wave 7 rows and the Phase 8
 cross-cutting items are in "Module 1 and Wave 7" below (`backend/app/modules/platform/README.md`).
-Module 14 (engagement) is built to P0 (5 done, 9 partial: `14-engagement.md`). Modules 16 and 17 are partial (`16-integrations.md`, `17-mobile.md`).
+Module 14 (engagement) is built to P0 (8 done, 7 partial, plus SSP-07, 13, 15 done: `14-engagement.md`). Modules 16 and 17 are partial (`16-integrations.md`, `17-mobile.md`).
 Modules 12 (staff time and pay), 13 (assessments) and 15 (reporting) are built to P0 (`12-staff.md`, `13-assessments.md`,
 `15-reporting.md`). Modules 10 and 11 (check-in,
 leagues) and the rest of module 6 are reported by their own lanes or not started. The three P0 features not built are CLS-02, CLS-09, CLS-10
@@ -115,7 +115,7 @@ Lane detail: `03-rentals.md`.
 | RNT-03 Staff-booked rental, single or recurring, one or many resources | P0 | done |  |
 | RNT-04 Extend a rental and bill selected occurrences | P1 | done |  |
 | RNT-05 Online rental policy per rental type | P0 | done |  |
-| RNT-06 Client online rental search and booking | P0 | partial | Backend complete, including hold expiry and the paid-invoice handler. Portal Bookings screen: search by type, date and length, hold, pay by new card (fake processor, or Stripe Elements in Stripe test mode), abandon, cancel. Confirm takes a new card token only, not a stored method. |
+| RNT-06 Client online rental search and booking | P0 | done | Portal Bookings screen: search by type, date and length, hold, pay the deposit with a saved card or a new one (fake processor, or Stripe Elements in Stripe test mode), abandon, cancel; confirm goes through `secure_online_checkout`. Per-location online defaults (SSP-04): on or off, lead time, longest booking, horizon (phase 11 B). |
 | RNT-07 Buffer times on rentals | P1 | done |  |
 | RNT-08 Remove a rental or recurring rental | P0 | done |  |
 | RNT-09 Rental plans | P1 | done | Append-only ledger, full-coverage debit under lock, credit back on cancel; auto-renew and autopay through billing (hourly day-roll), members-only sales and member price (reads `memberships.is_member`), portal purchase through `secure_online_checkout`. |
@@ -188,7 +188,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | MEM-06 Simple (record-only) membership | P2 | done |  |
 | MEM-07 Staff sale of a membership contract | P0 | done |  |
 | MEM-08 Contract document acceptance at sale | P1 | done |  |
-| MEM-09 Online membership sales | P1 | partial | Portal Memberships screen quotes and buys with a new card (fake processor, or Stripe Elements in Stripe test mode). No stored-method option: the buy endpoint takes a token only. |
+| MEM-09 Online membership sales | P1 | done | Portal Memberships screen quotes and buys with a saved card or a new one (fake processor, or Stripe Elements in Stripe test mode) (phase 11 B). |
 | MEM-10 Contract list, status views and edit | P0 | done |  |
 | MEM-11 Contract renewal | P0 | done |  |
 | MEM-12 Freeze a contract | P0 | done |  |
@@ -211,7 +211,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | PKG-06 Package sharing | P1 | done |  |
 | PKG-07 Staff sale of a package | P0 | partial | No ad-hoc package, per-sale pricing, coupons or account-credit pre-apply. |
 | PKG-08 Sale through point of sale | P1 | done | Integration: sold as a POS cart line (POS-19), `sales_channel = pos`. Priced one-off plans only; no discounts on the line; removed from the client profile, not returned at the till. |
-| PKG-09 Online package sales | P1 | partial | Portal Packages screen buys with a new card (fake processor, or Stripe Elements in Stripe test mode); history and auto-renew opt-out. |
+| PKG-09 Online package sales | P1 | done | Portal Packages screen buys with a saved card or a new one (fake processor, or Stripe Elements in Stripe test mode); history and auto-renew opt-out; the Sessions screen buys a covering package and books in one flow (SSP-08, phase 11 B). |
 | PKG-10 Member-only plans | P1 | done |  |
 | PKG-11 Post-billed packages | P2 | done | Phase 14 C2; tiered rates. |
 | PKG-12 Session registration, roster and attendance | P0 | done | Staff register a client into a session and pick the package that pays; the credit follows attendance marks and cancellation. Phase 10 chip E: "Book across sessions" pays with a package, a speed-register mode registers on pick with the first usable package, and "Sell a package" sells inline then preselects it. |

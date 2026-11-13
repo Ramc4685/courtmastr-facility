@@ -12,7 +12,7 @@ from app.modules.memberships.tests.support import API, invoices, package_plan, t
 from app.modules.packages import service
 from app.modules.packages.models import ClientPackage, PackagePlan
 from app.modules.packages.tests.test_packages import _as, _member
-from conftest import scalar
+from conftest import new_client, scalar
 
 
 @pytest.fixture
@@ -70,3 +70,17 @@ def test_a_processor_timeout_sells_nothing_and_the_retry_sells_once(w, client, o
     assert (timeout.value.status, timeout.value.code, _packages(w)) == (503, "provider-unavailable", 0)
     sold = _buy(w, plan, key, method_token="tok_card_unknown")
     assert (sold["payment_status"], _packages(w), provider_payments(w, key)) == ("succeeded", 1, 1)
+
+
+def test_pkg_09_buy_with_a_stored_method(w, client, owner):
+    """PKG-09 (phase 11 B): the portal buyer pays with a card already on file; someone else's card is refused."""
+    plan = package_plan(client, owner, w.tenant, online_sale_mode="paid_in_full")
+    other = new_client(client, owner, w.location_id)["id"]
+    with tx(w.tenant) as session:
+        mine = billing.methods.attach_method(session, UUID(w.person["id"]), "tok_card_ok").id
+        theirs = billing.methods.attach_method(session, UUID(other), "tok_card_ok").id
+    with pytest.raises(DomainError) as refused:
+        _buy(w, plan, payment_method_id=theirs)
+    assert (refused.value.code, _packages(w)) == ("payment-method-not-usable", 0)
+    bought = _buy(w, plan, payment_method_id=mine)
+    assert bought["payment_status"] == "succeeded" and invoices(w.tenant, w.person["id"])[0].status == "paid"

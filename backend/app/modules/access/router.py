@@ -288,6 +288,7 @@ def list_app_cards(ctx: Portal, client_id: Annotated[UUID | None, Query()] = Non
 
 
 @router.post("/portal/app-cards", response_model=s.PortalAppCardIssued, status_code=201)
+@secret_response
 def issue_app_card(body: s.PortalAppCardCreate, ctx: Portal):
     """A digital member card for this device; the payload is shown once and drives rotating QR codes offline."""
     return service.issue_app_card(ctx.session, ctx.principal, body.model_dump())
@@ -296,6 +297,26 @@ def issue_app_card(body: s.PortalAppCardCreate, ctx: Portal):
 @router.delete("/portal/app-cards/{credential_id}", status_code=204)
 def revoke_app_card(credential_id: UUID, ctx: Portal) -> None:
     service.revoke_app_card(ctx.session, ctx.principal, credential_id)
+
+
+# --- portal wallet passes (CHK-13, APP-06) --------------------------------------------------------------------
+
+
+@router.get("/portal/wallet-passes", response_model=s.Page[s.PortalWalletPassOut])
+def list_wallet_passes(ctx: Portal, client_id: Annotated[UUID | None, Query()] = None):
+    return {"data": service.list_wallet_passes(ctx.session, ctx.principal, client_id), "page": _EMPTY}
+
+
+@router.post("/portal/wallet-passes", response_model=s.PortalWalletPassIssued, status_code=201)
+@secret_response
+def issue_wallet_pass(body: s.PortalWalletPassCreate, ctx: Portal):
+    """A wallet pass with its own long-lived credential; issuing again revokes the client's previous pass."""
+    return service.issue_wallet_pass(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.delete("/portal/wallet-passes/{credential_id}", status_code=204)
+def revoke_wallet_pass(credential_id: UUID, ctx: Portal) -> None:
+    service.revoke_wallet_pass(ctx.session, ctx.principal, credential_id)
 
 
 # --- the kiosk -----------------------------------------------------------------------------------------------

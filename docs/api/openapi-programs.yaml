@@ -94,7 +94,7 @@ x-report-families:
     reporting.pos.run: {pos_sales: RPT-30, daily_register: RPT-32}
     reporting.time_clock.run: {time_clock: RPT-37}
 x-features-without-own-path:
-  SSP-04: P0. Only the allows_rental_booking switch is here (putPortalSettings); rules and flow are rentals and scheduling.
+  SSP-04: P0. The online rental switch is rentals' rental-portal-settings (is_online_enabled), not portal settings; rules and flow are rentals and scheduling.
   SSP-20: P0. Portal invoices, balances, pay-balance and documents are billing and documents routes under /portal.
   APP-06: P0. Only card_number_mode is here (putAppConfig); the signed QR credential and wallet pass are access routes.
   INT-03 INT-06 LGE-27: P1. The public API is the staff resources of each context under an API key whose scopes are permission
@@ -227,6 +227,9 @@ paths:
       x-permission: programs.program.delete
       x-features: [REG-05]
       security: [{staffSession: []}, {apiKey: []}]
+      parameters:
+        - {name: cancel_guest_holds, in: query, required: false, schema: {type: boolean, default: false},
+           description: Abandon the open guest baskets holding a place in the subtree first (else 409 has-guest-holds).}
       responses:
         '204': {description: No content.}
         '401': {$ref: '#/components/responses/Unauthorized'}
@@ -294,6 +297,9 @@ paths:
       x-permission: programs.program.manage
       x-features: [REG-05]
       security: [{staffSession: []}, {apiKey: []}]
+      parameters:
+        - {name: cancel_guest_holds, in: query, required: false, schema: {type: boolean, default: false},
+           description: Abandon the open guest baskets holding a place in the subtree first (else 409 has-guest-holds).}
       responses:
         '200':
           description: OK.
@@ -5504,6 +5510,7 @@ paths:
         '200':
           description: OK.
           content: {application/json: {schema: {$ref: '#/components/schemas/PublicAppConfig'}}}
+        '404': {$ref: '#/components/responses/NotFound'}
         '429': {$ref: '#/components/responses/RateLimited'}
   /public/app-directory:
     get:
@@ -5907,77 +5914,203 @@ paths:
       x-priority: P1
       x-permission: public
       x-features: [APP-08]
-  /trial-requests:
+  /app-inquiries:
     get:
-      operationId: listTrialRequests
+      operationId: listAppInquiries
       tags: [engagement]
-      summary: List trial pass requests
+      summary: List trial pass requests and app feedback (Phase 11 C2)
       x-priority: P1
-      x-permission: engagement.app_content.manage
-      x-features: [APP-12]
-  /trial-requests/{trial_request_id}:
+      x-permission: engagement.app_inquiry.read
+      x-features: [APP-10, APP-12]
+  /app-inquiries/{app_inquiry_id}:
     parameters:
-    - name: trial_request_id
-      in: path
-      required: true
-      schema: {type: string, format: uuid}
+    - {name: app_inquiry_id, in: path, required: true, schema: {type: string, format: uuid}}
     patch:
-      operationId: updateTrialRequest
+      operationId: updateAppInquiry
       tags: [engagement]
-      summary: Mark contacted, converted or dismissed
+      summary: Mark in progress, closed or converted
       x-priority: P1
-      x-permission: engagement.app_content.manage
-      x-features: [APP-12]
+      x-permission: engagement.app_inquiry.manage
+      x-features: [APP-10, APP-12]
   /public/trial-requests:
     post:
       operationId: createPublicTrialRequest
       tags: [engagement]
-      summary: Submit a trial pass request
+      summary: Submit a trial pass request (202, same answer whether or not stored)
       x-priority: P1
       x-permission: public
       x-features: [APP-12]
+  /portal/feedback:
+    post:
+      operationId: sendPortalFeedback
+      tags: [engagement]
+      summary: Send in-app feedback to the staff inbox
+      x-priority: P1
+      x-permission: client:self
+      x-features: [APP-10]
+  /app-contents:
+    get:
+      operationId: listAppContents
+      tags: [engagement]
+      summary: List news, info pages, announcements, promotions and gallery items
+      x-priority: P1
+      x-permission: engagement.app_content.manage
+      x-features: [APP-07, APP-14]
+    post:
+      operationId: createAppContent
+      tags: [engagement]
+      summary: Create an app content item (plain text, https links)
+      x-priority: P1
+      x-permission: engagement.app_content.manage
+      x-features: [APP-07, APP-14]
+  /app-contents/{app_content_id}:
+    parameters:
+    - {name: app_content_id, in: path, required: true, schema: {type: string, format: uuid}}
+    patch:
+      operationId: updateAppContent
+      tags: [engagement]
+      summary: Update an item (optional version check)
+      x-priority: P1
+      x-permission: engagement.app_content.manage
+      x-features: [APP-07, APP-14]
+    delete:
+      operationId: deleteAppContent
+      tags: [engagement]
+      summary: Delete an item
+      x-priority: P1
+      x-permission: engagement.app_content.manage
+      x-features: [APP-07, APP-14]
+  /app-contents/{app_content_id}/image:
+    parameters:
+    - {name: app_content_id, in: path, required: true, schema: {type: string, format: uuid}}
+    put:
+      operationId: setAppContentImage
+      tags: [engagement]
+      summary: Set the image (JPEG or PNG bytes)
+      x-priority: P1
+      x-permission: engagement.app_content.manage
+      x-features: [APP-07, APP-14]
+    delete:
+      operationId: removeAppContentImage
+      tags: [engagement]
+      summary: Remove the image
+      x-priority: P1
+      x-permission: engagement.app_content.manage
+      x-features: [APP-07, APP-14]
+  /portal/app-contents:
+    get:
+      operationId: listPortalAppContents
+      tags: [engagement]
+      summary: Published content, tenant-wide plus one location
+      x-priority: P1
+      x-permission: client:self
+      x-features: [APP-07, APP-14]
+  /portal/app-contents/{app_content_id}/image:
+    parameters:
+    - {name: app_content_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      operationId: getPortalAppContentImage
+      tags: [engagement]
+      summary: The item's image
+      x-priority: P1
+      x-permission: client:self
+      x-features: [APP-07, APP-14]
+  /location-contacts:
+    get:
+      operationId: listLocationContacts
+      tags: [engagement]
+      summary: List department and service contacts
+      x-priority: P1
+      x-permission: engagement.location_contact.manage
+      x-features: [APP-08, APP-09]
+    post:
+      operationId: createLocationContact
+      tags: [engagement]
+      summary: Add a contact (phone or email required)
+      x-priority: P1
+      x-permission: engagement.location_contact.manage
+      x-features: [APP-08, APP-09]
+  /location-contacts/{location_contact_id}:
+    parameters:
+    - {name: location_contact_id, in: path, required: true, schema: {type: string, format: uuid}}
+    get:
+      operationId: getLocationContact
+      tags: [engagement]
+      summary: Get a contact
+      x-priority: P1
+      x-permission: engagement.location_contact.manage
+      x-features: [APP-08, APP-09]
+    patch:
+      operationId: updateLocationContact
+      tags: [engagement]
+      summary: Update a contact
+      x-priority: P1
+      x-permission: engagement.location_contact.manage
+      x-features: [APP-08, APP-09]
+    delete:
+      operationId: deleteLocationContact
+      tags: [engagement]
+      summary: Delete a contact
+      x-priority: P1
+      x-permission: engagement.location_contact.manage
+      x-features: [APP-08, APP-09]
+  /public/location-contacts:
+    get:
+      operationId: listPublicLocationContacts
+      tags: [engagement]
+      summary: A location's contacts while its portal is open
+      x-priority: P1
+      x-permission: public
+      x-features: [APP-08, APP-09]
   /portal/favorites:
     get:
       operationId: listPortalFavorites
       tags: [engagement]
-      summary: My favourite classes, trainers and locations
+      summary: Favourite reservation types and program groups of me or someone I act for (Phase 11 C2)
       x-priority: P1
       x-permission: client:self
       x-features: [APP-13]
-  /portal/favorites/{subject_kind}/{subject_id}:
-    parameters:
-    - {name: subject_kind, in: path, required: true, schema: {type: string}}
-    - {name: subject_id, in: path, required: true, schema: {type: string, format: uuid}}
-    put:
-      operationId: addPortalFavorite
+    post:
+      operationId: createPortalFavorite
       tags: [engagement]
-      summary: Add a favourite
+      summary: Add a favourite (201, idempotent; unknown-target)
       x-priority: P1
       x-permission: client:self
       x-features: [APP-13]
+  /portal/favorites/{client_favorite_id}:
+    parameters:
+    - {name: client_favorite_id, in: path, required: true, schema: {type: string, format: uuid}}
     delete:
-      operationId: removePortalFavorite
+      operationId: deletePortalFavorite
       tags: [engagement]
       summary: Remove a favourite
       x-priority: P1
       x-permission: client:self
       x-features: [APP-13]
-  /portal/app-events:
-    post:
-      operationId: recordPortalAppEvents
+  /portal/favorites/schedule:
+    get:
+      operationId: getPortalFavoriteSchedule
       tags: [engagement]
-      summary: Batch app analytics events
+      summary: Personal schedule from the favourites, at most 31 days (invalid-range)
+      x-priority: P1
+      x-permission: client:self
+      x-features: [APP-13]
+  /portal/app-usage:
+    post:
+      operationId: recordPortalAppUsage
+      tags: [engagement]
+      summary: Add up to 50 anonymous screen and action counts to today's UTC totals (204)
       x-priority: P1
       x-permission: client:self
       x-features: [APP-17]
-  /app-analytics:
+  /app-usage:
     get:
-      operationId: getAppAnalytics
+      operationId: listAppUsage
       tags: [engagement]
-      summary: Daily app engagement metrics
+      summary: Daily anonymous app usage counts, at most 90 days (invalid-range)
       x-priority: P1
-      x-permission: reporting.marketing.run
-      x-features: [APP-17, RPT-38]
+      x-permission: engagement.app_usage.read
+      x-features: [APP-17]
   /portal/menu:
     get:
       operationId: getPortalMenu
@@ -8971,10 +9104,10 @@ components:
           description: booking, registrations, purchases, video_library, membership_card
     PublicAppConfig:
       type: object
-      description: Bootstrap payload for the mobile app after tenant selection.
-      required: [tenant_id, app_name, theme]
+      description: Bootstrap payload for the mobile app after tenant selection; 404 while the member app is off. No
+        tenant id.
+      required: [app_name, theme]
       properties:
-        tenant_id: {type: string, format: uuid}
         app_name: {type: string}
         theme: {type: object, additionalProperties: true}
         icon_url: {type: [string, 'null'], format: uri}
@@ -8985,13 +9118,12 @@ components:
     AppDirectoryEntry:
       type: object
       description: A facility listed in the shared app directory.
-      required: [tenant_id, name, host]
+      required: [slug, name]
       properties:
-        tenant_id: {type: string, format: uuid}
+        slug: {type: string}
         name: {type: string}
         city: {type: [string, 'null']}
         icon_url: {type: [string, 'null'], format: uri}
-        host: {type: string}
     DeviceRegistration:
       type: object
       description: Push token of one app install.

@@ -47,8 +47,8 @@ def _matrix_rows(context: str = "platform") -> dict[str, dict]:
     ("context", "count"),
     [
         ("platform", 31), ("clients", 16), ("billing", 41), ("pos", 15), ("documents", 6), ("memberships", 13),
-        ("packages", 10), ("resources", 5), ("scheduling", 21), ("rentals", 11), ("programs", 12),
-        ("access", 13), ("integrations", 6), ("engagement", 14), ("leagues", 16), ("staff", 10), ("assessments", 5),
+        ("packages", 10), ("resources", 5), ("scheduling", 21), ("rentals", 12), ("programs", 12),
+        ("access", 13), ("integrations", 6), ("engagement", 18), ("leagues", 16), ("staff", 10), ("assessments", 5),
         ("reporting", 13),
     ],
 )  # fmt: skip

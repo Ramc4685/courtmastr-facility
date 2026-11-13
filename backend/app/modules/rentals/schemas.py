@@ -84,6 +84,7 @@ class RentalTypeOut(Out):
     default_length_min: int | None
     min_length_min: int
     max_length_min: int | None
+    horizon_days: int | None = None  # SSP-04: the location's booking horizon, if any
     slot_granularity_min: int
     online_description: str | None
     deposit_pct: Decimal | None
@@ -404,6 +405,7 @@ class PublicRentalType(Out):
     default_length_min: int | None
     min_length_min: int
     max_length_min: int | None
+    horizon_days: int | None = None  # SSP-04: the location's booking horizon, if any
     slot_granularity_min: int
     deposit_pct: Decimal | None
     cancel_cutoff_hours: int | None
@@ -431,9 +433,29 @@ class PortalRentalCreate(In):
 
 
 class PortalRentalConfirm(In):
-    """A PaymentProvider client token; never raw card data. This route takes a one-off token, not a stored method."""
+    """A PaymentProvider client token (never raw card data) or one of the client's stored payment methods."""
 
-    provider_payment_token: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    provider_payment_token: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
+    payment_method_id: UUID | None = None
+    save_method: bool = False  # keep the new card on file, saved by the processor with the charge
+    terms_version_id: Annotated[str, StringConstraints(max_length=64)] | None = None  # the portal terms shown (SSP-14)
+
+
+class RentalPortalSettings(In):
+    """Per-location online rental defaults (SSP-04). A limit tightens every self-service type here."""
+
+    is_online_enabled: bool = True
+    min_lead_min: Annotated[int, Field(ge=0, le=525600)] | None = None
+    max_length_min: Annotated[int, Field(ge=5, le=10080)] | None = None
+    horizon_days: Annotated[int, Field(ge=1, le=730)] | None = None
+
+
+class RentalPortalSettingsOut(Out):
+    location_id: UUID
+    is_online_enabled: bool
+    min_lead_min: int | None
+    max_length_min: int | None
+    horizon_days: int | None
 
 
 class PortalRentalCheckout(Out):

@@ -281,3 +281,11 @@ def test_a_webhook_stored_but_never_processed_is_retried(shop):
         assert session.get(Payment, payment_id).status == "succeeded"
     assert inbound_webhooks.get(stored[0]).status == "processed"
     assert stored[0] not in inbound_webhooks.stale(shop.tenant.id, clock.now(), webhooks.RETRY_ATTEMPTS)
+
+
+def test_the_portal_reads_the_processor_without_starting_a_setup(api, shop, member):
+    """The app learns the card provider from a read; no SetupIntent is made until a card is actually added."""
+    assert member.api("GET", "/portal/payment-methods/processor") == {
+        "provider": "fake", "publishable_key": None, "account_ref": None,
+    }  # fmt: skip
+    api("GET", "/portal/payment-methods/processor", None, 403)  # staff are not portal clients

@@ -43,11 +43,11 @@ Counts (39 features):
 | Priority | done | partial | not built |
 |---|---|---|---|
 | P0 | 10 | 5 | 0 |
-| P1 | 11 | 7 | 3 |
+| P1 | 13 | 5 | 3 |
 | P2 | 1 | 0 | 2 |
 
 The P1 count moved by 4 from the backend file: MEM-13 and MEM-14 are now partial because their edit commands
-have no screen, and PKG-09 is partial because it has no portal page.
+have no screen. Phase 11 B built the portal pages for MEM-09 and PKG-09 (saved or new card).
 
 ## Memberships
 
@@ -61,7 +61,7 @@ have no screen, and PKG-09 is partial because it has no portal page.
 | MEM-06 Simple (record-only) membership | P2 | done | a zero-fee plan sold from the client tab | backend `test_sale::test_record_only...` | |
 | MEM-07 Staff sale of a membership contract | P0 | done | client Memberships > Sell membership | backend; Vitest sale test; e2e scan | Per-sale customised terms (fee, discount, end date, occurrences, visit cap) are API only. No card saving or coupons. |
 | MEM-08 Contract document acceptance at sale | P1 | done | plan dialog "Required document"; sell dialog requirements | backend `test_sale::test_contract_document_gates...`; Vitest asserts the text | The contract waits as upcoming; signing is on the Documents tab. |
-| MEM-09 Online membership sales | P1 | partial | API only | backend | No portal web page. |
+| MEM-09 Online membership sales | P1 | done | portal Memberships (saved or new card) | `booking.test.tsx` | Phase 11 B. |
 | MEM-10 Contract list, status views and edit | P0 | done | Memberships > Contracts; client tab; Details dialog | backend; e2e scan | The auto-renew toggle is on screen. Salesperson, referrer, notes and visit-cap edits are API only. |
 | MEM-11 Contract renewal | P0 | done | Upcoming renewals tab; Renew dialog (same terms or another plan) | backend `test_renewal_jobs` | Still needs a scheduler for automatic renewals (backend gap). |
 | MEM-12 Freeze a contract | P0 | done | Freeze dialog; Unfreeze | backend `test_lifecycle` | Unfreeze removes the live freeze. |
@@ -89,7 +89,7 @@ have no screen, and PKG-09 is partial because it has no portal page.
 | PKG-06 Package sharing | P1 | done | plan share mode; Shares dialog | backend | |
 | PKG-07 Staff sale of a package | P0 | partial | client Packages > Sell package (quote, invoice mode, payment) | backend; Vitest document-required test; e2e cash sale | No ad-hoc package, per-sale pricing, coupons or account-credit pre-apply. |
 | PKG-08 Sale through point of sale | P1 | not built | none | none | POS module. |
-| PKG-09 Online package sales | P1 | partial | plan online settings; API | backend | No portal web page. |
+| PKG-09 Online package sales | P1 | done | plan online settings; portal Packages and Sessions (buy and book) | `booking.test.tsx`; `e2e/portal-booking.spec.ts` | Phase 11 B. |
 | PKG-10 Member-only plans | P1 | done | plan dialog members-only checkboxes | backend | |
 | PKG-11 Post-billed packages | P2 | done | `PostBilled.tsx` (rates tab, open dialog) | `shared-post-billed.spec.ts` | Phase 14 C2. |
 | PKG-12 Session registration, roster and attendance | P0 | done | Session panel: Pay with, Speed register, Sell a package inline; Book across sessions pays with a package | backend `test_credits`, `test_session_desk` | |

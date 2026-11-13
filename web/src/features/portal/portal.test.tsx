@@ -81,7 +81,7 @@ describe('PortalApp', { timeout: 20_000 }, () => {
     open('/portal/invoices', {
       'GET /api/v1/portal/invoices': page([invoice('i1', 'c1')]),
       'GET /api/v1/portal/payment-methods': { status: 200, body: [card] },
-      'POST /api/v1/portal/payment-methods/setup-intents': { status: 201, body: { provider: 'fake', client_secret: 'x' } },
+      'GET /api/v1/portal/payment-methods/processor': { status: 200, body: { provider: 'fake' } },
       'POST /api/v1/portal/payments': (call) => {
         payments.push(call)
         return { status: 201, body: { client_secret: 'fake_pi_1_secret_x', credit_applied_minor: 0, payment: { id: 'p1', status: 'requires_action', amount_minor: 1000, receipt_number: 3 } } }
@@ -116,7 +116,7 @@ describe('PortalApp', { timeout: 20_000 }, () => {
       'GET /api/v1/portal/clients': { status: 200, body: { data: [person('c1', 'Morgan', 'self'), person('c3', 'Kit', 'guardian')] } },
       'GET /api/v1/portal/invoices': page([invoice('i3', 'c3')]),
       'GET /api/v1/portal/payment-methods': { status: 200, body: [card] },
-      'POST /api/v1/portal/payment-methods/setup-intents': { status: 201, body: { provider: 'fake', client_secret: 'x' } },
+      'GET /api/v1/portal/payment-methods/processor': { status: 200, body: { provider: 'fake' } },
     })
     await userEvent.click(await screen.findByRole('button', { name: 'Pay invoice 7' }))
     const dialog = await screen.findByRole('dialog', { name: 'Pay invoice #7' })
@@ -124,10 +124,10 @@ describe('PortalApp', { timeout: 20_000 }, () => {
   })
 
   it("does not offer another person's stored card for a dependent's invoice", async () => {
-    open('/portal/invoices', {
+    const calls = open('/portal/invoices', {
       'GET /api/v1/portal/invoices': page([invoice('i2', 'c2')]),
       'GET /api/v1/portal/payment-methods': { status: 200, body: [card] },
-      'POST /api/v1/portal/payment-methods/setup-intents': { status: 201, body: { provider: 'fake', client_secret: 'x' } },
+      'GET /api/v1/portal/payment-methods/processor': { status: 200, body: { provider: 'fake' } },
     })
     await userEvent.click(await screen.findByRole('button', { name: 'Pay invoice 7' }))
     const dialog = await screen.findByRole('dialog', { name: 'Pay invoice #7' })
@@ -135,6 +135,9 @@ describe('PortalApp', { timeout: 20_000 }, () => {
     expect(within(payWith).queryByText(/4242/)).not.toBeInTheDocument()
     expect(await within(dialog).findByRole('combobox', { name: 'Card' })).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Pay $25.00' })).toBeDisabled()
+    // The provider comes from the read-only processor route; reading it never creates a setup intent.
+    expect(calls.some((c) => c.url.startsWith('/api/v1/portal/payment-methods/processor'))).toBe(true)
+    expect(calls.some((c) => c.url.includes('setup-intents'))).toBe(false)
   })
 
   it('renews the idempotency key after a declined package purchase, not before', async () => {
@@ -142,7 +145,7 @@ describe('PortalApp', { timeout: 20_000 }, () => {
     open('/portal/packages', {
       'GET /api/v1/portal/client-packages': page([]),
       'GET /api/v1/portal/package-plans': page([{ id: 'pp1', name: 'Ten lessons', fee_minor: 45000, session_count: 10, is_purchasable: true, validity_count: 6, validity_unit: 'month' }]),
-      'POST /api/v1/portal/payment-methods/setup-intents': { status: 201, body: { provider: 'fake', client_secret: 'x' } },
+      'GET /api/v1/portal/payment-methods/processor': { status: 200, body: { provider: 'fake' } },
       'POST /api/v1/portal/client-packages': (call) => {
         buys.push(call)
         return buys.length === 1
@@ -200,6 +203,26 @@ describe('Portal online sessions and calendar feed', { timeout: 20_000 }, () => 
     expect(await screen.findByText('The session opens 10 minutes before it starts')).toBeInTheDocument()
     expect(tab.close).toHaveBeenCalled()
     expect(calls.filter((c) => c.url.endsWith('/join')).map((c) => c.url)).toEqual(['/api/v1/portal/enrollments/e1/join', '/api/v1/portal/enrollments/e2/join'])
+  })
+
+  it('offers Join online on a program registration with a meeting, without a portal cancel', async () => {
+    const user = userEvent.setup()
+    const tab = { opener: {} as unknown, location: { href: '' }, close: vi.fn() }
+    vi.spyOn(window, 'open').mockReturnValue(tab as unknown as Window)
+    const group = (id: string) => ({ ...enrolment(id, '', 0), session_id: null, target_kind: 'group', program_group_id: 'g1', starts_at: null, ends_at: null })
+    open('/portal/sessions', {
+      'GET /api/v1/portal/session-listings': { status: 200, body: [] },
+      'GET /api/v1/portal/enrollments': page([group('g-online'), group('g-plain')]),
+      'GET /api/v1/portal/enrollment-meetings': { status: 200, body: [{ enrollment_id: 'g-online', session_id: 's9' }] },
+      'GET /api/v1/portal/waitlist-entries': { status: 200, body: [] },
+      'GET /api/v1/portal/calendar-feeds': { status: 200, body: [] },
+      'POST /api/v1/portal/enrollments/g-online/join': { status: 200, body: { join_url: 'https://meet.example.com/camp', passcode: null } },
+    })
+    const bookings = await screen.findByRole('list', { name: 'Your bookings' })
+    await user.click(await within(bookings).findByRole('button', { name: /^Join online/ }))
+    await vi.waitFor(() => expect(tab.location.href).toBe('https://meet.example.com/camp'))
+    expect(within(bookings).getAllByRole('listitem')).toHaveLength(1) // the registration without a meeting stays off
+    expect(within(bookings).queryByRole('button', { name: /^Cancel booking/ })).not.toBeInTheDocument()
   })
 
   it('offers to stop the calendar feed only when there is one, and asks first', async () => {

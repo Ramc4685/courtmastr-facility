@@ -59,3 +59,12 @@ client-visible fields and personal bests on the portal when sharing is on.
 - Emailing a result to the client (`shareAssessmentResult`, FIT-05 P1).
 - PDF or CSV export of a client's history (FIT-03 names it; the series is in the API and on screen).
 - A scoring hook for later automated scoring (FIT-02 mentions one; nothing calls it yet).
+
+## Progress share links (phase 11 B, FIT-05)
+
+- A client (or a guardian acting for one) creates a read-only share link for their progress:
+  `POST /portal/progress-share-links` (label, 1 to 90 days, default 30), lists and revokes them. The token is shown
+  once in `{web_base_url}/progress#token=...` (fragment, never the query string); only its SHA-256 hash is stored,
+  audit never; the label is flag-only.
+- `POST /public/progress-shares/lookup` (token in the body, rate limited) returns the first name, the client-visible
+  results (latest 50) and bests. A wrong, expired or revoked token, or sharing switched off, is the same 404.

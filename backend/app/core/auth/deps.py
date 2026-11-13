@@ -135,6 +135,11 @@ def current_ctx(request: Request) -> Ctx:
     host_ref = _host_tenant(request)
     if host_ref is not None and host_ref.id != tenant_id:
         raise Unauthenticated("Host and token disagree")
+    if host_ref is None and (slug := request.headers.get("x-tenant-slug")):
+        # SSP-01: a slug naming another tenant than the session's is not found, never a cross-tenant hint.
+        slug_ref = resolve_tenant(slug=slug.lower())
+        if slug_ref is None or slug_ref.id != tenant_id:
+            raise NotFound("Unknown tenant", code="tenant-not-found")
     session = request_session(request, tenant_id)
     assert prefix in _authenticators, "no authenticator registered"
     principal = _authenticators[prefix](session, token)

@@ -2,18 +2,21 @@
 recording go through `clients.service.load` (C keys, own reach for coaches); deleting an entry is an `L` key on
 the entry's location. Values are health data: audit rows say that values changed, never what they are."""
 
-from datetime import datetime
+import hashlib
+import secrets
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
-from app.core import audit, events
+from app.core import audit, clock, events
 from app.core.api import CONSTRAINT_CODES
 from app.core.auth import Principal, authorize
 from app.core.auth.permissions import authorize_tenant_wide
 from app.core.errors import NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
+from app.core.settings import get_settings as app_settings
 from app.modules import clients, platform
 from app.modules.assessments.domain import progress
 from app.modules.assessments.events import ResultRecorded
@@ -23,6 +26,7 @@ from app.modules.assessments.models import (
     AssessmentResultValue,
     AssessmentSettings,
     AssessmentTemplate,
+    ProgressShareLink,
 )
 
 READ = "assessments.assessment.read"
@@ -310,7 +314,10 @@ def _names(session: Session, field_ids: set[UUID]) -> dict[UUID, tuple[Assessmen
 
 def portal_list_results(session: Session, principal: Principal, client_id: UUID | None, query: ListQuery) -> dict:
     """Entries of the acted-for client, client-visible fields only; an entry with none of them is left out."""
-    subject = _portal_client(session, principal, client_id)
+    return _visible_results(session, _portal_client(session, principal, client_id), query)
+
+
+def _visible_results(session: Session, subject: UUID, query: ListQuery) -> dict:
     visible = select(AssessmentResultValue.assessment_result_id).join(
         AssessmentField, AssessmentField.id == AssessmentResultValue.assessment_field_id
     ).where(AssessmentField.is_client_visible)  # fmt: skip
@@ -337,7 +344,10 @@ def portal_list_results(session: Session, principal: Principal, client_id: UUID 
 
 def portal_bests(session: Session, principal: Principal, client_id: UUID | None) -> list[dict]:
     """Personal best and latest value per client-visible field the client has a value for."""
-    subject = _portal_client(session, principal, client_id)
+    return _visible_bests(session, _portal_client(session, principal, client_id))
+
+
+def _visible_bests(session: Session, subject: UUID) -> list[dict]:
     rows = _series(session, subject, None, None, None, None, visible_only=True)
     names = _names(session, {r["assessment_field_id"] for r in rows})
     found = []
@@ -351,3 +361,77 @@ def portal_bests(session: Session, principal: Principal, client_id: UUID | None)
             "latest_value": row["latest_value"], "latest_recorded_at": row["points"][0]["recorded_at"],
         })  # fmt: skip
     return found
+
+
+# --- share links (FIT-05) ------------------------------------------------------------------------------------
+
+SHARE = "assessments.share_link.manage"  # audit key of a client's own action; no staff permission behind it
+SHARE_DAYS_MAX = 90
+
+
+def _digest(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _share_view(link: ProgressShareLink) -> dict:
+    return {
+        "id": link.id, "client_id": link.client_id, "label": link.label, "expires_at": link.expires_at,
+        "revoked_at": link.revoked_at, "created_at": link.created_at,
+        "is_active": link.revoked_at is None and link.expires_at > clock.now(),
+    }  # fmt: skip
+
+
+def portal_list_share_links(session: Session, principal: Principal, client_id: UUID | None) -> list[dict]:
+    subject = _portal_client(session, principal, client_id)
+    rows = session.scalars(
+        select(ProgressShareLink).where(ProgressShareLink.client_id == subject).order_by(ProgressShareLink.id.desc())
+    )
+    return [_share_view(row) for row in rows]
+
+
+def portal_create_share_link(session: Session, principal: Principal, data: dict) -> dict:
+    """A read-only link to the acted-for client's progress. The token is shown once: only its hash is kept, and
+    it rides in the URL fragment so it never reaches a server log or a Referer header (security-baseline 17.2)."""
+    subject = _portal_client(session, principal, data.get("client_id"))
+    token = secrets.token_urlsafe(32)
+    link = ProgressShareLink(
+        client_id=subject, token_hash=_digest(token), label=data.get("label"),
+        created_by_identity_id=principal.identity_id,
+        expires_at=clock.now() + timedelta(days=data.get("expires_in_days") or 30),
+    )  # fmt: skip
+    session.add(link)
+    session.flush()
+    audit.record(session, SHARE, link, changes={"created": [None, True], "has_label": [None, link.label is not None]})
+    return _share_view(link) | {"token": token, "url": f"{app_settings().app.web_base_url}/progress#token={token}"}
+
+
+def portal_revoke_share_link(session: Session, principal: Principal, share_link_id: UUID) -> None:
+    """Revoke one's own link (or one for a client one acts for). Idempotent; anyone else's is 404."""
+    link = session.get(ProgressShareLink, share_link_id)
+    if link is None:
+        raise NotFound()
+    _portal_client(session, principal, link.client_id)
+    if link.revoked_at is None:
+        link.revoked_at = clock.now()
+        audit.record(session, SHARE, link, changes={"revoked_at": [None, link.revoked_at.isoformat()]})
+        session.flush()
+
+
+def shared_progress(session: Session, token: str) -> dict:
+    """Anonymous: the progress a live link shows (first name, client-visible results and bests). A wrong,
+    expired or revoked token, or sharing switched off, is the same 404."""
+    link = session.scalar(select(ProgressShareLink).where(ProgressShareLink.token_hash == _digest(token)))
+    if (
+        link is None or link.revoked_at is not None or link.expires_at <= clock.now()
+        or not _settings(session).is_portal_sharing_enabled
+    ):  # fmt: skip
+        raise NotFound()
+    person = clients.service.get(session, link.client_id)
+    recent = _visible_results(session, link.client_id, ListQuery(50, None, None, False, None, {}))
+    return {
+        "first_name": person.first_name,
+        "expires_at": link.expires_at,
+        "time_zone": platform.service.location_time_zone(session, person.home_location_id),
+        "results": recent["data"],
+        "bests": _visible_bests(session, link.client_id),
+    }

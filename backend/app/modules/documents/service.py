@@ -8,6 +8,7 @@ command carries the gate (ADR 0009 section 9).
 
 import base64
 import binascii
+import hashlib
 from datetime import date, datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -16,7 +17,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, select, text, update
 from sqlalchemy.orm import Session
 
-from app.core import audit, clock, events
+from app.core import audit, clock, context, events
 from app.core.api import CONSTRAINT_CODES
 from app.core.auth import Principal, authorize, system_principal, tokens
 from app.core.errors import Conflict, DomainError, NotFound, ValidationFailed
@@ -36,6 +37,7 @@ from app.modules.documents.models import (
     DocumentSettings,
     DocumentTemplate,
     DocumentTemplateVersion,
+    TermsAcceptance,
 )
 from app.modules.platform import files
 from app.ports import notifications
@@ -409,6 +411,13 @@ def requirements_for(
         "requires_guardian": bool(template and _requires_guardian(session, template, client, today)),
         "is_blocking": binding.is_enforced_online if online else binding.is_enforced_at_desk,
     }]  # fmt: skip
+
+
+def blocks_new_client(session: Session, scope_type: str, scope_id: UUID | None, *, online: bool = False) -> bool:
+    """Internal: would a client with no documents yet be blocked in this scope (a guest, before any client
+    record exists)? True when a blocking binding applies, since nothing of theirs can satisfy it."""
+    binding = _binding_for(session, scope_type, scope_id)
+    return binding is not None and (binding.is_enforced_online if online else binding.is_enforced_at_desk)
 
 
 def get_requirements(session: Session, principal: Principal, scope_type: str, scope_id: UUID | None, client_id: UUID):
@@ -1218,16 +1227,55 @@ def portal_consent(session: Session, principal: Principal) -> dict:
             "pending_document_id": pending}  # fmt: skip
 
 
-def public_portal_terms(session: Session) -> dict:
-    """The text bound as portal terms (DOC-14), for the sign-up page."""
+def portal_terms_version(session: Session) -> tuple[DocumentBinding, dict] | None:
+    """The bound portal terms (DOC-14) as shown: title, body and `terms_version_id`, a digest of what is shown,
+    so any edit to the bound template, its published version or the custom text is a new version (SSP-14)."""
     binding = _active_binding(session, "portal_terms", None)
     if binding is None:
-        raise NotFound("No portal terms are set.")
+        return None
     if binding.custom_text:
-        return {"title": "Terms and conditions", "body_html": f"<p>{content.sanitize(binding.custom_text)}</p>"}
-    template = session.get(DocumentTemplate, binding.template_id)
-    version = session.get(DocumentTemplateVersion, template.current_version_id)
-    return {"title": template.name, "body_html": version_view(version)["body_html"]}
+        shown = {"title": "Terms and conditions", "body_html": f"<p>{content.sanitize(binding.custom_text)}</p>"}
+    else:
+        template = session.get(DocumentTemplate, binding.template_id)
+        version = session.get(DocumentTemplateVersion, template.current_version_id)
+        shown = {"title": template.name, "body_html": version_view(version)["body_html"]}
+    digest = hashlib.sha256(f"{binding.id}\n{shown['title']}\n{shown['body_html']}".encode()).hexdigest()
+    return binding, shown | {"terms_version_id": digest[:32]}
+
+
+def public_portal_terms(session: Session) -> dict:
+    """The text bound as portal terms (DOC-14), for the sign-up page and every portal sale (SSP-14)."""
+    found = portal_terms_version(session)
+    if found is None:
+        raise NotFound("No portal terms are set.")
+    return found[1]
+
+
+def record_terms_acceptance(
+    session: Session, *, client_id: UUID, terms_version_id: str | None, sale_kind: str, subject_id: UUID
+) -> None:  # fmt: skip
+    """Internal (registered as clients.terms): one acceptance row per portal sale, before secure_online_checkout.
+    The buyer must have been shown the current version, else 409 terms-changed with the current one."""
+    found = portal_terms_version(session)
+    if found is None:
+        return
+    binding, shown = found
+    if terms_version_id != shown["terms_version_id"]:
+        raise Conflict("The terms have changed. Read and accept them again.", code="terms-changed",
+                       terms_version_id=shown["terms_version_id"])  # fmt: skip
+    actor = session.info.get("actor")
+    row = TermsAcceptance(
+        client_id=client_id, binding_id=binding.id, terms_version_id=terms_version_id, sale_kind=sale_kind,
+        subject_id=subject_id, identity_id=getattr(actor, "identity_id", None), accepted_at=clock.now(),
+        ip=context.client_ip.get(),
+    )  # fmt: skip
+    session.add(row)
+    session.flush()
+    audit.record(session, "documents.terms.accept", row, changes={"sale_kind": sale_kind,
+                 "terms_version_id": terms_version_id})  # fmt: skip
+
+
+clients.terms.register(record_terms_acceptance)
 
 
 # --- sweeps (expiry, recovery window, links) ---------------------------------------------------------------------
@@ -1331,6 +1379,30 @@ platform.privacy.register_subject_handler(
     tables=("client_document", "document_acceptance", "client_document_status"),
     export=_export,
     erase=_erase,
+)
+
+
+# Terms acceptances (SSP-14) are the legal record of what a buyer agreed to, so an erasure keeps them
+# (security-baseline 4.3, like signed documents) but clears the IP address they came from; a merge moves them to
+# the survivor.
+def _repoint_terms(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
+    session.execute(update(TermsAcceptance).where(TermsAcceptance.client_id == loser_id).values(client_id=survivor_id))
+
+
+def _export_terms(session: Session, client_id: UUID) -> dict:
+    rows = session.scalars(select(TermsAcceptance).where(TermsAcceptance.client_id == client_id))
+    return {"terms_acceptances": [{"terms_version_id": r.terms_version_id, "sale_kind": r.sale_kind,
+                                   "accepted_at": r.accepted_at.isoformat()} for r in rows]}  # fmt: skip
+
+
+def _erase_terms(session: Session, client_id: UUID) -> dict:
+    kept = session.execute(update(TermsAcceptance).where(TermsAcceptance.client_id == client_id).values(ip=None))
+    return {"retained_terms_acceptances": kept.rowcount}
+
+
+clients.merge.register_merge_handler("documents_terms", tables=("terms_acceptance",), repoint=_repoint_terms)
+platform.privacy.register_subject_handler(
+    "documents_terms", tables=("terms_acceptance",), export=_export_terms, erase=_erase_terms
 )
 
 

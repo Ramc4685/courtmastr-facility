@@ -102,8 +102,19 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [x] [undocumented] `permissions.py` registers `documents.document.bulk_request` (`backend/app/modules/documents/permissions.py:19`) for the unbuilt DOC-07. The README names only `documents.document.void`, and doesn't note that this key exists unused. Docs batch.
 - [x] [wording] Line 66 says `app/scheduler.py` enqueues `sweep_documents` hourly, which is true (`backend/app/scheduler.py:22`). The actor's own docstring still says "Nothing schedules it yet (no scheduler in the kernel)" (`backend/app/modules/documents/service.py:1259-1261`), so code and README disagree. Here the code comment is the stale side. Docs batch.
 
-### engagement (10) — [evidence](drift/engagement.md)
+### engagement (13) — [evidence](drift/engagement.md)
 
+- [ ] [wording] README:9 says 15 tables; code has 21 (models.py:573-791 adds portal_signup, app_config, app_content, location_contact, app_inquiry, client_favorite, app_usage_day). File table (7-16) omits signup.py, content.py, member.py, domain/app_config.py, events.py, permissions.py, schemas.py and the two new web pages (App.tsx:206-207); subject.py now has five handler pairs (subject.py:110-124) plus `"engagement"` in service.py:340
+- [x] [contract] `getPortalVideo` is served on main (router `GET /portal/videos/{video_id}`); was: in openapi-programs.yaml:5446 with no route; service.get_portal_video (service.py:1882) is never called; not under Not built
+- [ ] [contract] `/public/portal-signups` and `/confirm` (router.py:511,525) are in no docs/api yaml
+- [ ] [wording] "Endpoints the mobile app depends on" names nonexistent `mobile/src/api/api.ts` (adapter is `mobile/src/adapters/api.ts`); app calls only inbox list/read and devices POST from the list (api.ts:253-256), and many routes it omits (app-config, app-directory, app-contents, contacts, trial-requests, feedback, favorites, app-usage, wallet, payments)
+- [ ] [undocumented] events campaign.sent, message.bounced, consent.changed, portal_signup.confirmed, app_config.updated (events.py:9-40) not in README
+- [ ] [undocumented] cross-context hooks: programs.selfservice.register_listing_presenter (service.py:1989), platform.branding.public_url_for_key (service.py:1984), core.db.platform.search_app_directory cross-tenant read (service.py:1985)
+- [ ] [undocumented] inbox items expire after INBOX_DAYS = 30 (service.py:355,953,1463,1252)
+- [ ] [undocumented] permission keys sms_campaign.send and inbox.reply registered, unused (permissions.py:19,23)
+- [ ] [undocumented] built-in segments read-only, SYSTEM_TEMPLATES catalogue, POST /segments/preview (router.py:126), suppression-permanent and invalid-state-transition errors
+- [ ] [undocumented] audit action engagement.app_inquiry.receive (content.py:32,259) is not a registered permission
+- [x] [contract] (fixed in 2a48ee1: the area opens for the member app keys) web `engagement/app` and `engagement/app-content` sit under a route needing engagement.campaign.read (App.tsx:196), so a role with only the Phase 11 keys cannot reach them
 - [x] [contract] The mobile-adapter path at line 112 is wrong. The README names `mobile/src/api/api.ts`, but that file does not exist. The adapter is `mobile/src/adapters/api.ts`; `mobile/src/api/` holds only `schema.d.ts`. Docs batch.
 - [x] [wording] Line 104's heading, "Endpoints the mobile app depends on (keep stable)", overstates what the app uses. The mobile adapter calls only `GET /portal/inbox` (without `client_id`), `POST /portal/inbox/{id}/read` and `POST /portal/devices` (`mobile/src/adapters/api.ts:178-182`). No code in `mobile/src` (excluding the generated `schema.d.ts`) calls `/portal/inbox/unread-count`, `DELETE /portal/devices/{id}`, `/portal/videos`, `/public/portal-config` or `/portal/clients/{client_id}/communication-preferences`. Docs batch.
 - [x] [wording] Lines 112-114 list the other portal routes the mobile adapter maps, and the list is incomplete. The adapter also calls `/portal/session-listings` (`mobile/src/adapters/api.ts:37`), `/portal/enrollments` and `/portal/enrollments/{id}/cancel` (`api.ts:90,126,133`), `/portal/app-cards` (`api.ts:118`) and `/portal/assessment-bests` (`api.ts:177`). Docs batch.
@@ -354,6 +365,16 @@ INT-13 analytics on registration pages (new 2026-11-13):
 
 ### staff (10) — [evidence](drift/staff.md)
 
+- [ ] [wording] Line 9 says `models.py` holds "the twelve tables of section 4 plus `bonus_rule`", which makes thirteen. Section 4 of `docs/architecture/data-model-money.md` already lists `bonus_rule` (data-model-money.md section 4, `#### bonus_rule (STF-04)`), and `models.py` defines exactly twelve tables, `bonus_rule` among them (`backend/app/modules/staff/models.py:93,122,160,185,215,228,247,266,299,325,358,390`). The models docstring that line 9 points to for "deviations" names only the network allow-list and the missing `client_id` (`models.py:1-6`). It says nothing about `bonus_rule`.
+- [ ] [wording] Line 36 says "The run has three sections", but the list that follows has four bullets: Sessions, Commissions, Bonuses, Hourly (lines 38-54). The code computes three `includes` groups (`sessions`, `commissions`, `hourly`), and bonuses ride on `sessions` (`models.py:335`; `service.py:1283-1291,1376-1378`).
+- [ ] [undocumented] Only `staff.shift.published` is documented (line 126). The context also publishes `staff.trainer.created` when a payee gets a calendar column (`events.py:9-15`; `service.py:173-177`), `staff.time_entry.closed` on clock-out (`events.py:18-23`; `service.py:588-592`), and `staff.payroll_run.finalized` on finalize (`events.py:26-29`; `service.py:1131`).
+- [ ] [undocumented] A finalized run can be voided: `void_run` accepts both `calculated` and `finalized` (`service.py:1135-1142`). Lines 34-35 describe the run as "calculated until it is finalized (frozen) or voided", which reads as if those are two alternative exits from `calculated`. Lines 111 and 128 depend on voiding a finalized run, but the README never states that it is allowed.
+- [ ] [undocumented] `GET /my-shifts` (`router.py:249-251`) is gated only by a signed-in staff login (`require()` with no key, `router.py:22`). `GET /time-entries/current` (`router.py:195`) is also missing from the README. The README documents other routes individually (lines 22-26) but neither of these.
+- [ ] [undocumented] Clock-in has preconditions and error codes the time-clock paragraph (lines 28-32) does not mention. Clock-in needs an hourly rate in force today for the chosen job, else a 422 on `/job_classification_id` (`service.py:545-549`). A punch outside the allowed networks is `403 network-not-allowed` (`service.py:550-551,578-579`). A second punch is `409 already-clocked-in` (`service.py:552-553`), and clocking out while not clocked in is `409 not-clocked-in` (`service.py:574-575,581-582`). The README names only `time-entry-overlap`.
+- [ ] [undocumented] Bonus rules pay nothing unless the payee has at least one pay-rate row or one session-completion rule. `_session_pay` returns early when `rates` and `rules` are both empty (`service.py:1313-1314`), before the bonus loop at `service.py:1376-1378`. Lines 50-53 present bonuses as paid whenever "sessions" is in `includes`, without this condition.
+- [ ] [undocumented] Taking the last trainer off a session that has no other resource is refused with `409 session-needs-resource` (`service.py:1016-1017`). The instructor-assignment paragraph (lines 22-26) mentions only `booking-conflict`.
+- [ ] [wording] Lines 68-69 ("`resource_id` adopts an existing trainer resource; otherwise one is created in `resource_group_id`...") sit inside the `own-sessions-only` bullet (lines 66-67) but describe trainer-payee creation (`service.py:152-162`; `resources/service.py:376-391`). They belong with the line 60 bullet.
+- [ ] [wording] Lines 16-20 list the cross-context reads that payroll uses. The list leaves out `memberships.eligibility` (`service.py:1356`), which line 98 says is used for membership-type pay. It also leaves out the write-side calls `platform.service.set_linked_resource` (`service.py:156,198`), `resources.service.trainer_group` and `resources.service.create_resource` (`service.py:158-162`).
 - [x] [wording] Line 9 says `models.py` holds "the twelve tables of section 4 plus `bonus_rule`", which makes thirteen. Section 4 of `docs/architecture/data-model-money.md` already lists `bonus_rule` (data-model-money.md section 4, `#### bonus_rule (STF-04)`), and `models.py` defines exactly twelve tables, `bonus_rule` among them (`backend/app/modules/staff/models.py:93,122,160,185,215,228,247,266,299,325,358,390`). The models docstring that line 9 points to for "deviations" names only the network allow-list and the missing `client_id` (`models.py:1-6`). It says nothing about `bonus_rule`. Docs batch.
 - [x] [wording] Line 36 says "The run has three sections", but the list that follows has four bullets: Sessions, Commissions, Bonuses, Hourly (lines 38-54). The code computes three `includes` groups (`sessions`, `commissions`, `hourly`), and bonuses ride on `sessions` (`models.py:335`; `service.py:1283-1291,1376-1378`). Docs batch.
 - [x] [undocumented] Only `staff.shift.published` is documented (line 126). The context also publishes `staff.trainer.created` when a payee gets a calendar column (`events.py:9-15`; `service.py:173-177`), `staff.time_entry.closed` on clock-out (`events.py:18-23`; `service.py:588-592`), and `staff.payroll_run.finalized` on finalize (`events.py:26-29`; `service.py:1131`). Docs batch.
@@ -368,6 +389,22 @@ INT-13 analytics on registration pages (new 2026-11-13):
 ## Added on this branch (drift refresh 2026-11-12)
 Found by re-running the drift reports against this branch's code. Merge these into the module checklists above when the branch lands.
 
+### access (+3) — [evidence](drift/access.md)
+
+- [ ] [stale-not-built] README:153 wallet pass "deferred" but built: /portal/wallet-passes (router.py:302-314), service.py:545-593, scan acceptance service.py:98-111,799; unsigned (is_signed)
+- [ ] [contract] /portal/wallet-passes routes not in contract; getWalletPass (:4717) still deferred, no route
+- [ ] [undocumented] handlers.py clients.client.disabled subscriber revokes wallet passes; README names no consumed event
+
+### platform (+3) — [evidence](drift/platform.md)
+
+- [ ] [undocumented] privacy.register_subject_handler (privacy.py:84) not in README:373-377
+- [ ] [wording] README:21-22 privacy "calls clients.service for erasure"; it only lazily imports clients.get (privacy.py:89-92), erasure via HANDLERS (privacy.py:176)
+- [ ] [missing] branding.public_url_for_key (branding.py:31) called by engagement/service.py:1924; branding not in README:21 "service, auth, staff only"
+
+### programs (+2) — [evidence](drift/programs.md)
+
+- [ ] [undocumented] selfservice.register_listing_presenter (selfservice.py:34-41,192-193; engagement/service.py:1929) not in README:14 or Rules
+- [ ] [undocumented] portal listing rows carry time_zone (schemas.py:516, selfservice.py:183-184)
 ### platform (+2) — [evidence](drift/platform.md)
 
 - [ ] [undocumented] service.location_todays (service.py:335) not in README:9 service row (README:326 names only earliest_today)

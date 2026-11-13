@@ -321,6 +321,12 @@ class RegistrationConfigPut(In):
     confirmation_message: Text | None = None
     public_slug: Annotated[str, StringConstraints(max_length=80)] | None = None
     portal_publish_name: Name | None = None
+    allows_guest_checkout: bool | None = None  # REG-12: off by default
+    # REG-10 (decision Q5): deposit now (each fee's deposit_minor), balance on a date or in equal instalments
+    payment_plan: Literal["pay_in_full", "deposit", "instalments"] | None = None
+    balance_due_on: date | None = None
+    instalment_count: Annotated[int, Field(ge=2, le=24)] | None = None
+    instalment_unit: Literal["week", "half_month", "month"] | None = None
 
 
 class RegistrationConfigOut(Out):
@@ -337,6 +343,11 @@ class RegistrationConfigOut(Out):
     is_portal_visible: bool
     portal_publish_name: str | None
     portal_published_at: datetime | None
+    allows_guest_checkout: bool
+    payment_plan: str
+    balance_due_on: date | None
+    instalment_count: int | None
+    instalment_unit: str | None
 
 
 # --- public listing (anonymous) -----------------------------------------------------------------------------
@@ -347,6 +358,7 @@ class PublicFee(Out):
     fee_kind: str
     description: str
     amount_minor: int
+    deposit_minor: int | None = None  # REG-10: paid at checkout when the group has a payment plan
 
 
 class PublicProgramGroup(Out):
@@ -361,6 +373,11 @@ class PublicProgramGroup(Out):
     payment_requirement: str
     confirmation_message: str | None
     closed_message: str | None
+    allows_guest_checkout: bool  # REG-12: a guest may check out without an account
+    payment_plan: str = "pay_in_full"
+    balance_due_on: date | None = None
+    instalment_count: int | None = None
+    instalment_unit: str | None = None
     fees: list[PublicFee]
     children: list["PublicProgramGroup"]
 
@@ -436,6 +453,7 @@ class PortalCheckoutConfirm(In):
     method_token: Annotated[str, StringConstraints(max_length=200)] | None = None
     payment_method_id: UUID | None = None
     pay_later: bool = False
+    terms_version_id: Annotated[str, StringConstraints(max_length=64)] | None = None  # the portal terms shown (SSP-14)
     coupon_code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)] | None = (
         None  # SSP-11
     )
@@ -468,6 +486,85 @@ class PortalCheckoutOut(Out):
     completed_at: datetime | None
     missing_documents: list[PortalMissingDocument]
     items: list[PortalCheckoutItem]
+    due_now_minor: int = 0  # REG-10: what checkout charges (before tax) when a group has a payment plan
+    instalments: list["PortalInstalment"] = []
+
+
+class PortalInstalment(Out):
+    due_on: date
+    amount_minor: int
+
+
+# --- guest checkout (REG-12, phase-11 Q6): anonymous, its own schemas ------------------------------------------
+
+GuestName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+GuestToken = Annotated[str, StringConstraints(min_length=10, max_length=200)]
+
+
+class GuestPayer(In):
+    first_name: GuestName
+    last_name: GuestName
+    email: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=3, max_length=254, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$"),
+    ]
+    phone_mobile: Annotated[str, StringConstraints(strip_whitespace=True, max_length=40)] | None = None
+    birth_on: date  # registration always requires it (clients LOCKED fields)
+
+
+class GuestParticipant(In):
+    first_name: GuestName
+    last_name: GuestName
+    birth_on: date  # registration always requires it; the email is the payer's
+
+
+class GuestItem(In):
+    program_group_id: UUID
+    program_fee_id: UUID | None = None
+    participant: Annotated[int, Field(ge=0, le=3)] | None = None  # index into participants; null: the payer
+
+
+class GuestCheckoutCreate(In):
+    location_id: UUID
+    payer: GuestPayer
+    participants: Annotated[list[GuestParticipant], Field(max_length=4)] = []
+    items: Annotated[list[GuestItem], Field(min_length=1, max_length=4)]  # with the per-IP hold cap (checkout)
+
+
+class GuestCheckoutConfirm(In):
+    """A guest pays in full by a new card: no stored methods, no account credit, no instalments."""
+
+    guest_token: GuestToken
+    method_token: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    coupon_code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)] | None = None
+    terms_version_id: Annotated[str, StringConstraints(max_length=64)] | None = None  # the portal terms shown (SSP-14)
+
+
+class GuestCheckoutToken(In):
+    guest_token: GuestToken
+
+
+class GuestCheckoutItem(Out):
+    id: UUID
+    client_name: str
+    program_group_id: UUID
+    program_group_name: str
+    amount_minor: int
+    status: str
+
+
+class GuestCheckoutOut(Out):
+    id: UUID
+    location_id: UUID
+    status: str
+    total_minor: int
+    expires_at: datetime
+    completed_at: datetime | None
+    items: list[GuestCheckoutItem]
+    guest_token: str | None = None  # only on create: keep it in memory to confirm or abandon
+    provider: str | None = None  # only on create: the processor the card is tokenised for, None when none
+    publishable_key: str | None = None
+    account_ref: str | None = None
 
 
 # --- session booking policy and self-service (CLS-09) -------------------------------------------------------
@@ -519,6 +616,7 @@ class BookingPolicyOut(Out):
 class PortalSessionListing(Out):
     session_id: UUID
     location_id: UUID
+    time_zone: str  # the session's location IANA zone: show its wall time there (APP-16)
     title: str | None
     starts_at: datetime
     ends_at: datetime
@@ -526,6 +624,7 @@ class PortalSessionListing(Out):
     is_bookable: bool
     can_join_waitlist: bool
     reason: str | None
+    reservation_type_id: UUID | None = None  # SSP-08: which online package plans cover it
 
 
 class PortalEnrollmentCreate(In):
@@ -564,6 +663,7 @@ class PortalWaitlistJoin(In):
 
 class PortalWaitlistOut(Out):
     id: UUID
+    location_id: UUID
     client_id: UUID
     target_kind: str
     session_id: UUID | None

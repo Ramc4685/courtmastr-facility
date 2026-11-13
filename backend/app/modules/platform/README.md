@@ -418,3 +418,13 @@ new migration.
 - An editor limited to some locations replaces only the part of a colleague's location set it reaches;
   the colleague's other locations (and their primary flag, unless a new primary is given) are kept. A
   colleague with access to every location can be changed only by an editor with the same.
+
+## Portal theme and slug check (Phase 11 chip A: SSP-14, SSP-01)
+
+- `tenant.brand_primary_color` and `brand_accent_color` (`#rrggbb`, lower-cased, nullable) are set with
+  `PATCH /tenant` and published in `GET /public/branding`. The web portal uses them only where they pass WCAG AA
+  (primary 4.5:1 against white, accent 3:1) and never in dark mode; otherwise the product colours stay.
+- `auth.sign_in_verified` starts a session (or the MFA challenge) for an identity whose email was just proven,
+  used by portal sign-up. `cookie_flags` moved here from the router.
+- Core change (`core/auth/deps.py` `current_ctx`, approved): a signed-in request carrying `X-Tenant-Slug` that
+  names a different or unknown tenant is 404 `tenant-not-found`, with one body for both.

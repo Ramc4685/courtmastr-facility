@@ -470,3 +470,28 @@ class PortalAppCardOut(Out):
     client_id: UUID
     device_label: str | None
     issued_at: datetime
+
+
+class PortalWalletPassCreate(In):
+    client_id: UUID
+    device_label: Annotated[str, StringConstraints(strip_whitespace=True, max_length=80)] | None = None
+
+
+class PortalWalletPassIssued(Out):
+    """The pass document, returned once. `is_signed` is false while only the fake issuer exists (CHK-13 partial)."""
+
+    credential_id: UUID
+    client_id: UUID
+    device_label: str | None
+    issued_at: datetime
+    format: str
+    media_type: str
+    content: str
+    is_signed: bool
+
+
+class PortalWalletPassOut(Out):
+    credential_id: UUID
+    client_id: UUID
+    device_label: str | None
+    issued_at: datetime

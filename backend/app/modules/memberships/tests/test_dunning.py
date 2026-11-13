@@ -207,3 +207,17 @@ def test_an_open_plan_default_follows_the_channel_setting(w, client, owner):
     assert sell_at(other, JAN1)["is_autopay"] is True
     fixed = world(client, owner, w.tenant, is_autopay_default=False)
     assert sell_at(fixed, JAN1)["is_autopay"] is False  # the plan's own default wins
+
+
+def test_mem_09_portal_buy_with_a_stored_method(w, client, owner):
+    """MEM-09 (phase 11 B): a portal buyer pays what is due now with a card already on file."""
+    online = membership_plan(client, owner, w.tenant, is_sold_online=True)
+    person = new_client(client, owner, w.location_id)
+    member = _member(w.tenant, person["id"])
+    with tx(w.tenant) as session:
+        card = billing.methods.attach_method(session, UUID(person["id"]), "tok_card_ok").id
+    buy = {"membership_plan_id": UUID(online["id"]), "location_id": UUID(w.location_id), "payment_method_id": card}
+    with tx(w.tenant) as session:
+        session.info["actor"] = member
+        bought = service.portal_buy(session, member, buy, f"k-{uuid4().hex}")
+    assert bought["payment_status"] == "succeeded"

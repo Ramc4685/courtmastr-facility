@@ -14,11 +14,13 @@ import { OidcCallbackPage, OidcLinkPage } from '../features/auth/oidc'
 import { IntegrationsPage } from '../features/integrations/IntegrationsPage'
 import { QuickBooksCallbackPage } from '../features/integrations/QuickBooksCallbackPage'
 import { PayLinkPage } from '../features/billing/PayLinkPage'
+import { AppConfigPage } from '../features/engagement/AppConfigPage'
 import { AutomationsPage, RemindersPage } from '../features/engagement/AutomationPages'
 import { CampaignDetailPage } from '../features/engagement/CampaignDetailPage'
 import { CampaignsPage } from '../features/engagement/CampaignsPage'
 import { EngagementLayout } from '../features/engagement/EngagementLayout'
 import { SegmentsPage, TemplatesPage as MessageTemplatesPage } from '../features/engagement/LibraryPages'
+import { MEMBER_CONTENT_KEYS, MemberContentPage } from '../features/engagement/MemberContentPage'
 import { MessageLogPage, SuppressionsPage } from '../features/engagement/MessagesPages'
 import { PortalSettingsPage } from '../features/engagement/PortalPage'
 import { UnsubscribePage } from '../features/engagement/UnsubscribePage'
@@ -33,6 +35,7 @@ import { MembershipsPage } from '../features/memberships/MembershipsPage'
 import { PackagesPage } from '../features/packages/PackagesPage'
 import { PublicDirectLinkPage } from '../features/scheduling/sharing'
 import { PortalApp } from '../features/portal/PortalApp'
+import { PublicProgressPage } from '../features/portal/PublicProgressPage'
 import { AuditLogPage } from '../features/platform/AuditLogPage'
 import { DashboardPage } from '../features/platform/DashboardPage'
 import { WhatsNewPage } from '../features/platform/WhatsNewPage'
@@ -77,6 +80,7 @@ import { StatementsPage } from '../features/billing/StatementsPage'
 import { SetupPage as BillingSetupPage } from '../features/billing/SetupPage'
 import { WorkbenchPage } from '../features/billing/WorkbenchPage'
 import { EXPORT_KEY, RUN_KEYS } from '../features/reporting/queries'
+import { FacilityApp } from '../features/entry/FacilityApp'
 import { ReportRunRoute } from '../features/reporting/ReportRunPage'
 import { ReportsPage } from '../features/reporting/ReportsPage'
 import { ExportJobPage } from '../features/reporting/ExportJobPage'
@@ -145,12 +149,14 @@ export function AppRoutes() {
       <Route path="/auth/oidc/callback" element={<OidcCallbackPage />} />
       <Route path="/auth/oidc/link" element={<OidcLinkPage />} />
       <Route path="/pay" element={<PayLinkPage />} />
+      <Route path="/progress" element={<PublicProgressPage />} />
       <Route path="/sign" element={<PublicSignPage />} />
       <Route path="/direct-link" element={<PublicDirectLinkPage />} />
       <Route path="/unsubscribe" element={<UnsubscribePage />} />
       <Route path="/leagues/public" element={<PublicLeaguesPage />} />
       <Route path="/forms/:id" element={<PublicFormPage />} />
       <Route path="/leagues/public/:id" element={<PublicLeaguesPage />} />
+      <Route path="/f/:slug/*" element={<FacilityApp />} />
       <Route path="/leagues/board/:locationId" element={<LeagueBoardPage />} />
       <Route path="/portal/*" element={<RequireClient><PortalApp /></RequireClient>} />
       <Route path="/kiosk" element={<KioskPage />} />
@@ -215,16 +221,19 @@ export function AppRoutes() {
           <Route path="setup" element={<RequirePermission permission="staff.time_entry.manage"><StaffSetupPage /></RequirePermission>} />
         </Route>
         <Route path="assessments/setup" element={<RequirePermission permission="assessments.definition.manage"><AssessmentSetupPage /></RequirePermission>} />
-        <Route path="engagement" element={<RequirePermission permission="engagement.campaign.read"><EngagementLayout /></RequirePermission>}>
-          <Route index element={<CampaignsPage />} />
-          <Route path="campaigns/:id" element={<CampaignDetailPage />} />
-          <Route path="templates" element={<MessageTemplatesPage />} />
-          <Route path="segments" element={<SegmentsPage />} />
-          <Route path="messages" element={<MessageLogPage />} />
+        {/* The member app pages have their own keys, so the area opens for those too; campaign pages keep campaign.read. */}
+        <Route path="engagement" element={<RequirePermission permission={['engagement.campaign.read', 'engagement.portal_settings.manage', ...MEMBER_CONTENT_KEYS]}><EngagementLayout /></RequirePermission>}>
+          <Route index element={<RequirePermission permission="engagement.campaign.read"><CampaignsPage /></RequirePermission>} />
+          <Route path="campaigns/:id" element={<RequirePermission permission="engagement.campaign.read"><CampaignDetailPage /></RequirePermission>} />
+          <Route path="templates" element={<RequirePermission permission="engagement.campaign.read"><MessageTemplatesPage /></RequirePermission>} />
+          <Route path="segments" element={<RequirePermission permission="engagement.campaign.read"><SegmentsPage /></RequirePermission>} />
+          <Route path="messages" element={<RequirePermission permission="engagement.campaign.read"><MessageLogPage /></RequirePermission>} />
           <Route path="suppressions" element={<RequirePermission permission="engagement.suppression.manage"><SuppressionsPage /></RequirePermission>} />
           <Route path="automations" element={<RequirePermission permission="engagement.automation.manage"><AutomationsPage /></RequirePermission>} />
           <Route path="reminders" element={<RequirePermission permission="engagement.notification_rule.manage"><RemindersPage /></RequirePermission>} />
-          <Route path="portal" element={<PortalSettingsPage />} />
+          <Route path="portal" element={<RequirePermission permission={['engagement.portal_settings.manage', 'engagement.app_content.manage']}><PortalSettingsPage /></RequirePermission>} />
+          <Route path="app" element={<RequirePermission permission="engagement.app_content.manage"><AppConfigPage /></RequirePermission>} />
+          <Route path="app-content" element={<RequirePermission permission={MEMBER_CONTENT_KEYS}><MemberContentPage /></RequirePermission>} />
         </Route>
         <Route path="clients" element={<RequirePermission permission="clients.client.read"><ClientsPage /></RequirePermission>} />
         <Route path="clients/merge" element={<RequirePermission permission="clients.client.merge"><MergePage /></RequirePermission>} />

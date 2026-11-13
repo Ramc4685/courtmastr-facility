@@ -3,7 +3,6 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 
 import { portal } from '../adapters';
-import { NotAvailable } from '../adapters/types';
 import { ApiError } from '../api/errors';
 import { useApp } from '../lib/app-state';
 import { lookupTenant, normaliseSlug } from '../lib/tenant';
@@ -45,21 +44,19 @@ export default function Facilities() {
       <Surface>
         {directory.isLoading ? (
           <Loading />
-        ) : directory.error instanceof NotAvailable ? (
-          <Empty text="Search by name is not available yet. Enter the facility code below." />
         ) : directory.error ? (
           <ErrorBox error={directory.error} />
         ) : directory.data?.length ? (
           directory.data.map((entry) => (
             <Row
-              key={entry.tenant_id}
+              key={entry.slug}
               title={entry.name}
-              subtitle={[entry.city, busy === entry.host ? 'Opening…' : null].filter(Boolean).join(' · ')}
-              onPress={() => open(entry.host)}
+              subtitle={[entry.city, busy === entry.slug ? 'Opening…' : null].filter(Boolean).join(' · ')}
+              onPress={() => open(entry.slug)}
             />
           ))
         ) : (
-          <Empty text="No facilities match. Try the facility code instead." />
+          <Empty text={q.trim().length < 2 ? 'Type at least two letters of the facility name.' : 'No facilities match. Try the facility code instead.'} />
         )}
       </Surface>
       <Heading>Have a facility code?</Heading>

@@ -1957,6 +1957,12 @@ def update_session(session: Db, principal: Principal, session_id: UUID, data: di
     return _session_views(session, [seat])[0]
 
 
+def reservation_type_exists(session: Db, reservation_type_id: UUID) -> bool:
+    """Internal: an active reservation type of the tenant (programs passes it on to engagement's favourites)."""
+    found = select(ReservationType.id).where(ReservationType.id == reservation_type_id, ReservationType.is_active)
+    return session.scalar(found) is not None
+
+
 def change_capacity(session: Db, principal: Principal, session_ids: list[UUID], capacity: int) -> dict:
     """Single or bulk class-size change (CLS-04). A session with more seats taken than the new size is
     reported as capacity-below-booked and left alone."""

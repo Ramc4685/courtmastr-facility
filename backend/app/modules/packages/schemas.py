@@ -217,8 +217,10 @@ class PortalPackageBuy(In):
     location_id: UUID
     client_id: UUID | None = None  # who the package is for; default: the signed-in client
     quantity: Count | None = None
+    terms_version_id: Annotated[str, StringConstraints(max_length=64)] | None = None  # the portal terms shown (SSP-14)
     tender_kind: Literal["card", "bank_debit"] = "card"
     method_token: Annotated[str, StringConstraints(max_length=200)] | None = None
+    payment_method_id: UUID | None = None  # one of the payer's stored methods, instead of a new token
     coupon_code: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)] | None = (
         None  # SSP-11
     )
@@ -235,6 +237,22 @@ class PackageQuoteOut(Out):
     occurrences_count: int | None
     is_member_required: bool
     is_member: bool
+    requirements: list[dict[str, Any]]
+
+
+class PortalPackageQuoteOut(Out):
+    """The portal's own preview shape (portalQuoteClientPackage); pre-tax, before any coupon."""
+
+    name: str
+    is_unlimited: bool
+    sessions_granted_count: int
+    price_minor: int
+    unit_price_minor: int | None
+    valid_from_on: date
+    valid_until_on: date | None
+    occurrences_count: int | None
+    is_member: bool
+    online_sale_mode: str
     requirements: list[dict[str, Any]]
 
 

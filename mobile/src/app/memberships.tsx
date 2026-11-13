@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
+import { router } from 'expo-router';
 
 import { portal, type ClientPackage, type MembershipContract } from '../adapters';
 import { useApp } from '../lib/app-state';
+import { useAppConfig } from '../lib/hooks';
 import { clientName, useHousehold } from '../lib/household';
 import { formatDate, formatMoney } from '../ui/format';
-import { Badge, Body, DemoBanner, Empty, ErrorBox, Heading, Loading, Screen, Small, Surface } from '../ui/kit';
+import { Badge, Body, Button, DemoBanner, Empty, ErrorBox, Heading, Loading, Screen, Small, Surface } from '../ui/kit';
 import { ProfileSwitcher } from '../ui/ProfileSwitcher';
 
 const statusTone = (s: MembershipContract['status'] | ClientPackage['status']) =>
@@ -15,6 +17,7 @@ export default function Memberships() {
   const { actingFor } = useHousehold();
   const clientId = actingFor?.client.id;
   const contracts = useQuery({ queryKey: ['memberships', tenant?.slug, clientId], queryFn: () => portal.listMemberships(clientId!), enabled: !!clientId });
+  const purchasesOn = useAppConfig().data?.features.purchases ?? true;
   const packages = useQuery({ queryKey: ['packages', tenant?.slug, clientId], queryFn: () => portal.listPackages(clientId!), enabled: !!clientId });
 
   return (
@@ -47,7 +50,7 @@ export default function Memberships() {
           {p.valid_during[1] ? <Small>Valid until {formatDate(p.valid_during[1])}</Small> : null}
         </Surface>
       ))}
-      <Small>Buying memberships and packages in the app arrives with the payment sheet (APP-19).</Small>
+      {purchasesOn && <Button label="Buy a membership or package" onPress={() => router.push('/buy')} />}
     </Screen>
   );
 }

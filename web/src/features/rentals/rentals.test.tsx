@@ -94,3 +94,41 @@ describe('RentalSetupPage', SCREEN, () => {
     })
   })
 })
+
+describe('RentalSetupPage online booking (SSP-04)', SCREEN, () => {
+  it('saves the location defaults, blanks as no override', async () => {
+    const calls = renderAsStaff(<RentalSetupPage />, [...ALL, 'rentals.portal_setting.manage'], {
+      ...base,
+      'GET /api/v1/rental-plans': page([]),
+      'GET /api/v1/locations/l1/rental-portal-settings': { status: 200, body: { location_id: 'l1', is_online_enabled: true, min_lead_min: 120, max_length_min: null, horizon_days: 14 } },
+      'PUT /api/v1/locations/l1/rental-portal-settings': (call) => ({ status: 200, body: { location_id: 'l1', ...(call.body as object) } }),
+    })
+    await userEvent.click(await screen.findByRole('tab', { name: 'Online booking' }))
+    const horizon = await screen.findByRole('spinbutton', { name: 'Book up to (days ahead)' })
+    expect(horizon).toHaveValue(14)
+    await userEvent.clear(horizon)
+    await userEvent.type(screen.getByRole('spinbutton', { name: 'Longest booking (minutes)' }), '120')
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Members can book rentals online here' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save online booking' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'PUT')).toBe(true))
+    expect(calls.find((c) => c.method === 'PUT')?.body).toEqual({ is_online_enabled: false, min_lead_min: 120, max_length_min: 120, horizon_days: null })
+  })
+
+  it('shows whether the member portal is on here and links to its settings', async () => {
+    renderAsStaff(<RentalSetupPage />, [...ALL, 'rentals.portal_setting.manage', 'engagement.portal_settings.manage'], {
+      ...base,
+      'GET /api/v1/rental-plans': page([]),
+      'GET /api/v1/locations/l1/rental-portal-settings': { status: 200, body: { location_id: 'l1', is_online_enabled: true, min_lead_min: null, max_length_min: null, horizon_days: null } },
+      'GET /api/v1/locations/l1/portal-settings': { status: 200, body: { location_id: 'l1', is_enabled: false } },
+    })
+    await userEvent.click(await screen.findByRole('tab', { name: 'Online booking' }))
+    expect(await screen.findByText(/member portal at this location is/)).toHaveTextContent('The member portal at this location is off.')
+    expect(screen.getByRole('link', { name: 'Portal settings' })).toHaveAttribute('href', '/engagement/portal')
+  })
+
+  it('hides the tab without the permission', async () => {
+    renderAsStaff(<RentalSetupPage />, ALL, { ...base, 'GET /api/v1/rental-plans': page([]) })
+    expect(await screen.findByRole('tab', { name: 'Types and rates' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Online booking' })).not.toBeInTheDocument()
+  })
+})

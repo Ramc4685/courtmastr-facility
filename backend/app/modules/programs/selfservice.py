@@ -6,6 +6,7 @@ it. A location with no default row uses `BUILT_IN` (module README). The acting c
 identity's own record or someone it may book for (`can_act_for(..., "book")`); anything else is 404.
 """
 
+from collections.abc import Callable
 from datetime import timedelta
 from uuid import UUID
 
@@ -18,7 +19,7 @@ from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
 from app.modules import clients, memberships, platform, scheduling
 from app.modules.programs import groups, service
-from app.modules.programs.models import Enrollment, SessionBookingPolicy, WaitlistEntry
+from app.modules.programs.models import Enrollment, ProgramGroup, SessionBookingPolicy, WaitlistEntry
 
 POLICY = "engagement.portal_settings.manage"  # engagement owns the key; programs may not import engagement
 # League managers kept booking policies through this key; it stays accepted so no role loses them without the
@@ -41,6 +42,14 @@ BUILT_IN = {
     "hides_full_sessions": False, "booking_cutoff_minutes": 0, "allows_self_cancel": True,
     "cancel_notice_minutes": 0, "waitlist_mode": "auto_promote",
 }  # fmt: skip
+# Contexts above programs narrow the portal listing (engagement's app schedule flags, APP-18) without programs
+# importing them: each takes and returns the listing rows.
+_presenters: list[Callable[[Db, list[dict]], list[dict]]] = []
+
+
+def register_listing_presenter(present: Callable[[Db, list[dict]], list[dict]]) -> None:
+    if present not in _presenters:
+        _presenters.append(present)
 
 
 # --- policy (staff) -------------------------------------------------------------------------------------------
@@ -171,7 +180,7 @@ def list_listings(session: Db, principal: Principal, client_id: UUID | None, fil
         resource_id=filters.get("resource_id"),
     )  # fmt: skip
     member = memberships.service.is_member(session, subject)
-    out, cache = [], {}
+    out, cache, zones = [], {}, {}
     for seat in seats:
         key = (seat["location_id"], seat["reservation_type_id"])
         policy = cache.get(key) or cache.setdefault(key, effective(session, *key))
@@ -185,13 +194,17 @@ def list_listings(session: Db, principal: Principal, client_id: UUID | None, fil
         out.append(
             {
                 "session_id": seat["id"], "location_id": seat["location_id"],
+                "time_zone": zones.get(seat["location_id"]) or zones.setdefault(
+                    seat["location_id"], platform.service.location_time_zone(session, seat["location_id"])),
                 "title": seat["public_title"] or seat["title"], "starts_at": seat["starts_at"],
                 "ends_at": seat["ends_at"], "spots_left": max(seat["capacity"] - seat["booked_count"], 0),
                 "is_bookable": reason is None,
                 "can_join_waitlist": reason == "full" and policy["waitlist_mode"] != "disabled",
-                "reason": reason,
+                "reason": reason, "reservation_type_id": seat["reservation_type_id"],
             }
         )  # fmt: skip
+    for present in _presenters:
+        out = present(session, out)
     return out
 
 
@@ -261,10 +274,20 @@ def _own_row(session: Db, principal: Principal, model, row_id: UUID):
 
 def own_place(session: Db, principal: Principal, enrollment_id: UUID) -> dict:
     """Internal read (integrations, the virtual-session join): an enrolment the portal caller may act for, or
-    NotFound. Returns its client, session, location and status."""
+    NotFound. Returns its client, session, group, location and status, and the sessions it sits in."""
     row = _own_row(session, principal, Enrollment, enrollment_id)
-    return {"client_id": row.client_id, "session_id": row.session_id, "location_id": row.location_id,
-            "status": row.status}  # fmt: skip
+    place = {"client_id": row.client_id, "session_id": row.session_id, "program_group_id": row.program_group_id,
+             "location_id": row.location_id, "status": row.status}  # fmt: skip
+    return place | {"session_ids": covered_session_ids(session, place)}
+
+
+def covered_session_ids(session: Db, place: dict) -> list[UUID]:
+    """Internal read (integrations): the sessions a place sits in. A session booking is its own session; a group
+    registration takes a seat in every session linked to its group or an ancestor (CLS-10), not a sibling's."""
+    if place["session_id"] is not None:
+        return [place["session_id"]]
+    group = session.get(ProgramGroup, place["program_group_id"]) if place["program_group_id"] else None
+    return groups._linked_sessions(session, [node.id for node in groups._chain(session, group)]) if group else []
 
 
 def portal_cancel(session: Db, principal: Principal, enrollment_id: UUID) -> Enrollment:

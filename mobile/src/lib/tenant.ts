@@ -44,16 +44,17 @@ export async function cachedBrand(slug: string): Promise<{ brand: TenantBrand; s
   return demo ? { brand: demo, source: 'demo' } : { brand: BUNDLED_BRAND, source: 'bundled' };
 }
 
-/** Fetch GET /public/app-config (planned). In demo mode, or when it fails, keep what we have. */
+/** Fetch GET /public/app-config. In demo mode, or when it fails, keep what we have. */
 export async function fetchBrand(slug: string): Promise<TenantBrand | null> {
   if (config.portalAdapter === 'demo') return null;
   try {
     const cfg = await portal.getAppConfig();
+    // Colours are the tenant brand colours; null keeps the bundled ones (theme.ts checks contrast either way).
     const brand: TenantBrand = {
-      primary: cfg.theme.primary,
-      accent: cfg.theme.accent,
+      primary: cfg.theme.primary ?? undefined,
+      accent: cfg.theme.accent ?? undefined,
       appName: cfg.app_name,
-      logoUrl: cfg.theme.logo_url ?? cfg.icon_url,
+      logoUrl: cfg.icon_url,
     };
     await writeJson(brandKey(slug), brand);
     return brand;

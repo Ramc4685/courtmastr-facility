@@ -112,9 +112,7 @@ def _session_body(row, principal) -> dict:
     }  # fmt: skip
 
 
-def _cookie_flags() -> dict:
-    # Path=/; Secure; HttpOnly; SameSite=Lax and nothing else: no Domain, no Max-Age (security-baseline 5.2).
-    return {"path": "/", "httponly": True, "secure": get_settings().auth.cookie_secure, "samesite": "lax"}
+_cookie_flags = auth.cookie_flags
 
 
 def _session_out(grant: auth.Grant, response: Response) -> dict:

@@ -36,6 +36,8 @@ class PublicLocationLogo(Out):
 
 class PublicBranding(Out):
     tenant_logo_url: str | None
+    primary_color: str | None  # SSP-14: #rrggbb; the portal checks contrast and may fall back
+    accent_color: str | None
     locations: list[PublicLocationLogo]
 
 

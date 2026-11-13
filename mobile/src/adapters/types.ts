@@ -1,25 +1,29 @@
 // The app-facing shapes. api.ts maps the real member-portal API (backend/openapi.json) onto them, so screens
 // and the demo adapter share one shape. Fields the portal does not return are null or empty, never guessed.
+import type { components } from '../api/schema';
 
-/** The portal has no endpoint for this yet; the screen shows a "not available yet" state. */
-export class NotAvailable extends Error {
-  constructor(readonly what: string) {
-    super(`${what} is not available yet.`);
-  }
-}
+type S = components['schemas'];
 
 export type Page<T> = { data: T[]; page: { next_cursor: string | null; has_more: boolean } };
 
 /** openapi-programs searchAppDirectory -> AppDirectoryEntry */
-export type DirectoryEntry = { tenant_id: string; name: string; city: string | null; icon_url: string | null; host: string };
+export type DirectoryEntry = { slug: string; name: string; city: string | null; icon_url: string | null };
 
-/** openapi-programs getPublicAppConfig -> PublicAppConfig (theme is free-form JSON on the server) */
+/** APP-04 home layout: ordered tiles from the catalogue (lib/tiles.tsx) and one global design. */
+export type HomeScreen = {
+  tiles: { type: string; caption: string | null; style: 'large' | 'small' }[];
+  design: { columns: 1 | 2; corners: 'rounded' | 'square' };
+};
+
+/** openapi-programs getPublicAppConfig -> PublicAppConfig. Colours are the tenant brand colours (null = bundled). */
 export type AppConfig = {
-  tenant_id: string;
   app_name: string;
   icon_url: string | null;
-  theme: { primary?: string; accent?: string; logo_url?: string | null };
-  features?: Record<string, unknown>;
+  theme: { primary?: string | null; accent?: string | null };
+  features: { booking: boolean; purchases: boolean; membership_card: boolean; wallet_pass: boolean };
+  home_screen: HomeScreen | null;
+  /** The facility's ISO currency (public portal config); money shows in it, never a guessed default. */
+  currency: string;
 };
 
 /** openapi-people portalListActableClients -> ActableClient */
@@ -52,6 +56,9 @@ export type AppCard = {
 export type SessionListing = {
   session_id: string;
   name: string;
+  location_id: string | null;
+  /** The session location's IANA zone (APP-16): times show in it, not the phone's zone. */
+  time_zone: string | null;
   starts_at: string;
   ends_at: string;
   resource_name: string | null;
@@ -112,6 +119,7 @@ export type PortalInvoice = {
   due_on: string;
   is_autopay: boolean;
   status: 'open' | 'payment_pending' | 'partially_paid' | 'paid' | 'voided';
+  currency: string;
   total_minor: number;
   balance_minor: number;
   is_past_due: boolean;
@@ -129,8 +137,30 @@ export type PortalPayment = {
   currency: string;
   status: 'initiated' | 'requires_action' | 'processing' | 'succeeded' | 'failed' | 'cancelled';
   invoice_ids: string[];
-  next_action: { kind: string; provider: string } | null;
+  next_action: { kind: string; provider: string; client_secret?: string } | null;
 };
+
+/** listPortalPackagePlans / listPublicMembershipPlans, reduced to what the buy screen shows. */
+export type PlanOffer = { kind: 'package' | 'membership'; id: string; name: string; price_minor: number | null; currency: string | null; detail: string | null };
+
+/** The result of a portal sale (PortalPackageSaleOut / PortalContractSaleOut subset). */
+export type Sale = { id: string; name: string; payment_status: string | null };
+
+/** openapi-money PortalWalletPassOut; `content` only on issue (the pass file, shown once). */
+export type WalletPass = {
+  credential_id: string;
+  client_id: string;
+  device_label: string | null;
+  issued_at: string;
+  format?: string;
+  media_type?: string;
+  content?: string;
+  is_signed?: boolean;
+};
+
+/** The processor behind online checkout (GET /portal/payment-methods/processor). The app supports the fake one in
+ * development; real cards need the processor's native sheet, which is not bundled yet. */
+export type CheckoutProvider = 'fake' | 'stripe' | null;
 
 /** openapi-programs InboxItem */
 export type InboxItem = {
@@ -167,6 +197,14 @@ export type DeviceRegistration = {
   is_push_enabled?: boolean;
 };
 
+/** Phase 11 C2 (APP-07..14, APP-17): these match the portal schemas one to one. */
+export type AppContent = S['PortalAppContent'];
+export type LocationContact = S['PublicLocationContact'];
+export type TrialRequest = S['PublicTrialRequestIn'];
+export type Favorite = S['PortalFavorite'];
+export type FavoriteSession = S['PortalFavoriteScheduleItem'];
+export type UsageItem = S['PortalAppUsageItem'];
+
 /** Everything the member app reads from the portal. One implementation per data source. */
 export interface PortalAdapter {
   readonly isDemo: boolean;
@@ -174,7 +212,7 @@ export interface PortalAdapter {
   getAppConfig(): Promise<AppConfig>;
   listActableClients(): Promise<ActableClient[]>;
   issueAppCard(clientId: string, deviceLabel: string): Promise<AppCard>;
-  listSessionListings(args: { clientId: string; from: string; to: string }): Promise<SessionListing[]>;
+  listSessionListings(args: { clientId: string; from: string; to: string; locationId?: string | null }): Promise<SessionListing[]>;
   createEnrollment(args: { clientId: string; sessionId: string; clientPackageId?: string | null; idempotencyKey: string }): Promise<Enrollment>;
   cancelEnrollment(enrollmentId: string): Promise<Enrollment>;
   listBookings(clientId: string): Promise<Booking[]>;
@@ -183,8 +221,32 @@ export interface PortalAdapter {
   listInvoices(clientId: string): Promise<PortalInvoice[]>;
   listPaymentMethods(): Promise<PaymentMethod[]>;
   payInvoices(args: { invoiceIds: string[]; paymentMethodId: string; idempotencyKey: string }): Promise<PortalPayment>;
+  /** Fake processor only: approve or fail the bank check for a payment that came back requires_action. */
+  authenticatePayment(args: { clientSecret: string; approve: boolean }): Promise<void>;
+  /** confirmPortalPayment: re-read the payment after the bank check and apply it. Safe to repeat. */
+  confirmPayment(args: { paymentId: string; invoiceIds: string[]; idempotencyKey: string }): Promise<PortalPayment>;
+  checkoutProvider(): Promise<CheckoutProvider>;
+  /** For the acting client; `currency` is null when the plan does not carry one (the facility's applies). */
+  listOffers(clientId: string): Promise<PlanOffer[]>;
+  /** One Idempotency-Key per purchase attempt; the server ends every sale in secure_online_checkout. */
+  buy(args: { offer: PlanOffer; clientId: string; locationId: string; methodToken: string; idempotencyKey: string }): Promise<Sale>;
+  listWalletPasses(): Promise<WalletPass[]>;
+  issueWalletPass(args: { clientId: string; deviceLabel: string; idempotencyKey: string }): Promise<WalletPass>;
+  revokeWalletPass(credentialId: string): Promise<void>;
   listProgress(clientId: string): Promise<AssessmentBest[]>;
   listInbox(): Promise<InboxItem[]>;
   markInboxRead(id: string): Promise<InboxItem>;
   registerDevice(registration: DeviceRegistration): Promise<DeviceRegistration>;
+  /** Published news, announcements, promotions, gallery and info pages: tenant-wide plus the location's. */
+  listAppContents(locationId?: string | null): Promise<AppContent[]>;
+  /** Public: works signed out. */
+  listLocationContacts(locationId: string): Promise<LocationContact[]>;
+  /** Public "Try us". The server answers the same whether or not anything was stored. */
+  requestTrial(request: TrialRequest): Promise<void>;
+  sendFeedback(args: { clientId: string; message: string; rating: number | null }): Promise<void>;
+  listFavorites(clientId: string): Promise<Favorite[]>;
+  removeFavorite(id: string): Promise<void>;
+  listFavoriteSchedule(args: { clientId: string; from: string; to: string }): Promise<FavoriteSession[]>;
+  /** Anonymous screen counts (APP-17): 1-50 items, no ids or personal data in names. */
+  recordUsage(items: UsageItem[]): Promise<void>;
 }

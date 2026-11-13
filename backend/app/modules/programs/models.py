@@ -110,6 +110,7 @@ class CheckoutChannel(StrEnum):
     PUBLIC_LINK = "public_link"
     MOBILE = "mobile"
     API = "api"
+    GUEST = "guest"  # REG-12: no login; the guest token in the browser is the only key
 
 
 class CheckoutStatus(StrEnum):
@@ -409,6 +410,21 @@ class ProgramFee(TenantOwned, Timestamps, Base):
     sort_order: Mapped[int] = mapped_column(server_default=text("0"))
 
 
+class PaymentPlan(StrEnum):
+    """How an online registration pays (REG-10, decision Q5): all now, a deposit now and the balance on a date,
+    or a deposit now and the balance in equal instalments collected by autopay."""
+
+    PAY_IN_FULL = "pay_in_full"
+    DEPOSIT = "deposit"
+    INSTALMENTS = "instalments"
+
+
+class InstalmentUnit(StrEnum):
+    WEEK = "week"
+    HALF_MONTH = "half_month"
+    MONTH = "month"
+
+
 class RegistrationConfig(TenantOwned, Timestamps, Base):
     """Online registration and portal publication of one group node (REG-10, SSP-17)."""
 
@@ -416,7 +432,17 @@ class RegistrationConfig(TenantOwned, Timestamps, Base):
     __table_args__ = tenant_args(
         *tfk("program_group_id", "program_group", ondelete="CASCADE", index=False),
         enum_check("payment_requirement", PaymentRequirement),
+        enum_check("payment_plan", PaymentPlan),
+        enum_check("instalment_unit", InstalmentUnit),
         CheckConstraint("closes_on IS NULL OR opens_on IS NULL OR closes_on >= opens_on", name="window"),
+        CheckConstraint(
+            "payment_plan = 'pay_in_full' OR balance_due_on IS NOT NULL", name="balance_due_on"
+        ),
+        CheckConstraint(
+            "(payment_plan = 'instalments') = (instalment_count IS NOT NULL AND instalment_unit IS NOT NULL)",
+            name="instalments",
+        ),
+        CheckConstraint("instalment_count IS NULL OR instalment_count BETWEEN 2 AND 24", name="instalment_count"),
         UniqueConstraint("tenant_id", "program_group_id", name="uq_registration_config_program_group"),
         UniqueConstraint("tenant_id", "public_slug", name="uq_registration_config_public_slug"),
         Index("ix_registration_config_portal", "tenant_id", "is_portal_visible", postgresql_where=text("is_portal_visible")),
@@ -435,6 +461,11 @@ class RegistrationConfig(TenantOwned, Timestamps, Base):
     is_portal_visible: Mapped[bool] = mapped_column(server_default=text("false"))
     portal_publish_name: Mapped[str | None]
     portal_published_at: Mapped[datetime | None]
+    allows_guest_checkout: Mapped[bool] = mapped_column(server_default=text("false"))  # REG-12, off by default
+    payment_plan: Mapped[str] = enum_column(server_default=text("'pay_in_full'"))
+    balance_due_on: Mapped[date | None]
+    instalment_count: Mapped[int | None] = mapped_column(SmallInteger)
+    instalment_unit: Mapped[str | None] = enum_column(nullable=True)
 
 
 class RegistrationCheckout(TenantOwned, Timestamps, Base):
@@ -463,6 +494,9 @@ class RegistrationCheckout(TenantOwned, Timestamps, Base):
     comment: Mapped[str | None]
     expires_at: Mapped[datetime]
     completed_at: Mapped[datetime | None]
+    guest_token_hash: Mapped[str | None]  # REG-12: digest of the token the guest's browser holds
+    # REG-12: the guest's payer, participants and items until payment; cleared once confirmed, abandoned or expired
+    guest_details: Mapped[dict | None] = mapped_column(JsonDict, info={"audit": "flag"})
 
 
 class SessionBookingPolicy(TenantOwned, Timestamps, Base):

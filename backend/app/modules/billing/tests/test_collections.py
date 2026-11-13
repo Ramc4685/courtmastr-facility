@@ -30,6 +30,10 @@ OPEN_PORTAL_POSTS = {
     "/portal/relationships/{relationship_id}/end", "/portal/rental-plan-purchases/{purchase_id}/auto-renew-opt-out",
     "/portal/rentals/{rental_id}/abandon",
     "/portal/rentals/{rental_id}/cancel",
+    "/portal/wallet-passes", "/portal/progress-share-links",  # phase 11: a credential like app-cards; own data
+    "/portal/progress-share-links/{progress_share_link_id}/revoke",
+    "/portal/feedback",  # phase 11 C2: in-app feedback to the staff inbox; no money
+    "/portal/favorites", "/portal/app-usage",  # phase 11 C2: favourites and anonymous usage counts; no money
     "/portal/calendar-feeds",  # open: managing one's own schedule feed buys nothing, like the auto-renew opt-outs
     "/portal/enrollments/{enrollment_id}/join",  # open: joins a place already booked, like enrollment cancel
 }  # fmt: skip

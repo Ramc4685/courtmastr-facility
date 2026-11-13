@@ -315,7 +315,7 @@ def test_online_checkout_hold_payment_abandon_and_expiry(client, owner, f, tenan
         )
 
     declined = pay("tok_card_declined")
-    assert declined.status_code == 409 and declined.json()["code"] == "payment-declined"
+    assert declined.status_code == 409 and declined.json()["code"] == "payment-failed"
     paid = ok(pay("tok_card_ok"), 200)
     assert paid["rental"]["status"] == "confirmed" and paid["payment_status"] == "succeeded"
     assert invoice(client, owner, paid["invoice_id"])["status"] == "partially_paid"
@@ -436,3 +436,58 @@ def test_rental_plans_full_coverage_credit_and_removal(client, owner, f, tenant)
     assert client.delete(f"{API}/rental-plans/{plan['id']}", headers=owner).status_code == 204
     assert ok(client.get(f"{API}/rental-plans/{plan['id']}", headers=owner), 200)["status"] == "archived"
     assert len(ok(client.get(f"{API}/rental-plan-purchases?client_id={f.person}", headers=owner), 200)["data"]) == 2
+
+
+def test_portal_rental_defaults_and_stored_method(client, owner, f, tenant):
+    """SSP-04 and RNT-06 (phase 11 B): location defaults tighten every self-service type, and confirm pays a
+    deposit with a stored method through secure_online_checkout."""
+    ok(client.patch(f"{API}/rental-types/{f.rtype}", headers=owner, json={
+        "access": "self_service", "online_rental_rate_id": f.rate, "deposit_pct": "25", "slot_granularity_min": 30,
+    }), 200)  # fmt: skip
+    me, portal = portal_client(client, owner, tenant, f)
+    public = {"X-Tenant-Slug": tenant.slug}
+    path = f"{API}/locations/{f.location}/rental-portal-settings"
+    assert ok(client.get(path, headers=owner), 200)["is_online_enabled"] is True  # no row: the defaults
+    off = {"is_online_enabled": False, "min_lead_min": None, "max_length_min": None, "horizon_days": None}
+    ok(client.put(path, headers=owner, json=off), 200)
+    assert ok(client.get(f"{API}/public/rental-types", headers=public), 200) == []
+    body = {"rental_type_id": f.rtype, "client_id": me, "resource_id": f.court, "starts_at": at(15), "ends_at": at(16)}
+    assert client.post(f"{API}/portal/rentals", headers=portal, json=body).status_code == 404
+    tight = {"is_online_enabled": True, "min_lead_min": 120, "max_length_min": 90, "horizon_days": 30}
+    assert ok(client.put(path, headers=owner, json=tight), 200) == {"location_id": f.location, **tight}
+    [listed] = ok(client.get(f"{API}/public/rental-types", headers=public), 200)
+    assert (listed["min_lead_min"], listed["max_length_min"], listed["horizon_days"]) == (120, 90, 30)
+    far = client.post(f"{API}/portal/rentals", headers=portal, json=body)  # 2031 is past a 30-day horizon
+    assert far.status_code == 422 and far.json()["code"] == "beyond-horizon"
+    slots = f"{API}/public/rental-availability?rental_type_id={f.rtype}&on=2031-05-05&resource_id={f.court}"
+    assert ok(client.get(slots, headers=public), 200)["data"] == []
+    long = client.get(f"{slots}&length_min=120", headers=public)
+    assert long.status_code == 422 and long.json()["code"] == "length-not-allowed"
+    ok(client.put(path, headers=owner, json=tight | {"horizon_days": None}), 200)
+    too_long = client.post(f"{API}/portal/rentals", headers=portal, json=body | {"ends_at": at(17)})
+    assert too_long.status_code == 422 and too_long.json()["code"] == "length-not-allowed"
+
+    checkout = ok(client.post(f"{API}/portal/rentals", headers=portal, json=body))
+    rental, due = checkout["rental"]["id"], checkout["amount_due_minor"]
+    card = ok(client.post(f"{API}/portal/payment-methods", headers=portal, json={"method_token": "tok_card_ok"}))
+    confirm = f"{API}/portal/rentals/{rental}/confirm"
+    both = client.post(confirm, headers=portal | {"Idempotency-Key": "pay-both"},
+                       json={"provider_payment_token": "tok_card_ok", "payment_method_id": card["id"]})  # fmt: skip
+    assert both.status_code == 422 and both.json()["code"] == "payment-method-required"
+    theirs = new_client(client, owner, f.location)["id"]
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        stranger = billing.methods.attach_method(session, UUID(theirs), "tok_card_ok")
+        stranger_id = str(stranger.id)
+    refused = client.post(confirm, headers=portal | {"Idempotency-Key": "pay-theirs"},
+                          json={"payment_method_id": stranger_id})  # fmt: skip
+    assert refused.status_code == 422 and refused.json()["code"] == "payment-method-not-usable"
+    key = {"Idempotency-Key": f"pay-{uuid4().hex}"}
+    paid = ok(client.post(confirm, headers=portal | key, json={"payment_method_id": card["id"]}), 200)
+    assert paid["rental"]["status"] == "confirmed" and paid["payment_status"] == "succeeded"
+    billed = invoice(client, owner, paid["invoice_id"])
+    assert billed["total_minor"] - billed["balance_minor"] == due  # the deposit only
+    again = ok(client.post(confirm, headers=portal | key, json={"payment_method_id": card["id"]}), 200)
+    assert again["rental"]["status"] == "confirmed"
+    assert (
+        invoice(client, owner, paid["invoice_id"])["balance_minor"] == billed["balance_minor"]
+    )  # a replay moves no money

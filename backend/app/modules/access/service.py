@@ -6,6 +6,7 @@ writes the result.
 Internal functions (no principal): `resolve`, `kiosk_*`, `device_for_token`. Staff and portal commands carry
 both gates."""
 
+import hashlib
 import secrets
 from datetime import timedelta
 from uuid import UUID
@@ -39,6 +40,7 @@ from app.modules.access.models import (
     MembershipTypeAccess,
     MembershipTypeLocation,
 )  # fmt: skip
+from app.ports import wallet_pass
 
 CREATE, READ, OVERRIDE = "access.checkin.create", "access.checkin.read", "access.checkin.override_denial"
 ASSIGN, LAUNCH, MANAGE, SETTINGS = (
@@ -86,10 +88,27 @@ def _app_card(session: Session, text: str) -> Credential | None:
     return row
 
 
+WALLET_PREFIX = "FHW"  # a wallet-pass token: FHW + 40 hex; the credential stores only its SHA-256
+
+
+def _wallet_value(token: str) -> str:
+    return "FHW#" + hashlib.sha256(token.encode()).hexdigest().upper()
+
+
+def _wallet_pass(session: Session, text: str) -> Credential | None:
+    token = _normalize(text)
+    if not (token.startswith(WALLET_PREFIX) and len(token) == 43):
+        return None
+    row = session.scalar(select(Credential).where(Credential.value == _wallet_value(token)))
+    if row is None or row.kind != "wallet_pass" or row.status != "active":
+        raise NotFound("This pass is not valid.", code="card-invalid")
+    return row
+
+
 def resolve(session: Session, value: str) -> tuple[clients.models.Client, Credential | None]:
     """Internal: a scanned or typed value to its client. An app-card QR, then an active credential, then the
     member number on the client record (the number's owner, MEM-19). Unknown is 404 credential-not-found."""
-    card = _app_card(session, value)
+    card = _app_card(session, value) or _wallet_pass(session, value)
     if card is not None:
         return clients.service.get(session, card.client_id), card
     normal = _normalize(value)
@@ -377,6 +396,8 @@ def credential_view(row: Credential) -> dict:
     view = {c.key: getattr(row, c.key) for c in Credential.__table__.columns if c.key != "secret_ciphertext"}
     if row.kind == "app_card":
         view["value"] = "•••• " + row.value[-4:]
+    elif row.kind == "wallet_pass":
+        view["value"] = "Wallet pass"  # the stored value is a hash; the token lives only on the device
     view["is_primary"] = False
     return view
 
@@ -446,10 +467,10 @@ def revoke_credential(session: Session, principal: Principal, credential_id: UUI
 
 
 def revoke_client_app_cards(session: Session, principal: Principal, client_id: UUID) -> list[Credential]:
-    """Admin clear of a client's digital cards (CHK-13)."""
+    """Admin clear of a client's digital cards (CHK-13): app cards and wallet passes."""
     client = clients.service.load(session, principal, client_id, ASSIGN)
     rows = list(session.scalars(select(Credential).where(
-        Credential.client_id == client.id, Credential.kind == "app_card", Credential.status == "active")))  # fmt: skip
+        Credential.client_id == client.id, Credential.kind.in_(DIGITAL), Credential.status == "active")))  # fmt: skip
     for row in rows:
         _revoke(session, row, principal.staff_user_id)
     return rows
@@ -512,6 +533,67 @@ def revoke_app_card(session: Session, principal: Principal, credential_id: UUID)
         raise NotFound()
     _acts_for(session, principal, row.client_id)
     _revoke(session, row, None)
+
+
+# --- wallet passes (CHK-13, APP-06) ---------------------------------------------------------------------------
+# A pass cannot rotate, so it carries its own long-lived credential: random, shown once inside the pass, stored
+# hashed, revoked by the member, by staff clearing the client's digital cards, or when the client is disabled.
+
+DIGITAL = ("app_card", "wallet_pass")
+
+
+def issue_wallet_pass(session: Session, principal: Principal, data: dict) -> dict:
+    """A new pass for the member or someone they may book for. One live pass per client: issuing again (a new
+    phone) revokes the previous one. The pass document is returned once; only the token's hash is kept."""
+    client_id = _acts_for(session, principal, data["client_id"])
+    clients.service.require_active(session, client_id)
+    for old in session.scalars(select(Credential).where(
+        Credential.client_id == client_id, Credential.kind == "wallet_pass", Credential.status == "active",
+    )):  # fmt: skip
+        _revoke(session, old, None)
+    token = WALLET_PREFIX + secrets.token_hex(20).upper()
+    row = Credential(client_id=client_id, kind="wallet_pass", value=_wallet_value(token), source="app_issued",
+                     device_label=data.get("device_label"), issued_at=clock.now())  # fmt: skip
+    session.add(row)
+    session.flush()
+    client = clients.service.get(session, client_id)
+    built = wallet_pass.build(wallet_pass.PassContent(
+        serial=str(row.id), barcode_message=token, holder_name=f"{client.first_name} {client.last_name}",
+        organization_name=platform.service.get_tenant(session).name, description="Member check-in pass",
+    ))  # fmt: skip
+    audit.record(session, ASSIGN, row, changes={"kind": [None, "wallet_pass"]})
+    events.publish(
+        session, ev.CredentialAssigned(credential_id=row.id, client_id=client_id, kind="wallet_pass"), row.id
+    )
+    return {"credential_id": row.id, "client_id": client_id, "device_label": row.device_label,
+            "issued_at": row.issued_at, "format": built.format, "media_type": built.media_type,
+            "content": built.content, "is_signed": built.signed}  # fmt: skip
+
+
+def list_wallet_passes(session: Session, principal: Principal, client_id: UUID | None) -> list[dict]:
+    ids = [_acts_for(session, principal, client_id)] if client_id else _portal_clients(session, principal)
+    rows = session.scalars(select(Credential).where(
+        Credential.client_id.in_(ids), Credential.kind == "wallet_pass", Credential.status == "active",
+    ).order_by(Credential.issued_at.desc()))  # fmt: skip
+    return [{"credential_id": r.id, "client_id": r.client_id, "device_label": r.device_label, "issued_at": r.issued_at}
+            for r in rows]  # fmt: skip
+
+
+def revoke_wallet_pass(session: Session, principal: Principal, credential_id: UUID) -> None:
+    row = session.get(Credential, credential_id)
+    if row is None or row.kind != "wallet_pass":
+        raise NotFound()
+    _acts_for(session, principal, row.client_id)
+    _revoke(session, row, None)
+
+
+def revoke_wallet_passes_of(session: Session, client_id: UUID) -> int:
+    """Internal: the client lost access (disabled), so its passes stop working."""
+    rows = list(session.scalars(select(Credential).where(
+        Credential.client_id == client_id, Credential.kind == "wallet_pass", Credential.status == "active")))  # fmt: skip
+    for row in rows:
+        _revoke(session, row, None)
+    return len(rows)
 
 
 # --- kiosk settings and devices (CHK-05, CHK-06) -------------------------------------------------------------
@@ -714,7 +796,7 @@ def kiosk_check_in(session: Session, device: KioskDevice, data: dict) -> dict:
     """Self check-in (CHK-05). Never returns amounts, reasons or plan names: admitted with the alert codes the
     location chose to display, or see staff and nothing else (owner: a refusal is explained at the desk)."""
     if data.get("card_payload"):
-        card = _app_card(session, data["card_payload"])
+        card = _app_card(session, data["card_payload"]) or _wallet_pass(session, data["card_payload"])
         if card is None:
             raise ValidationFailed("This is not a member card.", code="card-invalid", pointer="/card_payload")
         client, credential, identified = clients.service.get(session, card.client_id), card, "credential"

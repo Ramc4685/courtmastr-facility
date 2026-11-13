@@ -8,12 +8,14 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response
+from sqlalchemy.orm import Session
 
 from app.core.api import TxRoute, camel_id
-from app.core.auth.deps import Ctx, current_ctx, require
+from app.core.auth.deps import Ctx, current_ctx, public_session, require
 from app.core.errors import ValidationFailed
-from app.core.idempotency import idempotency
+from app.core.idempotency import idempotency, secret_response
 from app.core.pagination import ListQuery, list_query
+from app.core.ratelimit import rate_limit
 from app.modules.assessments import schemas as s
 from app.modules.assessments import service
 
@@ -129,3 +131,40 @@ def list_portal_assessment_results(query: Lists, ctx: Portal, client_id: ActFor 
 def list_portal_assessment_bests(ctx: Portal, client_id: ActFor = None):
     """Personal best and latest value per client-visible field."""
     return service.portal_bests(ctx.session, ctx.principal, client_id)
+
+
+@router.get("/portal/progress-share-links", response_model=list[s.PortalShareLinkOut])
+def list_portal_progress_share_links(ctx: Portal, client_id: ActFor = None):
+    """FIT-05: the acted-for client's share links, live and revoked. 404 while sharing is off."""
+    return service.portal_list_share_links(ctx.session, ctx.principal, client_id)
+
+
+@router.post("/portal/progress-share-links", response_model=s.PortalShareLinkCreated, status_code=201)
+@secret_response
+def create_portal_progress_share_link(body: s.PortalShareLinkCreate, ctx: Portal):
+    """A revocable read-only link; the token is in the URL fragment and shown once."""
+    return service.portal_create_share_link(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.post("/portal/progress-share-links/{progress_share_link_id}/revoke", status_code=204)
+def revoke_portal_progress_share_link(progress_share_link_id: UUID, ctx: Portal):
+    service.portal_revoke_share_link(ctx.session, ctx.principal, progress_share_link_id)
+    return Response(status_code=204)
+
+
+# --- anonymous: the shared progress page ---------------------------------------------------------------------
+
+staff_and_portal = router
+public = APIRouter(route_class=TxRoute, tags=["assessments"], generate_unique_id_function=camel_id)
+
+
+@public.post("/public/progress-shares/lookup", response_model=s.SharedProgressOut,
+             dependencies=[Depends(rate_limit("consume"))])  # fmt: skip
+def get_shared_progress(body: s.SharedProgressLookup, session: Annotated[Session, Depends(public_session)]):
+    """FIT-05: what a live share link shows. The token travels in the body, never the URL. Errors: 404."""
+    return service.shared_progress(session, body.token)
+
+
+router = APIRouter()
+router.include_router(staff_and_portal)
+router.include_router(public)

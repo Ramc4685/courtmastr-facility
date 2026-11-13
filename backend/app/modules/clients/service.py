@@ -793,7 +793,7 @@ def _create(
         session, "clients.client.create", client, location_id=client.home_location_id,
         changes={"home_location_id": [None, str(client.home_location_id)], "created_via": [None, created_via]},
     )  # fmt: skip
-    source = "import" if created_via == "import" else None
+    source = {"import": "import", "registration": "guest"}.get(created_via)
     events.publish(session, ClientCreated(client_id=client.id, source=source, import_job_id=import_job_id), client.id)
     return client
 
@@ -1173,6 +1173,21 @@ def import_client(session: Session, data: dict, *, import_job_id: UUID | None = 
         events.publish(session, ClientUpdated(client_id=match.id), match.id)
     session.flush()
     return match, False
+
+
+def create_self_service(session: Session, data: dict, *, created_via: str, verified_email: bool = False) -> Client:
+    """Internal: a new client from public sign-up (SSP-05, `portal`) or guest checkout (REG-12, `registration`).
+    Never matched to an existing client by email: that would let anyone attach purchases to another person's
+    record (phase-11 Q6, Q7); staff merge duplicates. `verified_email`: the caller just proved the mailbox."""
+    context = "portal" if created_via == "portal" else "registration"
+    client = _create(session, session.info["actor"], data, context=context, created_via=created_via, verify=False)
+    if verified_email and client.primary_email:
+        session.execute(
+            update(ClientEmail)
+            .where(ClientEmail.client_id == client.id, ClientEmail.email == client.primary_email)
+            .values(verified_at=clock.now())
+        )
+    return client
 
 
 def link_identity(session: Session, client_id: UUID, identity_id: UUID, *, is_primary: bool = True) -> None:

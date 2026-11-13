@@ -1,11 +1,14 @@
 // The real member-portal API (backend/openapi.json), mapped to the app shapes in types.ts. Acting-for client
-// ids always come from GET /portal/clients and the server re-checks each one. Two things the demo shows have no
-// portal endpoint yet and reject with NotAvailable: the facility directory and the facility theme.
+// ids always come from GET /portal/clients and the server re-checks each one.
 import { raw } from '../api/client';
+import { networkError, problemFrom } from '../api/errors';
 import type { components } from '../api/schema';
+import { config } from '../lib/config';
 import {
-  NotAvailable,
   type ActableClient,
+  type AppConfig,
+  type CheckoutProvider,
+  type DirectoryEntry,
   type AssessmentBest,
   type Booking,
   type ClientPackage,
@@ -16,7 +19,10 @@ import {
   type PortalAdapter,
   type PortalInvoice,
   type PortalPayment,
+  type PlanOffer,
+  type Sale,
   type SessionListing,
+  type WalletPass,
 } from './types';
 
 type S = components['schemas'];
@@ -65,6 +71,8 @@ function toListing(l: S['PortalSessionListing'], enrollmentId: string | undefine
   return {
     session_id: l.session_id,
     name: l.title ?? 'Session',
+    location_id: l.location_id ?? null,
+    time_zone: l.time_zone ?? null,
     starts_at: l.starts_at,
     ends_at: l.ends_at,
     resource_name: null, // not in PortalSessionListing
@@ -83,8 +91,8 @@ function toListing(l: S['PortalSessionListing'], enrollmentId: string | undefine
 }
 
 /** Sessions with the client's booking and the packages that can pay for each (by the package's type). */
-async function listings(clientId: string, from: string, to: string): Promise<SessionListing[]> {
-  const window = { client_id: clientId, 'starts_at[gte]': from, 'starts_at[lt]': to };
+async function listings(clientId: string, from: string, to: string, locationId?: string | null): Promise<SessionListing[]> {
+  const window = { client_id: clientId, 'starts_at[gte]': from, 'starts_at[lt]': to, location_id: locationId ?? undefined };
   const [rows, enrollments, packages] = await Promise.all([
     raw<S['PortalSessionListing'][]>(LISTINGS, { query: window }),
     all<S['PortalEnrollmentOut']>('/portal/enrollments', { client_id: clientId, status: 'enrolled', target_kind: 'session' }),
@@ -97,7 +105,7 @@ async function listings(clientId: string, from: string, to: string): Promise<Ses
   await Promise.all(
     usable.map(async (p) => {
       const typed = await raw<S['PortalSessionListing'][]>(LISTINGS, {
-        query: { ...window, reservation_type_id: p.reservation_type_id, location_id: p.location_id },
+        query: { ...window, reservation_type_id: p.reservation_type_id, location_id: locationId ?? p.location_id },
       });
       typed.forEach((l) => covered.set(l.session_id, [...(covered.get(l.session_id) ?? []), p.id]));
     }),
@@ -109,10 +117,44 @@ async function listings(clientId: string, from: string, to: string): Promise<Ses
 // shortcut: the invoice list has no lines; show them from getPortalInvoice when the screen needs detail.
 const toInvoice = (i: S['PortalInvoiceOut']): PortalInvoice => ({ ...i, is_past_due: i.past_due_since_on != null, charges: [] });
 
+const toPayment = (res: S['PortalPayment'], invoiceIds: string[]): PortalPayment => {
+  const p = res.payment;
+  return {
+    id: p?.id ?? '',
+    receipt_number: p?.receipt_number ?? 0,
+    amount_minor: p?.amount_minor ?? 0,
+    currency: p?.currency ?? '',
+    // No payment row means account credit covered it all.
+    status: (p?.status ?? 'succeeded') as PortalPayment['status'],
+    invoice_ids: invoiceIds,
+    next_action: res.client_secret ? { kind: 'confirm', provider: 'card', client_secret: res.client_secret } : null,
+  };
+};
+
+/** searchAppDirectory: anonymous and tenant-less (the shared app has not picked a facility yet). */
+async function searchDirectory(q: string): Promise<DirectoryEntry[]> {
+  const term = q.trim();
+  if (term.length < 2) return []; // the server refuses shorter prefixes
+  const base = config.platformDomain ? `https://${config.platformDomain}` : config.apiOrigin;
+  let response: Response;
+  try {
+    response = await fetch(`${base}/api/v1/public/app-directory?q=${encodeURIComponent(term)}&limit=20`, { headers: { Accept: 'application/json' } });
+  } catch (cause) {
+    throw networkError(cause);
+  }
+  if (!response.ok) throw await problemFrom(response);
+  return ((await response.json()) as S['AppDirectoryPage']).data.map((e) => ({ ...e, city: e.city ?? null, icon_url: e.icon_url ?? null }));
+}
+
+const every = (n: number | null | undefined, unit: string | null | undefined) => (unit ? `every ${n && n > 1 ? `${n} ` : ''}${unit}` : null);
+
 export const apiAdapter: PortalAdapter = {
   isDemo: false,
-  searchDirectory: () => Promise.reject(new NotAvailable('Facility search by name')),
-  getAppConfig: () => Promise.reject(new NotAvailable('The facility theme')),
+  searchDirectory,
+  getAppConfig: async (): Promise<AppConfig> => {
+    const c = await raw<S['PublicAppConfig']>('/public/app-config');
+    return { ...c, icon_url: c.icon_url ?? null, home_screen: (c.home_screen ?? null) as AppConfig['home_screen'], currency: c.portal.currency };
+  },
   listActableClients: async () => (await raw<S['PortalClientList']>('/portal/clients')).data.map(toActable),
   issueAppCard: (clientId, deviceLabel) =>
     raw<S['PortalAppCardIssued']>('/portal/app-cards', {
@@ -120,7 +162,7 @@ export const apiAdapter: PortalAdapter = {
       body: { client_id: clientId, device_label: deviceLabel },
       idempotencyKey: `card-${clientId}-${deviceLabel}-${new Date().toISOString().slice(0, 13)}`,
     }).then((c) => ({ ...c, device_label: c.device_label ?? null, expires_at: c.expires_at ?? null })),
-  listSessionListings: ({ clientId, from, to }) => listings(clientId, from, to),
+  listSessionListings: ({ clientId, from, to, locationId }) => listings(clientId, from, to, locationId),
   createEnrollment: async ({ clientId, sessionId, clientPackageId, idempotencyKey }) =>
     toEnrollment(
       await raw<S['PortalEnrollmentOut']>('/portal/enrollments', {
@@ -156,23 +198,57 @@ export const apiAdapter: PortalAdapter = {
     (await raw<S['PaymentMethodOut'][]>('/portal/payment-methods'))
       .filter((m) => m.status === 'active')
       .map((m): PaymentMethod => ({ id: m.id, kind: m.kind, brand: m.brand ?? null, last4: m.last4, is_autopay: m.is_autopay })),
-  payInvoices: async ({ invoiceIds, paymentMethodId, idempotencyKey }) => {
-    const res = await raw<S['PortalPayment']>('/portal/payments', {
-      method: 'POST',
-      body: { invoice_ids: invoiceIds, payment_method_id: paymentMethodId },
-      idempotencyKey,
-    });
-    const p = res.payment;
-    return {
-      id: p?.id ?? '',
-      receipt_number: p?.receipt_number ?? 0,
-      amount_minor: p?.amount_minor ?? 0,
-      currency: p?.currency ?? '',
-      // No payment row means account credit covered it all.
-      status: (p?.status ?? 'succeeded') as PortalPayment['status'],
-      invoice_ids: invoiceIds,
-      next_action: res.client_secret ? { kind: 'confirm', provider: 'card' } : null,
-    };
+  payInvoices: async ({ invoiceIds, paymentMethodId, idempotencyKey }) =>
+    toPayment(
+      await raw<S['PortalPayment']>('/portal/payments', {
+        method: 'POST',
+        body: { invoice_ids: invoiceIds, payment_method_id: paymentMethodId },
+        idempotencyKey,
+      }),
+      invoiceIds,
+    ),
+  authenticatePayment: async ({ clientSecret, approve }) => {
+    await raw('/public/fake-processor/authentications', { method: 'POST', body: { client_secret: clientSecret, approve } });
+  },
+  confirmPayment: async ({ paymentId, invoiceIds, idempotencyKey }) =>
+    toPayment(
+      await raw<S['PortalPayment']>(`/portal/payments/${encodeURIComponent(paymentId)}/confirm`, {
+        method: 'POST',
+        body: { invoice_ids: invoiceIds },
+        idempotencyKey,
+      }),
+      invoiceIds,
+    ),
+  // A read, never a setup intent: with a real processor every intent is a real object at the processor.
+  checkoutProvider: async (): Promise<CheckoutProvider> =>
+    (await raw<S['PortalProcessor']>('/portal/payment-methods/processor')).provider ?? null,
+  // Plans have no location link, so neither list is filtered by location: the offers are the whole catalogue.
+  // Package plans are the ones this client may buy (members-only rules).
+  listOffers: async (clientId) => {
+    const [packages, memberships] = await Promise.all([
+      all<S['PortalPackagePlanOut']>('/portal/package-plans', { client_id: clientId }),
+      all<S['PublicPlanOut']>('/public/membership-plans'),
+    ]);
+    return [
+      ...memberships.map((m): PlanOffer => ({ kind: 'membership', id: m.id, name: m.name, price_minor: m.term_fee_minor, currency: null, detail: every(m.billing_interval_count, m.billing_interval_unit) })),
+      ...packages
+        .filter((p) => p.is_purchasable)
+        .map((p): PlanOffer => ({ kind: 'package', id: p.id, name: p.name, price_minor: p.fee_minor ?? null, currency: null, detail: p.session_count ? `${p.session_count} sessions` : null })),
+    ];
+  },
+  buy: async ({ offer, clientId, locationId, methodToken, idempotencyKey }): Promise<Sale> => {
+    const body = { client_id: clientId, location_id: locationId, method_token: methodToken, tender_kind: 'card' };
+    const sale =
+      offer.kind === 'package'
+        ? await raw<S['PortalPackageSaleOut']>('/portal/client-packages', { method: 'POST', body: { ...body, package_plan_id: offer.id }, idempotencyKey })
+        : await raw<S['PortalContractSaleOut']>('/portal/membership-contracts', { method: 'POST', body: { ...body, membership_plan_id: offer.id }, idempotencyKey });
+    return { id: sale.id, name: sale.name, payment_status: sale.payment_status ?? null };
+  },
+  listWalletPasses: () => all<WalletPass>('/portal/wallet-passes'),
+  issueWalletPass: ({ clientId, deviceLabel, idempotencyKey }) =>
+    raw<WalletPass>('/portal/wallet-passes', { method: 'POST', body: { client_id: clientId, device_label: deviceLabel }, idempotencyKey }),
+  revokeWalletPass: async (id) => {
+    await raw(`/portal/wallet-passes/${encodeURIComponent(id)}`, { method: 'DELETE' });
   },
   listProgress: (clientId) => raw<AssessmentBest[]>('/portal/assessment-bests', { query: { client_id: clientId } }),
   listInbox: () => all('/portal/inbox'),
@@ -180,5 +256,23 @@ export const apiAdapter: PortalAdapter = {
   registerDevice: async (registration) => {
     const saved = await raw<S['PortalDeviceOut']>('/portal/devices', { method: 'POST', body: registration });
     return { ...registration, id: saved.id };
+  },
+  listAppContents: (locationId) => all('/portal/app-contents', { location_id: locationId ?? undefined }),
+  listLocationContacts: async (locationId) =>
+    (await raw<S['PublicLocationContacts']>('/public/location-contacts', { query: { location_id: locationId } })).data,
+  requestTrial: async (request) => {
+    await raw('/public/trial-requests', { method: 'POST', body: request });
+  },
+  sendFeedback: async ({ clientId, message, rating }) => {
+    await raw('/portal/feedback', { method: 'POST', body: { client_id: clientId, message, rating } });
+  },
+  listFavorites: async (clientId) => (await raw<S['PortalFavorites']>('/portal/favorites', { query: { client_id: clientId } })).data,
+  removeFavorite: async (id) => {
+    await raw(`/portal/favorites/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+  listFavoriteSchedule: async ({ clientId, from, to }) =>
+    (await raw<S['PortalFavoriteSchedule']>('/portal/favorites/schedule', { query: { client_id: clientId, from, to } })).data,
+  recordUsage: async (items) => {
+    await raw('/portal/app-usage', { method: 'POST', body: { items } });
   },
 };

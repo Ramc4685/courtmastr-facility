@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTermsGate } from '../entry/FacilityApp'
 import { useState } from 'react'
 import { api, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
@@ -11,7 +12,8 @@ import { useToast } from '../../components/Toast'
 import { formatDate, formatDateTime } from '../../lib/format'
 import { FormError } from '../billing/shared'
 import { PortalPage } from './PortalApp'
-import { CouponField, label, LocationPicker, NewCardField, PACKAGE_TONE, PaymentOutcome, useAttemptKey, usePortal } from './shared'
+import { PaymentChoice, usePaymentChoice } from './PaymentChoice'
+import { CouponField, label, LocationPicker, PACKAGE_TONE, PaymentOutcome, useAttemptKey, usePortal } from './shared'
 
 type Pack = Schemas['PortalPackageOut']
 type PackPlan = Schemas['PortalPackagePlanOut']
@@ -58,14 +60,18 @@ function BuyDialog({ plan, onClose }: { plan: PackPlan; onClose: () => void }) {
   const qc = useQueryClient()
   const { actingFor, locations, money } = usePortal()
   const [locationId, setLocationId] = useState(locations[0]?.id ?? '')
-  const [token, setToken] = useState('')
+  const pay = usePaymentChoice(actingFor.id)
   const [coupon, setCoupon] = useState('')
   const attempt = useAttemptKey()
+  const gate = useTermsGate()
   const paid = (plan.fee_minor ?? 0) > 0
   const buy = useMutation({
-    mutationFn: () => api.post('/api/v1/portal/client-packages', { body: { client_id: actingFor.id, package_plan_id: plan.id, location_id: locationId, method_token: token || null, tender_kind: 'card', coupon_code: coupon || null }, idempotencyKey: attempt.key }),
+    mutationFn: () => api.post('/api/v1/portal/client-packages', { body: { client_id: actingFor.id, package_plan_id: plan.id, location_id: locationId, ...pay.body, tender_kind: 'card', coupon_code: coupon || null, terms_version_id: gate.versionId }, idempotencyKey: attempt.key }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['portal'] }),
-    onError: attempt.settle,
+    onError: (error) => {
+      attempt.settle(error)
+      gate.onError(error)
+    },
   })
   const sale = buy.data
   return (
@@ -82,7 +88,7 @@ function BuyDialog({ plan, onClose }: { plan: PackPlan; onClose: () => void }) {
             <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
-            <Button loading={buy.isPending} disabled={paid && !token} onClick={() => buy.mutate()}>
+            <Button loading={buy.isPending} disabled={(paid && !pay.ready) || !gate.ready} onClick={() => buy.mutate()}>
               {paid ? `Pay ${money(plan.fee_minor)}` : 'Get it'}
             </Button>
           </>
@@ -100,7 +106,8 @@ function BuyDialog({ plan, onClose }: { plan: PackPlan; onClose: () => void }) {
           <LocationPicker value={locationId} onChange={setLocationId} />
           <FormError error={buy.error} />
           {paid && <CouponField subtotalMinor={plan.fee_minor ?? 0} onChange={setCoupon} />}
-          {paid && <NewCardField value={token} onChange={setToken} />}
+          {paid && <PaymentChoice choice={pay} />}
+          {gate.box}
         </div>
       )}
     </Dialog>

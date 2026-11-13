@@ -282,13 +282,19 @@ def invoice_by_link(session: Session, token: str) -> dict:
         for key in ("number", "status", "invoice_on", "due_on", "bill_to_name", "currency", "total_minor",
                     "balance_minor", "lines")
     }  # fmt: skip
+    return shown | browser_processor(session)
+
+
+def browser_processor(session: Session) -> dict:
+    """What an anonymous page needs to take a new card: the provider (None when none is connected) and Stripe.js
+    keys. Internal: the public pay page and guest checkout (REG-12) call it."""
     try:
         account = service._provider_account(session)
-        shown["provider"] = account.provider
-        shown |= payment_provider.browser_keys(account.provider, account.provider_account_ref)
     except Conflict:
-        shown["provider"] = None
-    return shown
+        return {"provider": None}
+    return {"provider": account.provider} | payment_provider.browser_keys(
+        account.provider, account.provider_account_ref
+    )
 
 
 def pay_by_link(session: Session, token: str, *, method_token: str, idempotency_key: str) -> Payment:

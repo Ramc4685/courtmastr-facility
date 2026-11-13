@@ -166,6 +166,8 @@ class TenantOut(Out):
     staff_mfa_policy: str
     trial_ends_on: date | None
     settings: dict[str, Any]
+    brand_primary_color: str | None
+    brand_accent_color: str | None
 
 
 class TenantUpdate(In):
@@ -173,6 +175,8 @@ class TenantUpdate(In):
     default_time_zone: str | None = None
     locale: str | None = Field(None, pattern=r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$")
     settings: dict[str, Any] | None = None
+    brand_primary_color: Annotated[str, StringConstraints(to_lower=True, pattern=r"^#[0-9a-fA-F]{6}$")] | None = None
+    brand_accent_color: Annotated[str, StringConstraints(to_lower=True, pattern=r"^#[0-9a-fA-F]{6}$")] | None = None
 
 
 class SecuritySettings(Out):

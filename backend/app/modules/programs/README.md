@@ -47,6 +47,10 @@ Tables follow `docs/architecture/data-model-programs.md`. The migration is `0611
   or a descendant on the coach's linked trainer calendar. A row at another location is 404. Portal routes
   load rows by identity (`can_act_for`), so any other row is 404.
 
+- Internal reads for engagement's favourites (APP-13), which may call programs but not scheduling:
+  `service.program_group_exists`, `service.reservation_type_exists` (passed on to scheduling) and
+  `service.group_of_sessions` (session id to program group id).
+
 ## Assumptions and limits
 
 - **Keys and engagement:** session booking policies use `engagement.portal_settings.manage` or
@@ -175,3 +179,86 @@ address is signed up).
   by submitting it to five forms.
 - Erased rows share `forms.ERASED_EMAIL` and are left out of `uq_form_submission_public_email`; the index
   predicate repeats that literal, and a test checks the two agree.
+Virtual meeting links (CLS-08), group classifiers, search and copy tools (REG-03, 04, 13), moving members
+between groups (REG-08), account-wide registration defaults (REG-11), event forms (REG-15 to 24), and
+captain rosters (REG-26).
+
+## Guest checkout (Phase 11 chip A: REG-12)
+
+- Per group, off by default (`registration_config.allows_guest_checkout`). `POST /public/guest-checkouts` holds the
+  places and keeps the payer's and participants' details on the checkout (`registration_checkout.guest_details`,
+  JSONB); no client record exists before payment. Each place is held on the groups' counters (`groups.hold_place`,
+  no roster row, since an enrolment needs a client), so capacity and linked session seats count it like any hold.
+  It returns a `fhg_` guest token once; only its digest is kept and it is the only key for `/confirm` and
+  `/abandon` (a wrong token is 404). The checkout channel is `guest`; items record `public_link`. The client field
+  policy is checked at create (the clients are created in a savepoint and rolled back), so a refusal is not late.
+- Confirm creates the payer and each participant as new, unverified clients (`created_via=registration`, never
+  matched by email), registers the held places, and pays the whole total now by a new card through
+  `secure_online_checkout` (no stored methods, no account credit, no instalments) after the portal terms check. A
+  payment that fails rolls the clients back. Confirm, abandon and expiry clear `guest_details`. A replay of a
+  completed checkout returns it unchanged. **Cost:** the payer is created in the confirm transaction, so the
+  payment row cannot be committed ahead of the provider call (billing waits 500 ms, then inserts it in the
+  caller's transaction); replay stays safe through the provider's idempotency key.
+- Guest clients raise `clients.client.created` with `source=guest`, and `clients.client.created` automations skip
+  them (as they skip imports): an automation never emails an unverified guest address.
+- Guests pay in full, so `GET /public/program-groups/{id}?guest=true` (the guest screen) shows the full fee and no
+  plan figures; without `guest` the member portal sees the plan.
+- **Owner decision: no past-due lockout for guests.** `/public/*` guest checkout sits outside the portal's past-due
+  lockout. A guest is never matched to an existing client, because doing so to enforce the lockout would tell an
+  anonymous caller whether an address belongs to a client. Staff see the new payer and merge duplicates.
+- **Assumption: documents.** A guest's email is unverified and documents are only sent to verified addresses, so a
+  group with a blocking online document refuses guests (409 `guest-documents-required`). **Limit:** 3-D Secure
+  cards fail for guests, since `secure_online_checkout` cancels a payment that needs action.
+- Rate limits, all closed on Redis failure: `guest-checkout-create` (5 baskets per 15 minutes per IP) and
+  `guest-checkout-email` (5 per hour per lowercased payer address, counted only for a valid basket: its 429 rolls
+  the holds back) on create; `guest-checkout` (20 per 15 minutes per IP) on confirm and abandon. A basket names at
+  most 4 participants and 4 places, and one IP holds at most 4 unpaid places of one program at a time across its
+  open baskets, counted against the group and every ancestor so sibling weeks share the cap (409
+  `too-many-held-places`); a per-IP advisory lock serialises the count and the insert. The IP is kept only as a tenant-salted SHA-256 digest in
+  `guest_details.ip_digest`, so it is cleared with the other details when the basket completes, is abandoned or
+  expires (no separate retention or erasure step).
+- A guest's held place has no roster row, so confirm checks each program again before any client or charge exists:
+  deleted, completed or archived (anywhere up the chain) is 409 `program-not-active`, closed online registration or
+  a passed closing date is 409 `registration-closed`. **Decision:** deleting a program, or archiving it, is refused
+  with 409 `has-guest-holds` while an unexpired guest basket holds a place in it or its subtree (as `has-registrations`
+  for roster rows); the place is free again once the basket is abandoned or expires (15 minutes). Completing is not
+  refused: the guest's confirm is.
+- Staff may override that with `?cancel_guest_holds=true` on `DELETE /program-groups/{id}` and
+  `POST /program-groups/{id}/archive`: every open guest basket holding a place in the subtree is abandoned first (the
+  whole basket, as the guest's own abandon: places released, `guest_details` cleared, audited as
+  `programs.registration_checkout.cancel` with the reason), then the delete or archive goes ahead; the guest's later
+  confirm is 409 `checkout-closed`. No waitlist is promoted into the subtree being removed. A basket whose confirm is
+  in flight (its row locked) is skipped, so that one still answers 409 `has-guest-holds`. **Decision:** the flag
+  throws away a guest's basket, so it needs `programs.registration_config.manage` (Admin, Manager, League Manager;
+  not the front desk) on top of the delete or archive key, checked in the service: without it, 403.
+- Per-IP limits count an IPv6 client by its /64 network (an IPv4 or IPv4-mapped client by its address): the hold cap's
+  digest and the `guest-checkout-create` and `guest-checkout` buckets all use `checkout.guest_ip_key()`, so rotating
+  addresses inside one /64 gains nothing.
+- Guest create and confirm lock every group chain of the basket up front in one global order (depth, then id;
+  `groups.lock_chains`) and hold places in group id order; every path that releases places locks the same way first
+  (abandon, the expiry job across all its baskets, and delete or archive, which lock the node's chain, its subtree
+  and the chains of the guest baskets they cancel before touching any of them), so two baskets naming the same programs in opposite order
+  cannot deadlock on group rows. **Known limit:** guest confirm holds those group row locks (taken by
+  `check_held_place`) across the payment processor call in `secure_online_checkout`, so staff edits, other
+  registrations and other guests' baskets in the same program wait for the processor's answer. The portal confirm
+  does not lock group rows (its places are already roster rows). Not restructured: moving the charge outside the
+  transaction needs a two-step payment saga.
+
+## Phase 11 B: buy and book, deposits and instalments
+
+- Listings carry `reservation_type_id` (which online package plans cover the session). Virtual sessions and the
+  portal join (SSP-18, CLS-08) are the integrations context's (`/sessions/{id}/video-meeting`,
+  `/portal/enrollment-meetings`, `/portal/enrollments/{id}/join`).
+- Buy and book (SSP-08): the web flow buys an online-sellable package plan whose `reservation_type_id` matches the
+  session's, then books the session with it. Assumption: "covering" means that match; the plans' own online flags
+  decide what is offered. Two calls, each idempotent; a failed booking leaves the bought package in place.
+- Payment plans (REG-10, decision Q5): a group's registration config may set `payment_plan` = `deposit` (each fee's
+  `deposit_minor` now, the rest on `balance_due_on`) or `instalments` (the rest in `instalment_count` equal parts
+  every `instalment_unit` from `balance_due_on`). Rules we chose: a plan needs `immediate_card_payment`; the deposit
+  is the first row of the invoice's payment schedule and tax is paid with it; what is left for later is the fee
+  less the deposit (nothing discounts a program charge as it is billed, and a plan takes no coupon); rows dated today or earlier (a `balance_due_on`
+  already past) are paid now with the deposit; the confirmed checkout reads its plan back from the invoice
+  schedule; the portal terms acceptance's subject is the checkout (the whole basket);
+  no pay-later and no coupon with a plan; the card is saved as the autopay method so billing's autopay collects the
+  instalments, and a payer without a new card must already have an autopay method. Staff checkout ignores plans
+  (staff invoice in full and may set a schedule by hand).

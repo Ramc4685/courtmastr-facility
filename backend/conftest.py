@@ -286,6 +286,7 @@ def populate(client, tenant) -> SimpleNamespace:
     space |= _populate_slots(client, headers, post, location["id"], invited["id"], space)
     space |= _populate_shared_post_billed(client, headers, post, tenant, location["id"], person["id"], space)
     space |= _populate_assessments(client, headers, post, location["id"], person["id"])
+    space |= _populate_share_link(tenant, person["id"])
     space |= _populate_programs(client, headers, post, location["id"], person["id"], space, category_id)
     space |= _populate_program_forms(client, headers, post, tenant, location["id"])
     space |= _populate_access(client, headers, post, tenant, location["id"], person["id"], space)
@@ -421,6 +422,20 @@ def _populate_reporting(post, location_id, owner_id) -> dict:
     })  # fmt: skip
     return {"saved_report_id": saved["id"], "report_run_id": run["id"], "export_job_id": export["id"],
             "report_schedule_id": schedule["id"]}  # fmt: skip
+
+
+def _populate_share_link(tenant, client_id) -> dict:
+    """Phase 11 B (FIT-05): a progress share link. Portal-only to create, so written directly."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.modules.assessments.models import ProgressShareLink
+
+    with tenant_session(tenant.id) as session:
+        expires = datetime.now(UTC) + timedelta(days=7)
+        link = ProgressShareLink(client_id=client_id, token_hash=uuid4().hex, expires_at=expires)
+        session.add(link)
+        session.flush()
+        return {"progress_share_link_id": str(link.id)}
 
 
 def _populate_assessments(client, headers, post, location_id, client_id) -> dict:
@@ -618,7 +633,14 @@ def _populate_engagement(client, tenant, post, location_id, person_id, identity_
 
     from sqlalchemy import select
 
-    from app.modules.engagement.models import DeviceRegistration, InboxItem, ScheduledNotification
+    from app.modules.engagement.models import (
+        AppInquiry,
+        AppUsageDay,
+        ClientFavorite,
+        DeviceRegistration,
+        InboxItem,
+        ScheduledNotification,
+    )
 
     template = post("/message-templates", {"name": "Welcome", "subject": "Hi $first_name", "body_text": "Welcome."})
     everyone = {"sources": [{"kind": "client_ids", "ids": [person_id]}]}
@@ -638,10 +660,26 @@ def _populate_engagement(client, tenant, post, location_id, person_id, identity_
                                             "location_id": location_id,
                                             "message_template_id": template["id"], "delay_minutes": 60})  # fmt: skip
     response = client.put(f"/api/v1/locations/{location_id}/portal-settings", headers=login(client, tenant),
-                          json={"is_enabled": True, "is_public": True, "welcome_text": "Welcome"})  # fmt: skip
+                          json={"is_enabled": True, "is_public": True, "welcome_text": "Welcome",
+                                "allows_self_signup": True})  # fmt: skip
     assert response.status_code == 200, response.text
+    signup = {"location_id": location_id, "email": f"new-{uuid4().hex[:8]}@{tenant.slug}.example.com",
+              "first_name": "Nia", "last_name": "Newcomer"}  # fmt: skip
+    response = client.post("/api/v1/public/portal-signups", headers={"X-Tenant-Slug": tenant.slug}, json=signup)
+    assert response.status_code == 202, response.text  # portal_signup (SSP-05)
     video = post("/videos", {"location_id": location_id, "title": "Warm-up", "url": "https://www.youtube.com/watch?v=abc",
                              "is_published": True})  # fmt: skip
+    app_content = post("/app-contents", {"location_id": location_id, "kind": "news", "title": "Open day",
+                                         "body_text": "Come along.", "publish_at": "2020-01-01T00:00:00Z"})  # fmt: skip
+    contact = post("/location-contacts", {"location_id": location_id, "kind": "department", "name": "Front desk",
+                                          "phone": "+15555550100"})  # fmt: skip
+    trial = {"location_id": location_id, "name": "Tess Trial", "email": f"try@{tenant.slug}.example.com"}
+    response = client.post("/api/v1/public/trial-requests", headers={"X-Tenant-Slug": tenant.slug}, json=trial)
+    assert response.status_code == 202, response.text  # app_inquiry, kind trial (APP-12)
+    response = client.put("/api/v1/app-config", headers=login(client, tenant),
+                          json={"is_enabled": True,
+                                "home_screen": {"tiles": [{"type": "book"}, {"type": "card"}]}})  # fmt: skip
+    assert response.status_code == 200, response.text
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
         device = DeviceRegistration(identity_id=identity_id, client_id=person_id, location_id=location_id,
                                     platform="ios", push_token=f"tok-{uuid4().hex}")  # fmt: skip
@@ -654,12 +692,23 @@ def _populate_engagement(client, tenant, post, location_id, person_id, identity_
         ))  # fmt: skip
         session.flush()
         inbox_item_id = session.scalar(select(InboxItem.id).where(InboxItem.campaign_id == push["id"]))
+        feedback = AppInquiry(kind="feedback", location_id=location_id, client_id=person_id, contact_name="Casey",
+                              message="Great courts", rating=5)  # fmt: skip
+        session.add(feedback)
+        session.flush()
+        app_inquiry_id = feedback.id
+        favorite = ClientFavorite(client_id=person_id, kind="reservation_type", target_id=uuid4())  # APP-13
+        session.add_all([favorite, AppUsageDay(day=clock.now().date(), kind="screen", name="home", count=3)])  # APP-17
+        session.flush()
+        client_favorite_id = favorite.id
         device_id = device.id
     return {
         "message_template_id": template["id"], "segment_id": segment["id"], "campaign_id": email_campaign["id"],
         "message_id": message["id"], "suppression_id": suppression["id"], "reminder_rule_id": reminder["id"],
         "notification_route_id": route["id"], "automation_rule_id": automation["id"], "video_id": video["id"],
         "inbox_item_id": str(inbox_item_id), "device_registration_id": str(device_id),
+        "app_content_id": app_content["id"], "location_contact_id": contact["id"], "app_inquiry_id": str(app_inquiry_id),
+        "client_favorite_id": str(client_favorite_id),
     }  # fmt: skip
 
 
@@ -682,7 +731,7 @@ def _populate_documents(client, headers, tenant, location_id, person) -> dict:
 
     def call(method: str, path: str, body: dict | None = None) -> dict:
         response = client.request(method, f"/api/v1{path}", json=body, headers=headers)
-        assert response.status_code in (200, 201), response.text
+        assert response.status_code in (200, 201, 204), response.text
         return response.json() if response.content else {}
 
     call("PATCH", "/document-settings", {"email_link_ttl_hours": 72})
@@ -701,6 +750,14 @@ def _populate_documents(client, headers, tenant, location_id, person) -> dict:
     verify_email(tenant, person["id"], person["primary_email"])
     pending = call("POST", "/client-documents",
                    issue | {"acceptance_method": "email_link", "recipient_emails": [person["primary_email"]]})  # fmt: skip
+    from app.modules import documents
+
+    terms = call("PUT", "/document-bindings", {"scope_type": "portal_terms", "custom_text": "Play fair."})
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:  # terms_acceptance (SSP-14)
+        version = documents.service.portal_terms_version(session)[1]["terms_version_id"]
+        documents.service.record_terms_acceptance(session, client_id=person["id"], terms_version_id=version,
+                                                  sale_kind="package", subject_id=uuid4())  # fmt: skip
+    call("DELETE", f"/document-bindings/{terms['id']}")  # later portal sales in populate's tenant need no terms
     return {"template_id": template["id"], "binding_id": binding["id"], "document_id": signed["id"],
             "pending_document_id": pending["id"]}  # fmt: skip
 
@@ -965,6 +1022,9 @@ def _populate_rentals(client, headers, post, location_id, client_id, court_id, c
     })  # fmt: skip
     put = client.patch(f"/api/v1/rental-types/{rtype['id']}", headers=headers, json={"rental_plan_ids": [plan["id"]]})
     assert put.status_code == 200, put.text
+    settings = {"is_online_enabled": True, "min_lead_min": 60, "max_length_min": 240, "horizon_days": 60}
+    put = client.put(f"/api/v1/locations/{location_id}/rental-portal-settings", headers=headers, json=settings)
+    assert put.status_code == 200, put.text  # Phase 11 B (SSP-04)
     other = new_client(client, headers, location_id)
     rental = post("/rentals", {
         "location_id": location_id, "rental_type_id": rtype["id"], "client_id": client_id,
