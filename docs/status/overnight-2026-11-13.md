@@ -75,17 +75,15 @@ Phase 15's 20 v2 partner and hardware rows.
 - Catalog-item list access: require `billing.item.manage`, or any signed-in staff.
 - Who may read platform models (six modules, and now reporting schedules, read them directly).
 - Location scoping in billing collections.
-- Rental-plan waivers: the import rules forbid `rentals` calling `documents`, so a waiver bound to a rental plan is
-  still not enforced. Allow the dependency (or an event), or drop the binding kind.
-- Members-only rentals: should an overdue but not suspended member, a membership at another location, or a
-  depleted punch pass count as a member.
 - ~~Which key gates `/pos-reports/*`~~ Decided 2026-11-13 (question 14): `reporting.pos.run`; built.
-- Kiosk session attendance, eligible sessions and kiosk package purchase: build or drop.
+- Decided and closed 2026-11-13: rental-plan waivers are enforced (question 8, ADR 0013); overdue-not-suspended
+  members, memberships at another location and used-up punch passes count as members (question 13, rentals
+  README); the kiosk reservation page, booking and package purchase are built (question 15); guest checkout,
+  joining a booked class and calendar feeds stay outside the past-due lockout (question 7, programs and billing
+  READMEs).
 - Four keys in the matrix but in no phase: impersonate, transfer ownership, tenant close,
   `billing.dispute.manage` (`leagues.discipline.manage` removed 2026-11-13, question 16b).
 - Framing policy for the public league pages (see above).
-- Guest checkout sits outside the past-due lockout, so a locked-out payer can still buy as a guest. Matching a
-  guest to an existing client would reveal whether an email is a client, so it was left open.
 - Members-only rentals: a location with more than 1,000 uninvoiced items can no longer use bulk invoicing's
   location mode.
 - Keep or drop the "What's New" work in `brave-heisenberg-bef4b6`.

@@ -61,7 +61,10 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
   (`membership-required`) and a member pays `member_price_minor` when set. Online booking of a rental type
   whose `eligibility` is not `everyone` reads the same `is_member` on the rental's local date and refuses
   a non-member (`membership-required`). Assumption: `active_members` and `paid_up_members` behave the same, because
-  non-payment suspends a contract and a suspended contract is not active. Rental prices still treat every payer
+  non-payment suspends a contract and a suspended contract is not active. **Owner decision 2026-11-13 (question
+  13): an overdue member whose contract is not yet suspended, a membership held at another location, and a punch
+  pass whose visits are used up all count as members** for members-only plans, member prices and eligibility,
+  which is what `is_member` already answers (any active contract, tenant-wide). Rental prices still treat every payer
   as a non-member (no member rates on bookings).
 - **Waivers on rental plans (owner decisions 2026-11-13, question 8; ADR 0013).** A document bound to a rental
   plan (`scope_type = rental_plan`) blocks its sale until accepted, at the desk (`sell_plan`) and in the portal

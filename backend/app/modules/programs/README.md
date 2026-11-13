@@ -206,6 +206,8 @@ captain rosters (REG-26).
 - **Owner decision: no past-due lockout for guests.** `/public/*` guest checkout sits outside the portal's past-due
   lockout. A guest is never matched to an existing client, because doing so to enforce the lockout would tell an
   anonymous caller whether an address belongs to a client. Staff see the new payer and merge duplicates.
+  **Accepted by the owner 2026-11-13 (question 7):** a past-due payer may still buy as a guest, join an online class
+  they already booked, and get or stop their calendar feed; the lockout stays on new portal buying and booking.
 - **Assumption: documents.** A guest's email is unverified and documents are only sent to verified addresses, so a
   group with a blocking online document refuses guests (409 `guest-documents-required`). **Limit:** 3-D Secure
   cards fail for guests, since `secure_online_checkout` cancels a payment that needs action.
