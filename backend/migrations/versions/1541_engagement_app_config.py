@@ -4,7 +4,7 @@ fh_platform may read app_config and portal_settings: the shared-app directory (s
 cross-tenant read, served by core.db.platform.search_app_directory (read only, listing fields only).
 
 Revision ID: 1541
-Revises: 1331
+Revises: 1521
 """
 
 import sqlalchemy as sa
@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 from app.core.db.rls import enable_rls
 
 revision = "1541"
-down_revision = "1331"
+down_revision = "1521"
 
 
 def upgrade() -> None:

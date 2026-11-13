@@ -42,7 +42,9 @@ def test_defaults_until_saved_then_put_replaces_and_is_audited(client, tenant, o
     audited = select(AuditEvent.id).where(AuditEvent.action == "engagement.app_content.manage",
                                           AuditEvent.entity_type == "app_config").limit(1)  # fmt: skip
     assert scalar(tenant, audited)
-    assert scalar(tenant, select(OutboxEvent.id).where(OutboxEvent.event_type == "engagement.app_config.updated").limit(1))
+    assert scalar(
+        tenant, select(OutboxEvent.id).where(OutboxEvent.event_type == "engagement.app_config.updated").limit(1)
+    )
 
 
 @pytest.mark.parametrize(

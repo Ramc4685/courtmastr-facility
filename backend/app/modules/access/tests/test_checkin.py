@@ -350,13 +350,19 @@ def test_wallet_pass_has_its_own_revocable_credential_accepted_at_the_door(clien
     listed = ok(client.get(f"{API}/clients/{parent['id']}/credentials", headers=f.desk))["data"]
     assert [c["value"] for c in listed if c["kind"] == "wallet_pass"] == ["Wallet pass"]
     # Out of reach for strangers and for staff principals on the portal route.
-    assert client.post(f"{API}/portal/wallet-passes", headers=portal, json={"client_id": f.person["id"]}).status_code == 404
+    assert (
+        client.post(f"{API}/portal/wallet-passes", headers=portal, json={"client_id": f.person["id"]}).status_code
+        == 404
+    )
     assert client.delete(f"{API}/portal/wallet-passes/{issued['credential_id']}", headers=owner).status_code == 404
     # The staff window and the kiosk both admit the pass (lower-case scans too).
     scan = ok(check_in(client, f.desk, {"credential_value": token.lower(), "location_id": f.loc}), 201)
     assert scan["check_in"]["credential_id"] == issued["credential_id"]
     _pair(client, tenant, owner, f.loc)
-    assert ok(client.post(f"{API}/kiosk/check-ins", json={"card_payload": token}), 201)["first_name"] == parent["first_name"]
+    assert (
+        ok(client.post(f"{API}/kiosk/check-ins", json={"card_payload": token}), 201)["first_name"]
+        == parent["first_name"]
+    )
     # Issuing again (a new phone) revokes the old pass.
     again = ok(client.post(f"{API}/portal/wallet-passes", headers=portal, json={"client_id": parent["id"]}), 201)
     assert check_in(client, f.desk, {"credential_value": token, "location_id": f.loc}).status_code == 404

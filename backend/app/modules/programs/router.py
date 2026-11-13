@@ -712,6 +712,8 @@ def create_public_form_submission(
     # or duplicate attempts cannot burn someone else's allowance.
     hit("public-form-email", body.contact_email, response, tenant=session.info["tenant_id"])
     return receipt
+
+
 # --- guest checkout (REG-12): anonymous, rate limited, its own schemas -----------------------------------------
 
 

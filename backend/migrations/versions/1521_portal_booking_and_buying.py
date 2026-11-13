@@ -5,7 +5,7 @@ progress share links (FIT-05).
 Generated from the models, then completed by hand: enable_rls() and the CHECKs on existing tables.
 
 Revision ID: 1521
-Revises: 1331
+Revises: 1501
 """
 import sqlalchemy as sa
 from alembic import op
@@ -14,7 +14,7 @@ from app.core.db.rls import enable_rls
 
 
 revision = '1521'
-down_revision = '1331'
+down_revision = "1501"
 
 
 def upgrade() -> None:

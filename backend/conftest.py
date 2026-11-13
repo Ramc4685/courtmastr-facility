@@ -695,7 +695,7 @@ def _populate_documents(client, headers, tenant, location_id, person) -> dict:
 
     def call(method: str, path: str, body: dict | None = None) -> dict:
         response = client.request(method, f"/api/v1{path}", json=body, headers=headers)
-        assert response.status_code in (200, 201), response.text
+        assert response.status_code in (200, 201, 204), response.text
         return response.json() if response.content else {}
 
     call("PATCH", "/document-settings", {"email_link_ttl_hours": 72})
