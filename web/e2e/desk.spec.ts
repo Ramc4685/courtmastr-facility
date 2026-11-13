@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
-import { scan } from './a11y'
+import { scanAfter } from './a11y'
+
+const scan = scanAfter(/Loading|Checking/)
 
 // Phase 10 chip E front-desk screens over seeded demo data (docs/dev/demo-accounts.md): Morgan Member (M-1001)
 // holds a membership and a lesson package; the Front desk register sells "Water 500 ml" (barcode 0001000500).

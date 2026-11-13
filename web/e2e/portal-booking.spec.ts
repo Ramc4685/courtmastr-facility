@@ -1,5 +1,7 @@
 import { expect as baseExpect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test'
-import { ADMIN, MEMBER, PASSWORD, scan } from './a11y'
+import { ADMIN, MEMBER, PASSWORD, scanAfter } from './a11y'
+
+const scan = scanAfter(/…$/, 30_000)
 
 // Phase 11 chip B (portal booking and buying). Seeded demo data (docs/dev/demo-accounts.md): Morgan Member holds a
 // stored test card and a lesson package, "Summer Sports Camp" is published at Downtown, and Downtown has a

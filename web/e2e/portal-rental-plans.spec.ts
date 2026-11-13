@@ -1,5 +1,7 @@
 import { expect as baseExpect, test } from '@playwright/test'
-import { scan } from './a11y'
+import { scanAfter } from './a11y'
+
+const scan = scanAfter(/…$/, 30_000)
 
 const expect = baseExpect.configure({ timeout: 30_000 })
 

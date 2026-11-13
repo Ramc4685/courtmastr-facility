@@ -1,11 +1,12 @@
 import { expect as baseExpect, test } from '@playwright/test'
-import { ADMIN, PASSWORD, scan } from './a11y'
+import { ADMIN, PASSWORD, scanAfter } from './a11y'
 
 // Phase 11 chip A: the public facility pages under /f/:slug (SSP-01, 05, 15, REG-12) and the staff settings
 // behind them (SSP-13, 07). Seeded demo tenant: courtside-demo (docs/dev/demo-accounts.md).
 const expect = baseExpect.configure({ timeout: 30_000 })
 const SLUG = 'courtside-demo'
 const TENANT = { 'x-tenant-slug': SLUG }
+const scan = scanAfter(/…$/, 30_000)
 
 test('the public facility pages pass the axe WCAG 2.1 AA scan', async ({ page }) => {
   test.setTimeout(300_000)

@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
-import { scan } from './a11y'
+import { scanAfter } from './a11y'
+
+const scan = scanAfter(/^(Loading|Checking)/)
 
 // Phase 14 C2: post-billed rates and the period close (PKG-11, BIL-18), opening a post-billed package and binding
 // a membership agreement (DOC-11) from the client profile, and the public direct-link page (SCH-16).

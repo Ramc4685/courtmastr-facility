@@ -1,5 +1,8 @@
 import { expect as baseExpect, test, type Page } from '@playwright/test'
-import { scan } from './a11y'
+import { scanAfter } from './a11y'
+
+// Every LoadingState has role=status and ends in an ellipsis; scan once none is left.
+const scan = scanAfter(/…$/, 30_000)
 
 // Generous waits: the API and Vite share a busy development machine with other lanes.
 const expect = baseExpect.configure({ timeout: 30_000 })

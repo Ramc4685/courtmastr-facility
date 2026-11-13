@@ -1,5 +1,7 @@
 import { expect as baseExpect, test, type Page } from '@playwright/test'
-import { scan } from './a11y'
+import { scanAfter } from './a11y'
+
+const scan = scanAfter(/Loading|Checking|Preparing|…$/, 30_000)
 
 // PAY-11 and PAY-18 on the fake processor: a card that needs 3-D Secure at the desk, and a member paying
 // part of an invoice in the portal through the bank check. Seeded data: docs/dev/demo-accounts.md.

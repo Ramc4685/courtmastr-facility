@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
-import { scan } from './a11y'
+import { scanAfter } from './a11y'
+
+const scan = scanAfter(/Loading|Checking/)
 
 // Seeded demo data (docs/dev/demo-accounts.md): Morgan Member is M-1001; the seed adds three pre-defined items.
 const ADMIN = { email: 'admin@courtside-demo.example.com', password: 'courtside-demo-2026' }
