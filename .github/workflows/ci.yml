@@ -36,8 +36,8 @@ jobs:
         options: >-
           --health-cmd "redis-cli ping" --health-interval 2s --health-timeout 3s --health-retries 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
@@ -66,12 +66,14 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           fetch-depth: 0
-      - name: Install oasdiff (pinned)
+      - name: Install oasdiff (pinned, checksum verified)
         run: |
-          curl -sSfL https://github.com/oasdiff/oasdiff/releases/download/v1.37.0/oasdiff_1.37.0_linux_amd64.tar.gz | tar -xz oasdiff
+          curl -sSfLo oasdiff.tar.gz https://github.com/oasdiff/oasdiff/releases/download/v1.37.0/oasdiff_1.37.0_linux_amd64.tar.gz
+          echo "eac87307d31d08c36800c58a409c247f1c5db37fbb72e2544402f22a87cbca3c  oasdiff.tar.gz" | sha256sum -c -
+          tar -xzf oasdiff.tar.gz oasdiff && rm oasdiff.tar.gz
           sudo mv oasdiff /usr/local/bin/oasdiff
       - name: No breaking API change against main (allow list docs/api/breaking-allow.txt)
         run: API_DIFF_BASE=origin/main make api-diff
@@ -79,11 +81,11 @@ jobs:
   web:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1  # v4.3.0
         with:
           package_json_file: web/package.json
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
           node-version: 22
           cache: pnpm
@@ -94,6 +96,37 @@ jobs:
       - run: make web-check
       - run: make web-test
       - run: cd web && pnpm build
+
+  mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1  # v4.3.0
+        with:
+          package_json_file: mobile/package.json
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: mobile/pnpm-lock.yaml
+      - run: cd mobile && pnpm install --frozen-lockfile
+      - run: cd mobile && pnpm lint
+      - run: cd mobile && pnpm typecheck
+      - run: cd mobile && pnpm test --ci
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+        with:
+          fetch-depth: 0  # the whole history: a secret removed in a later commit is still leaked
+      - name: Install gitleaks (pinned, checksum verified)
+        run: |
+          curl -sSfLo gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks && rm gitleaks.tar.gz
+      - name: Secret scan (reviewed false positives and example values in .gitleaksignore)
+        run: ./gitleaks git --no-banner --redact .
 
   e2e:
     runs-on: ubuntu-latest
@@ -112,16 +145,16 @@ jobs:
         options: >-
           --health-cmd "redis-cli ping" --health-interval 2s --health-timeout 3s --health-retries 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86  # v5
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
           prune-cache: false  # the API started for Playwright still holds the cache; the prune exits 2 and fails a green job
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1  # v4.3.0
         with:
           package_json_file: web/package.json
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
           node-version: 22
           cache: pnpm

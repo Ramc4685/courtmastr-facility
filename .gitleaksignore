@@ -1,0 +1,15 @@
+# gitleaks findings reviewed and accepted (CI secret scan). Each is a dev-only or example value, a test fixture, or a
+# false positive (an idempotency key or a type named token); none is a live credential. Fingerprint: commit:file:rule:line.
+0a327cb7ca92dec1e6ed6cc1d1d19622477f8483:infra/docker/stack.env.example:generic-api-key:9
+536e70e96cb8a1920a934ae7b025cf72e2df67c5:mobile/src/__tests__/auth.test.ts:generic-api-key:84
+536e70e96cb8a1920a934ae7b025cf72e2df67c5:mobile/src/__tests__/auth.test.ts:generic-api-key:87
+536e70e96cb8a1920a934ae7b025cf72e2df67c5:mobile/src/__tests__/auth.test.ts:generic-api-key:97
+6d48e907f89c110c21d623792fa1e529584ee554:backend/app/core/settings.py:generic-api-key:213
+6d48e907f89c110c21d623792fa1e529584ee554:backend/app/core/settings.py:generic-api-key:214
+6d48e907f89c110c21d623792fa1e529584ee554:backend/tests/test_hardening.py:generic-api-key:172
+6d48e907f89c110c21d623792fa1e529584ee554:backend/tests/test_hardening.py:generic-api-key:173
+8f3e7f87ba51fc4614c99d8e05c61bfda46896b0:backend/app/modules/billing/service.py:generic-api-key:516
+a60a475ca4176e9cc00bca219ba9a83338c50e2f:backend/app/modules/billing/router.py:generic-api-key:738
+d4b5395e3534f49fd65008a2fd7329275132a93a:backend/app/modules/billing/tests/test_stripe.py:stripe-access-token:100
+d4b5395e3534f49fd65008a2fd7329275132a93a:backend/app/modules/billing/tests/test_stripe.py:stripe-access-token:93
+faefbb0157bead75752d69aa9ff2ddb3c6d42ffc:web/src/features/integrations/integrations.test.tsx:generic-api-key:25
