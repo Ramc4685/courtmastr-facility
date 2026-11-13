@@ -480,9 +480,17 @@ def _issue(session: Session, booking: dict, client_id: UUID, window: tuple[datet
     return row
 
 
+def _code_changes(row: EntryCode) -> dict:
+    """The audit diff of a code, with an unlinked person flag-only (`client_unlinked`): never the erased id."""
+    changes = audit.diff(row)
+    if changes.pop("client_id", None) is not None:
+        changes["client_unlinked"] = True
+    return changes
+
+
 def _revoke(session: Session, row: EntryCode, reason: str) -> None:
     row.status, row.revoked_at, row.revoke_reason, row.code_ciphertext = "revoked", clock.now(), reason, None
-    audit.record(session, "access.entry_code.revoke", row, location_id=row.location_id, changes=audit.diff(row))
+    audit.record(session, "access.entry_code.revoke", row, location_id=row.location_id, changes=_code_changes(row))
     events.publish(session, ev.EntryCodeRevoked(entry_code_id=row.id, booking_id=row.booking_id,
                                                 location_id=row.location_id, reason=reason), row.id)  # fmt: skip
     _event(session, row.location_id, "code_revoked", entry_code_id=row.id, detail=reason)
@@ -1189,7 +1197,8 @@ def export_client_codes(session: Session, client_id: UUID) -> list[dict]:
 
 def erase_client_codes(session: Session, client_id: UUID) -> int:
     """Data subject erasure: live codes are revoked (and taken off controllers); every code is unlinked from the
-    person, so the building log no longer leads to them. Returns the codes revoked."""
+    person (audited flag-only) and their id is scrubbed from building event details, so the building log no longer
+    leads to them. Returns the codes revoked."""
     rows = session.scalars(select(EntryCode).where(EntryCode.client_id == client_id).with_for_update()).all()
     live = 0
     for row in rows:
@@ -1198,8 +1207,11 @@ def erase_client_codes(session: Session, client_id: UUID) -> int:
             _revoke(session, row, "erased")  # one audit row, carrying the unlink too
             live += 1
         else:
-            audit.record(session, "access.entry_code.erase", row, location_id=row.location_id, changes=audit.diff(row))
+            audit.record(session, "access.entry_code.erase", row, location_id=row.location_id,
+                         changes=_code_changes(row))  # fmt: skip
     session.flush()
+    # code_withheld rows name the person in `detail`; append-only, so through the owner's function
+    session.execute(text("SELECT app.scrub_building_event_client(:c)"), {"c": client_id})
     return live
 
 

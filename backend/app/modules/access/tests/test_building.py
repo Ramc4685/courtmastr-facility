@@ -559,8 +559,18 @@ def test_merge_export_and_erasure_cover_entry_codes(client, owner, b, sim):
             exported = subject._export(session, UUID(b.person["id"]))
             assert len(exported["entry_codes"]) == 2 and "code" not in exported["entry_codes"][0]
             assert {"valid_from_at", "valid_until_at", "status"} <= set(exported["entry_codes"][0])
+            building._event(session, UUID(b.location), "code_withheld",
+                            detail=f"not_known_adult:booking:7:client:{b.person['id']}")  # fmt: skip
             erased = subject._erase(session, UUID(b.person["id"]))
         assert erased["revoked_entry_codes"] == 2 and "entry_code" in subject._TABLES
+        with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:  # nothing leads back to them
+            details = session.scalars(select(BuildingEvent.detail).where(BuildingEvent.detail.is_not(None))).all()
+            assert details and not any(b.person["id"] in d for d in details)
+            assert "not_known_adult:booking:7:client:erased" in details
+            trail = session.scalars(select(AuditEvent.changes).where(AuditEvent.action.in_(
+                ("access.entry_code.revoke", "access.entry_code.erase")))).all()  # fmt: skip
+            assert trail and not any(b.person["id"] in str(c) for c in trail)
+            assert all(c.get("client_unlinked") is True for c in trail if "revoke_reason" in c and "erased" in str(c))
         for row in codes(b, mine) + codes(b, theirs):
             assert (row.status, row.revoke_reason, row.code_ciphertext, row.client_id) == (
                 "revoked",
