@@ -5,6 +5,7 @@ New York), plus the pure rules of the XLSX engine, the PDF detail cap and the sc
 import io
 from datetime import UTC, date, datetime
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from openpyxl import load_workbook
@@ -204,6 +205,12 @@ def test_schedules_fall_due_once_a_local_day_after_the_send_time(fields, local, 
 def test_dashboard_tiles_name_real_totals():
     for key, _, shown in dashboard.TILES:
         assert set(shown) <= {c.key for c in REGISTRY[key].totals}, key
+
+
+def test_dashboard_cache_key_changes_when_the_trainer_link_changes():
+    caller = system_principal("dashboard")  # an own-reach coach relinked to another trainer gets fresh tiles
+    keys = {dashboard._cache_key(caller, None, linked) for linked in (None, uuid4(), uuid4())}
+    assert len(keys) == 3
 
 
 def test_dashboard_composes_reports_per_caller_and_caches_briefly(client, tenant, owner, world, team):

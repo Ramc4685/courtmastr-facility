@@ -98,6 +98,8 @@ Status per feature: `docs/status/15-reporting.md`.
   from package reserve entries; renewal candidates need at least one session left. Package reports sit in the
   `packages` category under `reporting.attendance.run`, as the RBAC matrix maps them; coaches have own reach.
 - **Membership revenue (RPT-11)** has no future presets (`periods.py` is shared); pick dates ahead to forecast.
+  Amounts are before tax on both sides: a billed period shows its charge's net, a scheduled one its period amount,
+  which billing turns into the charge's unit price and taxes on top.
 - **Membership actions and attrition (RPT-13, RPT-14)** derive from contracts, freezes and suspensions (removed
   ones excluded); there is no status-event table. A contract is lost in the month of a voluntary cancellation or of
   an end without a renewal. No "both dates" option for actions. A month without losses has no drill-down.
@@ -132,6 +134,9 @@ Status per feature: `docs/status/15-reporting.md`.
   available hours from active availability windows per day, honouring every-n-weeks repeats. Overlapping windows
   double count, blackouts are not subtracted, and bookings outside windows can push past 100%.
 - **Named reports (RPT-41)**: the map from discovery names to keys and gaps is in `docs/status/15-reporting.md`.
+- **Renewal candidates (RPT-23)** take the last booked session of the same service (client and reservation
+  type) and count distinct clients, not names. **Attrition** counts a contract starting on the first of a month as
+  active at that month's start.
 - `/pos-reports/*` stays gated by `pos.sale.read` while report-centre POS reports use `reporting.pos.run` (owner
   question, unchanged).
 

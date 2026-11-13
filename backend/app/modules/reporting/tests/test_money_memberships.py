@@ -199,6 +199,28 @@ def test_trainers_see_the_packages_of_their_own_clients_only(client, tenant, own
     assert code(run(client, coach, "receivables")[0], 403) == "permission-denied"
 
 
+def test_renewal_candidates_take_the_last_session_of_the_same_service(client, tenant, owner, world):
+    pt = package_plan(client, owner, tenant, session_count=2)  # the tenant's first reservation type
+    other_type = ok(client.post(f"{API}/reservation-types", headers=owner,
+                                json={"location_id": world.main, "name": "Pilates"}), 201)["id"]  # fmt: skip
+    pilates = package_plan(client, owner, tenant, session_count=3, reservation_type_id=other_type)
+    person = new_client(client, owner, world.main)["id"]
+    _sell(client, owner, pt, person, world.main)  # 2 left, never booked
+    _use(tenant, _sell(client, owner, pilates, person, world.main), person, 1)  # 2 left, booked today
+    active = ran(client, owner, "renewal_candidates", last_session_before_on=day(0), location_ids=[world.main])
+    # a Pilates session today does not make the untouched PT pack look active
+    assert [r["reservation_type_name"] for r in rows(client, owner, active["id"])["data"]] == ["Pilates"]
+
+
+def test_renewal_candidates_count_clients_not_names(client, tenant, owner, world):
+    plan = package_plan(client, owner, tenant, session_count=2)
+    for _ in range(2):
+        twin = new_client(client, owner, world.main, first_name="Sam", last_name="Same")["id"]
+        _sell(client, owner, plan, twin, world.main)
+    candidates = ran(client, owner, "renewal_candidates", location_ids=[world.main])
+    assert candidates["totals"] == {"client_count": 2, "package_count": 2}
+
+
 # --- memberships (RPT-11, MEM-21, RPT-13 to RPT-16) ----------------------------------------------------------
 
 
@@ -268,3 +290,33 @@ def test_membership_actions_attrition_expiry_and_referrals(client, tenant, owner
     assert (row["contract_count"], row["value_minor"]) == (1, 12 * 3100)
     assert ran(client, owner, "membership_referrals", from_on=day(0), to_on=day(0),
                location_ids=[world.main])["row_count"] == 0  # fmt: skip
+
+
+def test_attrition_counts_a_contract_starting_on_the_first_as_active_that_month(client, owner, world, members):
+    first = (today().replace(day=1) + timedelta(days=32)).replace(day=1)
+    person = new_client(client, owner, world.north)["id"]
+    plan = members.north["membership_plan_id"]
+    body = {"client_id": person, "location_id": world.north, "membership_plan_id": plan, "start_on": str(first)}
+    ok(client.post(f"{API}/membership-contracts", headers=owner, json=body), 201)
+    attrition = ran(client, owner, "membership_attrition", months=1, as_of_on=str(first), location_ids=[world.north])
+    assert attrition["totals"]["at_start"] == 2  # today's contract and the one starting on the first
+
+
+def test_membership_revenue_is_before_tax_for_billed_and_scheduled_periods(client, tenant, owner, world):
+    vat = ok(client.post(f"{API}/taxes", headers=owner, json={"code": f"V{uuid4().hex[:5]}", "label": "VAT",
+                                                              "rate": "0.2", "effective_from_on": "2020-01-01"}), 201)  # fmt: skip
+    taxed = ok(client.post(f"{API}/revenue-categories", headers=owner,
+                           json={"code": f"T{uuid4().hex[:5]}", "label": "Taxed", "tax_ids": [vat["id"]]}), 201)  # fmt: skip
+    kind = ok(client.post(f"{API}/membership-types", headers=owner,
+                          json={"name": f"Taxed {uuid4().hex[:6]}", "revenue_category_id": taxed["id"]}), 201)  # fmt: skip
+    plan = ok(client.post(f"{API}/membership-plans", headers=owner, json={
+        "membership_type_id": kind["id"], "name": "Taxed plan", "billing_occurrences_count": 12, "term_fee_minor": 3100,
+    }), 201)  # fmt: skip
+    person = new_client(client, owner, world.north)["id"]
+    body = {"client_id": person, "location_id": world.north, "membership_plan_id": plan["id"]}
+    ok(client.post(f"{API}/membership-contracts", headers=owner, json=body), 201)
+    year = ran(client, owner, "membership_revenue_by_month", from_on=day(0), to_on=day(364), location_ids=[world.north])
+    # the billed first month (charge net) and the eleven scheduled ones are on the same pre-tax basis
+    assert year["totals"]["total_minor"] == 12 * 3100 and year["totals"]["posted_minor"] == 3100
+    deferred = ran(client, owner, "deferred_membership_revenue", location_ids=[world.north])
+    assert deferred["totals"]["billed_minor"] == 3720  # the charge itself was taxed: 3100 + 20 %

@@ -4,7 +4,7 @@ export_job flag that emails the requester a sign-in link when a scheduled export
 Generated from the model, then completed by hand: enable_rls() and the wall-time column type.
 
 Revision ID: 1601
-Revises: 1331
+Revises: 1401
 """
 
 import sqlalchemy as sa

@@ -7,7 +7,7 @@ security_invoker so the base tables' RLS applies to fh_app; reporting/views.py p
 come from the row's own location zone.
 
 Revision ID: 1621
-Revises: 1331
+Revises: 1601
 """
 
 from alembic import op

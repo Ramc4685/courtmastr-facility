@@ -400,20 +400,20 @@ def _renewal_candidates(session: Session, p: RenewalParams, scope: Scope) -> dic
     ).where(*where).group_by(cp.client_id, cp.reservation_type_id)
         .having(func.sum(cp.sessions_remaining).between(p.min_remaining, p.max_remaining))
         .order_by(func.max(cp.client_name)), v.client_package, scope)  # fmt: skip
-    last = {r.client_id: r.last_on for r in _fetch(session, select(
-        k.client_id, func.max(k.session_on).label("last_on"),
-    ).where(k.entry_type == "reserve", k.client_id.in_({r.client_id for r in grouped})).group_by(k.client_id),
-        v.package_credit, scope)}  # fmt: skip
+    last = {(r.client_id, r.reservation_type_id): r.last_on for r in _fetch(session, select(
+        k.client_id, k.reservation_type_id, func.max(k.session_on).label("last_on"),
+    ).where(k.entry_type == "reserve", k.client_id.in_({r.client_id for r in grouped}))
+        .group_by(k.client_id, k.reservation_type_id), v.package_credit, scope)}  # fmt: skip
     rows = []
     for r in grouped:
-        last_on = last.get(r.client_id)
+        last_on = last.get((r.client_id, r.reservation_type_id))  # the same service, not any session
         if p.last_session_before_on and (last_on is None or last_on < p.last_session_before_on):
             continue
-        rows.append({"client_name": r.client_name, "reservation_type_name": r.reservation_type_name,
+        rows.append({"client_id": r.client_id, "client_name": r.client_name, "reservation_type_name": r.reservation_type_name,
                      "default_trainer_name": r.default_trainer_name, **_int(r, "package_count", "sessions_remaining"),
                      "last_session_on": last_on})  # fmt: skip
     totals = {
-        "client_count": len({r["client_name"] for r in rows}),
+        "client_count": len({r["client_id"] for r in rows}),
         "package_count": sum(r["package_count"] for r in rows),
     }
     return {"rows": rows, "totals": totals, "details": None}

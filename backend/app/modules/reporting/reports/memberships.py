@@ -192,7 +192,7 @@ def _attrition(session: Session, p: AttritionParams, scope: Scope) -> dict:
     while first <= p.as_of_on:
         last = _next_month(first) - timedelta(days=1)
         month = first.strftime("%Y-%m")
-        active = [t.start_on < first, t.end_on >= first, or_(t.cancelled_on.is_(None), t.cancelled_on >= first)]
+        active = [t.start_on <= first, t.end_on >= first, or_(t.cancelled_on.is_(None), t.cancelled_on >= first)]
         if paused:
             active.append(~exists().where(
                 act.membership_contract_id == t.membership_contract_id, act.action.in_(paused),

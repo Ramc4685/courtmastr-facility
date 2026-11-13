@@ -39,8 +39,10 @@ def _redis() -> redis.Redis:
     return redis.Redis.from_url(get_settings().redis.url, socket_timeout=0.5)
 
 
-def _cache_key(principal: Principal, location_id: UUID | None) -> str:
-    scope = json.dumps([sorted(principal.permissions.items()), sorted(map(str, principal.location_ids or []))])
+def _cache_key(principal: Principal, location_id: UUID | None, linked_resource_id: UUID | None) -> str:
+    # the linked trainer resource decides own-reach tiles, so a relink must not serve the previous trainer's
+    scope = json.dumps([sorted(principal.permissions.items()), sorted(map(str, principal.location_ids or [])),
+                        str(linked_resource_id)])  # fmt: skip
     digest = hashlib.sha256(scope.encode()).hexdigest()[:16]
     return f"fh:dashboard:{principal.tenant_id}:{principal.staff_user_id}:{location_id or 'all'}:{digest}"
 
@@ -73,7 +75,7 @@ def get_dashboard(session: Session, principal: Principal, location_id: UUID | No
     service._staff(principal)
     if location_id is not None:
         platform.service.get_location(session, principal, location_id)  # 404 outside the caller's set
-    key = _cache_key(principal, location_id)
+    key = _cache_key(principal, location_id, platform.service.linked_resource_id(session, principal.staff_user_id))
     try:
         if cached := _redis().get(key):
             return json.loads(cached)
