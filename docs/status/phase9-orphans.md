@@ -70,6 +70,21 @@ PAY-16) wait for the review of these.
   typecheck boundaries` clean; `make contract` 1,190 passed, 6 skipped (the three earlier failures pass); `make
   web-check` clean, `make web-test` 299 passed. Left: a refund whose short transaction cannot lock the payment within
   500 ms (another request holds it) still commits its row unchecked and is checked under the lock afterwards.
+- **Fable verification fixes (fourth pass).** An account-credit refund never plans in the caller's transaction: the
+  plan and every leg reservation commit in their own short transaction before any processor call, or the request
+  stops. A lock held past 500 ms is 409 `request-in-progress` (retryable, nothing paid), a same-key twin that
+  committed first is replayed, and a refusal stays 422. The two `test_money` tests that relied on the fallback now
+  commit their fixture payments first, as production does. A failed pending refund whose re-apply is refused (the
+  payer link ended: `payer-mismatch`) is still recorded `failed`; the money stays credit and the audit carries
+  `not_reapplied_minor` and `not_reapplied_reason`. NUL in a query name or value, a path value or a body dict key is
+  a 422. A bulk `due_on` that is not a date is a 422; the bulk reversal reason is scanned for card numbers. A failed
+  provider event stores and logs a code in a fixed sentence only. Merged main (hardening pass): migration 1801
+  revises 1951 (one head, 1806; downgrade to base and upgrade proven on the rebuilt lane databases).
+- **Checks run (fourth pass, after the merge).** `app/modules/billing` 288 passed; `app/modules/pos` 47 passed;
+  `tests/` 4,958 passed, 1,141 skipped, 9 xfailed, 0 failed. `make lint typecheck boundaries` clean; `make contract`
+  1,185 passed, 6 skipped, 4 failed, all outside billing and from main (`GET /time-entries/summary` and
+  `POST /payroll-runs` with year-1 dates, `POST /sports` and `POST /age-groups` with integers above int4); `make
+  web-check` clean, `make web-test` 312 passed (62 files).
 
 ## Not done inside built features
 
