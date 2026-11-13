@@ -418,3 +418,36 @@ Found by re-running the drift reports against this branch's code. Merge these in
 - [ ] [stale-not-built] README:94 "reports outside P0 not built"; catalogue.py:7-9 registers 17 more (reports/money.py, reports/memberships.py)
 - [ ] [undocumented] no assumptions for income_balances, underpaid_items, accrued_session_revenue, package_sales, deferred_membership_revenue; no list of the 27 registered reports
 - [ ] [wording] views.py now has 9 views from migration 1621; other contexts' rpt_rental_* still unread
+
+## Added on claude/owner-decisions-1 (drift refresh 2026-11-13)
+Re-run for access, billing and programs after the kiosk reservation page. Items already listed above are not repeated.
+
+### access — [evidence](drift/access.md)
+
+- [x] [missing] README kiosk_settings row omitted migration 1961 columns. Fixed in the same commit.
+- [x] [contract] createKioskAttendance problem codes lacked already-enrolled, policy-violation, see-staff. Fixed in the same commit.
+- [ ] [contract] getClientIdCard declared as a PDF; the route returns JSON.
+- [ ] [contract] setClientAccessMode declared with access.rule.manage; code uses access.client.set_access_mode.
+- [ ] [contract] listKioskDevices declared with access.kiosk.manage; code uses access.kiosk.launch.
+- [ ] [contract] createCheckInAttendance declared with a different key and left unspecified.
+- [ ] [contract] listEligibleSessions and createKioskPackagePurchase declared with no route (README marks both unbuilt).
+- [ ] [undocumented] POST /check-ins/evaluate, POST /credentials/resolve, GET /clients/{id}/access-mode not in README.
+- [ ] [undocumented] wallet-pass issue requires an active client; not in README.
+- [ ] [wording] README mixes kiosk statuses (admitted, see staff) with stored results (granted, denied, granted_override) without saying which is which.
+
+### billing — [evidence](drift/billing.md)
+
+- [ ] [contract] contract operations with no route and no "not built" note: disputes (list, get, evidence), account-credit/issue, portal bank-account verify, collections-status, payouts and ledger-exports, two billing-bulk-actions reads.
+- [ ] [wording] README L134 says all four /catalog-items routes need billing.item.manage; only create and update do (owner question 10 settles this: reads open).
+- [ ] [wording] README L274-278 says PDF paths replace content negotiation; the contract already has /pdf paths.
+- [ ] [wording] README L108-112 says payment_method_id is used only with no invoice.
+- [ ] [undocumented] GET /portal/payment-methods/processor and documents.browser_processor.
+- [ ] [undocumented] bulk invoicing is_dry_run, only_mine, one invoice per client.
+- [ ] [undocumented] secure_online_checkout must_pay_now, on_account_ok, coupon_code, save_as_autopay, the amount_minor cap and replay rule.
+
+### programs — [evidence](drift/programs.md)
+
+- [ ] [stale-not-built] REG-10 deposits and instalments (README 74-76), guest checkout and basket coupons (77-79), CLS-08 meeting links (159-161), stray "Not built" paragraph (182-184), video_join producer (165-166) are built.
+- [ ] [contract] listRecentProgramGroups, applyPortalCheckoutCoupon and five REG-26 roster-invite operations have no route; guest-checkout, saved views, page settings, form image, public form submit, submission promote and classifier delete routes are missing from openapi-programs.yaml; path parameter session_id vs schedule_session_id.
+- [ ] [undocumented] file and models tables omit files and nine tables; onboarding step in __init__.py not described.
+- [ ] [wording] README line 6 names only migration 0611; 1401, 1501 and 1521 also carry programs tables.

@@ -20,6 +20,7 @@ from app.core.pagination import ListQuery, list_query
 from app.core.ratelimit import _redis, rate_limit
 from app.core.settings import get_settings
 from app.modules.access import desk, service
+from app.modules.access import kiosk as kiosk_flow
 from app.modules.access import schemas as s
 from app.modules.access.models import KioskDevice
 
@@ -407,8 +408,18 @@ def kiosk_lookup(body: s.KioskLookupRequest, request: Request, device: Device):
     dependencies=[Depends(kiosk_rate_limit), Depends(kiosk_idempotency)],
 )  # fmt: skip
 def create_kiosk_check_in(body: s.KioskCheckInCreate, request: Request, device: Device):
-    """Self check-in (CHK-05): admitted or see staff, never amounts or reasons."""
-    return service.kiosk_check_in(_session(request), device, body.model_dump())
+    """Self check-in (CHK-05): admitted or see staff, never amounts or reasons; then the reservation page."""
+    return kiosk_flow.check_in(_session(request), device, body.model_dump())
+
+
+@kiosk.post(
+    "/kiosk/check-ins/{check_in_id}/attendances", response_model=s.KioskCheckInResult,
+    dependencies=[Depends(kiosk_rate_limit), Depends(kiosk_idempotency)],
+)  # fmt: skip
+def create_kiosk_attendance(check_in_id: UUID, body: s.KioskAttendanceCreate, request: Request, device: Device):
+    """Book a session from the reservation page, by the portal's rules. Errors: outside-check-in-window,
+    capacity-full, policy-violation, already-enrolled, no-entitlement, see-staff (past due)."""
+    return kiosk_flow.attend(_session(request), device, check_in_id, body.model_dump())
 
 
 @kiosk.post("/kiosk/exit", status_code=204, dependencies=[Depends(rate_limit("kiosk-exit"))])

@@ -289,6 +289,8 @@ class KioskSettings(TenantOwned, Timestamps, Base):
         CheckConstraint("early_window_minutes BETWEEN 0 AND 1440", name="early"),
         CheckConstraint("late_window_minutes BETWEEN 0 AND 1440", name="late"),
         CheckConstraint("confirmation_timeout_seconds BETWEEN 3 AND 300", name="timeout"),
+        CheckConstraint("visible_range_minutes BETWEEN 0 AND 1440", name="visible_range"),
+        CheckConstraint("reservation_timeout_seconds BETWEEN 3 AND 300", name="reservation_timeout"),
     )
 
     location_id: Mapped[UUID]
@@ -300,6 +302,9 @@ class KioskSettings(TenantOwned, Timestamps, Base):
         ARRAY(Text), server_default=text("'{balance_due,membership_expired,visits_depleted}'"), info={"audit": "value"}
     )
     confirmation_timeout_seconds: Mapped[int] = mapped_column(server_default=text("10"))
+    visible_range_minutes: Mapped[int] = mapped_column(server_default=text("240"))  # reservation page: starts within
+    is_auto_book: Mapped[bool] = mapped_column(server_default=text("false"))  # book the closest session at check-in
+    reservation_timeout_seconds: Mapped[int] = mapped_column(server_default=text("30"))
     exit_pin_hash: Mapped[str | None] = mapped_column(info={"audit": "never"})  # argon2id; required to leave kiosk mode
 
 

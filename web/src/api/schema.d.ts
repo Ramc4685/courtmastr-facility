@@ -6532,9 +6532,30 @@ export interface paths {
         put?: never;
         /**
          * Create Kiosk Check In
-         * @description Self check-in (CHK-05): admitted or see staff, never amounts or reasons.
+         * @description Self check-in (CHK-05): admitted or see staff, never amounts or reasons; then the reservation page.
          */
         post: operations["createKioskCheckIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk/check-ins/{check_in_id}/attendances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Kiosk Attendance
+         * @description Book a session from the reservation page, by the portal's rules. Errors: outside-check-in-window,
+         *     capacity-full, policy-violation, already-enrolled, no-entitlement, see-staff (past due).
+         */
+        post: operations["createKioskAttendance"];
         delete?: never;
         options?: never;
         head?: never;
@@ -26566,6 +26587,23 @@ export interface components {
             /** Passcode */
             passcode: string | null;
         };
+        /**
+         * KioskAttendanceCreate
+         * @description Book a session from the reservation page. Only `session` is built: places already booked and bookings are
+         *     marked by the check-in itself.
+         */
+        KioskAttendanceCreate: {
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+            /**
+             * Target Type
+             * @constant
+             */
+            target_type: "session";
+        };
         /** KioskAttendedOut */
         KioskAttendedOut: {
             /** Session Id */
@@ -26593,6 +26631,8 @@ export interface components {
             displayed_alert_codes: string[];
             /** First Name */
             first_name: string;
+            /** Sessions */
+            sessions: components["schemas"]["KioskSession"][];
             /**
              * Status
              * @enum {string}
@@ -26704,6 +26744,38 @@ export interface components {
             /** Pairing Code */
             pairing_code: string;
         };
+        /**
+         * KioskSession
+         * @description A session on the kiosk reservation page: title and times only, never prices or plan names.
+         */
+        KioskSession: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Is Bookable */
+            is_bookable: boolean;
+            /** Is Booked */
+            is_booked: boolean;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+            /**
+             * Target Type
+             * @constant
+             */
+            target_type: "session";
+            /** Title */
+            title: string;
+        };
         /** KioskSettingsOut */
         KioskSettingsOut: {
             /** Confirmation Timeout Seconds */
@@ -26714,6 +26786,8 @@ export interface components {
             early_window_minutes: number;
             /** Has Exit Pin */
             has_exit_pin: boolean;
+            /** Is Auto Book */
+            is_auto_book: boolean;
             /** Late Window Minutes */
             late_window_minutes: number;
             /**
@@ -26723,6 +26797,10 @@ export interface components {
             location_id: string;
             /** Lookup Method */
             lookup_method: string;
+            /** Reservation Timeout Seconds */
+            reservation_timeout_seconds: number;
+            /** Visible Range Minutes */
+            visible_range_minutes: number;
             /** Welcome Message */
             welcome_message: string | null;
         };
@@ -26736,10 +26814,16 @@ export interface components {
             early_window_minutes?: number | null;
             /** Exit Pin */
             exit_pin?: string | null;
+            /** Is Auto Book */
+            is_auto_book?: boolean | null;
             /** Late Window Minutes */
             late_window_minutes?: number | null;
             /** Lookup Method */
             lookup_method?: ("name" | "membership_number" | "both") | null;
+            /** Reservation Timeout Seconds */
+            reservation_timeout_seconds?: number | null;
+            /** Visible Range Minutes */
+            visible_range_minutes?: number | null;
             /** Welcome Message */
             welcome_message?: string | null;
         };
@@ -60460,6 +60544,43 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KioskCheckInResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createKioskAttendance: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                check_in_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KioskAttendanceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

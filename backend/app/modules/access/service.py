@@ -601,6 +601,7 @@ def revoke_wallet_passes_of(session: Session, client_id: UUID) -> int:
 _SETTING_DEFAULTS = {
     "lookup_method": "both", "early_window_minutes": 60, "late_window_minutes": 30, "welcome_message": None,
     "displayed_alert_codes": ["balance_due", "membership_expired", "visits_depleted"], "confirmation_timeout_seconds": 10,
+    "visible_range_minutes": 240, "is_auto_book": False, "reservation_timeout_seconds": 30,
 }  # fmt: skip
 
 

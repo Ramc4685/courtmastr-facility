@@ -7,6 +7,7 @@ under `Unreleased` in the same change that makes the behaviour visible.
 ## [Unreleased]
 
 ### Added
+- Kiosk: after checking in, members see the classes starting soon and book one on the tablet, by the same rules as online booking; a location can have the kiosk book the next open class automatically, and sets how far ahead classes are listed and how long the list stays up.
 - Calendar feeds: subscribe to your bookings and shifts, or a team's games, from any calendar app; the address is shown once.
 - An embeddable public schedule per location showing published sessions and free seats, never names.
 - QuickBooks Online connection with account mappings and a sync over a date range (simulated until a QuickBooks app is registered).

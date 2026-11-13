@@ -6,8 +6,8 @@ Date: 2026-11-10. Lane `claude/zen-villani-chk`. Module README: `backend/app/mod
 |---|---|---|---|---|
 | CHK-01 | Staff check-in window | P0 | done | card, member number or client search; status card with alerts; deny with override and reason; attendance in -3 h / +5 h |
 | CHK-03 | Check-in from client profile | P0 | done | "Check in" on the profile at the working location; Check-ins tab |
-| CHK-05 | Self check-in kiosk | P0 | done | paired device cookie, minimal PII, match tokens, minors excluded, rate limited |
-| CHK-06 | Kiosk settings | P0 | done | lookup methods, windows, timeout, welcome text, displayed alerts; read by the kiosk at boot |
+| CHK-05 | Self check-in kiosk | P0 | done | paired device cookie, minimal PII, match tokens, minors excluded, rate limited; reservation page after an admitted check-in (sessions starting within the visible range, booked by the portal's rules through `programs.selfservice.kiosk_enroll`, past-due lockout applied), auto-book of the earliest bookable session (owner decisions 2026-11-13, question 15) |
+| CHK-06 | Kiosk settings | P0 | done | lookup methods, windows, visible range, auto-book, reservation and confirmation timeouts, welcome text, displayed alerts; read by the kiosk at boot; branding (colours, view, photo) not built (P1) |
 | CHK-11 | Credential assignment | P0 | done | scan or generate; member number shown as primary; clash checks; revoke |
 | - | Kiosk exit PIN | - | done | per location, hashed, rate limited; five wrong PINs revoke the device; no PIN means exit is refused |
 | CHK-13 | App member cards | P0 | partial | rotating signed QR issued in the portal API, shown in the member app card (APP-06) and accepted at kiosk and window; wallet passes (`/portal/wallet-passes`) use a fake adapter, so the pass is unsigned and not yet for Apple or Google |

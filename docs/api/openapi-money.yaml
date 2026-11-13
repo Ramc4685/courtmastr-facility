@@ -4380,7 +4380,7 @@ paths:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/KioskAttendanceCreate'}}}
       x-problem-codes: [not-found, validation-failed, request-in-progress, idempotency-key-reused, rate-limited, outside-check-in-window,
-        capacity-full, no-entitlement]
+        capacity-full, no-entitlement, already-enrolled, policy-violation, see-staff]
       responses:
         '200':
           description: OK.

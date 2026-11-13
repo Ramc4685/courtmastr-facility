@@ -14,7 +14,7 @@ nothing writes it yet.
 | `check_in_attendance` | each programme session place marked attended by a check-in (the link back for history) |
 | `credential` | membership number, barcode, app card, wallet pass, RFID and biometric reference; value unique per tenant while active; app cards keep the rotating-QR secret, which revocation wipes |
 | `kiosk_device` | a named device at a location, its single-use pairing code (hashed, 10 minutes), its revocation and the count of wrong exit PINs since the last right one (`exit_pin_failure_count`, migration 1022) |
-| `kiosk_settings` | one row per location: lookup methods, early and late windows, confirmation timeout, welcome text, alerts the kiosk may show, the hashed exit PIN (migration 1021) |
+| `kiosk_settings` | one row per location: lookup methods, early and late windows, confirmation timeout, welcome text, alerts the kiosk may show, the hashed exit PIN (migration 1021); visible range, auto-book and reservation timeout (migration 1961) |
 
 Migration `1021_access_rules` (phase 10 chip B) adds:
 
@@ -77,6 +77,20 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   Leaving kiosk mode needs the location's exit PIN (6 to 8 digits, argon2-hashed, rate limited per IP); each wrong
   PIN is counted on the device and audited without the PIN, and the fifth in a row (`KIOSK_EXIT_ATTEMPTS`) revokes
   the device. With no PIN set, exit is refused (409) and staff revoke the device instead.
+- **Reservation page and auto-book (CHK-05, CHK-06; owner decisions 2026-11-13, question 15; `kiosk.py`,
+  migration 1961).** An admitted kiosk check-in returns `sessions`: the location's confirmed sessions starting from
+  now to `visible_range_minutes` ahead (default 240), each with title, times, `is_booked` and `is_bookable`, never
+  prices, reasons or plan names. `POST /kiosk/check-ins/{id}/attendances` (`target_type` `session` only) books one
+  through `programs.selfservice.kiosk_enroll`, which runs the portal's rules for the client the kiosk identified:
+  listing mode, cutoff (so nothing already started), members-only, capacity, already enrolled, and free booking or
+  else the client's soonest-to-expire package that covers the session (409 `no-entitlement`). The kiosk adds no
+  bypass. The past-due lockout applies as online (`billing.collections.is_portal_locked`): every session shows not
+  bookable and booking is 409 `see-staff`. A place starting inside the kiosk check-in window is marked attended
+  (`was_auto_booked`). The kiosk may act for a visit only from the device that took it, while it is admitted and
+  open, for 10 minutes (`KIOSK_VISIT`); otherwise 404. With `is_auto_book` on, a check-in that holds no place in the
+  window books the earliest bookable session, inside a savepoint: a refusal leaves the client checked in.
+  `reservation_timeout_seconds` (default 30) sends the list screen back to the start. The route is rate limited with
+  the check-ins (one counter per device) and idempotent per device.
 - **App cards (CHK-13).** The portal issues an app card to the member or a household member they may book for;
   the app shows `fhq.<credential>.<30 s step>.<hmac>`, accepted for the current and previous step at the kiosk and
   the staff window.
@@ -174,5 +188,7 @@ CHK-20 summary analytics. CHK-21 "renew membership" and "update payment method" 
 client profile from the name on the status card); a QR on the printed card is not built. CHK-15 and CHK-16 (RFID, biometric,
 door hardware) wait for the v2 adapters; CHK-17 (vaccine flag) is P2. The wallet pass part of CHK-13 is built on a fake adapter only (see Wallet passes above); signed passes wait for issuer certificates.
 The permissions `access.door.unlock` and `access.device.manage` are registered for the door hardware and have no
-route yet. Kiosk attendance, the eligible-sessions list for a check-in and kiosk package purchase are in the contract
-but not built, and have no phase yet.
+route yet. The staff eligible-sessions list (`listEligibleSessions`, P1, CHK-04) is not built: the window books from
+the schedule, and the kiosk receives its list in the check-in result. `KioskAttendanceCreate` accepts only
+`session`: places already booked and court bookings are marked by the check-in itself. Kiosk package purchase is in
+the contract but not built.

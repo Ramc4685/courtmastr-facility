@@ -174,6 +174,9 @@ class KioskSettingsOut(Out):
     welcome_message: str | None
     displayed_alert_codes: list[str]
     confirmation_timeout_seconds: int
+    visible_range_minutes: int
+    is_auto_book: bool
+    reservation_timeout_seconds: int
     has_exit_pin: bool
 
 
@@ -184,6 +187,9 @@ class KioskSettingsWrite(In):
     welcome_message: Annotated[str, StringConstraints(max_length=500)] | None = None
     displayed_alert_codes: list[Code] | None = None
     confirmation_timeout_seconds: int | None = Field(None, ge=3, le=300)
+    visible_range_minutes: int | None = Field(None, ge=0, le=1440)
+    is_auto_book: bool | None = None
+    reservation_timeout_seconds: int | None = Field(None, ge=3, le=300)
     exit_pin: Pin | None = None  # write-only; stored as an argon2id hash
 
 
@@ -439,6 +445,18 @@ class KioskAttendedOut(Out):
     session_id: UUID | None
 
 
+class KioskSession(Out):
+    """A session on the kiosk reservation page: title and times only, never prices or plan names."""
+
+    target_type: Literal["session"]
+    target_id: UUID
+    title: str
+    starts_at: datetime
+    ends_at: datetime
+    is_booked: bool
+    is_bookable: bool
+
+
 class KioskCheckInResult(Out):
     check_in_id: UUID
     status: Literal["admitted", "see_staff"]
@@ -446,6 +464,15 @@ class KioskCheckInResult(Out):
     displayed_alert_codes: list[str]
     attended: list[KioskAttendedOut]
     welcome_message: str | None
+    sessions: list[KioskSession]  # the reservation page (CHK-05); empty when the client must see staff
+
+
+class KioskAttendanceCreate(In):
+    """Book a session from the reservation page. Only `session` is built: places already booked and bookings are
+    marked by the check-in itself."""
+
+    target_type: Literal["session"]
+    target_id: UUID
 
 
 # --- portal app cards ----------------------------------------------------------------------------------------

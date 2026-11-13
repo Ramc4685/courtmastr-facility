@@ -490,7 +490,7 @@ Parked or deferred with nothing built (not counted as NOT-BUILT): MKT-04, MKT-06
 | CHK-02 | Staff check-in settings and detail visibility | P1 | Phase 10 | DONE | VERIFIED | status/README.md, 10-checkin.md, 12-staff.md (Phase 10) |
 | CHK-03 | Check-in from client profile | P0 | Module 10 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | CHK-04 | Session / package booking from check-in | P1 | Phase 10 | DONE | VERIFIED | status/README.md, 10-checkin.md, 12-staff.md (Phase 10) |
-| CHK-05 | Self check-in kiosk | P0 | Module 10 (pre-Phase 8) | DONE | VERIFIED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
+| CHK-05 | Self check-in kiosk | P0 | Module 10 (pre-Phase 8); reservation page owner decisions 2026-11-13 | DONE | VERIFIED | built before Phase 8; reservation page, kiosk booking (createKioskAttendance) and auto-book added 2026-11-13 (question 15) |
 | CHK-06 | Self check-in kiosk settings | P0 | Module 10 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | CHK-07 | Check-in stations, check-out and occupancy dashboard | P1 | Phase 10 | DONE | VERIFIED | status/README.md, 10-checkin.md, 12-staff.md (Phase 10) |
 | CHK-08 | Access-control membership rules and access mode | P1 | Phase 10 | DONE | VERIFIED | status/README.md, 10-checkin.md, 12-staff.md (Phase 10) |

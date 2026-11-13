@@ -52,6 +52,7 @@ function SettingsCard({ locationId, canSave }: { locationId: string; canSave: bo
           lookup_method: body.lookup_method as 'name' | 'membership_number' | 'both', early_window_minutes: body.early_window_minutes,
           late_window_minutes: body.late_window_minutes, welcome_message: body.welcome_message || null,
           displayed_alert_codes: body.displayed_alert_codes as never, confirmation_timeout_seconds: body.confirmation_timeout_seconds,
+          visible_range_minutes: body.visible_range_minutes, is_auto_book: body.is_auto_book, reservation_timeout_seconds: body.reservation_timeout_seconds,
           ...(pin ? { exit_pin: pin } : {}),
         },
       }),
@@ -86,6 +87,11 @@ function SettingsCard({ locationId, canSave }: { locationId: string; canSave: bo
           </div>
           <Input label="Welcome message" value={form.welcome_message ?? ''} maxLength={500} onChange={(e) => set({ welcome_message: e.target.value })} />
           <Input label="Return to the start screen after (seconds)" type="number" min={3} max={300} value={form.confirmation_timeout_seconds} error={errors.confirmation_timeout_seconds} onChange={(e) => set({ confirmation_timeout_seconds: Number(e.target.value) })} />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input label="List classes starting within (minutes)" type="number" min={0} max={1440} value={form.visible_range_minutes} error={errors.visible_range_minutes} onChange={(e) => set({ visible_range_minutes: Number(e.target.value) })} />
+            <Input label="Leave the class list after (seconds)" type="number" min={3} max={300} value={form.reservation_timeout_seconds} error={errors.reservation_timeout_seconds} onChange={(e) => set({ reservation_timeout_seconds: Number(e.target.value) })} />
+          </div>
+          <Checkbox label="Book the next open class automatically at check-in" checked={form.is_auto_book} onChange={(e) => set({ is_auto_book: e.target.checked })} />
           <div className="flex flex-wrap items-end gap-3">
             <Input
               label={form.has_exit_pin ? 'New exit PIN (6 to 8 digits)' : 'Exit PIN (6 to 8 digits)'}

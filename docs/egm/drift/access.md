@@ -1,38 +1,18 @@
 ## backend/app/modules/access/README.md
 
-Rewritten after Phase 11 (diff `aa20e1b..HEAD`). The Phase 11 change is wallet passes (CHK-13). The README section "Wallet passes" matches the code. The drift is in the API contract and in older README text.
+Compared with `backend/app/modules/access/*.py`, `router.py` (staff `router` and device `kiosk` routers) and `docs/api/openapi-money.yaml` (tag access). Paths below are relative to `backend/app/modules/access/` unless they start with `docs/`.
 
-### Phase 11 drift (verified)
-
-- [contract] `docs/api/openapi-money.yaml:4715-4727` still declares `GET /portal/app-cards/{credential_id}/wallet-pass` (`getWalletPass`) as deferred. The built routes are `GET/POST /portal/wallet-passes` and `DELETE /portal/wallet-passes/{credential_id}` (backend/app/modules/access/router.py:301-318). The contract has no entry for them. Only the enums were updated (`wallet_pass` at :7581 and :7604, the clear-cards summary at :4159).
-- [undocumented] The module now consumes `clients.client.disabled` (backend/app/modules/access/handlers.py:10-12, `service.revoke_wallet_passes_of`, service.py ~590). README "Wallet passes" does not mention it, and the README names no event the module consumes. The same handler is imported in `__init__.py`.
-- [undocumented] The README does not say that issuing a pass requires an active client (`clients.service.require_active`, service.py `issue_wallet_pass`). It does not say that a pass is revoked silently (staff user `None`) by the portal and the event handler, and that the admin clear passes the staff user (service.py:467-476).
-- [logic-shortcut] The pass is unsigned (`is_signed` false, schemas.py `PortalWalletPassIssued`). The README states this (CHK-13 stays partial), so it is tracked and not hidden. It needs a real Apple/Google issuer adapter in place of `FakeWalletPass`.
-
-### Older drift (still present)
-
-- [contract] README line 11 gives `check_in.result` as `admitted` / `denied` / `see_staff`. The enum is `granted` / `denied` / `granted_override` (models.py:32-35). "See staff" and "admitted" are only kiosk response wording (service.py:817).
-- [contract] README line 112 says check-ins are never deleted (no `deleteCheckIn`), but the permission `access.checkin.delete` is still registered (permissions.py:20) and the contract still publishes `deleteCheckIn` (docs/api/openapi-money.yaml:4052).
-- [contract] The contract declares access paths with no route in router.py. They are `/kiosk/check-ins/{check_in_id}/attendances` (:4381), `/check-ins/{check_in_id}/eligible-sessions` (:4521) and `/kiosk/package-purchases` (:4729). The README does not mark them deferred. In the other direction, `GET /membership-type-access` (router.py) is not in the contract.
-- [wording] README line 13 lists credential kinds as "barcode, RFID, PIN-free card numbers and app cards". The enum is `membership_number`, `barcode`, `app_card`, `wallet_pass`, `rfid`, `biometric_ref` (models.py:38-44). The README's own table does not list `wallet_pass` or `biometric_ref`.
-- [wording] README lines 57-59 say the staff attendance window is "3 hours early to 5 hours late". The staff path passes `(staff_early_minutes, staff_late_minutes)` = 180/300 (service.py:264, default :853). The kiosk path passes the settings swapped, `(late_window_minutes, early_window_minutes)` (service.py:809), so "early" means opposite things on the two paths.
-- [wording] README lines 125-126 say only the access-mode change publishes an event. Line 145 and events.py:35-50 show station, card-layout and `access.credential.assigned` events as well.
-- [undocumented] The check-in lifecycle events `access.check_in.granted`, `.denied`, `.checked_out` and `.session_booked` (events.py:16-30) are not in the README.
-- [undocumented] The permissions `access.door.unlock` and `access.device.manage` (permissions.py:28-29) are registered with no route. The README's deferred hardware note does not mention them.
-- [undocumented] Check-in channels `pos`, `door` and `api` and `identified_by` `client_record` (models.py:17-29) are not in README lines 3-5.
-- [undocumented] `GET /check-ins` also filters by `check_in_station_id` (service.py:381). The router docstring and the README filter list omit it.
-
-### Carried over from the previous report, not re-verified this run
-
-- [undocumented] Erasure also drops the client's access mode, and the data-subject handler also exports check-ins, credentials and access mode (subject.py ~39-67). README lines 105-107 cover only merge and erasure of credentials.
-- [undocumented] Migration `1022_access_kiosk_match` also adds `kiosk_device.exit_pin_failure_count` (models.py:261). README line 27 and the `kiosk_device` row (line 14) omit it.
-- The earlier claims that README `photo_url` and wallet-pass text were stale: the wallet text is now fixed by Phase 11. The photo claim (README 142-144 vs desk.py:360) was not rechecked.
-
-## Backlog entries
-
-- access | contract | Update openapi-money.yaml: replace deferred `getWalletPass` (:4715) with `/portal/wallet-passes` list/issue/revoke; add `/membership-type-access`; drop or implement `deleteCheckIn`, kiosk attendances, eligible-sessions and kiosk package-purchases.
-- access | README | Correct `check_in.result` values, credential kinds, window wording (kiosk early/late swap, service.py:809), events list, handlers.py consumer, station filter, channels.
-- access | decision | Remove `access.checkin.delete` (permissions.py:20), or build the route.
-- access | later | Signed Apple/Google wallet passes need an issuer adapter and certificates (CHK-13 partial).
-- [contract] docs/api/openapi-money.yaml declares access paths the router lacks: `/kiosk/check-ins/{check_in_id}/attendances` (`createKioskAttendance`, :4383), `/check-ins/{check_in_id}/eligible-sessions` (~:4521), `/portal/app-cards/{credential_id}/wallet-pass` (~:4715) and `/kiosk/package-purchases` (`createKioskPackagePurchase`, :4731). None is in router.py. The README now lists the three kiosk and session paths as not built, and the wallet pass is deferred. `GET /membership-type-access` (router.py:202-205) is now in the contract as `listMembershipTypeAccess` (openapi-money.yaml:4646).
-- [undocumented] `GET /check-ins` also filters by `check_in_station_id` (service.py:359-362). The router docstring lists only the other filters.
+- [contract] README 119-125 describes `GET /clients/{id}/id-card` as JSON (template, fields, barcode value) drawn in the browser. The contract (`docs/api/openapi-money.yaml:4697-4708`, `getClientIdCard`) says "Render a CR80 ID card PDF", P1, with no response schema. The route returns `ClientIdCardOut` (router.py:274-283).
+- [contract] README 58 says `PUT /clients/{id}/access-mode` needs its own key `access.client.set_access_mode` (router.py:39, 181; permissions.py:25). The contract (`docs/api/openapi-money.yaml:4601-4611`, `setClientAccessMode`) says `access.rule.manage`, P1, with no body or response schema.
+- [contract] README 71 and 121-125 imply `GET /kiosk-devices` is a launch-level read. The code uses `access.kiosk.launch` (router.py:121-123, `Launch`). The contract (`docs/api/openapi-money.yaml:4205`) says `access.kiosk.manage`.
+- [contract] README 107-112 documents `POST /check-ins/{id}/attendances` (router.py:245-249, 201, `CheckInOut`, key `scheduling.enrollment.create`). The contract (`docs/api/openapi-money.yaml:4517-4528`, `createCheckInAttendance`) says `access.checkin.create`, P1, "session or package visit", with no schema. The code books sessions only.
+- [contract] README 80-93 documents `POST /kiosk/check-ins/{id}/attendances` as built. The contract (`docs/api/openapi-money.yaml:4381-4384`) lists only `outside-check-in-window, capacity-full, no-entitlement`. The code also raises `policy-violation`, `already-enrolled` and `see-staff` (router.py:~422-424, `kiosk.py:36`). The contract's `KioskCheckInResult` has no `sessions` field. The README says the response carries `sessions`, each with `is_booked` and `is_bookable` (`kiosk.py:80-91`). I did not check `KioskCheckInResult` for `was_auto_booked`.
+- [contract] README 173-183 documents `GET/POST /portal/wallet-passes` and `DELETE /portal/wallet-passes/{credential_id}` (router.py:306-318). The contract has none of them. It still declares the deferred `GET /portal/app-cards/{credential_id}/wallet-pass` (`getWalletPass`, `docs/api/openapi-money.yaml:4709-4721`), which is not built and which the README does not mention.
+- [contract] The contract (`docs/api/openapi-money.yaml:4505-4516`, `listEligibleSessions`, and `:4723-4735`, `createKioskPackagePurchase`) still declares routes with no code. The README does mark both as not built (README 191-194), so only the contract side lags.
+- [missing] README 71-79 and `kiosk_settings` (README line 17) name "lookup methods, early and late windows, confirmation timeout, welcome text, alerts, hashed exit PIN". The README does not list the reservation columns added by migration 1961: `visible_range_minutes`, `is_auto_book`, `reservation_timeout_seconds` (models.py:305-307). They appear only in prose at README 80-93, so the table is behind. The README's migration list (README 9-37) has no 1961 section.
+- [undocumented] `POST /check-ins/evaluate` (dry run, router.py:55-59) and `POST /credentials/resolve` (router.py:73-80) are not mentioned anywhere in the README.
+- [undocumented] `GET /clients/{id}/access-mode` (router.py:176-179, key `access.checkin.create`) is not in the README. README 58 covers only `PUT`.
+- [undocumented] The module consumes `clients.client.disabled` (handlers.py:7-12 -> `service.revoke_wallet_passes_of`, service.py:590). The "Wallet passes" section (README 173-183) and the merge and erasure bullet (README 126-130) do not mention it. The README names no event the module consumes.
+- [undocumented] Issuing a wallet pass requires an active client (`clients.service.require_active`, service.py `issue_wallet_pass`, ~554). The README does not say so.
+- [undocumented] Lookup limits: `NAME_MATCHES = 5` (service.py:56) caps the kiosk name-search matches. The README does not mention it.
+- [wording] README 74-75 and 121-125 say an "admitted" kiosk response. The kiosk `status` is `"admitted"` or `"see_staff"` (`kiosk.py:86`), while the stored `check_in.result` is `granted` / `denied` / `granted_override` (models.py:32-35). The README uses both vocabularies without saying which is which. README 13 is correct for the stored value.

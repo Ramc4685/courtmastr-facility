@@ -30297,6 +30297,28 @@
         "title": "JoinOut",
         "type": "object"
       },
+      "KioskAttendanceCreate": {
+        "additionalProperties": false,
+        "description": "Book a session from the reservation page. Only `session` is built: places already booked and bookings are\nmarked by the check-in itself.",
+        "properties": {
+          "target_id": {
+            "format": "uuid",
+            "title": "Target Id",
+            "type": "string"
+          },
+          "target_type": {
+            "const": "session",
+            "title": "Target Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_type",
+          "target_id"
+        ],
+        "title": "KioskAttendanceCreate",
+        "type": "object"
+      },
       "KioskAttendedOut": {
         "properties": {
           "session_id": {
@@ -30379,6 +30401,13 @@
             "title": "First Name",
             "type": "string"
           },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/KioskSession"
+            },
+            "title": "Sessions",
+            "type": "array"
+          },
           "status": {
             "enum": [
               "admitted",
@@ -30405,7 +30434,8 @@
           "first_name",
           "displayed_alert_codes",
           "attended",
-          "welcome_message"
+          "welcome_message",
+          "sessions"
         ],
         "title": "KioskCheckInResult",
         "type": "object"
@@ -30662,6 +30692,54 @@
         "title": "KioskPairingCode",
         "type": "object"
       },
+      "KioskSession": {
+        "description": "A session on the kiosk reservation page: title and times only, never prices or plan names.",
+        "properties": {
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "is_bookable": {
+            "title": "Is Bookable",
+            "type": "boolean"
+          },
+          "is_booked": {
+            "title": "Is Booked",
+            "type": "boolean"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          },
+          "target_id": {
+            "format": "uuid",
+            "title": "Target Id",
+            "type": "string"
+          },
+          "target_type": {
+            "const": "session",
+            "title": "Target Type",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_type",
+          "target_id",
+          "title",
+          "starts_at",
+          "ends_at",
+          "is_booked",
+          "is_bookable"
+        ],
+        "title": "KioskSession",
+        "type": "object"
+      },
       "KioskSettingsOut": {
         "properties": {
           "confirmation_timeout_seconds": {
@@ -30683,6 +30761,10 @@
             "title": "Has Exit Pin",
             "type": "boolean"
           },
+          "is_auto_book": {
+            "title": "Is Auto Book",
+            "type": "boolean"
+          },
           "late_window_minutes": {
             "title": "Late Window Minutes",
             "type": "integer"
@@ -30695,6 +30777,14 @@
           "lookup_method": {
             "title": "Lookup Method",
             "type": "string"
+          },
+          "reservation_timeout_seconds": {
+            "title": "Reservation Timeout Seconds",
+            "type": "integer"
+          },
+          "visible_range_minutes": {
+            "title": "Visible Range Minutes",
+            "type": "integer"
           },
           "welcome_message": {
             "anyOf": [
@@ -30716,6 +30806,9 @@
           "welcome_message",
           "displayed_alert_codes",
           "confirmation_timeout_seconds",
+          "visible_range_minutes",
+          "is_auto_book",
+          "reservation_timeout_seconds",
           "has_exit_pin"
         ],
         "title": "KioskSettingsOut",
@@ -30791,6 +30884,17 @@
             ],
             "title": "Exit Pin"
           },
+          "is_auto_book": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Auto Book"
+          },
           "late_window_minutes": {
             "anyOf": [
               {
@@ -30819,6 +30923,32 @@
               }
             ],
             "title": "Lookup Method"
+          },
+          "reservation_timeout_seconds": {
+            "anyOf": [
+              {
+                "maximum": 300.0,
+                "minimum": 3.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reservation Timeout Seconds"
+          },
+          "visible_range_minutes": {
+            "anyOf": [
+              {
+                "maximum": 1440.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visible Range Minutes"
           },
           "welcome_message": {
             "anyOf": [
@@ -118061,7 +118191,7 @@
     },
     "/api/v1/kiosk/check-ins": {
       "post": {
-        "description": "Self check-in (CHK-05): admitted or see staff, never amounts or reasons.",
+        "description": "Self check-in (CHK-05): admitted or see staff, never amounts or reasons; then the reservation page.",
         "operationId": "createKioskCheckIn",
         "parameters": [
           {
@@ -118115,6 +118245,77 @@
           }
         },
         "summary": "Create Kiosk Check In",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/kiosk/check-ins/{check_in_id}/attendances": {
+      "post": {
+        "description": "Book a session from the reservation page, by the portal's rules. Errors: outside-check-in-window,\ncapacity-full, policy-violation, already-enrolled, no-entitlement, see-staff (past due).",
+        "operationId": "createKioskAttendance",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "check_in_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Check In Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KioskAttendanceCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KioskCheckInResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Kiosk Attendance",
         "tags": [
           "access"
         ]
