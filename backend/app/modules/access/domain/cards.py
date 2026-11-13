@@ -44,6 +44,11 @@ def parse(text: str) -> tuple[UUID, int, str] | None:
         return None
 
 
+def is_authentic(secret: bytes, credential_id: UUID, step: int, mac: str) -> bool:
+    """The card's own signature for that step, whatever its age (a stale screenshot is authentic, not current)."""
+    return hmac.compare_digest(mac, _mac(secret, credential_id, step))
+
+
 def verify(secret: bytes, credential_id: UUID, step: int, mac: str, at: datetime) -> bool:
     now = step_of(at)
-    return step in (now, now - 1) and hmac.compare_digest(mac, _mac(secret, credential_id, step))
+    return step in (now, now - 1) and is_authentic(secret, credential_id, step, mac)

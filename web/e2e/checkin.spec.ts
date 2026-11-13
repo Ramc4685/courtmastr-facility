@@ -64,6 +64,12 @@ test('front desk checks a client in by card, exports history, launches the kiosk
   await kiosk.getByRole('button', { name: 'Morgan M.' }).click()
   await expect(kiosk.getByText(/You're checked in, Morgan!|Please see the front desk, Morgan\./)).toBeVisible()
   await scan(kiosk, 'kiosk result')
+  // CHK-05: after an admitted check-in, the reservation page lists classes starting soon (or says none do).
+  if (await kiosk.getByText("You're checked in, Morgan!").isVisible()) {
+    await kiosk.getByRole('button', { name: 'Book a class' }).click()
+    await expect(kiosk.getByRole('heading', { level: 2, name: 'Book a class' })).toBeVisible()
+    await scan(kiosk, 'kiosk reservation page')
+  }
   await device.close()
 })
 

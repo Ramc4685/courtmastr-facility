@@ -95,4 +95,4 @@ Counts: P0 13 done; P1 36 done, 3 partial (RPT-29, RPT-38, FIT-04).
 
 ## Open questions
 
-- `/pos-reports/*` is gated by `pos.sale.read`, while the report centre's POS reports use `reporting.pos.run`. Left as is for the owner to decide.
+- `/pos-reports/*` and the report centre's `pos` category reports both need `reporting.pos.run` (owner decisions 2026-11-13, question 14).

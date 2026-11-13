@@ -210,7 +210,7 @@ export function AppRoutes() {
           <Route path="products" element={<ProductsPage />} />
           <Route path="equipment" element={<RequirePermission permission="pos.equipment.rent"><EquipmentPage /></RequirePermission>} />
           <Route path="drawers" element={<RequirePermission permission="pos.drawer.operate"><DrawersPage /></RequirePermission>} />
-          <Route path="reports" element={<PosReportsPage />} />
+          <Route path="reports" element={<RequirePermission permission="reporting.pos.run"><PosReportsPage /></RequirePermission>} />
           <Route path="setup" element={<RequirePermission permission="pos.register.manage"><PosSetupPage /></RequirePermission>} />
         </Route>
         <Route path="reports" element={<RequirePermission permission={RUN_KEYS}><ReportsPage /></RequirePermission>} />

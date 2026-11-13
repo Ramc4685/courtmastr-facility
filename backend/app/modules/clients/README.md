@@ -21,7 +21,8 @@ majority as an argument; households reads the tenant setting, default 18), `emai
 `ensure_member_number`, `import_client`, `link_identity`, `client_ids_for_identity`, `audience`,
 `client_ids_for_address`, `find_by_member_number`, `find_by_last_name_prefix`, `display_names`, `reach_filter`,
 `households.can_act_for(session, identity_id, client_id, capability)`, `households.actable_client_ids`,
-`households.guardian_ids`, `activity.active_alerts(session, client_id, "check_in" | "booking" | "profile", on)`.
+`households.guardian_ids`, `households.household_ids` (a client and the clients one acting relationship away; the
+kiosk's past-due lockout), `activity.active_alerts(session, client_id, "check_in" | "booking" | "profile", on)`.
 
 ## Integrator notes
 

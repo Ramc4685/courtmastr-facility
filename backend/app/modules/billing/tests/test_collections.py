@@ -39,6 +39,61 @@ OPEN_PORTAL_POSTS = {
 }  # fmt: skip
 
 
+# Kiosk POST routes (no client principal, so the portal guard cannot see them): the ones that book or buy apply the
+# same lockout in access/kiosk.py, the rest stay open.
+KIOSK_LOCKED_POSTS = {"/kiosk/check-ins/{check_in_id}/attendances"}
+KIOSK_OPEN_POSTS = {
+    "/kiosk/pair",
+    "/kiosk/lookups",
+    "/kiosk/check-ins",
+    "/kiosk/exit",
+    "/kiosk/visits/end",
+}  # entry is the access rules'
+
+
+def test_kiosk_post_routes_are_each_locked_or_deliberately_open():
+    posts = {path.removeprefix("/api/v1") for path, route, _ in ROUTES if "POST" in route.methods and "/kiosk/" in path}
+    assert posts == KIOSK_LOCKED_POSTS | KIOSK_OPEN_POSTS
+
+
+def test_a_past_due_payer_cannot_book_at_the_kiosk(client, shop):
+    from app.modules.access.tests.test_checkin import _pair
+    from app.modules.access.tests.test_kiosk_reservations import book, enter, soon
+
+    seat = soon(client, shop.owner, str(shop.location_id), 30)
+    person = client.get(f"/api/v1/clients/{shop.client_id}", headers=shop.owner).json()
+    _pair(client, shop.tenant, shop.owner, str(shop.location_id))
+    _past_due_invoice(shop, shop.client_id)
+    _settings(shop.tenant, is_portal_blocked_when_past_due=True)
+    entered = enter(client, person)
+    assert entered["status"] == "admitted"  # entry is the access rules' business, not the lockout's
+    assert [(s["target_id"], s["is_bookable"]) for s in entered["sessions"]] == [(seat.id, False)]
+    refused = book(client, entered, seat.id)
+    assert refused.status_code == 409 and refused.json() == {**refused.json(), "code": "see-staff"}
+    assert "past" not in refused.text.lower()  # the kiosk says why at the desk, not on the tablet
+
+
+def test_a_child_billed_to_a_past_due_parent_cannot_book_at_the_kiosk(client, shop):
+    """The kiosk checks the visitor's household as the portal guard does: a parent's past-due invoice locks the
+    child the parent books for, and the parent through the child."""
+    from app.modules.access.tests.test_checkin import _pair
+    from app.modules.access.tests.test_kiosk_reservations import book, enter, soon
+
+    seat = soon(client, shop.owner, str(shop.location_id), 30)
+    parent = client.get(f"/api/v1/clients/{shop.client_id}", headers=shop.owner).json()
+    kid = new_client(client, shop.owner, shop.location_id, first_name="Kit", last_name=f"Kid{parent['id'][:6]}")
+    types = {t["code"]: t["id"] for t in client.get("/api/v1/relationship-types", headers=shop.owner).json()}
+    assert client.post(f"/api/v1/clients/{parent['id']}/relationships", headers=shop.owner,
+                       json={"other_client_id": kid["id"], "relationship_type_id": types["parent_of"]}).status_code == 201  # fmt: skip
+    _pair(client, shop.tenant, shop.owner, str(shop.location_id))
+    _past_due_invoice(shop, shop.client_id)
+    _settings(shop.tenant, is_portal_blocked_when_past_due=True)
+    entered = enter(client, kid)
+    assert [(s["target_id"], s["is_bookable"]) for s in entered["sessions"]] == [(seat.id, False)]
+    refused = book(client, entered, seat.id)
+    assert refused.status_code == 409 and refused.json()["code"] == "see-staff"
+
+
 def _settings(tenant, **values) -> None:
     with work(tenant) as session:
         row = catalogue.settings_for(session)

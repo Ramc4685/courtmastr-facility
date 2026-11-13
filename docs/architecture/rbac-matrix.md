@@ -488,7 +488,6 @@ Without `read_full_details` the check-in window shows only the fields the locati
 | `leagues.result.enter` | L | | subj:competition | Y | Y | - | - | Y | Y | - | LGE-14, PLT-11 |
 | `leagues.result.amend_final` | L | | | Y | - | - | - | Y | - | - | LGE-14 (after standings are finalised) |
 | `leagues.standings.adjust` | L | | | Y | - | - | - | Y | - | - | LGE-06 (manual points, penalties) |
-| `leagues.discipline.manage` | L | | | Y | - | - | - | Y | - | - | LGE-14 (caps, suspensions) |
 | `leagues.official.manage` | L | | | Y | Y | - | - | Y | - | - | LGE-15 |
 | `leagues.game_card.print` | L | | | Y | Y | - | - | Y | Y | - | LGE-16, RPT-36 |
 | `leagues.alert.send` | L | B | | Y | Y | - | - | Y | - | - | LGE-30 |
@@ -573,7 +572,7 @@ Rejected: a subject grant per report (about 60 rows per role for no extra contro
 | `reporting.client.run` | L | H | | Y | Y | - | - | - | - | - | RPT-17..RPT-20, RPT-24..RPT-26, FIT-04, FIT-03 |
 | `reporting.attendance.run` | L | | own | Y | Y | Y | own | - | - | - | RPT-21..RPT-23, CHK-19, CHK-20, PKG-15, STF-11, RPT-40 |
 | `reporting.program.run` | L | H | | Y | Y | - | - | Y | - | - | RPT-27, RPT-28, REG-22 |
-| `reporting.pos.run` | L | | | Y | Y | - | - | - | - | - | RPT-30..RPT-35 |
+| `reporting.pos.run` | L | | | Y | Y | - | - | - | - | - | RPT-30..RPT-35, POS-16 (`/pos-reports/*`, owner decision Q14) |
 | `reporting.time_clock.run` | L | W | | Y | Y | - | - | - | - | - | RPT-37, STF-08 |
 | `reporting.payroll.run` | L | W | own | Y | - | own | own | - | - | - | STF-09, STF-10, STF-11 |
 | `reporting.league.run` | L | | | Y | Y | - | - | Y | - | - | LGE-32, RPT-36 |
@@ -720,7 +719,7 @@ set is fixed in code and not editable per tenant; behaviour is tuned by kiosk se
 | Client lookup | Y | by the configured method (name, membership number, both); returns display name, photo if enabled, and at most 10 matches; disabled clients excluded (CHK-05 2024-01-17) |
 | Create check-in | Y | access rules applied; result is a status (admitted, see staff), never an amount or reason detail beyond the configured alerts (CHK-06, CHK-21) |
 | List bookable sessions, auto-book | Y | within the configured visible range and check-in windows; against the client's existing entitlements only |
-| Purchase a package | set | only in a session identified by a possession factor (scanned card, barcode, wallet pass), never by typed name; charges the client's default stored method |
+| Purchase a package | set | only in a session identified by a possession factor (a verified app-card QR or an active wallet pass; a static barcode, fob or member number never counts, typed or scanned), never by typed name; not built (review 2026-11-13); charges the client's default stored method |
 | Read profile, contact data, invoices, balances, documents | - | |
 | Edit anything on the client | - | |
 | Any staff catalogue key | - | |

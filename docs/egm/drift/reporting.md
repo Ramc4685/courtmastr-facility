@@ -2,6 +2,9 @@
 
 State reported: the docs branch after merging Phase 12 (`main` 48250db, migration head `1661`). The registry holds 62 reports across ten family tuples in `catalogue.py:7-19`; `views.py` defines 49 views. The README's view-migration attribution, the `reporting.export.completed` event and the registry-derived router gate are fixed in the README and not repeated here.
 
+Rechecked 2026-11-13 on `claude/owner-decisions-1`. Recount of `ReportSpec(` constructions, class definition excluded (`grep -rn 'ReportSpec(' backend/app/modules/reporting | grep -v 'class ReportSpec'`): 62 = registry.py 14, money 10, clients 9, operations 7, memberships 6, pos 6, programs 3, staff 3, fitness 2, named 2. This matches the ten family tuples in `catalogue.py:7-19`; the earlier "68" was wrong. The README's `/pos-reports/*` note (README:166-167) matches `pos/router.py:496-525`, which use `require("reporting.pos.run")`: no drift on the gate. The README's second sentence, "API keys cannot run POS reports: like every run they get 403, because a run belongs to a person", is right in outcome but wrong in mechanism (first item below). The old "fourteen reports" docstring at `service.py:87` is gone. New findings that pass: `export_job.notify_on_complete` is read from the request dict though `ExportJobCreate` has no such field; `report_schedule` is missing from `data-model-programs.md`. The items below are otherwise unchanged.
+
+- [wording] README:167-168 says API keys get 403 on POS reports "like every run ... because a run belongs to a person". `/pos-reports/*` are not runs and never reach `service._staff` (the check at `service.py:48-52` that gives that 403); they are gated only by `require("reporting.pos.run")` (`pos/router.py:502,511,517,525`). A key is refused because it cannot hold that key: `reporting` is not in `KEY_CONTEXTS` (`integrations/service.py:67-70`, comment at :63-66 names reporting), `reporting.pos.run` is not in `KEY_PERMISSIONS` (:77-81), so `grantable_to_key` is false (:84-86) and minting answers 422 `scope-not-grantable` (:162-163). A key therefore never holds the permission and `authorize` answers 403 (`core/auth/permissions.py:102`). `STAFF_SURFACE` includes `api_key` (`permissions.py:63`), so the surface check alone would not stop it.
 - [stale] The "Registry, not a table" bullet says `registry.py` holds every `ReportSpec`. It holds only the module-15 specs (`registry.py:648`); the 62-report catalogue is ten family tuples in `catalogue.py:7-19`, with builders in `reports/*.py`.
 - [undocumented] The Gates section omits that the schedule and recipients routes use the export key (`router.py:113-141`) and the dashboard uses `reporting.dashboard.read` (`router.py:23`). The dashboard rejects API keys (`dashboard.py:78`); the definition routes never call `_staff` and accept them (`service.py:86-97`).
 - [undocumented] The 13 keys in `permissions.py:15-39` are not listed, nor the dashboard key's admin and manager-only default. Only `report_schedule.manage` is described.
@@ -13,7 +16,6 @@ State reported: the docs branch after merging Phase 12 (`main` 48250db, migratio
 
 ## Code comments in backend/app/modules/reporting
 
-- [stale] `service.py:87` says "fourteen reports"; there are 62.
 - [stale] `service.py:1` says the P0 reports live in `registry.py`; they are spread across `registry.py` and `reports/*.py`.
 - [stale] `registry.py:1-5` and `__init__.py:1-3` describe only the module-15 report set.
 - [wording] `views.py:1` and `models.py:2` credit migration 0953 with the views; 0953 creates 13 of the 49 (the rest: `1461_lockers.py:330`, 1621, 1641, 1661).
@@ -53,3 +55,5 @@ State reported: the docs branch after merging Phase 12 (`main` 48250db, migratio
 - [stale] Lines 544-546 say a report is added in `reporting/registry.py` and that MEM-21, PKG-15 and BIL-19 are "still per-module endpoints"; reports register through `catalogue.py:7-18`, and those three are registry reports.
 
 Not checked: each report builder's SQL against the README's per-report assumptions.
+
+Post-report fix (2026-11-13): README now gives the right reason for the API-key 403 on /pos-reports/* (reporting keys are never grantable to a key); that [wording] finding is closed. Remaining new findings are queued in DRIFT_BACKLOG.md under reporting (+10).
