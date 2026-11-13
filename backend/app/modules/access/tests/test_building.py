@@ -1008,6 +1008,70 @@ def test_without_an_adapter_each_zone_and_door_shows_one_not_configured_state(cl
     assert {d["sync_state"] for d in status["doors"]} == {"adapter_not_configured"}
 
 
+def test_a_failing_lights_step_never_rolls_back_the_codes_step(b, sim, monkeypatch):
+    def broken(session, location_id):
+        raise RuntimeError("lights step blew up")
+
+    monkeypatch.setattr(building, "reconcile_lights", broken)
+    with clock.freeze(at(9)):
+        booking = book(b, 10, 11)
+        tick(b)  # does not raise: one step's failure is logged and the next tick tries again
+        assert [c.status for c in codes(b, booking)] == ["active"]
+
+
+def test_a_tick_skips_codes_another_tick_is_syncing_and_races_never_fail(b, sim):
+    import threading
+
+    with clock.freeze(at(9)):
+        booking = book(b, 10, 11)
+        with tenant_session(b.tenant.id, actor=system_principal("tests")) as other:
+            assert building._codes_lock(other, UUID(b.location))  # another tick holds this location's codes
+            tick(b)  # skips the codes step, still runs the lights, raises nothing
+            assert codes(b, booking) == []
+        tick(b)
+        assert [c.status for c in codes(b, booking)] == ["active"]
+        late = book(b, 12, 13)
+        started, errors = threading.Barrier(2), []
+
+        def handler():  # an event handler syncing the same booking while the tick does
+            try:
+                with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+                    started.wait()
+                    building.sync_booking_code(session, UUID(late))
+                    time.sleep(0.3)  # commit after the tick's insert has to wait on the unique index
+            except Exception as exc:  # noqa: BLE001
+                errors.append(exc)
+
+        thread = threading.Thread(target=handler)
+        thread.start()
+        started.wait()
+        time.sleep(0.1)
+        with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+            building.sync_booking_code(session, UUID(late))
+        thread.join()
+        assert errors == [] and [c.status for c in codes(b, late)] == ["active"]
+
+
+def test_override_waits_for_the_zone_row_lock(client, owner, b, sim):
+    import threading
+
+    held = threading.Event()
+
+    def hold():
+        with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+            session.execute(text("SELECT id FROM lighting_zone WHERE id = :z FOR UPDATE"), {"z": b.court_zone})
+            held.set()
+            time.sleep(0.5)
+
+    thread = threading.Thread(target=hold)
+    thread.start()
+    held.wait()
+    began = time.monotonic()
+    ok(client.put(f"{API}/lighting-zones/{b.court_zone}/override", headers=owner, json={"is_on": None}), 200)
+    thread.join()
+    assert time.monotonic() - began >= 0.4
+
+
 def test_activity_lists_by_day_and_kind(client, tenant, owner, b):
     ok(client.post(f"{API}/door-devices/{b.door}/unlock", headers=owner, json={"reason": "Delivery"}))
     page = ok(client.get(f"{API}/building-events?location_id={b.location}&kind=remote_unlock", headers=owner), 200)

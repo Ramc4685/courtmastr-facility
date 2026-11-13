@@ -12,7 +12,7 @@ end. Only changes are sent, so back-to-back bookings never flicker, a missed tic
 cancelled or moved booking is corrected within a minute. A failed command is retried every tick; the third failure
 in a row emails the location's alert address.
 
-Internal (no principal): `sync_booking_code`, `run_building_control`, `verify_code`, `deliver_code_to`. Staff and
+Internal (no principal): `sync_booking_code`, `control_steps`, `run_control_step`, `verify_code`, `deliver_code_to`. Staff and
 portal commands carry both gates."""
 
 import asyncio
@@ -28,6 +28,7 @@ import redis
 import redis.asyncio as aioredis
 from sqlalchemy import delete, exists, select, text
 from sqlalchemy.dialects.postgresql import Range
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core import audit, clock, crypto, events, ratelimit
@@ -413,20 +414,29 @@ def _send_revoke(session: Session, row: EntryCode) -> bool:
 
 
 def _issue(session: Session, booking: dict, client_id: UUID, window: tuple[datetime, datetime]) -> EntryCode:
+    """A new code for the person, inserted under a savepoint: when a handler and the tick issue for the same
+    booking and person at once, the loser takes the winner's row instead of failing its whole transaction; a
+    clash with another live code at the location (rare) draws again."""
     location_id = booking["location_id"]
-    for _ in range(20):  # a clash with another live code at the location is rare; the index is the backstop
+    for _ in range(20):
         code = f"{secrets.randbelow(10**CODE_DIGITS):0{CODE_DIGITS}d}"
-        digest = _digest(location_id, code)
-        taken = session.scalar(select(EntryCode.id).where(
-            EntryCode.location_id == location_id, EntryCode.code_hash == digest, EntryCode.status == "active"))  # fmt: skip
-        if taken is None:
+        row = EntryCode(
+            location_id=location_id, booking_id=booking["id"], client_id=client_id,
+            code_hash=_digest(location_id, code), code_ciphertext=crypto.encrypt(code, session.info["tenant_id"]),
+            valid_from_at=window[0], valid_until_at=window[1],
+        )  # fmt: skip
+        try:
+            with session.begin_nested():
+                session.add(row)
+                session.flush()
             break
-    row = EntryCode(
-        location_id=location_id, booking_id=booking["id"], client_id=client_id, code_hash=digest,
-        code_ciphertext=crypto.encrypt(code, session.info["tenant_id"]), valid_from_at=window[0], valid_until_at=window[1],
-    )  # fmt: skip
-    session.add(row)
-    session.flush()
+        except IntegrityError:
+            winner = session.scalar(select(EntryCode).where(
+                EntryCode.booking_id == booking["id"], EntryCode.client_id == client_id, EntryCode.status == "active"))  # fmt: skip
+            if winner is not None:
+                return winner
+    else:
+        raise RuntimeError("no free entry code at the location after 20 draws")
     audit.record(session, "access.entry_code.issue", row, location_id=location_id, changes={
         "code": True, "booking_id": [None, str(booking["id"])], "valid_from_at": [None, window[0].isoformat()],
         "valid_until_at": [None, window[1].isoformat()],
@@ -933,6 +943,7 @@ def override_zone(session: Session, principal: Principal, zone_id: UUID, data: d
     the hold (`is_on` null: back to the bookings, the safe default). Holding a zone off while a booking is in play
     needs `confirm_in_progress`. Applied at once; the bookings take over again when it ends."""
     zone = _loaded(session, principal, LightingZone, zone_id, LIGHTS)
+    session.refresh(zone, with_for_update=True)  # serialised with the tick's reconcile of this zone
     now = clock.now()
     if data["is_on"] is None:
         zone.override_is_on = zone.override_until_at = zone.override_reason = None
@@ -1014,15 +1025,26 @@ def sync_location_codes(session: Session, location_id: UUID) -> None:
     _retry_revokes(session, location_id)
 
 
-def run_building_control(session: Session) -> None:
-    """Internal, every minute per tenant: codes, then lights, at each location with a door or a zone."""
-    locations = set(session.scalars(select(DoorDevice.location_id).where(DoorDevice.is_active))) | set(
-        session.scalars(select(LightingZone.location_id).where(LightingZone.is_active))
-    )
-    for location_id in sorted(locations):
-        if session.scalar(select(DoorDevice.id).where(DoorDevice.location_id == location_id, DoorDevice.is_active)):
-            sync_location_codes(session, location_id)
+def control_steps(session: Session) -> list[tuple[UUID, str]]:
+    """Internal (the minute tick): (location, "codes" | "lights") in order, each run in its own transaction."""
+    doors = set(session.scalars(select(DoorDevice.location_id).where(DoorDevice.is_active)))
+    zones = set(session.scalars(select(LightingZone.location_id).where(LightingZone.is_active)))
+    return [(loc, step) for loc in sorted(doors | zones) for step in ("codes", "lights")
+            if (step == "codes" and loc in doors) or step == "lights"]  # fmt: skip
+
+
+def _codes_lock(session: Session, location_id: UUID) -> bool:
+    """One codes sync per location at a time: a transaction-scoped advisory lock, tried, never waited for (the
+    tick holding it does the work; this one skips)."""
+    key = f"access.codes:{session.info['tenant_id']}:{location_id}"
+    return bool(session.scalar(text("SELECT pg_try_advisory_xact_lock(hashtext(:k))"), {"k": key}))
+
+
+def run_control_step(session: Session, location_id: UUID, step: str) -> None:
+    if step == "lights":
         reconcile_lights(session, location_id)
+    elif _codes_lock(session, location_id):
+        sync_location_codes(session, location_id)
 
 
 # --- retention and the data subject ---------------------------------------------------------------------------

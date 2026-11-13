@@ -295,7 +295,12 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   Only changes are sent, so back-to-back bookings never flicker, a restarted scheduler or a missed tick catches up on
   the next one, and a cancelled or moved booking is corrected within a minute. A failed command is retried every
   tick; the third failure in a row emails the location's alert address (or its email), and failures show in the
-  activity view and as "not in sync" on the status line. There is no `failed_job` row: the job itself succeeds. With no
+  activity view and as "not in sync" on the status line. There is no `failed_job` row: the job itself succeeds.
+  Each location's codes and its lights run in their own transaction (`control_steps`, `run_control_step`), so one
+  failing step is logged and retried next minute without rolling back the others. Two ticks never sync one
+  location's codes at once (a tried, transaction-scoped advisory lock: the second skips), and a handler racing the
+  tick on the same booking and person takes the winner's row (the insert runs under a savepoint). A staff override
+  locks the zone row, so it serialises with the tick's reconcile. With no
   adapter configured nothing is sent and nothing is counted as failed: each zone and door shows one
   `adapter_not_configured` state on the status line (`sync_state`), instead of a failure row a minute.
 - **Staff.** Overrides hold a zone on or off until a time within 24 hours, with a reason (`PUT /lighting-zones/{id}/override`,
