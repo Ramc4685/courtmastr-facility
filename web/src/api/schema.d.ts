@@ -5747,7 +5747,8 @@ export interface paths {
         put?: never;
         /**
          * Renew Locker Lease
-         * @description Closes the lease as renewed and starts the next term with its own charge. Errors: lease-cleared.
+         * @description Closes the lease as renewed and starts the next term with its own charge (a lapsed lease restarts
+         *     today). Errors: lease-cleared, lease-overlaps, locker-unavailable.
          */
         post: operations["renewLockerLease"];
         delete?: never;

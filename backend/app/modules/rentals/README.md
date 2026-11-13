@@ -82,11 +82,16 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
   `day`, `week`, `month`, `year` (from the start date, default today) or `custom` (needs `ends_on`). A fee goes
   through `billing.service.post_charge` as one charge for the whole term, source ('rentals', 'locker_lease',
   id), invoiced at once unless routed to the cart. Renewal clears the old lease (`renewed`) and starts a new
-  lease and charge the day after it ends; it never extends silently. Expired leases stay until staff clear
+  lease and charge the day after it ends, or today when it has lapsed (never billing past dates); it never
+  extends silently. A renewal that would start on or before the old lease's end is refused
+  (`lease-overlaps`), so the same dates are never charged twice. Lockers that are out of service or in a
+  deactivated room cannot be rented (`locker-unavailable`). The locker board shows the leaseholder only to staff
+  holding `rentals.locker_rental.manage`. Expired leases stay until staff clear
   them, one by one or with `clear-expired` per location or room: a lapsed locker may still hold belongings.
 - **Plan sharing (RNT-10, FAM-06).** A plan marked `is_shareable` can be shared with the owner's live, active
   relatives (`clients.households`); `PUT .../shares` replaces the live list and revokes the rest. A sharer's
-  booking debits the one balance. Shares carry over to a renewal; a merge repoints them and an erasure revokes
+  booking debits the one balance. If the plan is later made unshareable its share rows are ignored and a
+  renewal does not copy them. Shares carry over to a renewal; a merge repoints them and an erasure revokes
   them.
 - **Auto-renew and autopay (RNT-09).** A plan with a validity may renew: the hourly `run_rental_plan_day` job
   activates pending purchases, expires lapsed ones (the remaining balance is written off with an `expire`
@@ -103,6 +108,9 @@ Assumptions, written down rather than asked:
 - Locker charges use billing's default (uncategorised) revenue category: lockers have no category setting yet.
 - A lapsed auto-renew purchase whose day-roll ran late starts its successor on the run's day, not the day
   after the old expiry, so no days are billed in the past.
+- Known gap: `run_plan_day` walks every pending or active purchase and takes `FOR UPDATE` on each in one
+  transaction per tenant. Fine at current volumes; later, filter the candidates in SQL (due to activate or
+  expire) and move the run to `core.jobs.chunked_actor`.
 
 ## Not built
 

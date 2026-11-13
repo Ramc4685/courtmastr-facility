@@ -4,7 +4,7 @@ from datetime import date, datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, Index, SmallInteger, UniqueConstraint, text
+from sqlalchemy import BigInteger, CheckConstraint, Index, SmallInteger, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -217,6 +217,6 @@ class LockerTerm(TenantOwned, Timestamps, Base):
     name: Mapped[str] = mapped_column(info={"audit": "value"})
     starts_on: Mapped[date]
     ends_on: Mapped[date]
-    price_minor: Mapped[int] = mapped_column(server_default=text("0"), info={"audit": "value"})
+    price_minor: Mapped[int] = mapped_column(BigInteger, server_default=text("0"), info={"audit": "value"})
     sort_order: Mapped[int] = mapped_column(server_default=text("0"))
     is_active: Mapped[bool] = mapped_column(server_default=text("true"))

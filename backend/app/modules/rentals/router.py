@@ -308,7 +308,8 @@ def clear_locker_lease(locker_lease_id: UUID, ctx: Ctx = Lockers):
 
 @staff.post("/locker-leases/{locker_lease_id}/renew", response_model=s.LockerLeaseOut, status_code=201)
 def renew_locker_lease(locker_lease_id: UUID, body: s.LockerLeaseRenew, ctx: Ctx = Lockers):
-    """Closes the lease as renewed and starts the next term with its own charge. Errors: lease-cleared."""
+    """Closes the lease as renewed and starts the next term with its own charge (a lapsed lease restarts
+    today). Errors: lease-cleared, lease-overlaps, locker-unavailable."""
     return service.renew_locker_lease(ctx.session, ctx.principal, locker_lease_id, body.model_dump(exclude_unset=True))
 
 

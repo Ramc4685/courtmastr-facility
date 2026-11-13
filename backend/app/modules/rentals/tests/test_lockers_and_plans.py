@@ -86,11 +86,14 @@ def test_fee_override_needs_its_own_key_and_term_must_be_current(client, owner, 
     assert out.status_code == 409 and out.json()["code"] == "locker-unavailable"
 
 
-def test_clear_renew_and_clear_expired(client, owner, f):
+def test_clear_renew_and_clear_expired(client, owner, f, tenant):
     lapsed = ok(lease(client, owner, f, term_kind="custom", starts_on="2020-01-01", ends_on="2020-01-31"))
     assert lapsed["state"] == "expired" and board_state(client, owner, f, f.locker)["state"] == "expired"
     renewed = ok(client.post(f"{API}/locker-leases/{lapsed['id']}/renew", headers=owner, json={"term_kind": "month"}))
-    assert renewed["starts_on"] == "2020-02-01" and renewed["renewed_from_lease_id"] == lapsed["id"]
+    with tenant_session(tenant.id) as session:
+        today = platform.service.location_today(session, UUID(f.location))
+    # a lapsed lease restarts today: never bill the months that already went by
+    assert renewed["starts_on"] == today.isoformat() and renewed["renewed_from_lease_id"] == lapsed["id"]
     again = client.post(f"{API}/locker-leases/{lapsed['id']}/renew", headers=owner, json={"term_kind": "month"})
     assert again.status_code == 409 and again.json()["code"] == "lease-cleared"
     ok(lease(client, owner, f, f.locker2, term_kind="custom", starts_on="2020-03-01", ends_on="2020-03-02"))
@@ -110,6 +113,34 @@ def test_clear_renew_and_clear_expired(client, owner, f):
     )
     assert {r["clear_source"] for r in history["data"]} == {"renewed", "bulk_expired", "staff"}
     assert ok(client.get(f"{API}/locker-leases", headers=owner, params={"is_open": "true"}), 200)["data"] == []
+
+
+def test_renewal_never_overlaps_and_closed_rooms_refuse(client, owner, f, tenant):
+    renew = f"{API}/locker-leases/{{}}/renew"
+    current = ok(lease(client, owner, f, term_kind="custom", starts_on="2031-01-01", ends_on="2031-01-31"))
+    early = client.post(
+        renew.format(current["id"]), headers=owner, json={"term_kind": "month", "starts_on": "2031-01-15"}
+    )
+    assert early.status_code == 409 and early.json()["code"] == "lease-overlaps"
+    assert board_state(client, owner, f, f.locker)["locker_lease_id"] == current["id"]  # rolled back: still open
+    following = ok(client.post(renew.format(current["id"]), headers=owner, json={"term_kind": "month"}))
+    assert following["starts_on"] == "2031-02-01"
+    term = ok(client.post(f"{API}/locker-terms", headers=owner, json={
+        "location_id": f.location, "name": "Long", "starts_on": "2026-01-01", "ends_on": "2040-12-31", "price_minor": 100,
+    }))  # fmt: skip
+    on_term = ok(lease(client, owner, f, f.locker2, term_kind="term", locker_term_id=term["id"]))
+    same = client.post(
+        renew.format(on_term["id"]), headers=owner, json={"term_kind": "term", "locker_term_id": term["id"]}
+    )
+    assert same.status_code == 409 and same.json()["code"] == "lease-overlaps"  # the same term, charged twice
+    ok(client.post(f"{API}/locker-leases/{on_term['id']}/clear", headers=owner), 200)
+    coach = login(client, tenant, add_staff(tenant, "coach", location_ids=[f.location])[0])
+    hidden = board_state(client, coach, f, f.locker)
+    assert hidden["state"] == "rented" and (hidden["client_id"], hidden["client_name"]) == (None, None)
+    assert board_state(client, owner, f, f.locker)["client_id"] == f.person
+    ok(client.patch(f"{API}/locker-rooms/{f.room}", headers=owner, json={"is_active": False}), 200)
+    closed = lease(client, owner, f, f.locker2, term_kind="day")
+    assert closed.status_code == 409 and closed.json()["code"] == "locker-unavailable"
 
 
 # --- plans -------------------------------------------------------------------------------------------------
@@ -194,6 +225,39 @@ def test_auto_renew_autopay_and_day_roll(client, owner, f, tenant):
         ).one()
         assert successor.starts_on == today + timedelta(days=31) and successor.is_autopay  # lapsed: starts today
         assert service._shared_with(session, successor.id) == [UUID(kid)]
+
+
+def test_unshareable_plan_ignores_old_shares(client, owner, f, tenant):
+    kid = relate(client, owner, f)
+    flat = plan(client, owner, f, is_shareable=True)
+    monthly = plan(client, owner, f, validity_days=30, is_auto_renew=True, is_shareable=True)
+    ok(client.patch(f"{API}/rental-types/{f.rtype}", headers=owner,
+                    json={"rental_plan_ids": [flat["id"], monthly["id"]]}), 200)  # fmt: skip
+    bought, renewing = ok(sell(client, owner, flat["id"], f.person)), ok(sell(client, owner, monthly["id"], f.person))
+    for p in (bought, renewing):
+        ok(client.put(f"{API}/rental-plan-purchases/{p['id']}/shares", headers=owner, json={"client_ids": [kid]}), 200)
+
+    def book(hour):
+        return client.post(f"{API}/rentals", headers=owner | {"Idempotency-Key": f"r-{uuid4().hex}"}, json={
+            "location_id": f.location, "rental_type_id": f.rtype, "client_id": kid,
+            "resources": [{"resource_id": f.court}], "starts_at": f"2031-05-05T{hour}:00:00Z",
+            "ends_at": f"2031-05-05T{hour + 1}:00:00Z",
+            "charge": {"decision": "plan", "rental_plan_purchase_id": bought["id"]},
+        })  # fmt: skip
+
+    assert book(15).status_code == 201
+    for p in (flat, monthly):
+        ok(client.patch(f"{API}/rental-plans/{p['id']}", headers=owner, json={"is_shareable": False}), 200)
+    assert book(17).status_code == 422  # the share row is still there, but the plan no longer shares
+    with (
+        clock.freeze(clock.now() + timedelta(days=31)),
+        tenant_session(tenant.id, actor=system_principal("tests")) as session,
+    ):
+        assert service.run_plan_day(session)["renewed"] == 1
+        successor = session.scalars(
+            select(RentalPlanPurchase).where(RentalPlanPurchase.renewed_from_purchase_id == UUID(renewing["id"]))
+        ).one()
+        assert service._shared_with(session, successor.id) == []
 
 
 def portal_client(client, owner, tenant, f) -> tuple[str, dict]:

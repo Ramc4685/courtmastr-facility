@@ -98789,7 +98789,7 @@
     },
     "/api/v1/locker-leases/{locker_lease_id}/renew": {
       "post": {
-        "description": "Closes the lease as renewed and starts the next term with its own charge. Errors: lease-cleared.",
+        "description": "Closes the lease as renewed and starts the next term with its own charge (a lapsed lease restarts\ntoday). Errors: lease-cleared, lease-overlaps, locker-unavailable.",
         "operationId": "renewLockerLease",
         "parameters": [
           {

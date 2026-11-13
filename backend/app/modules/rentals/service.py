@@ -647,13 +647,16 @@ def _purchase_for(session: Db, purchase_id: UUID, client_id: UUID, rtype: Rental
         select(RentalPlanPurchase).where(RentalPlanPurchase.id == purchase_id).with_for_update()
     ).scalar_one_or_none()
     pointer = "/charge/rental_plan_purchase_id"
+    plan = purchase and session.get(RentalPlan, purchase.rental_plan_id)
     if (
         purchase is None
         or purchase.location_id != rtype.location_id
-        or (purchase.client_id != client_id and client_id not in _shared_with(session, purchase.id))
+        or (
+            purchase.client_id != client_id
+            and not (plan.is_shareable and client_id in _shared_with(session, purchase.id))
+        )  # a plan made unshareable later ignores its old share rows
     ):
         raise ValidationFailed("Unknown plan for this client.", pointer=pointer)
-    plan = session.get(RentalPlan, purchase.rental_plan_id)
     allowed = set(
         session.scalars(
             select(RentalTypeRentalPlan.rental_plan_id).where(RentalTypeRentalPlan.rental_type_id == rtype.id)
@@ -1718,7 +1721,8 @@ def _expire_purchase(session: Db, row: RentalPlanPurchase) -> None:
 
 def _renew_purchase(session: Db, row: RentalPlanPurchase, today: date) -> RentalPlanPurchase | None:
     """The successor of an expiring auto-renew purchase: a new term and a new charge, invoiced with the
-    purchase's autopay flag so billing's autopay run collects it. Shares carry over. None when the plan was
+    purchase's autopay flag so billing's autopay run collects it. Shares carry over while the plan is
+    shareable. None when the plan was
     archived or the client no longer qualifies (members-only); the purchase then simply expires."""
     plan = session.get(RentalPlan, row.rental_plan_id)
     if plan.status != "active" or plan.validity_days is None:
@@ -1735,8 +1739,9 @@ def _renew_purchase(session: Db, row: RentalPlanPurchase, today: date) -> Rental
             )  # fmt: skip
     except (ValidationFailed, Conflict, NotFound):
         return None
-    session.add_all(RentalPlanShare(rental_plan_purchase_id=successor.id, client_id=cid)
-                    for cid in _shared_with(session, row.id))  # fmt: skip
+    if plan.is_shareable:
+        session.add_all(RentalPlanShare(rental_plan_purchase_id=successor.id, client_id=cid)
+                        for cid in _shared_with(session, row.id))  # fmt: skip
     session.flush()
     return successor
 
@@ -1963,9 +1968,11 @@ def _new_lease(
 ) -> LockerLease:
     """One lease and, for a fee, one charge for the whole term (the owner's decision: a term is one charge;
     renewal is a new lease and a new charge, never a silent extension)."""
-    if locker.status != "active":
+    if locker.status != "active" or not resources.service.locker_room_is_active(session, locker.locker_room_id):
         raise Conflict("This locker is not in service.", code="locker-unavailable")
     starts, ends, predefined, term_id = _lease_dates(session, locker.location_id, data, starts_default)
+    if renewed_from and starts <= renewed_from.ends_on:  # the same dates would be charged twice
+        raise Conflict("The renewal must start after the current lease ends.", code="lease-overlaps")
     fee = data.get("fee_minor")
     if fee is None:
         fee = predefined
@@ -2041,7 +2048,8 @@ def clear_expired_locker_leases(session: Db, principal: Principal, data: dict) -
 
 def renew_locker_lease(session: Db, principal: Principal, lease_id: UUID, data: dict) -> dict:
     """Renew into a new term (RES-08): the current lease is closed as renewed and a new one starts the day
-    after it ends (or on the named term's dates), with its own charge."""
+    after it ends, or today when it has lapsed (or on the named term's dates), with its own charge. Errors:
+    lease-cleared, lease-overlaps (the new dates start on or before the old lease's end)."""
     old = _scoped(session, principal, LockerLease, lease_id, LOCKER_RENT, lock=True)
     if old.cleared_at is not None:
         raise Conflict("This lease was already cleared.", code="lease-cleared")
@@ -2049,6 +2057,7 @@ def renew_locker_lease(session: Db, principal: Principal, lease_id: UUID, data: 
     clients.service.require_active(session, old.client_id)
     _clear(session, old, "renewed")
     session.flush()
+    today = platform.service.location_today(session, locker.location_id)
     lease = _new_lease(session, principal, locker, old.client_id, data,
-                       starts_default=old.ends_on + timedelta(days=1), renewed_from=old)  # fmt: skip
+                       starts_default=max(old.ends_on + timedelta(days=1), today), renewed_from=old)  # fmt: skip
     return _lease_views(session, [lease])[0]

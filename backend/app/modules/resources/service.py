@@ -446,10 +446,15 @@ def update_locker_room(session: Session, principal: Principal, room_id: UUID, da
     return room
 
 
-def _locker_view(session: Session, rows: list[Locker]) -> list[dict]:
+LOCKER_RENT = "rentals.locker_rental.manage"  # the leaseholder is shown only to staff who rent lockers
+
+
+def _locker_view(session: Session, principal: Principal, rows: list[Locker]) -> list[dict]:
     states: dict = {}
     for hook in HOOKS["locker_states"]:
         states |= hook(session, [row.id for row in rows])
+    if principal.kind != "system" and LOCKER_RENT not in principal.permissions:
+        states = {k: v | {"client_id": None, "client_name": None} for k, v in states.items()}
     rooms = {
         r.id: r.name
         for r in session.scalars(select(LockerRoom).where(LockerRoom.id.in_({x.locker_room_id for x in rows})))
@@ -474,7 +479,7 @@ def list_lockers(session: Session, principal: Principal, query: ListQuery) -> di
         sort_fields={"number": Locker.number}, default_sort="number",
         filter_fields={"location_id": Locker.location_id, "locker_room_id": Locker.locker_room_id, "status": Locker.status},
     )  # fmt: skip
-    return page | {"data": _locker_view(session, page["data"])}
+    return page | {"data": _locker_view(session, principal, page["data"])}
 
 
 def bulk_create_lockers(session: Session, principal: Principal, room_id: UUID, data: dict) -> dict:
@@ -504,7 +509,7 @@ def bulk_create_lockers(session: Session, principal: Principal, room_id: UUID, d
 
 
 def update_locker(session: Session, principal: Principal, locker_id: UUID, data: dict) -> dict:
-    locker = _scoped(session, principal, Locker, locker_id)
+    locker = get_locker(session, principal, locker_id, lock=True)  # serialises retiring against renting
     authorize(principal, LOCKERS, location_id=locker.location_id)
     if data.get("padlock_id"):
         padlock = _scoped(session, principal, Padlock, data["padlock_id"])
@@ -517,7 +522,7 @@ def update_locker(session: Session, principal: Principal, locker_id: UUID, data:
         setattr(locker, key, value)
     audit.record(session, LOCKERS, locker, location_id=locker.location_id, changes=audit.diff(locker))
     session.flush()  # uq_locker_padlock: one lock per locker
-    return _locker_view(session, [locker])[0]
+    return _locker_view(session, principal, [locker])[0]
 
 
 def list_locker_terms(session: Session, principal: Principal, query: ListQuery) -> dict:
@@ -639,6 +644,11 @@ def get_locker(session: Session, principal: Principal, locker_id: UUID, *, lock:
     if not in_scope:
         raise NotFound()
     return row
+
+
+def locker_room_is_active(session: Session, room_id: UUID) -> bool:
+    """Internal: rentals refuses to rent a locker in a deactivated room."""
+    return bool(session.scalar(select(LockerRoom.is_active).where(LockerRoom.id == room_id)))
 
 
 def get_locker_term(session: Session, term_id: UUID) -> LockerTerm | None:

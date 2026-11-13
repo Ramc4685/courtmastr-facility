@@ -6,7 +6,16 @@ from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, ForeignKeyConstraint, Index, Numeric, SmallInteger, UniqueConstraint, text
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    ForeignKeyConstraint,
+    Index,
+    Numeric,
+    SmallInteger,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -603,7 +612,7 @@ class LockerLease(TenantOwned, Timestamps, Base):
     locker_term_id: Mapped[UUID | None]
     starts_on: Mapped[date]
     ends_on: Mapped[date] = mapped_column(info={"audit": "value"})
-    fee_minor: Mapped[int] = mapped_column(server_default=text("0"), info={"audit": "value"})
+    fee_minor: Mapped[int] = mapped_column(BigInteger, server_default=text("0"), info={"audit": "value"})
     charge_state: Mapped[str] = enum_column()
     charge_id: Mapped[UUID | None]
     renewed_from_lease_id: Mapped[UUID | None]
