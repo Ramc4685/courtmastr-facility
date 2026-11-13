@@ -9,10 +9,10 @@ Migrations 1801 and 1802 (1801 revises 1562).
 | BIL-01 revenue date, revenue category and percentage discount edits | done | 70f866c (service hunks ride in 848252b) |
 | BIL-02 stored bulk actions (invoice, reverse, email, render, add item) | done | ad7d0ab |
 | PAY-17 dispute list, detail and evidence notes | struck by owner decision (question 16c): chargebacks sync by webhook; key and contract operations removed | see below |
-| PAY-03 card brand and last-four masking | not built: same; four response shapes carry `last4`/`card_last4` (billing `schemas.py`) plus the receipt PDF |  |
-| PAY-10 ACH return after settlement, failed direct-debit report | not built: same |  |
-| POS-10 / PKG-07 client discount, price override, staff-sale coupons and credit pre-apply | not built: same |  |
-| PAY-16 payout tables and reconciliation report | not built: same |  |
+| PAY-03 card brand and last-four masking | not built: four response shapes (`ReceiptOut`, `PortalReceiptOut`, `PaymentMethodOut`, `ExpiringCardOut` in billing `schemas.py`) and the receipt PDF still show brand and last four to anyone who may read payments; waits for the review of the fixes below |  |
+| PAY-10 ACH return after settlement, failed direct-debit report | not built: a return after settlement still arrives only as a dispute (PAY-17), and there is no failed direct-debit report spec; waits for the review |  |
+| POS-10 / PKG-07 client discount, price override, staff-sale coupons and credit pre-apply | not built: no client discount percentage, no per-sale price override key, and staff package sales take neither coupons nor account credit; waits for the review |  |
+| PAY-16 payout tables and reconciliation report | not built: no payout tables (`listProcessorPayouts` and `listProcessorPayoutLines` stay in the contract with no route) and no reconciliation report spec; waits for the review |  |
 
 ## Built, in short
 
