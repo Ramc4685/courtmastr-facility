@@ -3,7 +3,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError, fieldErrors, setTenantSlug, type Schemas } from '../../api/client'
 import { Button } from '../../components/Button'
-import { Input, Select } from '../../components/Field'
+import { Checkbox, Input, Select } from '../../components/Field'
 import { Card } from '../../components/PageHeader'
 import { SanitizedHtml } from '../../components/SanitizedHtml'
 import { EmptyState, ErrorState, LoadingState } from '../../components/States'
@@ -156,14 +156,18 @@ function Landing({ config }: { config: Config }) {
   )
 }
 
+// The server takes a self-typed birth date only with this declaration; staff confirm it once (clients README).
+const BIRTH_DECLARATION = 'I confirm the date of birth I entered is true.'
+
 function SignupPage({ config }: { config: Config }) {
   const open = config.locations.filter((l) => l.allows_self_signup)
   const [form, setForm] = useState(() => ({
     location_id: new URLSearchParams(window.location.search).get('location') ?? open[0]?.location_id ?? '',
-    email: '', first_name: '', last_name: '', phone_mobile: '',
+    email: '', first_name: '', last_name: '', phone_mobile: '', birth_on: '',
   }))
+  const [declared, setDeclared] = useState(false)
   const send = useMutation({
-    mutationFn: () => api.post('/api/v1/public/portal-signups', { body: { ...form, phone_mobile: form.phone_mobile || null } }),
+    mutationFn: () => api.post('/api/v1/public/portal-signups', { body: { ...form, phone_mobile: form.phone_mobile || null, birth_on_declared: true } }),
   })
   const errors = fieldErrors(send.error)
   const submit = (e: FormEvent) => {
@@ -199,7 +203,9 @@ function SignupPage({ config }: { config: Config }) {
           <Input label="Last name" autoComplete="family-name" required value={form.last_name} error={errors.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} />
           <Input label="Email" type="email" autoComplete="email" required value={form.email} error={errors.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
           <Input label="Mobile phone (optional)" type="tel" autoComplete="tel" value={form.phone_mobile} error={errors.phone_mobile} onChange={(e) => setForm({ ...form, phone_mobile: e.target.value })} />
-          <Button type="submit" className="w-full" loading={send.isPending}>
+          <Input label="Date of birth" type="date" autoComplete="bday" required value={form.birth_on} error={errors.birth_on} onChange={(e) => setForm({ ...form, birth_on: e.target.value })} />
+          <Checkbox label={BIRTH_DECLARATION} checked={declared} onChange={(e) => setDeclared(e.target.checked)} />
+          <Button type="submit" className="w-full" loading={send.isPending} disabled={!declared || !form.birth_on}>
             Send confirmation link
           </Button>
         </form>
@@ -266,6 +272,7 @@ function GuestCheckoutPage({ config }: { config: Config }) {
   const gate = useTermsGate()
   const [form, setForm] = useState<GuestForm>({ first_name: '', last_name: '', email: '', birth_on: '', kid_first: '', kid_last: '', kid_birth_on: '', fee_id: '' })
   const [checkout, setCheckout] = useState<Schemas['GuestCheckoutOut'] | null>(null)
+  const [declared, setDeclared] = useState(false)
   const [method, setMethod] = useState('')
   const attempt = useAttemptKey()
   const start = useMutation({
@@ -277,6 +284,7 @@ function GuestCheckoutPage({ config }: { config: Config }) {
           payer: { first_name: form.first_name, last_name: form.last_name, email: form.email, birth_on: form.birth_on },
           participants: forKid ? [{ first_name: form.kid_first, last_name: form.kid_last || form.last_name, birth_on: form.kid_birth_on }] : [],
           items: [{ program_group_id: g.id, program_fee_id: form.fee_id || g.fees[0]?.id || null, participant: forKid ? 0 : null }],
+          birth_on_declared: true,
         },
       })
     },
@@ -345,7 +353,8 @@ function GuestCheckoutPage({ config }: { config: Config }) {
             <Select label="Fee" value={form.fee_id} error={errors.program_fee_id ?? errors['items/0/program_fee_id']} onChange={(e) => setForm({ ...form, fee_id: e.target.value })} placeholder="Choose a fee"
               options={g.fees.map((fee) => ({ value: fee.id, label: `${fee.description} · ${formatMoney(fee.amount_minor, config.currency)}` }))} />
           )}
-          <Button type="submit" className="w-full" loading={start.isPending}>
+          <Checkbox label="I confirm the dates of birth I entered are true." checked={declared} onChange={(e) => setDeclared(e.target.checked)} />
+          <Button type="submit" className="w-full" loading={start.isPending} disabled={!declared}>
             Continue to payment
           </Button>
         </form>

@@ -131,6 +131,26 @@ describe('Portal booking and buying', { timeout: 20_000 }, () => {
     expect(confirms[0]?.headers['idempotency-key']).toBeTruthy()
   })
 
+  it('tells a self-declared adult on Bookings and before paying that the entry code waits for the one-time age check', async () => {
+    const notice = 'Your entry code will be sent once our staff have confirmed your age. This is a one-time check. Questions? Call 217-555-0100.'
+    const type = { id: 'rt1', name: 'Court rental', location_id: 'l1', min_length_min: 60, max_length_min: 60, default_length_min: 60, slot_granularity_min: 60, min_lead_min: 0, horizon_days: null, resources: [], online_description: null, cancel_cutoff_hours: null, late_cancel_fee_pct: null }
+    const rental = { id: 'r1', client_id: 'c1', location_id: 'l1', rental_type_id: 'rt1', title: 'Court rental', starts_at: '2031-05-06T00:00:00Z', ends_at: '2031-05-06T01:00:00Z', status: 'tentative', resources: [] }
+    const quote = { lines: [{ description: 'Court rental', amount_minor: 5000 }], subtotal_minor: 5000, tax_minor: 0, total_minor: 5000 }
+    open('/portal/bookings', {
+      'GET /api/v1/portal/clients': { status: 200, body: { data: [person('c1', 'Morgan', 'self', { age_confirmed: false, entry_code_notice: notice })] } },
+      'GET /api/v1/portal/rentals': page([]),
+      'GET /api/v1/public/rental-types': { status: 200, body: [type] },
+      'GET /api/v1/portal/rental-availability': page([{ resource_id: 'res1', resource_name: 'Court 3', starts_at: '2031-05-06T00:00:00Z', ends_at: '2031-05-06T01:00:00Z', price_minor: 5000, is_member_price: false }]),
+      'POST /api/v1/portal/rentals': { status: 201, body: { rental, quote, amount_due_minor: 5000, payment_required: true, expires_at: null, invoice_id: null, entry_code_notice: notice } },
+    })
+    expect(await screen.findByText(notice)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Book a rental' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Book a rental' })
+    await userEvent.click(await within(dialog).findByRole('button', { name: /Court 3/ }))
+    expect(await within(dialog).findByRole('button', { name: 'Pay $50.00' })).toBeInTheDocument() // a self-declared adult still pays
+    expect(within(dialog).getByText(notice)).toBeInTheDocument()
+  })
+
   it('offers the whole day by court, narrows by court and time of day, and loads more times on request', async () => {
     const type = { id: 'rt1', name: 'Court rental', location_id: 'l1', min_length_min: 60, max_length_min: 60, default_length_min: 60, slot_granularity_min: 60, min_lead_min: 0, horizon_days: null, online_description: null, cancel_cutoff_hours: null, late_cancel_fee_pct: null,
       resources: [{ id: 'res1', name: 'Court 1' }, { id: 'res2', name: 'Court 2' }] }

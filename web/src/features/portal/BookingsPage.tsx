@@ -92,6 +92,7 @@ function PayCheckout({ checkout, quotedMinor, onDone }: { checkout: Checkout; qu
         if (pay.ready && gate.ready) confirm.mutate()
       }}
     >
+      <EntryCodeNotice notice={checkout.entry_code_notice} />
       <ul className="divide-y divide-border text-sm">
         {q.lines.map((l, i) => (
           <li key={i} className="flex justify-between gap-4 py-1.5">
@@ -316,10 +317,16 @@ function BookRentalDialog({ onClose }: { onClose: () => void }) {
   )
 }
 
+/** A self-declared birth date waits for the one-time staff check before the entry code is sent (rentals README). */
+function EntryCodeNotice({ notice }: { notice?: string | null }) {
+  if (!notice) return null
+  return <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">{notice}</p>
+}
+
 export function BookingsPage() {
   const qc = useQueryClient()
   const toast = useToast()
-  const { zoneOf, nameOf, money } = usePortal()
+  const { zoneOf, nameOf, money, clients } = usePortal()
   const types = useRentalTypes()
   const [booking, setBooking] = useState(false)
   const [cancelling, setCancelling] = useState<Rental | null>(null)
@@ -337,6 +344,7 @@ export function BookingsPage() {
 
   return (
     <PortalPage title="Bookings" description="Your household's court and space rentals." actions={<Button onClick={() => setBooking(true)}>Book a rental</Button>}>
+      <EntryCodeNotice notice={clients.find((c) => c.authority === 'self')?.entry_code_notice} />
       <Table
         caption="Rentals"
         paging={paging}
