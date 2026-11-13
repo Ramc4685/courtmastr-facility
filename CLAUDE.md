@@ -96,7 +96,7 @@ per location, WCAG 2.1 AA, docs updated).
 ## Working rules
 
 - One module per branch, one commit per module, Conventional Commits. Stop at the brief's GATEs (after modules 2, 8, 11, 17) for a demo.
-- Ambiguous requirement: write the assumption down (module README), do not guess silently.
+- Ambiguous requirement: write the assumption down (module README), do not guess silently. Agent roles and model routing: `docs/dev/agent-roles.md`.
 - Keep this file under 120 lines (CI checks it). Decisions go in `docs/adr/` or the architecture docs.
 
 ## Build status
