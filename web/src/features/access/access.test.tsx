@@ -151,6 +151,27 @@ describe('KioskPage', SCREEN, () => {
     expect(calls.find((c) => c.url === '/api/v1/kiosk/check-ins/k1/attendances')?.body).toEqual({ target_type: 'session', target_id: 's1', visit_token: 'v1' })
   })
 
+  it('while one booking is in flight the other buttons wait, so the visit token is not spent twice', async () => {
+    const yoga = { target_type: 'session', target_id: 's1', title: 'Yoga', starts_at: '2030-05-01T15:30:00Z', ends_at: '2030-05-01T16:30:00Z', is_booked: false, is_bookable: true }
+    const spin = { ...yoga, target_id: 's2', title: 'Spin' }
+    renderKiosk({
+      'GET /api/v1/kiosk/config': { status: 200, body: config },
+      'POST /api/v1/kiosk/lookups': { status: 200, body: { matches: [{ match_token: 't1', first_name: 'Avery', last_initial: 'Z' }] } },
+      'POST /api/v1/kiosk/check-ins': { status: 201, body: { check_in_id: 'k1', status: 'admitted', first_name: 'Avery', displayed_alert_codes: [], attended: [], welcome_message: null, sessions: [yoga, spin], visit_token: 'v1' } },
+    })
+    const served = globalThis.fetch
+    vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) =>
+      String(input).endsWith('/attendances') ? new Promise(() => {}) : served(input, init))
+    await userEvent.type(await screen.findByLabelText(/first letters of your last name/), 'Zep')
+    await userEvent.click(screen.getByRole('button', { name: 'Find me' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Avery Z.' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Book a class' }))
+    const list = screen.getByRole('list', { name: 'Classes starting soon' })
+    await userEvent.click(within(list).getByRole('button', { name: /^Book Yoga at/ }))
+    expect(within(list).getByRole('button', { name: /^Book Spin at/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Done' })).toBeDisabled()
+  })
+
   it('a client found by name cannot book a paid class from the screen, and leaving ends the visit', async () => {
     // The server marks a session that would spend a package as not bookable for a name-search visit.
     const paid = { target_type: 'session', target_id: 's2', title: 'Spin', starts_at: '2030-05-01T15:30:00Z', ends_at: '2030-05-01T16:30:00Z', is_booked: false, is_bookable: false }

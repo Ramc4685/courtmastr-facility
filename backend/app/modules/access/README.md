@@ -92,7 +92,9 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   (default 30) sends the list screen back to the start.
 - **Kiosk visit token (migration 1962).** An admitted check-in returns a `visit_token` (random, stored hashed in
   `kiosk_visit`, bound to the device and the check-in). Each booking spends it and returns a fresh one; a refused
-  booking rolls back, so the token stays good for another choice. It expires after the confirmation plus the
+  booking rolls back, so the token stays good for another choice. It is spent by one `DELETE ... RETURNING`, so of
+  two taps sent at once only one gets through and the other is 404; the tablet disables its other buttons while a
+  booking is in flight. It expires after the confirmation plus the
   reservation timeout (plus 5 seconds), and every token a device holds ends at `POST /kiosk/visits/end` (the screen
   going back to start), at its next lookup and at its next check-in. A missing, spent, expired or other device's
   token, or a denied or checked-out check-in, is 404. Responses carrying a token are `@secret_response`: a replayed

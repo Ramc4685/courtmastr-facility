@@ -169,7 +169,7 @@ function Kiosk({ config }: { config: Config }) {
                     {s.is_booked ? (
                       <span className="text-sm font-medium text-success">Booked</span>
                     ) : s.is_bookable ? (
-                      <Button size="sm" onClick={() => book.mutate(s)} loading={book.isPending && book.variables?.target_id === s.target_id} aria-label={`Book ${s.title} at ${formatTime(s.starts_at, config.time_zone)}`}>Book</Button>
+                      <Button size="sm" onClick={() => book.mutate(s)} loading={book.isPending && book.variables?.target_id === s.target_id} disabled={book.isPending} aria-label={`Book ${s.title} at ${formatTime(s.starts_at, config.time_zone)}`}>Book</Button>
                     ) : (
                       <span className="text-sm text-muted">See the front desk</span>
                     )}
@@ -177,7 +177,7 @@ function Kiosk({ config }: { config: Config }) {
                 ))}
               </ul>
             )}
-            <Button className="mt-3" variant="ghost" onClick={reset}>Done</Button>
+            <Button className="mt-3" variant="ghost" onClick={reset} disabled={book.isPending}>Done</Button>
           </div>
         ) : result ? (
           <div className={`rounded-lg border p-6 ${result.status === 'admitted' ? 'border-success' : 'border-danger'}`}>

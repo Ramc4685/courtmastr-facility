@@ -2,14 +2,17 @@
 15). Booking runs the portal's rules for the client the kiosk identified: the kiosk adds no bypass. A visit found by
 name books only what consumes nothing; spending a package needs a card or the app's code (possession)."""
 
+import threading
 from datetime import timedelta
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import select
+from fastapi.testclient import TestClient
+from sqlalchemy import func, select
 
 from app.core import clock
+from app.main import app as fastapi_app
 from app.modules.access.models import CheckIn
 from app.modules.access.tests.test_checkin import _pair, ok
 from app.modules.memberships.tests.support import API, package_plan, world
@@ -227,3 +230,25 @@ def test_auto_book_on_a_name_search_skips_a_session_that_would_spend_a_package(c
     entered = enter(client, k.person)
     assert [a["session_id"] for a in entered["attended"]] == [free.id]
     assert pricing(tenant, paid.id) is None
+
+
+def test_a_visit_token_cannot_be_spent_twice_concurrently(client, tenant, owner, k):
+    """Two taps at once with different Idempotency-Keys: the token is spent by exactly one of them."""
+    one, two = soon(client, owner, k.loc, 30), soon(client, owner, k.loc, 60)
+    entered = enter(client, k.person)
+    barrier, codes = threading.Barrier(2), []
+
+    def tap(session_id):
+        with TestClient(fastapi_app, cookies=client.cookies) as own:
+            barrier.wait()
+            codes.append(book(own, entered, session_id, uuid4().hex).status_code)
+
+    threads = [threading.Thread(target=tap, args=(s.id,)) for s in (one, two)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert sorted(codes) == [200, 404]
+    booked = scalar(tenant, select(func.count()).select_from(Enrollment).where(
+        Enrollment.client_id == UUID(k.person["id"]), Enrollment.session_id.in_([UUID(one.id), UUID(two.id)])))  # fmt: skip
+    assert booked == 1

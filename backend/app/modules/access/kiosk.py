@@ -50,13 +50,17 @@ def _issue(session: Session, device: KioskDevice, row: CheckIn, config: dict) ->
 def visit(session: Session, device: KioskDevice, check_in_id: UUID, token: str) -> CheckIn:
     """Spend the visit token this device holds for this admitted, open check-in; anything else is 404. A refused
     action rolls back with its transaction, so the token stays good for another choice until it expires."""
-    held = session.scalar(select(KioskVisit).where(KioskVisit.token_hash == tokens.digest(token)))
-    if (
-        held is None or held.kiosk_device_id != device.id or held.check_in_id != check_in_id
-        or held.expires_at < clock.now()
-    ):  # fmt: skip
+    # One statement, so two concurrent taps cannot both spend it: the second waits on the row lock, then matches none.
+    spent = session.scalar(
+        delete(KioskVisit)
+        .where(
+            KioskVisit.token_hash == tokens.digest(token), KioskVisit.kiosk_device_id == device.id,
+            KioskVisit.check_in_id == check_in_id, KioskVisit.expires_at >= clock.now(),
+        )
+        .returning(KioskVisit.id)
+    )  # fmt: skip
+    if spent is None:
         raise NotFound()
-    session.delete(held)
     row = session.get_one(CheckIn, check_in_id)
     if row.result == "denied" or row.checked_out_at is not None:
         raise NotFound()
