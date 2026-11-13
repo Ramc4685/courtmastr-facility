@@ -250,7 +250,8 @@ handlers re-read the object from the provider.
   covers this invoice; otherwise 422 `idempotency-key-reused` and nothing is sold.
 - **Portal responses use portal schemas** (`PortalInvoiceOut`, `PortalPaymentOut`, `PortalPaymentDetail`):
   no memo, external reference, failure message, refund reason, void reason or collection state (M-13).
-- **Bulk invoicing runs in the request** (up to 1000 items) and is not stored; there is no
+- **Bulk invoicing runs in the request** (up to 1000 items, by `charge_ids` or by `location_id`; a location with
+  more uninvoiced items is refused with 422 on `/location_id`) and is not stored; there is no
   `billing_bulk_action` table.
 - **Documents are JSON, with a PDF beside them.** `GET /invoices/{id}/document` and `/payments/{id}/receipt`
   return JSON; the PDF is a separate `/pdf` path (`/invoices/{id}/pdf`, `/payments/{id}/receipt/pdf`,

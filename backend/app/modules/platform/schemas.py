@@ -172,7 +172,6 @@ class TenantUpdate(In):
     name: Name | None = None
     default_time_zone: str | None = None
     locale: str | None = Field(None, pattern=r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$")
-    currency: str | None = Field(None, pattern=r"^[A-Z]{3}$")
     settings: dict[str, Any] | None = None
 
 

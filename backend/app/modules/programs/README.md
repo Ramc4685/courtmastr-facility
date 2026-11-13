@@ -43,16 +43,20 @@ Tables follow `docs/architecture/data-model-programs.md`. The migration is `0611
 
 ## Assumptions and limits
 
-- **Permission shortcuts (module 14 registers the real keys):**
-  - Booking policies use `programs.registration_config.manage` until `engagement.portal_settings.manage` exists.
-  - The roster message uses `scheduling.enrollment.create` until `engagement.message.send_direct` exists.
+- **Keys and engagement:** session booking policies use `engagement.portal_settings.manage` or
+  `programs.registration_config.manage` (`selfservice.LEAGUE_POLICY`), so league managers and custom roles
+  holding the old key keep them without the rest of the portal settings. The roster message stays on
+  `scheduling.enrollment.create` on the session (`own` reach and the type's staff grants apply), so no role or
+  custom grant loses it; moving it to `engagement.message.send_direct` needs the owner's sign-off and a grant
+  migration. Programs may not import engagement, so `selfservice.POLICY` is a plain key string.
 - **The roster message is plain text** through the notification port, sent in the request. It returns the
   `202` job shape with `status: succeeded`, and has no consent gate because it is transactional.
 - **No booking-policy row means `selfservice.BUILT_IN`:** bookable, 30 days visible, no cut-off,
   self-cancel on, auto-promote.
-- **A direct link books an unlisted session (SCH-16).** `POST /portal/enrollments` may carry the session's
-  `direct_link_token`; while it is live (`scheduling.service.has_live_link`) the hidden, list-only, visible-range
-  and self-bookable checks are waived. Cutoff, membership, capacity and payment rules still apply.
+- **A direct link books a session not offered online (SCH-16).** `POST /portal/enrollments` may carry the
+  session's `direct_link_token`; while it is live (`scheduling.service.has_live_link`) the hidden, list-only,
+  visible-range and self-bookable checks are waived. Cutoff, membership, capacity and payment rules still apply.
+  A wrong or stale token is ignored: the ordinary checks then decide (404 or `policy-violation`).
 - **One fee per basket item.** Staff registration (`POST /enrollments`) takes several. A group that has
   active fees needs one chosen (`fee-required`), on the waitlist too.
 - **REG-10 partial:**

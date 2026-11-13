@@ -7145,7 +7145,7 @@ export interface paths {
         get?: never;
         /**
          * Bind Membership Contract Agreement
-         * @description Bind an issued agreement document to the contract (DOC-11); the contract shows it from then on.
+         * @description Bind a signed agreement document of the owner's to the contract (DOC-11); a signed binding is not replaced.
          */
         put: operations["bindMembershipContractAgreement"];
         post?: never;
@@ -10068,6 +10068,26 @@ export interface paths {
          * @description Published videos. Filter: location_id.
          */
         get: operations["listPortalVideos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/videos/{video_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Portal Video
+         * @description One published video; 404 when it is unpublished or not this tenant's.
+         */
+        get: operations["getPortalVideo"];
         put?: never;
         post?: never;
         delete?: never;
@@ -13936,8 +13956,8 @@ export interface paths {
         put?: never;
         /**
          * Send Session Roster Message
-         * @description Emails everyone registered. Gated by scheduling.enrollment.create until engagement registers
-         *     engagement.message.send_direct (module README).
+         * @description Emails everyone registered. Gated by scheduling.enrollment.create on the session (`own` reach and the
+         *     type's staff grants apply); moving it to engagement.message.send_direct waits on the owner (module README).
          */
         post: operations["sendSessionRosterMessage"];
         delete?: never;
@@ -39490,8 +39510,6 @@ export interface components {
         };
         /** TenantUpdate */
         TenantUpdate: {
-            /** Currency */
-            currency?: string | null;
             /** Default Time Zone */
             default_time_zone?: string | null;
             /** Locale */
@@ -65940,6 +65958,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_PortalVideo_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPortalVideo: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalVideo"];
                 };
             };
             /** @description Validation Error */
