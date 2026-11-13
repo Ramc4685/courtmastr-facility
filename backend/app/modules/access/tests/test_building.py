@@ -959,6 +959,55 @@ def test_a_controller_that_lost_power_is_told_again(b, sim, monkeypatch):
         assert sim.zones["relay-1"] is True
 
 
+def cancel(f, booking: str) -> None:
+    with tenant_session(f.tenant.id, actor=system_principal("tests")) as session:
+        scheduling.service.cancel_booking(session, scheduling.service.get_booking(session, UUID(booking)))
+    handlers.on_booking_cancelled.fn(str(f.tenant.id), str(uuid4()), {"booking_id": booking})
+
+
+def test_a_failed_revoke_is_retried_by_the_tick_until_the_controller_confirms(b, sim):
+    with clock.freeze(at(9)):
+        booking = book(b, 10, 11)
+        sync(b, booking)
+        sim.fail("revoke_code", times=2)
+        cancel(b, booking)
+        [row] = codes(b, booking)
+        assert (row.status, row.revoke_due) == ("revoked", True)
+        tick(b)
+        assert codes(b, booking)[0].revoke_due is True  # still refused: still due
+        tick(b)
+        assert codes(b, booking)[0].revoke_due is False  # confirmed
+        tick(b)
+        assert [c for c in sim.calls if c[0] == "revoke_code"] == [("revoke_code", "door-front", str(row.id))] * 3
+        assert details_of(b, "command_failed") == ["revoke_code"]  # one row, not one per retry
+
+
+def test_a_partly_pushed_code_is_revoked_at_every_door(client, owner, b, sim):
+    ok(client.post(f"{API}/door-devices", headers=owner,
+                   json={"location_id": b.location, "name": "Lobby", "device_ref": "door-lobby"}))  # fmt: skip
+    with clock.freeze(at(9)):
+        sim.fail("push_code")  # the first door refuses, the second takes it
+        booking = book(b, 10, 11)
+        sync(b, booking)
+        [row] = codes(b, booking)
+        assert row.pushed_at is None and len([c for c in sim.calls if c[0] == "push_code"]) == 2
+        cancel(b, booking)
+        assert sorted(c[1] for c in sim.calls if c[0] == "revoke_code") == ["door-front", "door-lobby"]
+
+
+def test_without_an_adapter_each_zone_and_door_shows_one_not_configured_state(client, owner, b, monkeypatch):
+    monkeypatch.setattr(building_control, "_controller", None)
+    with clock.freeze(at(9.9)):
+        booking = book(b, 10, 11)
+        for _ in range(3):
+            tick(b)
+        assert details_of(b, "command_failed") == [] and [c.status for c in codes(b, booking)] == ["active"]
+    status = ok(client.get(f"{API}/building-status?location_id={b.location}", headers=owner), 200)  # real clock
+    assert status["adapter"] == "none"
+    assert {z["sync_state"] for z in status["zones"]} == {"adapter_not_configured"}
+    assert {d["sync_state"] for d in status["doors"]} == {"adapter_not_configured"}
+
+
 def test_activity_lists_by_day_and_kind(client, tenant, owner, b):
     ok(client.post(f"{API}/door-devices/{b.door}/unlock", headers=owner, json={"reason": "Delivery"}))
     page = ok(client.get(f"{API}/building-events?location_id={b.location}&kind=remote_unlock", headers=owner), 200)

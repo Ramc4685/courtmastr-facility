@@ -15,7 +15,7 @@ import { resourceTree, useResources } from '../resources/queries'
 import { LocationSelect, useWorkingLocation } from '../scheduling/location'
 
 type Zone = Schemas['LightingZoneStatus']
-type Door = Schemas['DoorDeviceOut']
+type Door = Schemas['DoorStatus']
 
 export const EVENT_LABEL: Record<string, string> = {
   entry_granted: 'Door opened by code', entry_denied: 'Code refused', remote_unlock: 'Staff unlock', member_unlock: 'Opened from the app',
@@ -56,7 +56,7 @@ function Building({ locationId, timeZone }: { locationId: string; timeZone?: str
     <div className="space-y-6">
       {adapter !== 'simulated' && adapter !== 'none' ? null : (
         <p role="note" className="rounded border border-border bg-surface-2 p-3 text-sm">
-          {adapter === 'simulated' ? 'Running on the simulated controller: commands are recorded, no real door or light moves.' : 'No controller is connected: every command fails and is listed below.'}
+          {adapter === 'simulated' ? 'Running on the simulated controller: commands are recorded, no real door or light moves.' : 'No controller is connected: nothing is sent to doors or lights until one is.'}
         </p>
       )}
       <div className="grid gap-6 xl:grid-cols-2">
@@ -102,7 +102,7 @@ function LightsCard({ locationId, zones, timeZone, canHold, canManage }: { locat
                 <td>{z.should_be_on ? 'On' : 'Off'} <span className="text-muted">({reasonText(z.reason)})</span></td>
                 <td>
                   {z.commanded_is_on === null ? '—' : z.commanded_is_on ? 'On' : 'Off'}{' '}
-                  {z.is_in_sync ? <Badge tone="success">In step</Badge> : <Badge tone="warning">{z.failure_count ? `Failing (${z.failure_count})` : 'Not in step'}</Badge>}
+                  {z.sync_state === 'adapter_not_configured' ? <Badge tone="warning">No controller</Badge> : z.is_in_sync ? <Badge tone="success">In step</Badge> : <Badge tone="warning">{z.failure_count ? `Failing (${z.failure_count})` : 'Not in step'}</Badge>}
                   {z.override_until_at && <span className="block text-xs text-muted">Held until {formatDateTime(z.override_until_at, timeZone)}</span>}
                 </td>
                 <td className="text-right">
@@ -239,7 +239,9 @@ function DoorsCard({ locationId, doors, timeZone, canUnlock, canManage }: { loca
           {doors.map((d) => (
             <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
               <div>
-                <p className="font-medium">{d.name} {d.is_entrance && <Badge>Entrance</Badge>} {!d.is_active && <Badge>Retired</Badge>}</p>
+                <p className="font-medium">{d.name} {d.is_entrance && <Badge>Entrance</Badge>} {!d.is_active && <Badge>Retired</Badge>}{' '}
+                  {d.sync_state === 'adapter_not_configured' && <Badge tone="warning">No controller</Badge>}
+                  {d.sync_state === 'codes_pending' && <Badge tone="warning">Codes not yet on the lock</Badge>}</p>
                 <p className="text-xs text-muted">
                   Last heard from: {d.last_seen_at ? formatDateTime(d.last_seen_at, timeZone) : 'never'}
                 </p>

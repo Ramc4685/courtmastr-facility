@@ -529,6 +529,7 @@ class EntryCode(TenantOwned, Timestamps, Base):
             "valid_until_at",
             postgresql_where=text("status = 'active'"),
         ),  # fmt: skip
+        Index("ix_entry_code_revoke_due", "tenant_id", "location_id", postgresql_where=text("revoke_due")),
         Index(
             "uq_entry_code_active",
             "tenant_id",
@@ -557,7 +558,8 @@ class EntryCode(TenantOwned, Timestamps, Base):
     status: Mapped[str] = enum_column(server_default=text("'active'"))
     revoked_at: Mapped[datetime | None]
     revoke_reason: Mapped[str | None] = mapped_column(info={"audit": "value"})
-    pushed_at: Mapped[datetime | None]  # the controller holds it (adapters that store codes)
+    pushed_at: Mapped[datetime | None]  # every door's controller holds it (adapters that store codes)
+    revoke_due: Mapped[bool] = mapped_column(server_default=text("false"))  # revoked, controller not yet confirmed
     notified_at: Mapped[datetime | None]
 
 

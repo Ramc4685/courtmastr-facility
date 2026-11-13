@@ -611,6 +611,11 @@ class LightingZoneStatus(LightingZoneOut):
     should_be_on: bool
     reason: str  # override, booking:<number>, idle or inactive
     is_in_sync: bool  # the last command matches what should be on now
+    sync_state: Literal["in_sync", "out_of_sync", "adapter_not_configured"]
+
+
+class DoorStatus(DoorDeviceOut):
+    sync_state: Literal["in_sync", "codes_pending", "adapter_not_configured"]  # codes pending: a push or revoke due
 
 
 class BuildingStatusOut(Out):
@@ -618,7 +623,7 @@ class BuildingStatusOut(Out):
     as_of: datetime
     adapter: str
     zones: list[LightingZoneStatus]
-    doors: list[DoorDeviceOut]
+    doors: list[DoorStatus]
 
 
 class DoorVerifyRequest(In):

@@ -378,18 +378,38 @@ def mark_notified(session: Session, entry_code_id) -> None:
     audit.record(session, "access.entry_code.notify", row, location_id=row.location_id, changes={"notified": True})
 
 
-def _push(session: Session, row: EntryCode, code: str) -> None:
-    """Hand the code to controllers that store codes (offline keypads). A failure is retried by the tick."""
+def _push(session: Session, row: EntryCode, code: str, *, quiet: bool = False) -> None:
+    """Hand the code to every door's controller that stores codes (offline keypads), door by door: a refusal at one
+    does not stop the others. `pushed_at` only once every door has it; until then the tick pushes again (quietly:
+    one failure row, not one a minute). A revoke goes to every door whatever was pushed."""
     controller = building_control.current()
     if controller is None or not controller.supports_code_push:
         return
-    try:
-        for door in _doors(session, row.location_id):
+    failed = False
+    for door in _doors(session, row.location_id):
+        try:
             controller.push_code(door.device_ref, TimedCode(str(row.id), code, row.valid_from_at, row.valid_until_at))
-    except BuildingControlError:
-        _event(session, row.location_id, "command_failed", entry_code_id=row.id, detail="push_code")
+        except BuildingControlError:
+            failed = True
+    if failed:
+        if not quiet:
+            _event(session, row.location_id, "command_failed", entry_code_id=row.id, detail="push_code")
         return
     row.pushed_at = clock.now()
+
+
+def _send_revoke(session: Session, row: EntryCode) -> bool:
+    """Tell every door's controller to drop the code; True once all confirmed."""
+    controller = building_control.current()
+    if controller is None or not controller.supports_code_push:
+        return True
+    ok = True
+    for door in _doors(session, row.location_id):
+        try:
+            controller.revoke_code(door.device_ref, str(row.id))
+        except BuildingControlError:
+            ok = False
+    return ok
 
 
 def _issue(session: Session, booking: dict, client_id: UUID, window: tuple[datetime, datetime]) -> EntryCode:
@@ -426,13 +446,9 @@ def _revoke(session: Session, row: EntryCode, reason: str) -> None:
     events.publish(session, ev.EntryCodeRevoked(entry_code_id=row.id, booking_id=row.booking_id,
                                                 location_id=row.location_id, reason=reason), row.id)  # fmt: skip
     _event(session, row.location_id, "code_revoked", entry_code_id=row.id, detail=reason)
-    controller = building_control.current()
-    if row.pushed_at and controller is not None and controller.supports_code_push:
-        try:
-            for door in _doors(session, row.location_id):
-                controller.revoke_code(door.device_ref, str(row.id))
-        except BuildingControlError:  # the controller still stops honouring it at valid_until_at
-            _event(session, row.location_id, "command_failed", entry_code_id=row.id, detail="revoke_code")
+    if not _send_revoke(session, row):  # sent even after a partial push; retried by the tick until confirmed
+        row.revoke_due = True
+        _event(session, row.location_id, "command_failed", entry_code_id=row.id, detail="revoke_code")
     session.flush()
 
 
@@ -867,6 +883,8 @@ def _reassert(zone: LightingZone, want: bool) -> bool:
 def _command_zone(session: Session, zone: LightingZone, want: bool, why: str) -> None:
     """Send the zone's wanted state unless it was already commanded and the controller agrees. Never raises: a
     failure is counted, logged and retried by the next tick."""
+    if building_control.current() is None:  # one "adapter not configured" state on the status line, no failures
+        return
     again = zone.commanded_is_on == want
     if again and not _reassert(zone, want):
         zone.failure_count = 0
@@ -953,7 +971,18 @@ def _retry_pushes(session: Session, location_id: UUID) -> None:
         EntryCode.location_id == location_id, EntryCode.status == "active", EntryCode.pushed_at.is_(None),
         EntryCode.valid_until_at > clock.now(),
     )):  # fmt: skip
-        _push(session, row, crypto.decrypt(row.code_ciphertext, session.info["tenant_id"]))
+        _push(session, row, crypto.decrypt(row.code_ciphertext, session.info["tenant_id"]), quiet=True)
+
+
+def _retry_revokes(session: Session, location_id: UUID) -> None:
+    """Revokes the controller has not confirmed, again every tick until it does (no new failure rows)."""
+    if building_control.current() is None:
+        return
+    rows = session.scalars(select(EntryCode).where(EntryCode.location_id == location_id, EntryCode.revoke_due)
+                           .with_for_update(skip_locked=True)).all()  # fmt: skip
+    for row in rows:
+        if _send_revoke(session, row):
+            row.revoke_due = False
 
 
 def expire_codes(session: Session, location_id: UUID) -> int:
@@ -982,6 +1011,7 @@ def sync_location_codes(session: Session, location_id: UUID) -> None:
     for booking_id in sorted(ids):
         sync_booking_code(session, booking_id, views.get(booking_id))
     _retry_pushes(session, location_id)
+    _retry_revokes(session, location_id)
 
 
 def run_building_control(session: Session) -> None:
@@ -1073,11 +1103,20 @@ def building_status(session: Session, principal: Principal, location_id: UUID) -
     active = [z for z in zones if z.is_active]
     wanted = _desired(session, active, now)
     mapped = _zone_resources(session, [z.id for z in zones])
+    controller = building_control.current()
     rows = []
     for zone in zones:
         want, why, _ = wanted.get(zone.id, (False, "inactive", None))
+        in_sync = not zone.is_active or zone.commanded_is_on == want
+        state = "adapter_not_configured" if controller is None else "in_sync" if in_sync else "out_of_sync"
         rows.append(zone_view(zone, mapped[zone.id]) | {
-            "should_be_on": want, "reason": why, "is_in_sync": not zone.is_active or zone.commanded_is_on == want})  # fmt: skip
+            "should_be_on": want, "reason": why, "is_in_sync": in_sync, "sync_state": state})  # fmt: skip
+    pending = controller is not None and controller.supports_code_push and session.scalar(select(EntryCode.id).where(
+        EntryCode.location_id == location_id, (EntryCode.revoke_due) | (
+            (EntryCode.status == "active") & EntryCode.pushed_at.is_(None) & (EntryCode.valid_until_at > now)),
+    ).limit(1)) is not None  # fmt: skip
+    door_state = "adapter_not_configured" if controller is None else "codes_pending" if pending else "in_sync"
     doors = session.scalars(select(DoorDevice).where(DoorDevice.location_id == location_id).order_by(DoorDevice.name))
-    return {"location_id": location_id, "as_of": now, "zones": rows, "doors": [door_view(d) for d in doors],
-            "adapter": getattr(building_control.current(), "name", "none")}  # fmt: skip
+    return {"location_id": location_id, "as_of": now, "zones": rows,
+            "doors": [door_view(d) | {"sync_state": door_state} for d in doors],
+            "adapter": getattr(controller, "name", "none")}  # fmt: skip

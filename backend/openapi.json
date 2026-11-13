@@ -7632,7 +7632,7 @@
           },
           "doors": {
             "items": {
-              "$ref": "#/components/schemas/DoorDeviceOut"
+              "$ref": "#/components/schemas/DoorStatus"
             },
             "title": "Doors",
             "type": "array"
@@ -22054,6 +22054,85 @@
         "title": "DoorDeviceUpdate",
         "type": "object"
       },
+      "DoorStatus": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "device_ref": {
+            "title": "Device Ref",
+            "type": "string"
+          },
+          "has_credential": {
+            "title": "Has Credential",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_entrance": {
+            "title": "Is Entrance",
+            "type": "boolean"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "location_id": {
+            "format": "uuid",
+            "title": "Location Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sync_state": {
+            "enum": [
+              "in_sync",
+              "codes_pending",
+              "adapter_not_configured"
+            ],
+            "title": "Sync State",
+            "type": "string"
+          },
+          "unlock_seconds": {
+            "title": "Unlock Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "name",
+          "device_ref",
+          "unlock_seconds",
+          "is_entrance",
+          "is_active",
+          "has_credential",
+          "last_seen_at",
+          "created_at",
+          "sync_state"
+        ],
+        "title": "DoorStatus",
+        "type": "object"
+      },
       "DoorUnlockRequest": {
         "additionalProperties": false,
         "properties": {
@@ -33530,6 +33609,15 @@
             "title": "Should Be On",
             "type": "boolean"
           },
+          "sync_state": {
+            "enum": [
+              "in_sync",
+              "out_of_sync",
+              "adapter_not_configured"
+            ],
+            "title": "Sync State",
+            "type": "string"
+          },
           "zone_ref": {
             "title": "Zone Ref",
             "type": "string"
@@ -33550,7 +33638,8 @@
           "created_at",
           "should_be_on",
           "reason",
-          "is_in_sync"
+          "is_in_sync",
+          "sync_state"
         ],
         "title": "LightingZoneStatus",
         "type": "object"

@@ -195,8 +195,10 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   days ahead. Issued by the booking created, rescheduled and cancelled handlers, and by the minute tick (a checkout
   hold confirmed by `confirm_booking` publishes no event, and the tick catches anything a handler missed). A moved
   booking's code is revoked and a new one issued and sent; a cancelled booking's code is revoked; codes are pushed
-  to and revoked from controllers that store codes. A failed push is retried by the tick; a failed revoke is logged
-  and not retried (the controller still stops honouring the code at its end time). Issue and revoke publish
+  to and revoked from controllers that store codes, door by door. `pushed_at` is set only once every door holds the
+  code; until then the tick pushes again. A revoke goes to every door whatever was pushed (a partial push still gets
+  revoked); one the controller does not confirm sets `revoke_due` (migration 1978) and the tick retries it until it
+  is confirmed. Each of these writes one `command_failed` row, not one per retry. Issue and revoke publish
   `access.entry_code.issued` and `access.entry_code.revoked`.
 - **Codes retire (migration 1976).** At its window's end a code becomes `expired` (audited, no event) and, like a
   revoked one, loses its sealed copy, so only an open or upcoming code can ever be shown again. The tick reads only
@@ -293,7 +295,9 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   Only changes are sent, so back-to-back bookings never flicker, a restarted scheduler or a missed tick catches up on
   the next one, and a cancelled or moved booking is corrected within a minute. A failed command is retried every
   tick; the third failure in a row emails the location's alert address (or its email), and failures show in the
-  activity view and as "not in sync" on the status line. There is no `failed_job` row: the job itself succeeds.
+  activity view and as "not in sync" on the status line. There is no `failed_job` row: the job itself succeeds. With no
+  adapter configured nothing is sent and nothing is counted as failed: each zone and door shows one
+  `adapter_not_configured` state on the status line (`sync_state`), instead of a failure row a minute.
 - **Staff.** Overrides hold a zone on or off until a time within 24 hours, with a reason (`PUT /lighting-zones/{id}/override`,
   audited, applied at once). `GET /building-events` (filters `local_on`, `kind`, door, zone) is the activity view;
   `GET /building-status` gives per zone "should be on now", the reason and whether it matches the last command.

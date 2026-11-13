@@ -19832,7 +19832,7 @@ export interface components {
              */
             as_of: string;
             /** Doors */
-            doors: components["schemas"]["DoorDeviceOut"][];
+            doors: components["schemas"]["DoorStatus"][];
             /**
              * Location Id
              * Format: uuid
@@ -24147,6 +24147,43 @@ export interface components {
             /** Unlock Seconds */
             unlock_seconds?: number | null;
         };
+        /** DoorStatus */
+        DoorStatus: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Device Ref */
+            device_ref: string;
+            /** Has Credential */
+            has_credential: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Is Entrance */
+            is_entrance: boolean;
+            /** Last Seen At */
+            last_seen_at: string | null;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Sync State
+             * @enum {string}
+             */
+            sync_state: "in_sync" | "codes_pending" | "adapter_not_configured";
+            /** Unlock Seconds */
+            unlock_seconds: number;
+        };
         /** DoorUnlockRequest */
         DoorUnlockRequest: {
             /** Reason */
@@ -27906,6 +27943,11 @@ export interface components {
             resource_ids: string[];
             /** Should Be On */
             should_be_on: boolean;
+            /**
+             * Sync State
+             * @enum {string}
+             */
+            sync_state: "in_sync" | "out_of_sync" | "adapter_not_configured";
             /** Zone Ref */
             zone_ref: string;
         };
