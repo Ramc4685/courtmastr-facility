@@ -20,6 +20,7 @@ Feature status against the parity matrix: `docs/status/16-integrations.md`.
 | `feeds.py` | calendar feeds (`calendar_feed`: staff, team and member schedules as iCalendar) and the embeddable public schedule (`public_schedule_setting`, `GET /public/schedule`) |
 | `domain/ical.py` | RFC 5545 text: escaping, 75-octet folding, UTC stamps |
 | `meetings.py` | virtual sessions (INT-09): the Zoom connection (a tenant's Server-to-Server app), `video_meeting` per session (pasted link or Zoom), and the member join |
+| `analytics.py` | analytics on registration pages (INT-13): the `google_analytics` connection's settings and the anonymous `GET /public/analytics-config` |
 | `quickbooks.py` | QuickBooks Online (INT-07): OAuth round trip with a sealed state, sealed credentials and refresh, mappings, settings, the in-request sync and retry, the verified webhook |
 
 Ports added: `app/ports/accounting.py` (adapters: `FakeAccounting`, `JsonFileAccounting`, `QuickBooksOnline`;
@@ -108,6 +109,18 @@ through `service.adapter_for`.
   normal rule). It is a POST, not the contract's redirecting GET, because it writes attendance. Gate:
   `scheduling.session.manage` on the session's location. **ZoomVideo has never called Zoom:** tests drive it on
   `httpx.MockTransport`.
+- **Analytics on registration pages (INT-13).** A `google_analytics` connection is tenant-wide only, active at
+  once, and holds `measurement_id` (`G-` plus 4 to 16 letters or digits, upper-cased) and `linked_domains`
+  (comma-separated host names, at most 10, lower-cased and sorted); unknown keys are refused, and PATCH
+  merge-patches the two (`409` once disconnected). The id is public by design, so two tenants may use the same
+  one and there is no claim. `GET /public/analytics-config` (tenant from the host; shares the `public-schedule`
+  rate bucket; cached 5 minutes) returns them while the connection is active, else 404; it lives in the
+  integrations module, not the contract's `portal_settings.analytics_measurement_id`.
+  **The tag itself is not loaded.** security-baseline V10 and section 14 forbid third-party analytics, ad and
+  tracking SDKs in web and mobile (the portal serves minors), and the proxy CSP allows `script-src 'self'`
+  only. ADR 0012 section 6 expects the tag after consent; that conflict needs an owner decision (amend the
+  baseline for public registration pages, exclude minors' sessions, widen the CSP) before a consent-gated
+  loader goes into the SPA.
 - **Titles members and the public read** are the session's `public_title` or the fixed label "Session", never
   the internal `title` (`feeds.public_title`): the public schedule and member feeds. Staff and team feeds show
   what their owner can already read in the back office (booking titles, team names).

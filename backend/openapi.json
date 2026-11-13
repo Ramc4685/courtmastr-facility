@@ -1450,6 +1450,27 @@
         "title": "AllocationsCreate",
         "type": "object"
       },
+      "AnalyticsConfigOut": {
+        "properties": {
+          "linked_domains": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Linked Domains",
+            "type": "array"
+          },
+          "measurement_id": {
+            "title": "Measurement Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "measurement_id",
+          "linked_domains"
+        ],
+        "title": "AnalyticsConfigOut",
+        "type": "object"
+      },
       "ApiKeyCreate": {
         "additionalProperties": false,
         "properties": {
@@ -23951,7 +23972,8 @@
             "enum": [
               "accounting_file",
               "quickbooks_online",
-              "zoom"
+              "zoom",
+              "google_analytics"
             ],
             "title": "Provider",
             "type": "string"
@@ -23992,7 +24014,7 @@
                 "type": "null"
               }
             ],
-            "description": "`account_map` (posting key -> account) and `default_income_account`",
+            "description": "Accounting: `account_map` (posting key -> account) and `default_income_account`. Analytics: `measurement_id` (G-...) and `linked_domains` (comma-separated host names)",
             "title": "Settings"
           },
           "zoom": {
@@ -134350,6 +134372,29 @@
         ],
         "x-api-key-scopes": [
           "scheduling.public_schedule.manage"
+        ]
+      }
+    },
+    "/api/v1/public/analytics-config": {
+      "get": {
+        "description": "The registration pages' analytics tag (INT-13): measurement id and linked domains. Tenant from the host or\nX-Tenant-Slug. 404 when the tenant has no active analytics connection. The page loads the tag only on consent.",
+        "operationId": "getPublicAnalyticsConfig",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Public Analytics Config",
+        "tags": [
+          "integrations",
+          "integrations"
         ]
       }
     },

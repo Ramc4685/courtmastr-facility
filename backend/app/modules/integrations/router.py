@@ -20,7 +20,7 @@ from app.core.errors import NotFound
 from app.core.idempotency import idempotency, secret_response
 from app.core.pagination import ListQuery, list_query
 from app.core.ratelimit import rate_limit
-from app.modules.integrations import feeds, meetings, quickbooks, service
+from app.modules.integrations import analytics, feeds, meetings, quickbooks, service
 from app.modules.integrations import schemas as s
 from app.modules.integrations.domain.webhooks import redact
 
@@ -384,3 +384,15 @@ def get_public_schedule(
     Tenant from the host or X-Tenant-Slug. 404 when the location has not published its schedule."""
     response.headers["Cache-Control"] = "public, max-age=60"
     return feeds.public_schedule(session, location_id, from_on, days)
+
+
+# shortcut: shares the public-schedule per-IP bucket; give it its own in config/app.yaml if traffic differs
+@inbound.get(
+    "/public/analytics-config", response_model=s.AnalyticsConfigOut, tags=["integrations"],
+    dependencies=[Depends(rate_limit("public-schedule"))],
+)  # fmt: skip
+def get_public_analytics_config(response: Response, session: Annotated[Db, Depends(public_session)]):
+    """The registration pages' analytics tag (INT-13): measurement id and linked domains. Tenant from the host or
+    X-Tenant-Slug. 404 when the tenant has no active analytics connection. The page loads the tag only on consent."""
+    response.headers["Cache-Control"] = "public, max-age=300"
+    return analytics.public_config(session)

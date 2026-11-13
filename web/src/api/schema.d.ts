@@ -11099,6 +11099,27 @@ export interface paths {
         patch: operations["updatePublicScheduleSettings"];
         trace?: never;
     };
+    "/api/v1/public/analytics-config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Analytics Config
+         * @description The registration pages' analytics tag (INT-13): measurement id and linked domains. Tenant from the host or
+         *     X-Tenant-Slug. 404 when the tenant has no active analytics connection. The page loads the tag only on consent.
+         */
+        get: operations["getPublicAnalyticsConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/branding": {
         parameters: {
             query?: never;
@@ -15700,6 +15721,13 @@ export interface components {
             allocations?: components["schemas"]["AllocationIn"][] | null;
             /** Invoice Id */
             invoice_id?: string | null;
+        };
+        /** AnalyticsConfigOut */
+        AnalyticsConfigOut: {
+            /** Linked Domains */
+            linked_domains: string[];
+            /** Measurement Id */
+            measurement_id: string;
         };
         /** ApiKeyCreate */
         ApiKeyCreate: {
@@ -22702,7 +22730,7 @@ export interface components {
              * Provider
              * @enum {string}
              */
-            provider: "accounting_file" | "quickbooks_online" | "zoom";
+            provider: "accounting_file" | "quickbooks_online" | "zoom" | "google_analytics";
             /**
              * Return Url
              * @description QuickBooks: where the browser lands after authorising
@@ -22710,7 +22738,7 @@ export interface components {
             return_url?: string | null;
             /**
              * Settings
-             * @description `account_map` (posting key -> account) and `default_income_account`
+             * @description Accounting: `account_map` (posting key -> account) and `default_income_account`. Analytics: `measurement_id` (G-...) and `linked_domains` (comma-separated host names)
              */
             settings?: {
                 [key: string]: string | {
@@ -67297,6 +67325,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPublicAnalyticsConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsConfigOut"];
                 };
             };
         };
