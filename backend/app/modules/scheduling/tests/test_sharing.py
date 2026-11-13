@@ -8,10 +8,12 @@ from sqlalchemy import func, select
 
 from app.core.audit import AuditEvent
 from app.core.auth import system_principal
+from app.core.auth.tokens import digest
 from app.core.db.session import tenant_session
 from app.modules.programs.tests.test_checkout import member
 from app.modules.programs.tests.test_selfservice import SOON, policy
-from app.modules.scheduling.models import Booking, BookingParticipant, BookingSeries, Session
+from app.modules.scheduling import subject
+from app.modules.scheduling.models import Booking, BookingParticipant, BookingSeries, BookingSeriesRun, Session
 from app.modules.scheduling.tests.helpers import API, at, book, ok
 from app.modules.scheduling.tests.helpers import facility as build_facility
 from conftest import new_client
@@ -37,7 +39,8 @@ def test_link_lives_in_the_fragment_resolves_publicly_and_dies_on_revoke(client,
     seat = session_booking(client, owner, f, 10)["session"]["id"]
     link = ok(client.post(f"{API}/sessions/{seat}/direct-link", headers=owner), 200)
     assert link["is_active"] and link["path"] == f"/direct-link#token={link['token']}" and "?" not in link["path"]
-    assert ok(client.post(f"{API}/sessions/{seat}/direct-link", headers=owner), 200)["token"] == link["token"]
+    with tenant_session(tenant.id) as session:  # only a digest is stored: a database read yields no link
+        assert session.get(Session, UUID(seat)).direct_link_token == digest(link["token"])
 
     public = {"X-Tenant-Slug": tenant.slug}
     shown = ok(client.post(f"{API}/public/direct-links/resolve", headers=public, json={"token": link["token"]}), 200)
@@ -57,13 +60,16 @@ def test_inactive_or_cancelled_session_links_do_not_resolve(client, owner, tenan
     seat = booking["session"]["id"]
     public = {"X-Tenant-Slug": tenant.slug}
     with tenant_session(tenant.id) as session:
-        token = session.get(Session, UUID(seat)).direct_link_token
-    resolve = lambda: client.post(f"{API}/public/direct-links/resolve", headers=public, json={"token": token})  # noqa: E731
-    refused(resolve(), 404, "link-invalid")  # off until staff turn it on
-    ok(client.post(f"{API}/sessions/{seat}/direct-link", headers=owner), 200)
-    ok(resolve(), 200)
+        stored = session.get(Session, UUID(seat)).direct_link_token
+    resolve = lambda t: client.post(f"{API}/public/direct-links/resolve", headers=public, json={"token": t})  # noqa: E731
+    refused(resolve(stored), 404, "link-invalid")  # off until staff turn it on
+    first = ok(client.post(f"{API}/sessions/{seat}/direct-link", headers=owner), 200)["token"]
+    token = ok(client.post(f"{API}/sessions/{seat}/direct-link", headers=owner), 200)["token"]
+    assert token != first  # shown once: asking again issues a new link and the old copy stops working
+    refused(resolve(first), 404, "link-invalid")
+    ok(resolve(token), 200)
     ok(client.post(f"{API}/bookings/{booking['id']}/cancel", headers=owner, json={"version": booking["version"]}), 200)
-    refused(resolve(), 404, "link-invalid")
+    refused(resolve(token), 404, "link-invalid")
     refused(client.post(f"{API}/sessions/{seat}/direct-link", headers=owner), 409, "invalid-state-transition")
 
 
@@ -128,6 +134,17 @@ def test_shared_booking_lists_organiser_and_relatives_each_with_own_attendance(c
     assert [r["client_id"] for r in ok(client.get(url, headers=owner), 200)] == [organiser["id"]]
 
 
+def test_erasure_waits_for_a_shared_booking_ahead(client, owner, tenant, f):
+    booking = session_booking(client, owner, f, 15)
+    organiser, kid = new_client(client, owner, f.location), new_client(client, owner, f.location)
+    relate(client, owner, organiser["id"], kid["id"], "sibling_of")
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        session.get(Booking, UUID(booking["id"])).client_id = UUID(organiser["id"])
+    ok(client.post(f"{API}/bookings/{booking['id']}/participants", headers=owner, json={"client_id": kid["id"]}))
+    with tenant_session(tenant.id) as session:
+        assert [c["code"] for c in subject._erase_precheck(session, UUID(kid["id"]))] == ["upcoming-booking"]
+
+
 def test_participants_follow_a_client_merge(client, owner, tenant, f):
     booking = session_booking(client, owner, f, 16)
     organiser, keep, lose = (new_client(client, owner, f.location) for _ in range(3))
@@ -181,6 +198,15 @@ def test_merge_moves_the_other_series_into_this_one(client, owner, tenant, f):
         assert session.get(BookingSeries, ids[1]) is None
     refused(client.post(f"{API}/bookings/{mine['booking']['id']}/merge", headers=owner, json={"booking_number": number}),
             409, "already-linked")  # fmt: skip
+
+
+def test_merge_waits_for_a_series_run_in_progress(client, owner, tenant, f):
+    mine, other = weekly(client, owner, f, 10, f.court), weekly(client, owner, f, 10, f.court2)
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        session.add(BookingSeriesRun(booking_series_id=UUID(other["booking_series_id"]), kind="edit",
+                                     status="running", command={}))  # fmt: skip
+    refused(client.post(f"{API}/bookings/{mine['booking']['id']}/merge", headers=owner,
+                        json={"booking_number": other["booking"]["booking_number"]}), 409, "series-run-in-progress")  # fmt: skip
 
 
 def test_merge_links_a_single_reservation_and_refuses_mismatches(client, owner, tenant, f):

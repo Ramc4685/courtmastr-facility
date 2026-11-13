@@ -572,6 +572,18 @@ def load_document(session: Session, principal: Principal, doc_id: UUID, key: str
     return doc
 
 
+def is_agreement(session: Session, doc: ClientDocument) -> bool:
+    """Internal (memberships, DOC-11): issued from an agreement template that is not a waiver."""
+    tpl = session.get(DocumentTemplate, doc.template_id) if doc.template_id else None
+    return tpl is not None and tpl.kind == "agreement" and not tpl.is_waiver
+
+
+def is_signed(session: Session, doc_id: UUID) -> bool:
+    """Internal (memberships, DOC-11): whether the document is accepted and not deleted."""
+    doc = session.get(ClientDocument, doc_id)
+    return doc is not None and doc.status == "accepted" and doc.deleted_at is None
+
+
 def list_client_documents(session: Session, principal: Principal, query: ListQuery) -> dict:
     """Document history (DOC-06). Visible across locations (CLI-19); location_id is a filter, not a scope.
     is_deleted=true lists soft-deleted documents inside the recovery window instead of live ones."""

@@ -107,10 +107,11 @@ reschedule, a portal view of shared bookings. (Merge and erasure are handled sin
 
 ## Direct links, shared bookings and series merge (Phase 14 C2, `sharing.py`)
 
-- **Direct registration link (SCH-16).** `POST /sessions/{id}/direct-link` turns the session's link on and
-  returns `path` (`/direct-link#token=...`): the token rides in the URL fragment and reaches the API only in
-  the body of `POST /public/direct-links/resolve` (anonymous, rate limited `direct-link`, minimal fields).
-  `DELETE` turns it off and rotates the token, so every copy sent before stops working. Booking from the page
+- **Direct registration link (SCH-16).** `POST /sessions/{id}/direct-link` issues a new link, turns it on and
+  returns `path` (`/direct-link#token=...`) once (`secret_response`: never replayed). Only the token's sha256
+  digest is stored, so each POST replaces the previous link. The token rides in the URL fragment and reaches
+  the API only in the body of `POST /public/direct-links/resolve` (anonymous, rate limited `direct-link`,
+  minimal fields). `DELETE` turns it off and replaces the digest, so every copy sent before stops working. Booking from the page
   is the portal's ordinary enrolment carrying `direct_link_token`, so a visitor signs in to the member portal
   first. A live token (`service.has_live_link`) waives only the listing and self-booking checks (hidden,
   list-only, visible range, not self-bookable); cutoff, membership, capacity and payment still apply. Assumption: one link
@@ -119,13 +120,15 @@ reschedule, a portal view of shared bookings. (Merge and erasure are handled sin
   (one with an organiser), each with their own `attendance` (`scheduled`, `attended`, `no_show`; a no-show
   needs `mark_exception`). A booking without an organiser, such as a class session, takes no participants
   (409): its seats go through enrolments, which hold capacity, waivers and payment. Only the organiser's
-  active relatives can join; the organiser is listed once it is shared and cannot be removed.
+  active relatives can join; the organiser is listed once it is shared and cannot be removed. Erasure of a
+  client waits while they are a participant on a booking ahead, as it does for their own bookings.
   Package credit is untouched here (scheduling does not import packages). Gates reuse the enrolment and
   attendance keys. Client merge drops a loser's duplicate row; erasure keeps rows (bookings are kept).
 - **Series merge (SCH-21).** `POST /bookings/{id}/merge {booking_number}` moves the other reservation and its
   series into this booking's series, creating one when this booking stands alone, and deletes the emptied
   series. Same location, kind and client only (`merge-mismatch`); blocks and cancelled bookings are refused;
-  holds are not touched (times do not change). Needs `update_series` on both bookings. Both bookings are
+  holds are not touched (times do not change). Needs `update_series` on both bookings. Refused with
+  `series-run-in-progress` (409) while either series has a pending or running series change. Both bookings are
   locked in id order (two opposite merges cannot deadlock) and every booking whose series changes is audited.
 
 ## Security hardening (wave 1, S-02 to S-04)

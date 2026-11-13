@@ -176,7 +176,7 @@ def update_membership_contract(contract_id: UUID, body: s.ContractUpdate, ctx: U
 def bind_membership_contract_agreement(
     contract_id: UUID, body: s.AgreementIn, ctx: Annotated[Ctx, Depends(require("memberships.contract.update"))]
 ):
-    """Bind an issued agreement document to the contract (DOC-11); the contract shows it from then on."""
+    """Bind a signed agreement document of the owner's to the contract (DOC-11); a signed binding is not replaced."""
     return service.bind_agreement(ctx.session, ctx.principal, contract_id, body.client_document_id)
 
 

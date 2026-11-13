@@ -1,8 +1,9 @@
 """Direct registration links (SCH-16) and shared bookings (SCH-17, SSP-09).
 
-A session's `direct_link_token` exists from creation but resolves only while `is_direct_link_active` is on. The
-link is reusable and may be forwarded (one link goes to many clients); revoking rotates the token, so every copy
-sent before stops working. The token rides in the URL fragment of the web page and reaches the API only in a POST
+A session's `direct_link_token` column holds only the sha256 digest of the link's token (before the first link, a
+random value nobody holds), and resolves only while `is_direct_link_active` is on. Each issue returns a new token
+once and replaces the previous link; the link may be forwarded (one link goes to many clients); revoking replaces
+the digest, so every copy sent before stops working. The token rides in the URL fragment of the web page and reaches the API only in a POST
 body. Booking from the link is the portal's ordinary enrolment, which already accepts unlisted sessions.
 
 A shared booking is one booking with several clients on it, each with their own attendance. The booking's client
@@ -20,6 +21,7 @@ from sqlalchemy.orm import Session as Db
 
 from app.core import audit, clock, events
 from app.core.auth import Principal, authorize
+from app.core.auth.tokens import digest
 from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.modules import clients, platform
 from app.modules.scheduling import events as ev
@@ -44,44 +46,40 @@ def _link_seat(session: Db, principal: Principal, session_id: UUID) -> tuple[Ses
     return seat, booking
 
 
-def _link_view(seat: Session) -> dict:
-    return {
-        "session_id": seat.id, "is_active": seat.is_direct_link_active, "token": seat.direct_link_token,
-        "path": f"{PAGE}#token={seat.direct_link_token}",
-    }  # fmt: skip
-
-
-def _link_changed(session: Db, seat: Session, was: bool) -> None:
-    audit.record(session, LINK, seat, location_id=seat.location_id, changes={"is_direct_link_active": [was, not was]})
+def _link_changed(session: Db, seat: Session, was: bool, now: bool) -> None:
+    changes = {"is_direct_link_active": [was, now], "token_rotated": True}  # the token itself is never audited
+    audit.record(session, LINK, seat, location_id=seat.location_id, changes=changes)
     events.publish(
-        session, ev.DirectLinkChanged(session_id=seat.id, location_id=seat.location_id, is_active=not was), seat.id
+        session, ev.DirectLinkChanged(session_id=seat.id, location_id=seat.location_id, is_active=now), seat.id
     )
     session.flush()
 
 
 def create_link(session: Db, principal: Principal, session_id: UUID) -> dict:
-    """Turn the session's link on, or return it when it already is (a repeat changes nothing)."""
+    """Issue a new link and turn it on. The token is shown once (only its digest is stored), so each call
+    replaces the previous link and copies already sent stop working."""
     seat, booking = _link_seat(session, principal, session_id)
     if booking.status == "cancelled":
         raise Conflict("A cancelled session cannot be shared.", code="invalid-state-transition")
-    if not seat.is_direct_link_active:
-        seat.is_direct_link_active = True
-        _link_changed(session, seat, False)
-    return _link_view(seat)
+    token, was = secrets.token_urlsafe(24), seat.is_direct_link_active
+    seat.direct_link_token, seat.is_direct_link_active = digest(token), True
+    _link_changed(session, seat, was, True)
+    return {"session_id": seat.id, "is_active": True, "token": token, "path": f"{PAGE}#token={token}"}
 
 
 def revoke_link(session: Db, principal: Principal, session_id: UUID) -> None:
-    """Stop the link: the token is replaced, so copies already sent no longer resolve. Idempotent."""
+    """Stop the link: the stored digest is replaced, so copies already sent no longer resolve. Idempotent."""
     seat, _ = _link_seat(session, principal, session_id)
     if seat.is_direct_link_active:
         seat.is_direct_link_active = False
-        seat.direct_link_token = secrets.token_urlsafe(16)
-        _link_changed(session, seat, True)
+        seat.direct_link_token = digest(secrets.token_urlsafe(24))
+        _link_changed(session, seat, True, False)
 
 
 def resolve_link(session: Db, token: str) -> dict:
     """Public: the session an active link names, while it is still ahead. Only what the booking page shows."""
-    seat = session.scalar(select(Session).where(Session.direct_link_token == token, Session.is_direct_link_active))
+    stmt = select(Session).where(Session.direct_link_token == digest(token), Session.is_direct_link_active)
+    seat = session.scalar(stmt)
     booking = session.get(Booking, seat.booking_id) if seat is not None else None
     if seat is None or booking is None or booking.status != "confirmed" or booking.ends_at <= clock.now():
         raise NotFound("This link is not valid any more.", code="link-invalid")

@@ -13874,7 +13874,8 @@ export interface paths {
         put?: never;
         /**
          * Create Session Direct Link
-         * @description Turn on the session's reusable link, or return it when it is on. Share `path` (token in the fragment).
+         * @description Issue the session's link and turn it on; the token is shown once, and a new call replaces the previous
+         *     link. Share `path` (token in the fragment).
          */
         post: operations["createSessionDirectLink"];
         /**
@@ -32466,6 +32467,16 @@ export interface components {
             /** Sort Order */
             sort_order: number;
         };
+        /** PostBilledCloseFailure */
+        PostBilledCloseFailure: {
+            /**
+             * Client Package Id
+             * Format: uuid
+             */
+            client_package_id: string;
+            /** Code */
+            code: string;
+        };
         /** PostBilledCloseIn */
         PostBilledCloseIn: {
             /**
@@ -32493,6 +32504,11 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Failed
+             * @default []
+             */
+            failed: components["schemas"]["PostBilledCloseFailure"][];
             /**
              * Id
              * Format: uuid

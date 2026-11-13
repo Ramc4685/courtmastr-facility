@@ -18,7 +18,7 @@ const ATTENDANCE: { value: Attendance; label: string }[] = [
   { value: 'no_show', label: 'No-show' },
 ]
 
-/** SCH-16: turn a session's direct registration link on (copy it) or off (the old link stops working). */
+/** SCH-16: issue a session's direct registration link (shown once; a new one replaces it) or turn it off. */
 export function DirectLinkControls({ sessionId, active }: { sessionId: string; active: boolean }) {
   const qc = useQueryClient()
   const toast = useToast()
@@ -48,7 +48,7 @@ export function DirectLinkControls({ sessionId, active }: { sessionId: string; a
         <span className="font-medium">Direct link</span>
         <Badge tone={active ? 'success' : 'neutral'}>{active ? 'On' : 'Off'}</Badge>
         <Button size="sm" variant="secondary" loading={create.isPending} onClick={() => create.mutate()}>
-          {active ? 'Show link' : 'Create link'}
+          {active ? 'New link' : 'Create link'}
         </Button>
         {active && (
           <Button size="sm" variant="ghost" loading={revoke.isPending} onClick={() => revoke.mutate()}>
@@ -64,7 +64,7 @@ export function DirectLinkControls({ sessionId, active }: { sessionId: string; a
           </Button>
         </div>
       )}
-      <p className="text-xs text-muted">Anyone with the link can book this session, even when it is not listed online.</p>
+      <p className="text-xs text-muted">Anyone with the link can book this session, even when it is not listed online. The link is shown once; a new link stops the old one.</p>
     </div>
   )
 }

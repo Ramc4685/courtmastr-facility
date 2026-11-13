@@ -227,6 +227,7 @@ def upgrade() -> None:
         sa.Column("client_package_id", sa.Uuid(), nullable=False),
         sa.Column("source_type", sa.Text(), nullable=False),
         sa.Column("source_id", sa.Uuid(), nullable=False),
+        sa.Column("credited_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.CheckConstraint("source_type IN ('enrollment', 'booking')", name=op.f("ck_post_billed_usage_source_type")),

@@ -35,8 +35,11 @@ def _export(session: Session, client_id: UUID) -> dict:
 
 
 def _erase_precheck(session: Session, client_id: UUID) -> list[dict]:
+    shared = select(BookingParticipant.booking_id).where(BookingParticipant.client_id == client_id)
     ahead = select(Booking.id).where(
-        Booking.client_id == client_id, Booking.status != "cancelled", Booking.ends_at > clock.now()
+        (Booking.client_id == client_id) | Booking.id.in_(shared),
+        Booking.status != "cancelled",
+        Booking.ends_at > clock.now(),
     )
     if session.scalar(ahead.limit(1)):
         return [{"code": "upcoming-booking", "detail": "The client still has a booking ahead."}]

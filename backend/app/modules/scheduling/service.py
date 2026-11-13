@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session as Db
 from app.core import audit, clock, events
 from app.core.api import CONSTRAINT_CODES
 from app.core.auth import Principal, authorize, authorize_tenant_wide, scope_query, system_principal
+from app.core.auth.tokens import digest
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.ids import new_id
 from app.core.pagination import ListQuery, paginate
@@ -840,11 +841,12 @@ def set_capacity(session: Db, session_ids: list[UUID], capacity: int) -> list[di
 
 
 def has_live_link(session: Db, session_id: UUID, token: str | None) -> bool:
-    """Internal (programs' portal enrolment): whether the token is this session's active direct link (SCH-16)."""
+    """Internal (programs' portal enrolment): whether the token is this session's active direct link (SCH-16).
+    Only the token's digest is stored."""
     if not token:
         return False
     s = Session
-    stmt = select(s.id).where(s.id == session_id, s.direct_link_token == token, s.is_direct_link_active)
+    stmt = select(s.id).where(s.id == session_id, s.direct_link_token == digest(token), s.is_direct_link_active)
     return session.scalar(stmt) is not None
 
 
@@ -2167,6 +2169,13 @@ def merge_series(session: Db, principal: Principal, booking_id: UUID, data: dict
         raise Conflict("Only bookings of the same location, kind and client can be linked.", code="merge-mismatch")
     if booking.kind == "block" or "cancelled" in (booking.status, other.status):
         raise Conflict("Only live reservations can be linked.", code="invalid-state-transition")
+    series = {sid for sid in (booking.booking_series_id, other.booking_series_id) if sid}
+    busy = select(BookingSeriesRun.id).where(
+        BookingSeriesRun.booking_series_id.in_(series), BookingSeriesRun.status.in_(("pending", "running"))
+    )
+    if series and session.scalar(busy.limit(1)):
+        raise Conflict("A series change is still running; link the bookings once it finishes.",
+                       code="series-run-in-progress")  # fmt: skip
     target = (
         session.get(BookingSeries, booking.booking_series_id, with_for_update=True)
         if booking.booking_series_id

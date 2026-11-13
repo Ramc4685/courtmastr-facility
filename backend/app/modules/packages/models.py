@@ -578,3 +578,4 @@ class PostBilledUsage(TenantOwned, Timestamps, Base):
     client_package_id: Mapped[UUID]
     source_type: Mapped[str] = enum_column()
     source_id: Mapped[UUID]
+    credited_at: Mapped[datetime | None]  # set when a restored credit was credited back at a later close

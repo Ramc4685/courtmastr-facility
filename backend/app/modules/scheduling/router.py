@@ -11,7 +11,7 @@ from app.core.api import TxRoute, camel_id
 from app.core.auth import system_principal
 from app.core.auth.deps import Ctx, public_session, require
 from app.core.errors import ValidationFailed
-from app.core.idempotency import idempotency
+from app.core.idempotency import idempotency, secret_response
 from app.core.pagination import ListQuery, list_query
 from app.core.ratelimit import rate_limit
 from app.modules.scheduling import offers, service, sharing
@@ -331,8 +331,10 @@ def book_slot_offer_slot(slot_offer_id: UUID, body: s.SlotBook, ctx: Ctx = Depen
 
 
 @router.post("/sessions/{schedule_session_id}/direct-link", response_model=s.DirectLinkOut)
+@secret_response
 def create_session_direct_link(schedule_session_id: UUID, ctx: Ctx = Depends(require(sharing.LINK))):
-    """Turn on the session's reusable link, or return it when it is on. Share `path` (token in the fragment)."""
+    """Issue the session's link and turn it on; the token is shown once, and a new call replaces the previous
+    link. Share `path` (token in the fragment)."""
     return sharing.create_link(ctx.session, ctx.principal, schedule_session_id)
 
 

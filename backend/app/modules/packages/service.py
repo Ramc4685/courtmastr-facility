@@ -920,6 +920,8 @@ def _renew(session: Session, package: ClientPackage, today: date, *, early: bool
     plan_id = package.renews_as_plan_id if package.renewal_target == "plan" else None
     if plan_id is None and package.source_contract_id is not None:
         plan_id = package.package_plan_id
+    if package.billing_mode == "post_billed":
+        plan_id = None  # a post-billed package renews as it is: still free up front and billed at each close
     upper = package.valid_during.upper
     start = today if early or upper is None else max(upper, today)
     if plan_id is not None:
@@ -938,6 +940,7 @@ def _renew(session: Session, package: ClientPackage, today: date, *, early: bool
             "allows_booking_after_expiry", "fee_basis", "unit_price_minor", "is_complimentary", "revenue_category_id",
             "invoice_mode", "is_autopay", "share_mode", "is_auto_renew", "auto_renew_lead_count", "auto_renew_lead_unit",
             "renewal_target", "renews_as_plan_id", "renewal_threshold_count", "is_auto_renew_on_threshold",
+            "billing_mode",
         )  # fmt: skip
         fields = {key: getattr(package, key) for key in copy}
         fields["valid_during"] = Range(start, _same_length(package.valid_during, start))

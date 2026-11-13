@@ -18,27 +18,32 @@ New tables (all with `tenant_id`, `UNIQUE (tenant_id, id)`, `enable_rls`, `tfk`,
 
 ## Tests
 
-Backend: `scheduling/tests/test_sharing.py` (7), `packages/tests/test_post_billed.py` (5),
-`memberships/tests/test_agreement.py` (2), plus the security, isolation, location-scope, portal-schema,
+Backend: `scheduling/tests/test_sharing.py`, `packages/tests/test_post_billed.py`,
+`memberships/tests/test_agreement.py` (25 in all after the round 2 review), plus the security, isolation, location-scope, portal-schema,
 RLS-meta and RBAC suites. Web: `sharing.test.tsx` (2); Playwright `e2e/shared-post-billed.spec.ts` (2, axe;
 run in CI only).
 
 ## Assumptions
 
-- One direct link per session, reusable; turning it off rotates the token. Booking from the link is the
-  portal's ordinary enrolment, so the visitor signs in first.
+- One direct link per session, shown once: only its digest is stored, each new link replaces the last, and
+  turning it off replaces the digest. Booking from the link is the portal's ordinary enrolment, so the visitor
+  signs in first.
 - Shared booking participants must be active relatives of the organiser, and only a client's own booking
   (with an organiser) can be shared; class sessions take seats through enrolments only. Package credit is
   spent by the packages calls, not by scheduling.
 - A direct link's token travels in the portal enrolment body and waives only the listing and self-booking
   checks.
-- Rate tiers are whole-count: every session of the period bills at the highest tier the count reaches.
-- One bound agreement per contract; rebinding replaces it (audited).
+- Rate tiers are whole-count: every session of the period bills at the highest tier the count reaches; tier 1
+  always exists.
+- A post-billed package ends at a close only once nothing is held or used after the closing date; a renewal
+  stays post-billed; a credit restored after billing is credited at the next close; one failing package does
+  not stop a close.
+- One bound agreement per contract, signed and of the agreement kind; a signed binding is not replaced.
 
 ## Not built
 
-Direct links for slot offers; extra billed items on a post-billed rate; refunds when a billed credit is later
-restored; an automatic (scheduled) close; a portal view of shared bookings; a check that a post-billed
+Direct links for slot offers; extra billed items on a post-billed rate; refunding money already paid for a
+credited session; an automatic (scheduled) close; a portal view of shared bookings; a check that a post-billed
 package's reservation type belongs to its location (blocked by the packages-to-scheduling import boundary);
 picking a package on the direct-link page (it books free sessions only).
 

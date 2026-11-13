@@ -1,12 +1,15 @@
 """Post-billed packages (PKG-11) and the period close that bills them (BIL-18): tiered rates, usage up to the
 closing date, one charge and invoice per package, idempotency per period, skipped lines and the gate."""
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy import select
 
+from app.core.errors import ValidationFailed
+from app.modules import billing
 from app.modules.memberships.tests.support import API, at, category, charges, invoices, location, ok, refused, tx
 from app.modules.packages import service
 from app.modules.packages.models import ClientPackage
@@ -114,12 +117,14 @@ def test_late_usage_after_a_package_ended_is_billed_exactly_once(client, w):
     first = ok(close(client, w, DAY), 201)
     assert (first["session_count"], first["total_minor"]) == (1, 1000)
     with tx(w.tenant) as session:
-        assert session.get(ClientPackage, UUID(package["id"])).status == "expired"
+        assert session.get(ClientPackage, UUID(package["id"])).status == "active"  # a credit is still held
     later = DAY + timedelta(days=2)
     with at(later), tx(w.tenant) as session:
         service.settle_credit(session, outcome="attended", **held)
     second = ok(close(client, w, later), 201)
     assert (second["session_count"], second["total_minor"]) == (1, 1000)
+    with tx(w.tenant) as session:
+        assert session.get(ClientPackage, UUID(package["id"])).status == "expired"
     third = ok(close(client, w, later + timedelta(days=1)), 201)
     assert third["package_count"] == 0  # billed once: nothing left for a later close
     assert sorted(c.total_minor for c in charges(w.tenant, w.person["id"])) == [1000, 1000]
@@ -131,6 +136,105 @@ def test_a_close_covers_every_package_of_its_period(client, w):
         partial = client.post(f"{API}/post-billed-closes", headers=w.owner, json={
             "location_id": w.location_id, "closing_on": DAY.isoformat(), "client_package_ids": [str(uuid4())]})  # fmt: skip
     refused(partial, 422, "validation-failed")
+
+
+def billed_sessions(w) -> int:
+    return sum(c.quantity for c in charges(w.tenant, w.person["id"]) if c.status != "reversed" and c.total_minor > 0)
+
+
+def test_renewal_keeps_a_package_post_billed_by_route_and_by_job(client, w):
+    rate(client, w, 1, 1000)
+    package = open_package(client, w)
+    with at(DAY):
+        renewed = ok(client.post(f"{API}/client-packages/{package['id']}/renew", headers=w.owner), 201)
+    assert (renewed["billing_mode"], renewed["price_minor"]) == ("post_billed", 0)
+    use(w, renewed, DAY)
+    assert ok(close(client, w, DAY), 201)["session_count"] == 1
+
+    other = open_package(client, w)
+    with at(DAY), tx(w.tenant) as session:
+        session.get(ClientPackage, UUID(other["id"])).renew_on = DAY
+        session.get(ClientPackage, UUID(other["id"])).is_auto_renew = True
+        session.flush()
+        assert service.run_daily(session)["renewed"] == 1
+        successor = session.scalar(select(ClientPackage).where(ClientPackage.previous_package_id == UUID(other["id"])))
+        assert successor.billing_mode == "post_billed" and successor.price_minor == 0
+
+
+def test_a_package_ends_only_once_nothing_is_held_or_dated_after_the_close(client, w):
+    rate(client, w, 1, 1000)
+    package = open_package(client, w, is_auto_renew=False)
+    ends = DAY + timedelta(days=28)
+    use(w, package, ends - timedelta(days=1))
+    use(w, package, ends + timedelta(days=1))  # used after the closing date, before the close runs
+    use(w, package, ends + timedelta(days=2))
+    with at(ends + timedelta(days=3)):
+        first = ok(client.post(f"{API}/post-billed-closes", headers=w.owner,
+                               json={"location_id": w.location_id, "closing_on": ends.isoformat()}), 201)  # fmt: skip
+    assert first["session_count"] == 1
+    with tx(w.tenant) as session:
+        assert session.get(ClientPackage, UUID(package["id"])).status == "active"  # later usage still to bill
+    assert ok(close(client, w, ends + timedelta(days=3)), 201)["session_count"] == 2
+    with tx(w.tenant) as session:
+        assert session.get(ClientPackage, UUID(package["id"])).status == "expired"
+    assert billed_sessions(w) == 3
+
+
+def test_usage_of_a_package_removed_between_closes_is_still_billed(client, w):
+    rate(client, w, 1, 1000)
+    package = open_package(client, w)
+    use(w, package, DAY)
+    with tx(w.tenant) as session:
+        removed = session.get(ClientPackage, UUID(package["id"]))
+        removed.status, removed.removed_at = "removed", datetime.now(UTC)
+    assert ok(close(client, w, DAY), 201)["session_count"] == 1
+    assert ok(close(client, w, DAY + timedelta(days=1)), 201)["package_count"] == 0
+
+
+def test_a_credit_restored_after_billing_is_credited_at_the_next_close(client, w):
+    rate(client, w, 1, 1000)
+    package = open_package(client, w)
+    use(w, package, DAY)
+    restored = use(w, package, DAY)
+    ok(close(client, w, DAY), 201)
+    assert billed_sessions(w) == 2
+    with at(DAY), tx(w.tenant) as session:  # staff reverse the attendance: the credit goes back
+        service.restore_credit(session, **restored)
+    later = DAY + timedelta(days=1)
+    ok(close(client, w, later), 201)
+    assert billed_sessions(w) == 1
+    ok(close(client, w, later + timedelta(days=1)), 201)
+    assert billed_sessions(w) == 1  # credited once
+
+
+def test_the_rate_table_always_starts_at_one_session(client, w):
+    body = {"reservation_type_id": w.type_id, "min_sessions": 3, "per_session_minor": 900}
+    refused(client.post(f"{API}/post-billed-rates", headers=w.owner, json=body), 422, "validation-failed")
+    base = rate(client, w, 1, 1000)
+    ok(client.post(f"{API}/post-billed-rates", headers=w.owner, json=body), 201)
+    refused(client.patch(f"{API}/post-billed-rates/{base['id']}", headers=w.owner, json={"is_active": False}),
+            422, "validation-failed")  # fmt: skip
+    refused(client.patch(f"{API}/post-billed-rates/{base['id']}", headers=w.owner, json={"min_sessions": 2}),
+            422, "validation-failed")  # fmt: skip
+
+
+def test_one_failing_package_does_not_stop_the_close(client, w, monkeypatch):
+    rate(client, w, 1, 1000)
+    good, bad = open_package(client, w), open_package(client, w, name="Second")
+    use(w, good, DAY)
+    use(w, bad, DAY)
+    real = billing.service.post_charge
+
+    def flaky(session, **kwargs):
+        if kwargs["description"].startswith("Second"):
+            raise ValidationFailed("No.", pointer="/x")
+        return real(session, **kwargs)
+
+    monkeypatch.setattr(billing.service, "post_charge", flaky)
+    done = ok(close(client, w, DAY), 201)
+    assert done["package_count"] == 1 and [f["client_package_id"] for f in done["failed"]] == [bad["id"]]
+    monkeypatch.setattr(billing.service, "post_charge", real)
+    assert ok(close(client, w, DAY + timedelta(days=1)), 201)["package_count"] == 1  # billed at the next close
 
 
 def test_rates_are_required_and_closes_cannot_run_ahead(client, w):

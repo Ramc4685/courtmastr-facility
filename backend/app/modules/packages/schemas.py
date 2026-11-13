@@ -486,6 +486,11 @@ class PostBilledLineOut(Out):
     invoice_id: UUID | None
 
 
+class PostBilledCloseFailure(Out):
+    client_package_id: UUID
+    code: str
+
+
 class PostBilledCloseOut(Out):
     id: UUID
     location_id: UUID
@@ -496,3 +501,4 @@ class PostBilledCloseOut(Out):
     total_minor: int
     created_at: datetime
     lines: list[PostBilledLineOut]
+    failed: list[PostBilledCloseFailure] = []

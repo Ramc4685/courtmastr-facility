@@ -29,10 +29,17 @@ test('post-billed rates, the period close, and the client dialogs pass axe', asy
   const type = page.getByRole('combobox', { name: 'Reservation type' })
   await expect(type.locator('option')).not.toHaveCount(1)
   await type.selectOption({ index: 1 })
-  await page.getByRole('spinbutton', { name: 'From sessions' }).fill(String(2 + (Date.now() % 500))) // a fresh tier on a reused database
-  await page.getByRole('textbox', { name: 'Price per session' }).fill('25')
+  const sessions = page.getByRole('spinbutton', { name: 'From sessions' })
+  const price = page.getByRole('textbox', { name: 'Price per session' })
+  const table = page.getByRole('table', { name: 'Post-billed rates' })
+  await sessions.fill('1') // tiers start at one session (on a reused database this tier exists and is refused)
+  await price.fill('20')
   await page.getByRole('button', { name: 'Add rate' }).click()
-  await expect(page.getByRole('table', { name: 'Post-billed rates' })).toContainText('$25.00')
+  await expect(table).toBeVisible()
+  await sessions.fill(String(2 + (Date.now() % 500))) // a fresh higher tier
+  await price.fill('25')
+  await page.getByRole('button', { name: 'Add rate' }).click()
+  await expect(table).toContainText('$25.00')
   await scan(page, 'post-billed rates')
 
   await page.getByRole('tab', { name: 'Period close' }).click()
@@ -62,7 +69,7 @@ test('a session drawer shows its direct link and merge controls, and passes axe'
   await page.getByRole('button', { name: /^Private Lesson.*full/ }).first().click()
   await expect(page.getByRole('heading', { name: 'Shared with' })).toHaveCount(0) // a class session has no organiser
   await expect(page.getByRole('button', { name: 'Link into series' })).toBeVisible()
-  await page.getByRole('button', { name: /^(Create|Show) link$/ }).click()
+  await page.getByRole('button', { name: /^(Create|New) link$/ }).click()
   const link = page.getByRole('textbox', { name: 'Registration link' })
   await expect(link).toHaveValue(/\/direct-link#token=/)
   expect(await link.inputValue()).not.toContain('?')

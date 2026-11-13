@@ -52433,6 +52433,25 @@
         "title": "PosTenderType",
         "type": "object"
       },
+      "PostBilledCloseFailure": {
+        "properties": {
+          "client_package_id": {
+            "format": "uuid",
+            "title": "Client Package Id",
+            "type": "string"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_package_id",
+          "code"
+        ],
+        "title": "PostBilledCloseFailure",
+        "type": "object"
+      },
       "PostBilledCloseIn": {
         "additionalProperties": false,
         "properties": {
@@ -52477,6 +52496,14 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "failed": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PostBilledCloseFailure"
+            },
+            "title": "Failed",
+            "type": "array"
           },
           "id": {
             "format": "uuid",
@@ -148775,7 +148802,7 @@
         ]
       },
       "post": {
-        "description": "Turn on the session's reusable link, or return it when it is on. Share `path` (token in the fragment).",
+        "description": "Issue the session's link and turn it on; the token is shown once, and a new call replaces the previous\nlink. Share `path` (token in the fragment).",
         "operationId": "createSessionDirectLink",
         "parameters": [
           {
