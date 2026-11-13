@@ -117,6 +117,7 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
+          prune-cache: false  # the API started for Playwright still holds the cache; the prune exits 2 and fails a green job
       - uses: pnpm/action-setup@v4
         with:
           package_json_file: web/package.json
