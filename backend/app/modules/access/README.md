@@ -14,7 +14,7 @@ nothing writes it yet.
 | `check_in_attendance` | each programme session place marked attended by a check-in (the link back for history) |
 | `credential` | membership number, barcode, app card, wallet pass, RFID and biometric reference; value unique per tenant while active; app cards keep the rotating-QR secret, which revocation wipes |
 | `kiosk_device` | a named device at a location, its single-use pairing code (hashed, 10 minutes), its revocation and the count of wrong exit PINs since the last right one (`exit_pin_failure_count`, migration 1022) |
-| `kiosk_settings` | one row per location: lookup methods, early and late windows, confirmation timeout, welcome text, alerts the kiosk may show, the hashed exit PIN (migration 1021); visible range, auto-book and reservation timeout (migration 1961) |
+| `kiosk_settings` | one row per location: lookup methods, early and late windows, confirmation timeout, welcome text, alerts the kiosk may show, the hashed exit PIN (migration 1021); visible range, auto-book and reservation timeout (migration 1961); name-search booking switch (migration 1962) |
 
 Migration `1021_access_rules` (phase 10 chip B) adds:
 
@@ -26,7 +26,8 @@ Migration `1021_access_rules` (phase 10 chip B) adds:
 | `access_schedule`, `access_schedule_range` | named time-of-day schedules (CHK-09): weekday plus local from/to wall time, 24:00 allowed |
 | `membership_type_access` | a membership type's schedule (none = any hour) |
 | `membership_type_location` | locations a membership type is limited to (CHK-10): no rows admits everywhere; rows restrict to them plus the contract's own location |
-| `kiosk_match` | single-use kiosk lookup tokens: hash, device, client, expiry (migration 1022) |
+| `kiosk_match` | single-use kiosk lookup tokens: hash, device, client, expiry (migration 1022); the credential a card lookup matched (migration 1962) |
+| `kiosk_visit` | single-use visit tokens for the reservation page: hash, device, check-in, expiry (migration 1962) |
 
 Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
 
@@ -86,11 +87,25 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   else the client's soonest-to-expire package that covers the session (409 `no-entitlement`). The kiosk adds no
   bypass. The past-due lockout applies as online (`billing.collections.is_portal_locked`): every session shows not
   bookable and booking is 409 `see-staff`. A place starting inside the kiosk check-in window is marked attended
-  (`was_auto_booked`). The kiosk may act for a visit only from the device that took it, while it is admitted and
-  open, for 10 minutes (`KIOSK_VISIT`); otherwise 404. With `is_auto_book` on, a check-in that holds no place in the
-  window books the earliest bookable session, inside a savepoint: a refusal leaves the client checked in.
-  `reservation_timeout_seconds` (default 30) sends the list screen back to the start. The route is rate limited with
-  the check-ins (one counter per device) and idempotent per device.
+  (`was_auto_booked`). With `is_auto_book` on, a check-in that holds no place in the window books the earliest
+  bookable session, inside a savepoint: a refusal leaves the client checked in. `reservation_timeout_seconds`
+  (default 30) sends the list screen back to the start.
+- **Kiosk visit token (migration 1962).** An admitted check-in returns a `visit_token` (random, stored hashed in
+  `kiosk_visit`, bound to the device and the check-in). Each booking spends it and returns a fresh one; a refused
+  booking rolls back, so the token stays good for another choice. It expires after the confirmation plus the
+  reservation timeout (plus 5 seconds), and every token a device holds ends at `POST /kiosk/visits/end` (the screen
+  going back to start), at its next lookup and at its next check-in. A missing, spent, expired or other device's
+  token, or a denied or checked-out check-in, is 404. Responses carrying a token are `@secret_response`: a replayed
+  Idempotency-Key is 409 `response-not-stored`. Booking attempts have their own per-device limit (10 a minute).
+- **What a name-search check-in may do (owner decisions 2026-11-13).** Spending anything at the kiosk (a package
+  credit, and in future a membership visit, an account charge or a payment) needs identification by possession:
+  `check_in.identified_by = credential`, which is a scanned card, fob, wallet pass or the app's code. A lookup by
+  card keeps the matched credential on `kiosk_match.credential_id`, so the check-in records it. The kiosk cannot
+  tell a scanned credential value from a typed one, so any value that matches a credential row counts (the tablet
+  only takes values from the scanner). A member number on the client record, or a name search, is `name_search`. Such a visit may book only sessions that allow free booking, so nothing is
+  spent, and only while the location's `is_name_search_booking_allowed` is on (default on). Any refusal is 409
+  `see-staff`, `is_booked` is always false on its page, and auto-book follows the same rule. It never learns the
+  client's packages, balance or eligibility. Possession unlocks the full portal rules above.
 - **App cards (CHK-13).** The portal issues an app card to the member or a household member they may book for;
   the app shows `fhq.<credential>.<30 s step>.<hmac>`, accepted for the current and previous step at the kiosk and
   the staff window.

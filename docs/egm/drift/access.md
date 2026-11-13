@@ -1,18 +1,40 @@
 ## backend/app/modules/access/README.md
 
-Compared with `backend/app/modules/access/*.py`, `router.py` (staff `router` and device `kiosk` routers) and `docs/api/openapi-money.yaml` (tag access). Paths below are relative to `backend/app/modules/access/` unless they start with `docs/`.
+Compared with `backend/app/modules/access/*.py` (`router.py` has the staff `router` and the device `kiosk` router), the migrations and `docs/api/openapi-money.yaml` (operations tagged access). Paths are relative to `backend/app/modules/access/` unless they start with `docs/` or `backend/`. The contract is `docs/api/openapi-money.yaml`, written `contract:<line>`.
 
-- [contract] README 119-125 describes `GET /clients/{id}/id-card` as JSON (template, fields, barcode value) drawn in the browser. The contract (`docs/api/openapi-money.yaml:4697-4708`, `getClientIdCard`) says "Render a CR80 ID card PDF", P1, with no response schema. The route returns `ClientIdCardOut` (router.py:274-283).
-- [contract] README 58 says `PUT /clients/{id}/access-mode` needs its own key `access.client.set_access_mode` (router.py:39, 181; permissions.py:25). The contract (`docs/api/openapi-money.yaml:4601-4611`, `setClientAccessMode`) says `access.rule.manage`, P1, with no body or response schema.
-- [contract] README 71 and 121-125 imply `GET /kiosk-devices` is a launch-level read. The code uses `access.kiosk.launch` (router.py:121-123, `Launch`). The contract (`docs/api/openapi-money.yaml:4205`) says `access.kiosk.manage`.
-- [contract] README 107-112 documents `POST /check-ins/{id}/attendances` (router.py:245-249, 201, `CheckInOut`, key `scheduling.enrollment.create`). The contract (`docs/api/openapi-money.yaml:4517-4528`, `createCheckInAttendance`) says `access.checkin.create`, P1, "session or package visit", with no schema. The code books sessions only.
-- [contract] README 80-93 documents `POST /kiosk/check-ins/{id}/attendances` as built. The contract (`docs/api/openapi-money.yaml:4381-4384`) lists only `outside-check-in-window, capacity-full, no-entitlement`. The code also raises `policy-violation`, `already-enrolled` and `see-staff` (router.py:~422-424, `kiosk.py:36`). The contract's `KioskCheckInResult` has no `sessions` field. The README says the response carries `sessions`, each with `is_booked` and `is_bookable` (`kiosk.py:80-91`). I did not check `KioskCheckInResult` for `was_auto_booked`.
-- [contract] README 173-183 documents `GET/POST /portal/wallet-passes` and `DELETE /portal/wallet-passes/{credential_id}` (router.py:306-318). The contract has none of them. It still declares the deferred `GET /portal/app-cards/{credential_id}/wallet-pass` (`getWalletPass`, `docs/api/openapi-money.yaml:4709-4721`), which is not built and which the README does not mention.
-- [contract] The contract (`docs/api/openapi-money.yaml:4505-4516`, `listEligibleSessions`, and `:4723-4735`, `createKioskPackagePurchase`) still declares routes with no code. The README does mark both as not built (README 191-194), so only the contract side lags.
-- [missing] README 71-79 and `kiosk_settings` (README line 17) name "lookup methods, early and late windows, confirmation timeout, welcome text, alerts, hashed exit PIN". The README does not list the reservation columns added by migration 1961: `visible_range_minutes`, `is_auto_book`, `reservation_timeout_seconds` (models.py:305-307). They appear only in prose at README 80-93, so the table is behind. The README's migration list (README 9-37) has no 1961 section.
-- [undocumented] `POST /check-ins/evaluate` (dry run, router.py:55-59) and `POST /credentials/resolve` (router.py:73-80) are not mentioned anywhere in the README.
-- [undocumented] `GET /clients/{id}/access-mode` (router.py:176-179, key `access.checkin.create`) is not in the README. README 58 covers only `PUT`.
-- [undocumented] The module consumes `clients.client.disabled` (handlers.py:7-12 -> `service.revoke_wallet_passes_of`, service.py:590). The "Wallet passes" section (README 173-183) and the merge and erasure bullet (README 126-130) do not mention it. The README names no event the module consumes.
-- [undocumented] Issuing a wallet pass requires an active client (`clients.service.require_active`, service.py `issue_wallet_pass`, ~554). The README does not say so.
-- [undocumented] Lookup limits: `NAME_MATCHES = 5` (service.py:56) caps the kiosk name-search matches. The README does not mention it.
-- [wording] README 74-75 and 121-125 say an "admitted" kiosk response. The kiosk `status` is `"admitted"` or `"see_staff"` (`kiosk.py:86`), while the stored `check_in.result` is `granted` / `denied` / `granted_override` (models.py:32-35). The README uses both vocabularies without saying which is which. README 13 is correct for the stored value.
+### [stale-not-built]
+
+None found. Every route, table, column, constant and event the README names exists in code, and the items it marks deferred are in fact absent.
+
+### [missing]
+
+None found. Every table and column in the code appears in a README table, including `kiosk_visit`, `kiosk_match.credential_id` and `kiosk_settings` columns from migrations 1961 and 1962 (models.py:264-330).
+
+### [contract]
+
+- README 133-139 says `GET /clients/{id}/id-card` returns JSON (template, fields, barcode value) and the browser draws the card. The code does this (router.py:274-281, `ClientIdCardOut`). The contract (`getClientIdCard`, contract:4712-4714) says "Render a CR80 ID card PDF", P1, with no response schema.
+- README 59-60 says `PUT /clients/{id}/access-mode` needs its own key `access.client.set_access_mode`. The code does (router.py:39, 181; permissions.py:25). The contract (`setClientAccessMode`, contract:4616-4620) says `access.rule.manage`. The contract has no `GET` for the same path, and the code does (router.py:176-179).
+- README 121-126 says `POST /check-ins/{id}/attendances` uses router key `scheduling.enrollment.create` (router.py:219, 245-249). The contract (`createCheckInAttendance`, contract:4532-4536) says `access.checkin.create`, "Book a session or package visit", with no schema. The code books sessions only.
+- README 127-130 gives `POST /check-ins/{id}/check-out` the key `access.checkin.check_out` (router.py:218, 238-242, permissions.py:15). The contract (`checkOut`, contract:4544-4548) says `access.checkin.create`.
+- README 72 (a manager registers a device, front desk launches it) fits the code's `GET /kiosk-devices` gate `access.kiosk.launch` (router.py:121-123, `Launch`). The contract (`listKioskDevices`, contract:4201-4205) says `access.kiosk.manage`.
+- README 174 lists the `GET /check-ins` filters and says it has no open filter (router.py:61-66). The contract declares an `is_open` query parameter (contract:4004).
+- README 17 and 81-107 describe the kiosk settings that exist. The contract's `KioskSettings` and `KioskSettingsWrite` (contract:7613-7657) declare fields the code does not have: `is_package_purchase_enabled`, `is_client_photo_shown`, `default_view`, `theme`, `package_timeout_seconds`. They omit `has_exit_pin` and `exit_pin` (schemas.py:181, 195; service.py:612, 631-637), which the README documents at 78-80.
+- README 206-207 says `KioskAttendanceCreate` accepts only `session` (schemas.py:477). The contract (`KioskAttendanceCreate`, contract:7759-7766) enumerates `enrollment`, `booking` and `session`.
+- The README does not mention `second_factor` or `scanned_at`. The contract's `KioskCheckInCreate` (contract:7726-7735) declares both. The code accepts only `match_token` and `card_payload` (schemas.py:440-442), so the contract is ahead of the code.
+- README 187-197 documents `GET/POST /portal/wallet-passes` and `DELETE /portal/wallet-passes/{credential_id}` (router.py:306-318). The contract has none of them. It declares `getWalletPass` at `GET /portal/app-cards/{credential_id}/wallet-pass` (contract:4722-4727), which the code does not implement and the README does not mention.
+
+### [undocumented]
+
+- `POST /check-ins/evaluate` (router.py:55-59, a dry-run decision) and `POST /credentials/resolve` (router.py:73-80, `service.resolve_credential`, service.py:353) are not named in the README.
+- `GET /clients/{id}/access-mode` (router.py:176-179, key `access.checkin.create`) is not in the README. README 59-60 covers only `PUT`.
+- The event `access.check_in.session_booked` (events.py:29-33, published at kiosk.py:120 and desk.py:224) is not listed. README 49 and 130 name `granted`, `denied` and `checked_out`.
+- The module consumes `clients.client.disabled` and revokes the client's wallet passes (handlers.py:7-12, `service.revoke_wallet_passes_of`, service.py:590). The "Wallet passes" section (README 187-197) and the merge and erasure bullet (README 140-144) do not mention it.
+- Issuing a wallet pass or generating a credential requires an active client (`clients.service.require_active`, service.py:431, 501, 549). The README does not say so.
+- Kiosk name search needs `lookup_method` to allow it, a prefix of at least 3 letters, lists at most 5 (`NAME_MATCHES`, service.py:56, 786-790; schemas.py:425) and never lists disabled clients. Lookup refusals are 422 `lookup-method-disabled` (service.py:772-784). README 73-75 says only that minors are not listed.
+- The kiosk cookie lives 400 days (`max_age=400 * 86400`, router.py:~385). The README does not give a lifetime.
+
+### [wording]
+
+- README 103-105 says a typed member number is `name_search`. That holds for the number on the client record. A typed value that matches an active credential row (barcode, membership-number credential) resolves to a credential, so the match carries `credential_id` and the check-in is `identified_by = credential`, which is possession (service.py:108-121, 764-777, 749-757). The README should say "typed client-record member number".
+- README 89-92 and 98 use "admitted" for the kiosk status. The stored `check_in.result` is `granted` / `denied` / `granted_override` (models.py:32-35), and the kiosk response status is `admitted` / `see_staff` (kiosk.py:136). The README uses both vocabularies without saying which is which. README 13 is right for the stored value.
+- README 137-139 puts "Booking from a check-in marks only the session just booked, and refuses a checked-out visit (409 `already-checked-out`)" inside the Member card (CHK-12) bullet. It belongs with "Book or sell from the window (CHK-04)" (desk.py:199, 224).

@@ -1,33 +1,64 @@
 """access kiosk: the reservation page after a self check-in, booking from it, and auto-book (CHK-05, CHK-06; owner
 decisions 2026-11-13, question 15).
 
-Internal functions for the kiosk router (device cookie, no principal). The kiosk acts for the client of one of its
-own admitted check-ins for `KIOSK_VISIT` after it; the check-in id never leaves that device's session. Booking goes
-through programs' kiosk functions, which apply the portal's rules unchanged, and the past-due lockout applies as
-it does online. Refusals that would reveal the client's standing answer only "see staff"."""
+Internal functions for the kiosk router (device cookie, no principal). An admitted check-in is handed a visit token
+(stored hashed, `kiosk_visit`): every action on the visit spends it and gets a fresh one, it dies at its screens'
+timeouts, and it ends when the kiosk goes back to its start screen or takes the next check-in. Booking goes through
+programs' kiosk functions, which apply the portal's rules unchanged, and the past-due lockout applies as it does
+online. Spending anything (a package credit) needs identification by possession, a card or the app's code; a visit
+found by name books only free sessions, when the location allows even that. Refusals that would reveal the
+client's standing answer only "see staff"."""
 
+import secrets
 from datetime import timedelta
 from uuid import UUID
 
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core import audit, clock, events
+from app.core.auth import tokens
 from app.core.errors import Conflict, DomainError, NotFound
 from app.modules import billing, clients, programs
 from app.modules.access import events as ev
 from app.modules.access import service
-from app.modules.access.models import CheckIn, CheckInAttendance, KioskDevice
+from app.modules.access.models import CheckIn, CheckInAttendance, KioskDevice, KioskVisit
 
-KIOSK_VISIT = timedelta(minutes=10)  # how long after a self check-in the kiosk may still act for that client
+VISIT_GRACE = timedelta(seconds=5)  # the network round trips on top of the screens' own timeouts
 
 
-def visit(session: Session, device: KioskDevice, check_in_id: UUID) -> CheckIn:
-    """An admitted, open check-in this device took in the last ten minutes; anything else is 404."""
-    row = session.get(CheckIn, check_in_id)
+def _by_possession(row: CheckIn) -> bool:
+    return row.identified_by == "credential"
+
+
+def end_visits(session: Session, device: KioskDevice) -> None:
+    """The kiosk is back at its start screen: every visit token it holds stops working."""
+    session.execute(delete(KioskVisit).where(KioskVisit.kiosk_device_id == device.id))
+
+
+def _issue(session: Session, device: KioskDevice, row: CheckIn, config: dict) -> str:
+    """A fresh visit token, alive for the result screen and then the reservation page."""
+    raw = secrets.token_urlsafe(24)
+    ttl = timedelta(seconds=config["confirmation_timeout_seconds"] + config["reservation_timeout_seconds"])
+    session.add(KioskVisit(
+        kiosk_device_id=device.id, check_in_id=row.id, token_hash=tokens.digest(raw),
+        expires_at=clock.now() + ttl + VISIT_GRACE,
+    ))  # fmt: skip
+    return raw
+
+
+def visit(session: Session, device: KioskDevice, check_in_id: UUID, token: str) -> CheckIn:
+    """Spend the visit token this device holds for this admitted, open check-in; anything else is 404. A refused
+    action rolls back with its transaction, so the token stays good for another choice until it expires."""
+    held = session.scalar(select(KioskVisit).where(KioskVisit.token_hash == tokens.digest(token)))
     if (
-        row is None or row.kiosk_device_id != device.id or row.result == "denied" or row.checked_out_at is not None
-        or row.checked_in_at < clock.now() - KIOSK_VISIT
+        held is None or held.kiosk_device_id != device.id or held.check_in_id != check_in_id
+        or held.expires_at < clock.now()
     ):  # fmt: skip
+        raise NotFound()
+    session.delete(held)
+    row = session.get_one(CheckIn, check_in_id)
+    if row.result == "denied" or row.checked_out_at is not None:
         raise NotFound()
     return row
 
@@ -40,9 +71,17 @@ def _until(config: dict):
     return clock.now() + timedelta(minutes=config["visible_range_minutes"])
 
 
+def _may_book(session: Session, row: CheckIn, config: dict) -> bool:
+    if not _by_possession(row) and not config["is_name_search_booking_allowed"]:
+        return False
+    return not billing.collections.is_portal_locked(session, [row.client_id])
+
+
 def _sessions(session: Session, row: CheckIn, config: dict) -> list[dict]:
-    listed = programs.selfservice.kiosk_sessions(session, row.client_id, row.location_id, _until(config))
-    if billing.collections.is_portal_locked(session, [row.client_id]):
+    listed = programs.selfservice.kiosk_sessions(
+        session, row.client_id, row.location_id, _until(config), free_only=not _by_possession(row)
+    )
+    if not _may_book(session, row, config):
         for seat in listed:
             seat["is_bookable"] = False
     return listed
@@ -50,10 +89,18 @@ def _sessions(session: Session, row: CheckIn, config: dict) -> list[dict]:
 
 def _book(session: Session, row: CheckIn, session_id: UUID, config: dict) -> None:
     """Enrol through programs' kiosk rules, then mark the place attended when it starts inside the kiosk's
-    check-in window (the same window the check-in itself marks)."""
-    if billing.collections.is_portal_locked(session, [row.client_id]):
+    check-in window (the same window the check-in itself marks). Found by name: free sessions only, and any
+    refusal is see-staff, so a name alone learns nothing about the client."""
+    if not _may_book(session, row, config):
         raise see_staff()
-    enrollment = programs.selfservice.kiosk_enroll(session, row.client_id, row.location_id, session_id, _until(config))
+    try:
+        enrollment = programs.selfservice.kiosk_enroll(
+            session, row.client_id, row.location_id, session_id, _until(config), free_only=not _by_possession(row)
+        )
+    except DomainError as exc:
+        if _by_possession(row) or exc.status >= 500:
+            raise
+        raise see_staff() from None
     marked = programs.service.mark_attended_by_check_in(
         session, client_id=row.client_id, location_id=row.location_id, at=clock.now(),
         early=timedelta(minutes=config["late_window_minutes"]), late=timedelta(minutes=config["early_window_minutes"]),
@@ -77,23 +124,28 @@ def _book(session: Session, row: CheckIn, session_id: UUID, config: dict) -> Non
     session.flush()
 
 
-def result(session: Session, row: CheckIn, config: dict, sessions: list[dict]) -> dict:
+def result(session: Session, row: CheckIn, config: dict, sessions: list[dict], token: str | None = None) -> dict:
     """The kiosk's view of a visit: first name, the alerts the location shows, places marked, the reservation
-    page. Never amounts, reasons or plan names."""
+    page and the visit token for the next action. Never amounts, reasons or plan names; found by name, not even
+    which sessions the client already holds."""
     admitted = row.result != "denied"
     shown = set(config["displayed_alert_codes"]) if admitted else set()
+    if not _by_possession(row):
+        sessions = [{**seat, "is_booked": False} for seat in sessions]
     return {
         "check_in_id": row.id, "status": "admitted" if admitted else "see_staff",
         "first_name": clients.service.get(session, row.client_id).first_name,
         "displayed_alert_codes": [c for c in row.alert_codes if c in shown],
         "attended": service.check_in_view(session, row)["attended"], "welcome_message": config["welcome_message"],
-        "sessions": sessions if admitted else [],
+        "sessions": sessions if admitted else [], "visit_token": token if admitted else None,
     }  # fmt: skip
 
 
 def check_in(session: Session, device: KioskDevice, data: dict) -> dict:
     """Self check-in, then the reservation page. With auto-book on and no place already held in the window, the
-    earliest bookable session is booked; auto-book is best effort and never undoes the check-in."""
+    earliest bookable session is booked (free only when found by name); auto-book is best effort and never undoes
+    the check-in. Any visit the kiosk still held ends here."""
+    end_visits(session, device)
     row = session.get_one(CheckIn, service.kiosk_check_in(session, device, data)["check_in_id"])
     config = service.settings_view(session, device.location_id)
     if row.result == "denied":
@@ -110,12 +162,12 @@ def check_in(session: Session, device: KioskDevice, data: dict) -> dict:
             pass  # a refusal leaves the client checked in with the page to choose from
         else:
             listed = _sessions(session, row, config)
-    return result(session, row, config, listed)
+    return result(session, row, config, listed, _issue(session, device, row, config))
 
 
 def attend(session: Session, device: KioskDevice, check_in_id: UUID, data: dict) -> dict:
-    """Book a session from the reservation page (createKioskAttendance)."""
-    row = visit(session, device, check_in_id)
+    """Book a session from the reservation page (createKioskAttendance), spending the visit token."""
+    row = visit(session, device, check_in_id, data["visit_token"])
     config = service.settings_view(session, device.location_id)
     _book(session, row, data["target_id"], config)
-    return result(session, row, config, _sessions(session, row, config))
+    return result(session, row, config, _sessions(session, row, config), _issue(session, device, row, config))

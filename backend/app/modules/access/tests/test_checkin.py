@@ -241,9 +241,8 @@ def test_kiosk_settings_gate_lookups_and_alerts(client, tenant, owner, f):
     assert entered["displayed_alert_codes"] == ["waiver_unsigned"]
     replay = client.post(f"{API}/kiosk/check-ins", json={"match_token": found[0]["match_token"]},
                          headers={"Idempotency-Key": "kiosk-1"})  # fmt: skip
-    assert (
-        replay.headers.get("idempotent-replayed") == "true" and replay.json()["check_in_id"] == entered["check_in_id"]
-    )
+    # The answer carries the visit token, so it is never stored: a replay is refused, not re-read.
+    assert replay.status_code == 409 and replay.json()["code"] == "response-not-stored"
 
 
 def test_kiosk_devices_are_managed_per_location(client, tenant, owner, f):

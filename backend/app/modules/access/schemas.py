@@ -177,6 +177,7 @@ class KioskSettingsOut(Out):
     visible_range_minutes: int
     is_auto_book: bool
     reservation_timeout_seconds: int
+    is_name_search_booking_allowed: bool
     has_exit_pin: bool
 
 
@@ -190,6 +191,7 @@ class KioskSettingsWrite(In):
     visible_range_minutes: int | None = Field(None, ge=0, le=1440)
     is_auto_book: bool | None = None
     reservation_timeout_seconds: int | None = Field(None, ge=3, le=300)
+    is_name_search_booking_allowed: bool | None = None
     exit_pin: Pin | None = None  # write-only; stored as an argon2id hash
 
 
@@ -465,6 +467,7 @@ class KioskCheckInResult(Out):
     attended: list[KioskAttendedOut]
     welcome_message: str | None
     sessions: list[KioskSession]  # the reservation page (CHK-05); empty when the client must see staff
+    visit_token: str | None = None  # single use: the next action on this visit spends it; None when seeing staff
 
 
 class KioskAttendanceCreate(In):
@@ -473,6 +476,7 @@ class KioskAttendanceCreate(In):
 
     target_type: Literal["session"]
     target_id: UUID
+    visit_token: str = Field(min_length=1, max_length=64)  # from the check-in or the previous booking
 
 
 # --- portal app cards ----------------------------------------------------------------------------------------

@@ -4352,7 +4352,7 @@ paths:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/KioskCheckInCreate'}}}
       x-problem-codes: [validation-failed, request-in-progress, idempotency-key-reused, rate-limited, match-token-expired,
-        second-factor-failed, card-invalid]
+        second-factor-failed, card-invalid, response-not-stored]
       responses:
         '201':
           description: Created.
@@ -4380,7 +4380,7 @@ paths:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/KioskAttendanceCreate'}}}
       x-problem-codes: [not-found, validation-failed, request-in-progress, idempotency-key-reused, rate-limited, outside-check-in-window,
-        capacity-full, no-entitlement, already-enrolled, policy-violation, see-staff]
+        capacity-full, no-entitlement, already-enrolled, policy-violation, see-staff, response-not-stored]
       responses:
         '200':
           description: OK.
@@ -4390,6 +4390,19 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '422': {$ref: '#/components/responses/Unprocessable'}
         '429': {$ref: '#/components/responses/RateLimited'}
+  /kiosk/visits/end:
+    post:
+      operationId: endKioskVisit
+      tags: [access]
+      summary: The kiosk returned to its start screen; its visit tokens stop working
+      x-priority: P0
+      x-permission: kiosk-device
+      x-features: [CHK-05]
+      security:
+      - {kioskDevice: []}
+      responses:
+        '204': {description: Ended.}
+        '401': {$ref: '#/components/responses/Unauthorized'}
   /kiosk/exit:
     post:
       operationId: exitKiosk
@@ -7610,6 +7623,7 @@ components:
         late_window_minutes: {type: integer}
         is_auto_book: {type: boolean}
         is_package_purchase_enabled: {type: boolean}
+        is_name_search_booking_allowed: {type: boolean, description: 'A visit found by name may book free sessions; off, nothing.'}
         is_client_photo_shown: {type: boolean}
         default_view: {type: string, enum: [card, row]}
         welcome_message: {type: [string, 'null']}
@@ -7627,6 +7641,7 @@ components:
         late_window_minutes: {type: integer}
         is_auto_book: {type: boolean}
         is_package_purchase_enabled: {type: boolean}
+        is_name_search_booking_allowed: {type: boolean}
         is_client_photo_shown: {type: boolean}
         default_view: {type: string, enum: [card, row]}
         welcome_message: {type: [string, 'null']}
@@ -7740,13 +7755,16 @@ components:
         displayed_alert_codes: {type: array, items: {type: string}}
         sessions: {type: array, items: {$ref: '#/components/schemas/KioskSession'}}
         attended: {type: array, items: {$ref: '#/components/schemas/CheckInAttendance'}}
+        visit_token: {type: [string, 'null'], description: 'Single use; the next action on this visit spends it. Null when seeing staff.'}
     KioskAttendanceCreate:
       type: object
-      description: '`session` books the client into an open session against an existing entitlement, then marks attendance.'
-      required: [target_type, target_id]
+      description: '`session` books the client into an open session against an existing entitlement, then marks attendance.
+        A visit found by name books free sessions only (owner decisions 2026-11-13).'
+      required: [target_type, target_id, visit_token]
       properties:
         target_type: {type: string, enum: [enrollment, booking, session]}
         target_id: {type: string, format: uuid}
+        visit_token: {type: string, maxLength: 64}
     KioskExitRequest:
       type: object
       required: [staff_pin]

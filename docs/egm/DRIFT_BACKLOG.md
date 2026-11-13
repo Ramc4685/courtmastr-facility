@@ -451,3 +451,18 @@ Re-run for access, billing and programs after the kiosk reservation page. Items 
 - [ ] [contract] listRecentProgramGroups, applyPortalCheckoutCoupon and five REG-26 roster-invite operations have no route; guest-checkout, saved views, page settings, form image, public form submit, submission promote and classifier delete routes are missing from openapi-programs.yaml; path parameter session_id vs schedule_session_id.
 - [ ] [undocumented] file and models tables omit files and nine tables; onboarding step in __init__.py not described.
 - [ ] [wording] README line 6 names only migration 0611; 1401, 1501 and 1521 also carry programs tables.
+
+### Refresh after the kiosk possession rule and visit token (2026-11-13)
+Access, billing and programs re-run; programs found nothing new. New items only:
+
+- [x] [wording] access: README said a typed credential value is name_search; any value matching a credential row is possession. Fixed in the same commit.
+- [ ] [contract] access: kiosk settings in the contract carry fields not built (photo, default view, theme) and omit the exit PIN fields.
+- [ ] [contract] access: createKioskAttendance target_type allows enrollment and booking; code takes session only.
+- [ ] [contract] access: createKioskCheckIn declares second_factor and scanned_at; code has neither.
+- [ ] [contract] access: wallet-pass routes are not in the contract; the old getWalletPass operation is not built.
+- [ ] [contract] access: listCheckIns declares an is_open filter the code lacks.
+- [ ] [undocumented] access: access.check_in.session_booked event, the clients.client.disabled handler, kiosk name-search limits and the kiosk cookie lifetime are not in the README.
+- [ ] [wording] access: the check-in booking sentence sits under the wrong README bullet.
+- [ ] [missing] billing: three README items the refresh found missing from code or contract (drift/billing.md).
+- [ ] [contract] billing: about 20 served routes are not in the contract; several staff reads need a manage key where the contract says authenticated staff.
+- [ ] [wording] billing: two further README prose items (drift/billing.md).

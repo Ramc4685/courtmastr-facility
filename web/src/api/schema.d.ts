@@ -6532,7 +6532,8 @@ export interface paths {
         put?: never;
         /**
          * Create Kiosk Check In
-         * @description Self check-in (CHK-05): admitted or see staff, never amounts or reasons; then the reservation page.
+         * @description Self check-in (CHK-05): admitted or see staff, never amounts or reasons; then the reservation page and its
+         *     single-use visit token (so a replayed key is refused, not re-read).
          */
         post: operations["createKioskCheckIn"];
         delete?: never;
@@ -6552,8 +6553,9 @@ export interface paths {
         put?: never;
         /**
          * Create Kiosk Attendance
-         * @description Book a session from the reservation page, by the portal's rules. Errors: outside-check-in-window,
-         *     capacity-full, policy-violation, already-enrolled, no-entitlement, see-staff (past due).
+         * @description Book a session from the reservation page, by the portal's rules, spending the visit token. Found by name,
+         *     free sessions only and every refusal is see-staff. Errors: outside-check-in-window, capacity-full,
+         *     policy-violation, already-enrolled, no-entitlement, see-staff (past due, or found by name).
          */
         post: operations["createKioskAttendance"];
         delete?: never;
@@ -6610,7 +6612,8 @@ export interface paths {
         put?: never;
         /**
          * Kiosk Lookup
-         * @description Find yourself by card or the first letters of your last name: first name and last initial only.
+         * @description Find yourself by card or the first letters of your last name: first name and last initial only. A new
+         *     lookup means the kiosk is back at its start screen, so its visit tokens end.
          */
         post: operations["kioskLookup"];
         delete?: never;
@@ -6633,6 +6636,26 @@ export interface paths {
          * @description Exchange a pairing code for this device's kiosk cookie.
          */
         post: operations["pairKiosk"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/kiosk/visits/end": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * End Kiosk Visit
+         * @description The kiosk returned to its start screen: every visit token it holds stops working.
+         */
+        post: operations["endKioskVisit"];
         delete?: never;
         options?: never;
         head?: never;
@@ -26603,6 +26626,8 @@ export interface components {
              * @constant
              */
             target_type: "session";
+            /** Visit Token */
+            visit_token: string;
         };
         /** KioskAttendedOut */
         KioskAttendedOut: {
@@ -26638,6 +26663,8 @@ export interface components {
              * @enum {string}
              */
             status: "admitted" | "see_staff";
+            /** Visit Token */
+            visit_token?: string | null;
             /** Welcome Message */
             welcome_message: string | null;
         };
@@ -26788,6 +26815,8 @@ export interface components {
             has_exit_pin: boolean;
             /** Is Auto Book */
             is_auto_book: boolean;
+            /** Is Name Search Booking Allowed */
+            is_name_search_booking_allowed: boolean;
             /** Late Window Minutes */
             late_window_minutes: number;
             /**
@@ -26816,6 +26845,8 @@ export interface components {
             exit_pin?: string | null;
             /** Is Auto Book */
             is_auto_book?: boolean | null;
+            /** Is Name Search Booking Allowed */
+            is_name_search_booking_allowed?: boolean | null;
             /** Late Window Minutes */
             late_window_minutes?: number | null;
             /** Lookup Method */
@@ -60713,6 +60744,24 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    endKioskVisit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

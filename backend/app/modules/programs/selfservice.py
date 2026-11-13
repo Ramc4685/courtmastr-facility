@@ -279,10 +279,11 @@ def _paying_package(session: Db, seat: dict, client_id: UUID) -> UUID | None:
     return found[0].id if found else None
 
 
-def kiosk_sessions(session: Db, client_id: UUID, location_id: UUID, until) -> list[dict]:
+def kiosk_sessions(session: Db, client_id: UUID, location_id: UUID, until, *, free_only: bool = False) -> list[dict]:
     """Internal (access, the kiosk reservation page): the location's sessions starting from now until `until`,
     listed and judged by the portal's rules (listing mode, cutoff, members-only, capacity), each with whether the
-    client holds a place and may book it here: free booking or a package that pays, as the portal requires."""
+    client holds a place and may book it here: free booking or a package that pays, as the portal requires.
+    `free_only` (a client the kiosk found by name): only free booking counts, so nothing would be spent."""
     now = clock.now()
     seats = scheduling.service.session_window(session, now, until, location_id=location_id, limit=50)
     booked = set(session.scalars(select(Enrollment.session_id).where(
@@ -302,7 +303,9 @@ def kiosk_sessions(session: Db, client_id: UUID, location_id: UUID, until) -> li
         reason = _verdict(session, seat, policy, client_id, member)
         if reason == "full" and policy["hides_full_sessions"] and not is_booked:
             continue
-        payable = seat["allows_free_booking"] or _paying_package(session, seat, client_id) is not None
+        payable = seat["allows_free_booking"] or (
+            not free_only and _paying_package(session, seat, client_id) is not None
+        )
         out.append({
             "target_type": "session", "target_id": seat["id"], "title": seat["public_title"] or seat["title"],
             "starts_at": seat["starts_at"], "ends_at": seat["ends_at"], "is_booked": is_booked,
@@ -311,11 +314,13 @@ def kiosk_sessions(session: Db, client_id: UUID, location_id: UUID, until) -> li
     return out
 
 
-def kiosk_enroll(session: Db, client_id: UUID, location_id: UUID, session_id: UUID, until) -> Enrollment:
+def kiosk_enroll(
+    session: Db, client_id: UUID, location_id: UUID, session_id: UUID, until, *, free_only: bool = False
+) -> Enrollment:
     """Internal (access): book a session from the kiosk reservation page under the portal's rules. The kiosk adds
     no bypass: no direct link, no override, no free booking where the session needs a package. It pays with free
-    booking where the session allows it, else the client's soonest-to-expire package that covers it.
-    Errors: outside-check-in-window, capacity-full, policy-violation, already-enrolled, no-entitlement."""
+    booking where the session allows it, else (unless `free_only`) the client's soonest-to-expire package that
+    covers it. Errors: outside-check-in-window, capacity-full, policy-violation, already-enrolled, no-entitlement."""
     clients.service.require_active(session, client_id)
     seat, policy = _bookable_seat(session, session_id, client_id)
     if policy["listing_mode"] == "unlisted" or seat["location_id"] != location_id:
@@ -323,7 +328,7 @@ def kiosk_enroll(session: Db, client_id: UUID, location_id: UUID, session_id: UU
     if not clock.now() <= seat["starts_at"] < until:
         raise ValidationFailed("Choose a session starting soon.", code="outside-check-in-window", pointer="/target_id")
     _refuse(_verdict(session, seat, policy, client_id, None))
-    package_id = None if seat["allows_free_booking"] else _paying_package(session, seat, client_id)
+    package_id = None if seat["allows_free_booking"] or free_only else _paying_package(session, seat, client_id)
     if package_id is None and not seat["allows_free_booking"]:
         raise Conflict("No package covers this session.", code="no-entitlement")
     row = service._enroll(session, seat, client_id, "kiosk", package_id)

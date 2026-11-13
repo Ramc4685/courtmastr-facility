@@ -42,7 +42,13 @@ OPEN_PORTAL_POSTS = {
 # Kiosk POST routes (no client principal, so the portal guard cannot see them): the ones that book or buy apply the
 # same lockout in access/kiosk.py, the rest stay open.
 KIOSK_LOCKED_POSTS = {"/kiosk/check-ins/{check_in_id}/attendances"}
-KIOSK_OPEN_POSTS = {"/kiosk/pair", "/kiosk/lookups", "/kiosk/check-ins", "/kiosk/exit"}  # entry is the access rules'
+KIOSK_OPEN_POSTS = {
+    "/kiosk/pair",
+    "/kiosk/lookups",
+    "/kiosk/check-ins",
+    "/kiosk/exit",
+    "/kiosk/visits/end",
+}  # entry is the access rules'
 
 
 def test_kiosk_post_routes_are_each_locked_or_deliberately_open():
@@ -62,7 +68,7 @@ def test_a_past_due_payer_cannot_book_at_the_kiosk(client, shop):
     entered = enter(client, person)
     assert entered["status"] == "admitted"  # entry is the access rules' business, not the lockout's
     assert [(s["target_id"], s["is_bookable"]) for s in entered["sessions"]] == [(seat.id, False)]
-    refused = book(client, entered["check_in_id"], seat.id)
+    refused = book(client, entered, seat.id)
     assert refused.status_code == 409 and refused.json() == {**refused.json(), "code": "see-staff"}
     assert "past" not in refused.text.lower()  # the kiosk says why at the desk, not on the tablet
 

@@ -1,5 +1,6 @@
 """The kiosk reservation page, booking from it and auto-book (CHK-05, CHK-06; owner decisions 2026-11-13, question
-15). Booking runs the portal's rules for the client the kiosk identified: the kiosk adds no bypass."""
+15). Booking runs the portal's rules for the client the kiosk identified: the kiosk adds no bypass. A visit found by
+name books only what consumes nothing; spending a package needs a card or the app's code (possession)."""
 
 from datetime import timedelta
 from types import SimpleNamespace
@@ -41,22 +42,46 @@ def k(client, tenant, owner):
     return SimpleNamespace(loc=w.location_id, person=person, tenant=tenant)
 
 
-def enter(client, person) -> dict:
-    found = ok(client.post(f"{API}/kiosk/lookups", json={"last_name_prefix": person["last_name"]}))["matches"]
+def enter(client, person, card: str | None = None) -> dict:
+    """Self check-in found by name, or by scanning `card` (possession)."""
+    body = {"credential_value": card} if card else {"last_name_prefix": person["last_name"]}
+    found = ok(client.post(f"{API}/kiosk/lookups", json=body))["matches"]
     return ok(client.post(f"{API}/kiosk/check-ins", json={"match_token": found[0]["match_token"]}), 201)
 
 
-def book(client, check_in_id, session_id, key: str | None = None):
+def card_of(client, owner, person) -> str:
+    value = f"KC-{uuid4().hex[:8]}"
+    ok(
+        client.post(
+            f"{API}/clients/{person['id']}/credentials", headers=owner, json={"kind": "barcode", "value": value}
+        ),
+        201,
+    )
+    return value
+
+
+def book(client, visit: dict, session_id, key: str | None = None):
+    """Book from the page `visit` (a check-in or booking result): its check-in and its current visit token."""
     headers = {"Idempotency-Key": key} if key else {}
-    return client.post(f"{API}/kiosk/check-ins/{check_in_id}/attendances", headers=headers,
-                       json={"target_type": "session", "target_id": session_id})  # fmt: skip
+    return client.post(f"{API}/kiosk/check-ins/{visit['check_in_id']}/attendances", headers=headers,
+                       json={"target_type": "session", "target_id": session_id, "visit_token": visit["visit_token"]})  # fmt: skip
+
+
+def give_package(client, owner, tenant, k, type_id) -> None:
+    plan = package_plan(client, owner, tenant, reservation_type_id=type_id)
+    ok(client.post(f"{API}/client-packages", headers=owner,
+                   json={"client_id": k.person["id"], "location_id": k.loc, "package_plan_id": plan["id"]}), 201)  # fmt: skip
+
+
+def pricing(tenant, session_id):
+    return scalar(tenant, select(Enrollment.pricing).where(Enrollment.session_id == UUID(session_id)))
 
 
 def test_the_reservation_page_lists_and_books_by_the_portal_rules(client, tenant, owner, k):
     now_free = soon(client, owner, k.loc, 30)
     paid = soon(client, owner, k.loc, 90, free=False)
     later = soon(client, owner, k.loc, 300)  # beyond the default visible range of four hours
-    entered = enter(client, k.person)
+    entered = enter(client, k.person, card_of(client, owner, k.person))
     listed = {s["target_id"]: s for s in entered["sessions"]}
     assert set(listed) == {now_free.id, paid.id}
     assert listed[now_free.id]["is_bookable"] and not listed[paid.id]["is_bookable"]  # needs a package
@@ -70,51 +95,110 @@ def test_the_reservation_page_lists_and_books_by_the_portal_rules(client, tenant
         "is_bookable",
     }
 
-    visit = entered["check_in_id"]
-    refused = book(client, visit, paid.id)
+    refused = book(client, entered, paid.id)
     assert refused.status_code == 409 and refused.json()["code"] == "no-entitlement"
-    outside = book(client, visit, later.id)
+    outside = book(client, entered, later.id)  # a refusal rolls back, so the token stays for another choice
     assert outside.status_code == 422 and outside.json()["code"] == "outside-check-in-window"
-    done = ok(book(client, visit, now_free.id, "kiosk-book-1"))
+    done = ok(book(client, entered, now_free.id, "kiosk-book-1"))
     assert [a["session_id"] for a in done["attended"]] == [now_free.id]  # starts inside the early window: marked
     assert next(s for s in done["sessions"] if s["target_id"] == now_free.id)["is_booked"]
-    replay = book(client, visit, now_free.id, "kiosk-book-1")
-    assert replay.headers.get("idempotent-replayed") == "true"
-    again = book(client, visit, now_free.id)
+    replay = book(client, entered, now_free.id, "kiosk-book-1")  # the answer carries a token: never stored
+    assert replay.status_code == 409 and replay.json()["code"] == "response-not-stored"
+    again = book(client, done, now_free.id)
     assert again.status_code == 409 and again.json()["code"] == "already-enrolled"
     channel = scalar(tenant, select(Enrollment.channel).where(Enrollment.session_id == UUID(now_free.id)))
     assert channel == "kiosk"
 
     # A package covering the paid session's type makes it bookable; it books against the package, not marked yet.
-    plan = package_plan(client, owner, tenant, reservation_type_id=paid.type_id)
-    ok(client.post(f"{API}/client-packages", headers=owner,
-                   json={"client_id": k.person["id"], "location_id": k.loc, "package_plan_id": plan["id"]}), 201)  # fmt: skip
-    booked = ok(book(client, visit, paid.id))
+    give_package(client, owner, tenant, k, paid.type_id)
+    booked = ok(book(client, done, paid.id))
     assert paid.id not in [a["session_id"] for a in booked["attended"]]
     assert next(s for s in booked["sessions"] if s["target_id"] == paid.id)["is_booked"]
 
 
-def test_a_visit_is_reachable_only_from_its_own_kiosk_for_ten_minutes(client, tenant, owner, k, monkeypatch):
-    seat = soon(client, owner, k.loc, 30)
-    visit = enter(client, k.person)["check_in_id"]
-    assert book(client, str(uuid4()), seat.id).status_code == 404
+def test_a_name_search_visit_books_only_what_consumes_nothing(client, tenant, owner, k):
+    free = soon(client, owner, k.loc, 30)
+    paid = soon(client, owner, k.loc, 60, free=False)
+    give_package(client, owner, tenant, k, paid.type_id)  # a card holder could spend it here
+    entered = enter(client, k.person)
+    listed = {s["target_id"]: s for s in entered["sessions"]}
+    assert listed[free.id]["is_bookable"] and not listed[paid.id]["is_bookable"]
+    refused = book(client, entered, paid.id)  # a direct call is refused like the page, and says nothing more
+    assert refused.status_code == 409 and refused.json()["code"] == "see-staff"
+    assert "package" not in refused.text.lower()
+    assert pricing(tenant, paid.id) is None
+    done = ok(book(client, entered, free.id))
+    assert pricing(tenant, free.id) == "free"
+    assert not any(s["is_booked"] for s in done["sessions"])  # a name alone does not show the client's places
+
+    # The same client scanning their card may spend the package.
+    carded = enter(client, k.person, card_of(client, owner, k.person))
+    assert next(s for s in carded["sessions"] if s["target_id"] == paid.id)["is_bookable"]
+    ok(book(client, carded, paid.id))
+    assert pricing(tenant, paid.id) == "entitlement"
+
+    # The location can stop name-search booking altogether.
+    other = soon(client, owner, k.loc, 45)
+    url = f"{API}/kiosk-settings?location_id={k.loc}"
+    assert (
+        ok(client.put(url, headers=owner, json={"is_name_search_booking_allowed": False}))[
+            "is_name_search_booking_allowed"
+        ]
+        is False
+    )
+    named = enter(client, k.person)
+    assert not any(s["is_bookable"] for s in named["sessions"])
+    off = book(client, named, other.id)
+    assert off.status_code == 409 and off.json()["code"] == "see-staff"
+    assert pricing(tenant, other.id) is None
+
+
+def test_a_visit_token_is_single_use_device_bound_and_short_lived(client, tenant, owner, k, monkeypatch):
+    first, second, third = (soon(client, owner, k.loc, m) for m in (20, 40, 50))
+    entered = enter(client, k.person)
+    assert book(client, {**entered, "check_in_id": str(uuid4())}, first.id).status_code == 404
+    assert book(client, {**entered, "visit_token": "forged"}, first.id).status_code == 404
+    done = ok(book(client, entered, first.id))
+    assert book(client, entered, second.id).status_code == 404  # spent by the first booking
+    assert done["visit_token"] and done["visit_token"] != entered["visit_token"]
+
+    ended = client.post(f"{API}/kiosk/visits/end")  # the kiosk went back to its start screen
+    assert ended.status_code == 204
+    assert book(client, done, second.id).status_code == 404
+
+    entered = enter(client, k.person)
+    enter(client, k.person)  # the next check-in on this kiosk ends the previous visit too
+    assert book(client, entered, second.id).status_code == 404
+
+    entered = enter(client, k.person)
     _pair(client, tenant, owner, k.loc)  # this browser is now another device
-    assert book(client, visit, seat.id).status_code == 404
-    visit = enter(client, k.person)["check_in_id"]
+    assert book(client, entered, second.id).status_code == 404
+
+    entered = enter(client, k.person)
     from app.modules.access import kiosk
 
-    later = clock.now() + timedelta(minutes=11)
+    later = clock.now() + timedelta(seconds=10 + 30 + 6)  # past both screens' default timeouts and the grace
     monkeypatch.setattr(kiosk, "clock", SimpleNamespace(now=lambda: later))
-    assert book(client, visit, seat.id).status_code == 404
+    assert book(client, entered, third.id).status_code == 404
+
+
+def test_booking_attempts_are_rate_limited_per_kiosk(client, tenant, owner, k, monkeypatch):
+    from app.core.settings import get_settings
+    from app.modules.access import router
+
+    seat = soon(client, owner, k.loc, 30, free=False)
+    entered = enter(client, k.person)
+    monkeypatch.setattr(get_settings().rate_limit, "enabled", True)
+    codes = [book(client, entered, seat.id).status_code for _ in range(router.KIOSK_BOOKINGS_PER_MINUTE + 1)]
+    assert codes[:-1] == [409] * router.KIOSK_BOOKINGS_PER_MINUTE and codes[-1] == 429
 
 
 def test_a_client_who_must_see_staff_gets_no_reservation_page(client, tenant, owner, k):
     soon(client, owner, k.loc, 30)
     ok(client.put(f"{API}/clients/{k.person['id']}/access-mode", headers=owner,
                   json={"access_mode": "always_deny", "reason": "Test"}))  # fmt: skip
-    entered = enter(client, k.person)
-    assert entered["status"] == "see_staff" and entered["sessions"] == []
-    assert book(client, entered["check_in_id"], str(uuid4())).status_code == 404
+    entered = enter(client, k.person, card_of(client, owner, k.person))
+    assert entered["status"] == "see_staff" and entered["sessions"] == [] and entered["visit_token"] is None
 
 
 def test_auto_book_takes_the_earliest_bookable_session_once(client, tenant, owner, k):
@@ -123,12 +207,23 @@ def test_auto_book_takes_the_earliest_bookable_session_once(client, tenant, owne
     soon(client, owner, k.loc, 10, free=False)  # earlier, but needs a package: skipped
     ok(client.put(f"{API}/kiosk-settings?location_id={k.loc}", headers=owner,
                   json={"is_auto_book": True, "visible_range_minutes": 120, "reservation_timeout_seconds": 20}))  # fmt: skip
-    entered = enter(client, k.person)
+    card = card_of(client, owner, k.person)
+    entered = enter(client, k.person, card)
     assert [a["session_id"] for a in entered["attended"]] == [first.id]
     assert [s["target_id"] for s in entered["sessions"] if s["is_booked"]] == [first.id]
     row = scalar(tenant, select(CheckIn).where(CheckIn.id == UUID(entered["check_in_id"])))
-    assert row.result == "granted"
-    again = enter(client, k.person)  # a place is already held: nothing more is booked
+    assert row.result == "granted" and row.identified_by == "credential"
+    again = enter(client, k.person, card)  # a place is already held: nothing more is booked
     assert [s["target_id"] for s in again["sessions"] if s["is_booked"]] == [first.id]
     assert client.put(f"{API}/kiosk-settings?location_id={k.loc}", headers=owner,
                       json={"reservation_timeout_seconds": 1}).status_code == 422  # fmt: skip
+
+
+def test_auto_book_on_a_name_search_skips_a_session_that_would_spend_a_package(client, tenant, owner, k):
+    paid = soon(client, owner, k.loc, 10, free=False)
+    free = soon(client, owner, k.loc, 25)
+    give_package(client, owner, tenant, k, paid.type_id)
+    ok(client.put(f"{API}/kiosk-settings?location_id={k.loc}", headers=owner, json={"is_auto_book": True}))
+    entered = enter(client, k.person)
+    assert [a["session_id"] for a in entered["attended"]] == [free.id]
+    assert pricing(tenant, paid.id) is None

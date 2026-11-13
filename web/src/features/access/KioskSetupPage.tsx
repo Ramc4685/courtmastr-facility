@@ -53,6 +53,7 @@ function SettingsCard({ locationId, canSave }: { locationId: string; canSave: bo
           late_window_minutes: body.late_window_minutes, welcome_message: body.welcome_message || null,
           displayed_alert_codes: body.displayed_alert_codes as never, confirmation_timeout_seconds: body.confirmation_timeout_seconds,
           visible_range_minutes: body.visible_range_minutes, is_auto_book: body.is_auto_book, reservation_timeout_seconds: body.reservation_timeout_seconds,
+          is_name_search_booking_allowed: body.is_name_search_booking_allowed,
           ...(pin ? { exit_pin: pin } : {}),
         },
       }),
@@ -92,6 +93,11 @@ function SettingsCard({ locationId, canSave }: { locationId: string; canSave: bo
             <Input label="Leave the class list after (seconds)" type="number" min={3} max={300} value={form.reservation_timeout_seconds} error={errors.reservation_timeout_seconds} onChange={(e) => set({ reservation_timeout_seconds: Number(e.target.value) })} />
           </div>
           <Checkbox label="Book the next open class automatically at check-in" checked={form.is_auto_book} onChange={(e) => set({ is_auto_book: e.target.checked })} />
+          <Checkbox
+            label="Let clients found by name book free classes (paid classes always need a card or the app code)"
+            checked={form.is_name_search_booking_allowed}
+            onChange={(e) => set({ is_name_search_booking_allowed: e.target.checked })}
+          />
           <div className="flex flex-wrap items-end gap-3">
             <Input
               label={form.has_exit_pin ? 'New exit PIN (6 to 8 digits)' : 'Exit PIN (6 to 8 digits)'}

@@ -81,6 +81,7 @@ def test_tenant_row_is_private(two_tenants):
 # --- API ---------------------------------------------------------------------------------------------------
 
 _BODIES = {
+    "createKioskAttendance": {"target_type": "session", "target_id": str(uuid4()), "visit_token": "iso"},
     "updateLocation": {"name": "Renamed"},
     "updateCatalogItem": {"description": "Renamed"},
     "sellCatalogItem": lambda ids: {"client_id": ids.client_id},
@@ -461,6 +462,10 @@ def test_api_foreign_tenant_id_is_404(client, two_tenants, method, path, name):
     headers = a.headers | {"Idempotency-Key": f"iso-{name}-key"}
     if "/public/" in path:  # anonymous routes take the tenant from the host or X-Tenant-Slug, not the token
         headers |= {"X-Tenant-Slug": a.tenant.slug}
+    if path.startswith("/api/v1/kiosk/"):  # device-cookie routes: A's paired kiosk asks for B's id
+        from app.modules.access.tests.test_checkin import _pair
+
+        _pair(client, a.tenant, a.headers, a.location_id)
     response = client.request(method, url, headers=headers, json=body)
     assert response.status_code == 404, response.text
     assert response.json()["code"] == "not-found"

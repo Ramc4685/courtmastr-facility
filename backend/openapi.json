@@ -30310,11 +30310,18 @@
             "const": "session",
             "title": "Target Type",
             "type": "string"
+          },
+          "visit_token": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Visit Token",
+            "type": "string"
           }
         },
         "required": [
           "target_type",
-          "target_id"
+          "target_id",
+          "visit_token"
         ],
         "title": "KioskAttendanceCreate",
         "type": "object"
@@ -30415,6 +30422,17 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "visit_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit Token"
           },
           "welcome_message": {
             "anyOf": [
@@ -30765,6 +30783,10 @@
             "title": "Is Auto Book",
             "type": "boolean"
           },
+          "is_name_search_booking_allowed": {
+            "title": "Is Name Search Booking Allowed",
+            "type": "boolean"
+          },
           "late_window_minutes": {
             "title": "Late Window Minutes",
             "type": "integer"
@@ -30809,6 +30831,7 @@
           "visible_range_minutes",
           "is_auto_book",
           "reservation_timeout_seconds",
+          "is_name_search_booking_allowed",
           "has_exit_pin"
         ],
         "title": "KioskSettingsOut",
@@ -30894,6 +30917,17 @@
               }
             ],
             "title": "Is Auto Book"
+          },
+          "is_name_search_booking_allowed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Name Search Booking Allowed"
           },
           "late_window_minutes": {
             "anyOf": [
@@ -118191,7 +118225,7 @@
     },
     "/api/v1/kiosk/check-ins": {
       "post": {
-        "description": "Self check-in (CHK-05): admitted or see staff, never amounts or reasons; then the reservation page.",
+        "description": "Self check-in (CHK-05): admitted or see staff, never amounts or reasons; then the reservation page and its\nsingle-use visit token (so a replayed key is refused, not re-read).",
         "operationId": "createKioskCheckIn",
         "parameters": [
           {
@@ -118252,7 +118286,7 @@
     },
     "/api/v1/kiosk/check-ins/{check_in_id}/attendances": {
       "post": {
-        "description": "Book a session from the reservation page, by the portal's rules. Errors: outside-check-in-window,\ncapacity-full, policy-violation, already-enrolled, no-entitlement, see-staff (past due).",
+        "description": "Book a session from the reservation page, by the portal's rules, spending the visit token. Found by name,\nfree sessions only and every refusal is see-staff. Errors: outside-check-in-window, capacity-full,\npolicy-violation, already-enrolled, no-entitlement, see-staff (past due, or found by name).",
         "operationId": "createKioskAttendance",
         "parameters": [
           {
@@ -118379,7 +118413,7 @@
     },
     "/api/v1/kiosk/lookups": {
       "post": {
-        "description": "Find yourself by card or the first letters of your last name: first name and last initial only.",
+        "description": "Find yourself by card or the first letters of your last name: first name and last initial only. A new\nlookup means the kiosk is back at its start screen, so its visit tokens end.",
         "operationId": "kioskLookup",
         "requestBody": {
           "content": {
@@ -118456,6 +118490,21 @@
           }
         },
         "summary": "Pair Kiosk",
+        "tags": [
+          "access"
+        ]
+      }
+    },
+    "/api/v1/kiosk/visits/end": {
+      "post": {
+        "description": "The kiosk returned to its start screen: every visit token it holds stops working.",
+        "operationId": "endKioskVisit",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "End Kiosk Visit",
         "tags": [
           "access"
         ]

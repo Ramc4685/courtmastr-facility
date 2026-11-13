@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { api, ApiError, type Schemas } from '../../api/client'
 import { Button } from '../../components/Button'
 import { ConfirmDialog } from '../../components/Dialog'
@@ -80,14 +80,16 @@ function Kiosk({ config }: { config: Config }) {
   const settings = config.settings
   const byName = settings.lookup_method !== 'membership_number'
 
-  const reset = () => {
+  const reset = useCallback(() => {
+    // Back at the start screen: the server forgets this visit, so nobody can act on it from here.
+    if (result?.visit_token) api.post('/api/v1/kiosk/visits/end').catch(() => undefined)
     setName('')
     setMatches(null)
     setResult(null)
     setView('result')
     setBooked(null)
     setProblem(null)
-  }
+  }, [result?.visit_token])
   const fail = (e: unknown) => setProblem(e instanceof ApiError && e.status === 401 ? 'This kiosk was signed out. Ask staff to pair it again.' : 'Something went wrong. Please see the front desk.')
   const lookup = useMutation({
     mutationFn: (body: { credential_value?: string; last_name_prefix?: string }) => api.post('/api/v1/kiosk/lookups', { body }),
@@ -107,7 +109,7 @@ function Kiosk({ config }: { config: Config }) {
   })
   const book = useMutation({
     mutationFn: (s: Session) =>
-      api.post('/api/v1/kiosk/check-ins/{check_in_id}/attendances', { path: { check_in_id: result?.check_in_id ?? '' }, body: { target_type: 'session', target_id: s.target_id } }),
+      api.post('/api/v1/kiosk/check-ins/{check_in_id}/attendances', { path: { check_in_id: result?.check_in_id ?? '' }, body: { target_type: 'session', target_id: s.target_id, visit_token: result?.visit_token ?? '' } }),
     onSuccess: (out, s) => {
       setResult(out)
       setBooked(s)
@@ -132,7 +134,7 @@ function Kiosk({ config }: { config: Config }) {
     const seconds = view === 'reserve' ? settings.reservation_timeout_seconds : settings.confirmation_timeout_seconds
     const timer = window.setTimeout(reset, seconds * 1000)
     return () => window.clearTimeout(timer)
-  }, [result, view, problem, settings.confirmation_timeout_seconds, settings.reservation_timeout_seconds])
+  }, [result, view, problem, reset, settings.confirmation_timeout_seconds, settings.reservation_timeout_seconds])
 
   const search = (e: FormEvent) => {
     e.preventDefault()

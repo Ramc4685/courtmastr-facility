@@ -269,11 +269,30 @@ class KioskMatch(TenantOwned, Timestamps, Base):
     __table_args__ = tenant_args(
         *tfk("kiosk_device_id", "kiosk_device"),
         *tfk("client_id", "client"),
+        *tfk("credential_id", "credential"),
         Index("uq_kiosk_match_token", "tenant_id", "token_hash", unique=True),
     )
 
     kiosk_device_id: Mapped[UUID]
     client_id: Mapped[UUID]
+    credential_id: Mapped[UUID | None]  # the card scanned; None for a name or member-number match (migration 1962)
+    token_hash: Mapped[str] = mapped_column(info={"audit": "never"})
+    expires_at: Mapped[datetime]
+
+
+class KioskVisit(TenantOwned, Timestamps, Base):
+    """The kiosk's hold on one admitted check-in (migration 1962): an opaque token (stored hashed) that the next
+    action on the visit spends and replaces. It dies at its screen's timeout or when the kiosk goes back to start."""
+
+    __tablename__ = "kiosk_visit"
+    __table_args__ = tenant_args(
+        *tfk("kiosk_device_id", "kiosk_device"),
+        *tfk("check_in_id", "check_in"),
+        Index("uq_kiosk_visit_token", "tenant_id", "token_hash", unique=True),
+    )
+
+    kiosk_device_id: Mapped[UUID]
+    check_in_id: Mapped[UUID]
     token_hash: Mapped[str] = mapped_column(info={"audit": "never"})
     expires_at: Mapped[datetime]
 
@@ -305,6 +324,8 @@ class KioskSettings(TenantOwned, Timestamps, Base):
     visible_range_minutes: Mapped[int] = mapped_column(server_default=text("240"))  # reservation page: starts within
     is_auto_book: Mapped[bool] = mapped_column(server_default=text("false"))  # book the closest session at check-in
     reservation_timeout_seconds: Mapped[int] = mapped_column(server_default=text("30"))
+    # a visit found by name may book free sessions only, and not even those when off (migration 1962)
+    is_name_search_booking_allowed: Mapped[bool] = mapped_column(server_default=text("true"))
     exit_pin_hash: Mapped[str | None] = mapped_column(info={"audit": "never"})  # argon2id; required to leave kiosk mode
 
 
