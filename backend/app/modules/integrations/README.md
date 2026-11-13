@@ -66,8 +66,13 @@ through `service.adapter_for`.
   deactivated staff owner or an inactive member identity makes the feed 404. Any staff user may own a feed
   (rbac-matrix section 7); a team feed needs a league game key; `revoke_any` lets a manager see and disable,
   never edit or re-enable, other people's feeds within their locations.
-- **Public schedule.** Off until a location publishes it. Shows sessions (public title, seats left) and, when
-  turned on, busy times per resource without any name, never beyond `days_ahead` (1 to 31).
+- **Public schedule.** Off until a location publishes it. Shows only sessions that pass scheduling's own public
+  gate (`scheduling.service.session_window`: confirmed and self-bookable, the portal listing's source) and,
+  when turned on, every other booking as a busy time per resource with no title or name, never beyond
+  `days_ahead` (1 to 31).
+- **Titles members and the public read** are the session's `public_title` or the fixed label "Session", never
+  the internal `title` (`feeds.public_title`): the public schedule and member feeds. Staff and team feeds show
+  what their owner can already read in the back office (booking titles, team names).
 
 ## Assumptions and shortcuts (written down, not guessed)
 

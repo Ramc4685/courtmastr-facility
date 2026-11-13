@@ -278,10 +278,14 @@ def _member_events(session: Session, feed: CalendarFeed, start: datetime, end: d
         if starts and ends and start <= starts < end:
             events.append(ical.Event(
                 uid=f"session-{enrollment.session_id}@courtmastr", starts_at=starts, ends_at=ends,
-                summary=seat.get("public_title") or seat.get("title") or "Session",
-                cancelled=seat.get("status") == "cancelled",
+                summary=public_title(seat), cancelled=seat.get("status") == "cancelled",
             ))  # fmt: skip
     return events
+
+
+def public_title(seat: dict) -> str:
+    """What a member or the public may read: the public title or a fixed label, never the internal `title`."""
+    return seat.get("public_title") or "Session"
 
 
 def render(session: Session, token: str) -> str:
@@ -350,19 +354,23 @@ def public_schedule(session: Session, location_id: UUID, from_on: date | None, d
     last = min(first + timedelta(days=span), today + timedelta(days=setting.days_ahead))
     start = datetime.combine(first, time(), zone).astimezone(UTC)
     end = datetime.combine(last, time(), zone).astimezone(UTC)
-    ids = session.scalars(scheduling.service.booking_ids(starts_from=start, starts_to=end)).all()
-    sessions, busy = [], []
-    for view in scheduling.service.booking_views(session, ids).values():
-        if view["location_id"] != location_id or view["status"] == "cancelled":
-            continue
-        seat = view.get("session")
-        if seat is not None and setting.show_sessions:
-            sessions.append({
-                "starts_at": view["starts_at"], "ends_at": view["ends_at"],
-                "title": view.get("public_title") or view.get("title") or "Session",
-                "seats_left": max(seat["capacity"] - seat["booked_count"], 0), "is_full": seat["fill"] == "full",
-            })  # fmt: skip
-        elif seat is None and setting.show_busy:
+    # Published sessions come from scheduling's own public gate (confirmed and self-bookable, the portal listing's
+    # source), never from a second copy of the rule here.
+    published = scheduling.service.session_window(session, start, end, location_id=location_id, limit=MAX_EVENTS)
+    sessions = [
+        {
+            "starts_at": seat["starts_at"], "ends_at": seat["ends_at"], "title": public_title(seat),
+            "seats_left": max(seat["capacity"] - seat["booked_count"], 0), "is_full": seat["fill"] == "full",
+        }
+        for seat in published
+    ] if setting.show_sessions else []  # fmt: skip
+    busy = []
+    if setting.show_busy:  # everything else that holds a resource, with no title or name at all
+        shown = {seat["booking_id"] for seat in published} if setting.show_sessions else set()
+        ids = session.scalars(scheduling.service.booking_ids(starts_from=start, starts_to=end)).all()
+        for view in scheduling.service.booking_views(session, ids).values():
+            if view["location_id"] != location_id or view["status"] == "cancelled" or view["id"] in shown:
+                continue
             busy += [
                 {"resource_id": r["resource_id"], "starts_at": view["starts_at"], "ends_at": view["ends_at"]}
                 for r in view["resources"]

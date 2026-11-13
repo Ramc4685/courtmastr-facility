@@ -125,16 +125,16 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [ ] [undocumented] A row that hits a database IntegrityError is `failed`/`invalid` with code `already-exists` (service.py:321-325). README line 58-59 describes only refusals and `unexpected`.
 - [ ] [wording] README line 113 says the commit hits `entitlements.enforce_limit` "inside `clients._create`". The function is `clients.service._create` (backend/app/modules/clients/service.py:756, call at :769).
 
-### integrations (21 open, 1 closed) — [evidence](drift/integrations.md)
+### integrations (22 open, 1 closed) — [evidence](drift/integrations.md)
 
-- [ ] [wording] README line 17 says `jobs.py` has "an unscheduled sweep", but line 83 says `sweep_webhook_deliveries` runs every minute. The scheduler enqueues it (`backend/app/scheduler.py:20`); the actor docstring is stale too (`backend/app/modules/integrations/jobs.py:21-22`).
+- [ ] [wording] README line 17 says `jobs.py` has "an unscheduled sweep", but line 88 says `sweep_webhook_deliveries` runs every minute. The scheduler enqueues it (`backend/app/scheduler.py:20`); the actor docstring is stale too (`backend/app/modules/integrations/jobs.py:21-22`).
 - [ ] [contract] README line 18 claims all integrations-tag endpoints. The contract has 38 ops; the router serves 24 now (18 plus the six calendar-feed ops, `backend/app/modules/integrations/router.py:202-258`). It also serves 5 ops with no contract entry: `/accounting-exports` GET and POST, `/integration-adapters`, `/api-reference`, `/adapter-commands` (`router.py:161-189`).
-- [ ] [undocumented] Unserved contract ops missing from the README "Not built" list (lines 86-88): `getExternalConnection`, `updateExternalConnection`, `runSync`, `retryAccountingExport`, `receiveQuickBooksEvents`, `receiveZoomEvents` (openapi-programs.yaml:6779, 6794, 6920, 6949, 6967, 7115).
+- [ ] [undocumented] Unserved contract ops missing from the README "Not built" list (lines 91-93): `getExternalConnection`, `updateExternalConnection`, `runSync`, `retryAccountingExport`, `receiveQuickBooksEvents`, `receiveZoomEvents` (openapi-programs.yaml:6779, 6794, 6920, 6949, 6967, 7115).
 - [ ] [missing] README line 18 says `inbound` "holds the provider webhooks". It holds only `/public/calendar-feeds/{token}` and `/public/schedule` (`backend/app/modules/integrations/router.py:240, 276`); the QuickBooks and Zoom receivers are unserved.
 - [ ] [undocumented] `auth.authenticate` refuses a key for a suspended tenant and throttles `last_used_at` to one write a minute (`backend/app/modules/integrations/auth.py:89-98`); the README mentions neither.
 - [ ] [wording] README lines 52-53: `webhook_allow_localhost` is refused only outside dev *and test* (`backend/app/core/settings.py:283-284`).
 - [ ] [undocumented] `permissions.py` and `events.py` are not in the file table. The README names only `calendar_feed.revoke_any`, not the other five keys (`backend/app/modules/integrations/permissions.py:14-18`), the `+` flag on `api_key.manage`, or the `reason` and `webhook = false` of the disabled event (`backend/app/modules/integrations/events.py:9-15`).
-- [ ] [wording] README lines 81-82 say `_ledger_rows` waits for module 8; module 8 shipped and the code comment gives another reason (`backend/app/modules/integrations/service.py:694-702`). Whether a billing read exists is unverified.
+- [ ] [wording] README lines 86-87 say `_ledger_rows` waits for module 8; module 8 shipped and the code comment gives another reason (`backend/app/modules/integrations/service.py:694-702`). Whether a billing read exists is unverified.
 - [x] [stale-not-built] "plan entitlement gating" (old README line 75): closed, the README no longer lists it, and keys do require `api_access` (`auth.py:91`).
 - [ ] [contract] `listCalendarFeeds` declares `revoke_any` (openapi-programs.yaml:7063), but the route is a bare `require()` that lists your own feeds (`router.py:203`, `feeds.py:63-72`). The yaml needs to change.
 - [ ] [contract] `updateCalendarFeed` says "change filters" (openapi-programs.yaml:7078); the code takes only `name`, `include_shifts` and `status` (`schemas.py:192`).
@@ -143,12 +143,13 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [ ] [contract] `getPublicCalendarFeed` says the token is "revocable and rotatable from the portal" (openapi-programs.yaml:7106-7108), but members can only create feeds; manage routes are staff-only (`feeds.py:137-138`). Unlimited member feeds can be minted (`feeds.py:123-134`).
 - [ ] [stale-not-built] Status docs still say INT-08, SCH-19, SCH-20 and STF-13 are not built (`docs/status/16-integrations.md:23`, `02-resources-scheduling.md:46-47`, `12-staff.md:29`, `status/README.md:97-98`), as does `scheduling/README.md:105-106`.
 - [ ] [undocumented] `scheduling.public_schedule.manage` gates the settings routes, writes the audit action `scheduling.public_schedule.update`, and an unconfigured location returns defaults (`backend/app/modules/integrations/feeds.py:312-321`, `scheduling/permissions.py:42`); the README names none of it.
-- [ ] [undocumented] Public schedule rate limit (60 a minute per IP, `config/app.yaml:77`), the two `Cache-Control` values (`router.py:258, 286`) and the `from_on` and `days` clamps (`feeds.py:340`) are not in the README.
+- [ ] [undocumented] Public schedule rate limit (60 a minute per IP, `config/app.yaml:77`), the two `Cache-Control` values (`router.py:258, 286`) and the `from_on` and `days` clamps (`feeds.py:352-353`) are not in the README.
 - [ ] [undocumented] `/calendar-feeds*` use a bare `require()`, so API keys get `403 api-key-not-allowed` (`router.py:203-228`); the README's keyless-route rule (lines 36-39) does not list them.
 - [ ] [undocumented] Feed delete is a hard delete with audit (`feeds.py:170-174`), and cancelled items are emitted as cancelled events (`feeds.py:223, 263, 282`); the README says neither.
 - [ ] [wording] README line 67 says a team feed needs "a league game key"; the code accepts `leagues.game.manage` or `leagues.result.enter`, rechecked on each fetch (`feeds.py:33, 246`).
 - [ ] [undocumented] `feeds.py` calls other contexts' submodules (`platform.staff`, `programs.selfservice`, `scheduling.service`, `staff.service`; `feeds.py:227, 272, 297`) and a new `platform.service.client_identity_is_active` (`platform/service.py:551`). Whether `make boundaries` allows this is unverified.
 - [ ] [missing] `public_schedule_setting` is not enrolled in `populate()` or `test_isolation.py`; only `calendar_feed` is (`backend/conftest.py:1243`). Whether another test covers it is unverified.
+- [ ] [undocumented] The README's public-schedule rule (lines 69-72) omits that `session_window` is capped at 1000 sessions (`backend/app/modules/integrations/feeds.py:30, 359`) and that with `show_sessions` off, published sessions show as busy times when `show_busy` is on (`feeds.py:368-369`).
 
 ### leagues (5) — [evidence](drift/leagues.md)
 

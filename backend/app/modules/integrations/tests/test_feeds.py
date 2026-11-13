@@ -28,8 +28,10 @@ def _fetch(client, token: str):
         return client.get(f"{API}/public/calendar-feeds/{token}")
 
 
-def _session(client, owner, f, title="Clinic", start="2031-05-03T15:00:00Z", end="2031-05-03T16:00:00Z") -> dict:
-    created = ok(book(client, owner, f, [f.court], start, end, kind="session", title=title))
+def _session(
+    client, owner, f, title="Clinic", start="2031-05-03T15:00:00Z", end="2031-05-03T16:00:00Z", resource=None, **extra
+) -> dict:  # fmt: skip
+    created = ok(book(client, owner, f, [resource or f.court], start, end, kind="session", title=title, **extra))
     return created.get("booking", created)
 
 
@@ -176,13 +178,17 @@ def test_member_feed_shows_enrolled_sessions_and_stops_with_the_identity(client,
 
     f = facility(client, owner)
     client_id, member = _member(client, tenant, owner)
-    seat = _session(client, owner, f, title="Kids clinic")["session"]["id"]
+    seat = _session(client, owner, f, title="Coach note", public_title="Kids clinic")["session"]["id"]
+    internal = _session(client, owner, f, title="Staff only name", start="2031-05-05T15:00:00Z",
+                        end="2031-05-05T16:00:00Z")["session"]["id"]  # fmt: skip
     _session(client, owner, f, title="Not mine", start="2031-05-04T15:00:00Z", end="2031-05-04T16:00:00Z")
-    ok(client.post(f"{API}/enrollments", headers=owner, json={"session_id": seat, "client_id": client_id}))
+    for session_id in (seat, internal):
+        ok(client.post(f"{API}/enrollments", headers=owner, json={"session_id": session_id, "client_id": client_id}))
     created = ok(client.post(f"{API}/portal/calendar-feeds", headers=member, json={}))
     assert created["kind"] == "member_schedule"
     text = _fetch(client, created["url_token"]).text
-    assert "SUMMARY:Kids clinic" in text and "Not mine" not in text
+    assert "SUMMARY:Kids clinic" in text and "SUMMARY:Session" in text and "Not mine" not in text
+    assert "Coach note" not in text and "Staff only name" not in text  # internal titles never reach a member
     staff_only = client.post(f"{API}/calendar-feeds", headers=member, json={"kind": "staff_schedule", "name": "X"})
     assert staff_only.status_code == 403
     with tenant_session(tenant.id) as session:
@@ -197,7 +203,10 @@ def test_member_feed_shows_enrolled_sessions_and_stops_with_the_identity(client,
 def test_public_schedule_is_off_until_published_and_shows_no_names(client, tenant, owner):
     f = facility(client, owner)
     person = new_client(client, owner, f.location, first_name="Secret", last_name="Person")
-    _session(client, owner, f, title="Open clinic")
+    _session(client, owner, f, title="Coach note", public_title="Open clinic")
+    _session(client, owner, f, title="Staff only name", start="2031-05-03T19:00:00Z", end="2031-05-03T20:00:00Z")
+    _session(client, owner, f, title="Private group", public_title="Unpublished", start="2031-05-03T21:00:00Z",
+             end="2031-05-03T22:00:00Z", resource=f.half_b, session={"is_self_bookable": False})  # fmt: skip
     ok(book(client, owner, f, [f.court2], "2031-05-03T17:00:00Z", "2031-05-03T18:00:00Z", title=f"Hire {person['id']}"))
     slug = {"X-Tenant-Slug": tenant.slug}
     url = f"{API}/public/schedule?location_id={f.location}"
@@ -213,9 +222,12 @@ def test_public_schedule_is_off_until_published_and_shows_no_names(client, tenan
         response = client.get(url, headers=slug)
     assert response.status_code == 200, response.text
     body = response.json()
-    assert [s["title"] for s in body["sessions"]] == ["Open clinic"] and body["sessions"][0]["seats_left"] == 4
-    assert {b["resource_id"] for b in body["busy"]} >= {f.court2}
-    assert "Secret" not in response.text and person["id"] not in response.text
+    # Only published sessions, public title or the fixed label; the unpublished one is just a nameless busy block.
+    assert [s["title"] for s in body["sessions"]] == ["Open clinic", "Session"]
+    assert body["sessions"][0]["seats_left"] == 4
+    assert {b["resource_id"] for b in body["busy"]} >= {f.court2, f.half_b}
+    for hidden in ("Secret", person["id"], "Coach note", "Staff only name", "Private group", "Unpublished"):
+        assert hidden not in response.text
     assert response.headers["cache-control"].startswith("public")
 
 
