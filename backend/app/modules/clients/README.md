@@ -45,7 +45,8 @@ kiosk's past-due lockout), `activity.active_alerts(session, client_id, "check_in
   (`earliest_booking_at`, kept by `note_unconfirmed_booking`); `include=total` is the dashboard count. A newcomer's
   first booking emails the location's alert address (else its email) once, without the birth date. The portal
   identity carries `age_confirmed` and `entry_code_notice` (the notice plus the location phone from
-  `platform.service.location_contact`).
+  `platform.service.location_contact`). A declared minor is told instead that a parent or guardian must book and come
+  with them (codes are never sent to minors).
 
 ## Integrator notes
 

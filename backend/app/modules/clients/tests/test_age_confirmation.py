@@ -300,3 +300,14 @@ def test_two_confirmed_records_with_the_same_date_stay_confirmed(client, owner, 
     assert merged["age_confirmed"] is True and merged["age_confirmed_at"]
     assert confirmed_events(tenant, survivor) == 1
     assert survivor not in queued(client, owner)
+
+
+def test_a_self_declared_minor_is_told_a_guardian_books_never_that_a_code_is_coming(client, owner, tenant, f):
+    from app.modules.clients.service import ENTRY_CODE_NOTICE, MINOR_NOTICE
+
+    kid, kid_portal = portal_client(client, owner, tenant, f, birth_on="2012-05-05")
+    told = ok(client.get(f"{API}/portal/clients/{kid}", headers=kid_portal), 200)["entry_code_notice"]
+    assert told.startswith(MINOR_NOTICE) and ENTRY_CODE_NOTICE not in told
+    adult, adult_portal = portal_client(client, owner, tenant, f, birth_on=ADULT)
+    told = ok(client.get(f"{API}/portal/clients/{adult}", headers=adult_portal), 200)["entry_code_notice"]
+    assert told.startswith(ENTRY_CODE_NOTICE)

@@ -1167,15 +1167,19 @@ def is_age_confirmed(session: Session, client_id: UUID) -> bool:
 
 
 ENTRY_CODE_NOTICE = "Your entry code will be sent once our staff have confirmed your age. This is a one-time check."
+MINOR_NOTICE = "Entry codes are not sent to minors: a parent or guardian must book and come with you."
 
 
 def entry_code_notice(session: Session, client: Client, location_id: UUID) -> str | None:
     """Internal: what a person with a self-declared birth date is told before paying (owner decision
-    2026-11-13), with the location's phone number; None once staff confirmed it (or with no date on file)."""
+    2026-11-13), with the location's phone number; None once staff confirmed it (or with no date on file).
+    A declared minor never gets a code, so they are told a parent or guardian books instead."""
     if client.birth_on is None or not client.is_birth_on_unverified:
         return None
+    minor = is_minor(client, clock.now().date(), platform.service.minor_age(session))
+    notice = MINOR_NOTICE if minor else ENTRY_CODE_NOTICE
     phone, _ = platform.service.location_contact(session, location_id)
-    return f"{ENTRY_CODE_NOTICE} Questions? Call {phone}." if phone else ENTRY_CODE_NOTICE
+    return f"{notice} Questions? Call {phone}." if phone else notice
 
 
 def is_minor(client: Client, on: date, age_of_majority: int) -> bool:
