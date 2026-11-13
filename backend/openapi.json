@@ -72433,6 +72433,7 @@
         "additionalProperties": false,
         "properties": {
           "booking_number": {
+            "maximum": 2147483647.0,
             "minimum": 1.0,
             "title": "Booking Number",
             "type": "integer"
