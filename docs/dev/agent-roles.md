@@ -29,6 +29,15 @@ Every brief states: the goal and its feature ids, the files and module it owns, 
 contract operations and migrations involved, what done looks like (tests, screenshot), and what was already
 ruled out. Builders return a short report and write longer output to their chip's notes file, not to the lead.
 
+## Gating through pull requests (owner decision, 2026-11-13)
+
+Builders may push their own `claude/<name>` branch and open a pull request; `.github/workflows/ci.yml` then
+runs the full gate on GitHub instead of the laptop. Only the exact form `git push [-u] origin claude/<name>`
+passes the guard mod, with nothing after it (no flags, no `2>&1`, no second ref). Pushing or merging to `main`
+stays with the owner: the lead merges a green, reviewed pull request locally and asks the owner to push.
+Locally a builder still runs only its own module's tests. Keep pull requests few and whole: each run costs
+about 25 to 30 CI minutes against a monthly allowance of roughly 2,000.
+
 ## Capacity
 
 The owner's Mac has 16 GB: at most one full gate (pytest + Playwright) at a time, and chips stop their

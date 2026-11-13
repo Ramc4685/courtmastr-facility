@@ -13,7 +13,11 @@ Update or delete this file once you have taken over; it is a snapshot, not a liv
 - **Not done on main after the merge:** the browser self-test of the new screens (event forms, public form page,
   group tools, league depth, lockers, portal rental plans). Skipped because swap was 11.5 of 12 GB. Do it first
   after the restart: `make api`, `make web`, sign in with `docs/dev/demo-accounts.md`, then stop the servers.
-- **Pushing:** the owner pushes main (the guard mod blocks `git push`). Main is ahead of origin; ask them to push.
+- **Pushing:** the owner pushed main at `a20a3ec` on 2026-11-13; check that run's CI result first (`gh run list`).
+  The owner still pushes main. Since 2026-11-13 builders may push `claude/<name>` branches and open pull requests
+  so CI runs the full gate (`agent-roles.md`, "Gating through pull requests"). The guard rule for this was edited
+  but its tests could not be run here, and the mod loads at app start: before relying on it, confirm that
+  `git push --dry-run origin main` is still blocked.
 - **Features:** 283 planned across Phases 8 to 15. Done on main: Phases 8, 9, 10 (81) plus Phase 14 batch 1 (40) = 121.
 
 ## Work left, in order
@@ -67,8 +71,6 @@ their branch first, or have the new chip start in that worktree.
 
 ## Waiting on the owner
 
-- May agents push feature branches and open pull requests, main protected? (`.github/workflows/ci.yml` already
-  runs the full gate on pull requests; this would move gating off the laptop.) Not yet answered.
 - Catalog-item list access: require `billing.item.manage`, or keep it open to any signed-in staff member.
 - Platform models: relax the rule that only platform code reads them, or change the six modules that do.
 - Billing collections (`billing/collections.py`): expiring-cards list and collections profile/report are not
