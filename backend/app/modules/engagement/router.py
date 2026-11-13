@@ -464,6 +464,8 @@ def get_app_config(ctx: Content):
 def put_app_config(body: s.AppConfigReplace, ctx: Content):
     """Replace it; needs the key at every location. Errors: invalid-app-config (with the pointer)."""
     return service.put_app_config(ctx.session, ctx.principal, body.model_dump())
+
+
 @router.get("/portal/videos/{video_id}", response_model=s.PortalVideo)
 def get_portal_video(video_id: UUID, ctx: Portal):
     """One published video; 404 when it is unpublished or not this tenant's."""
