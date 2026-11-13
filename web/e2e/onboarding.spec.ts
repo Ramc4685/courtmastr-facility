@@ -1,14 +1,9 @@
-import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
+import { scan } from './a11y'
 
 // Seeded demo owner (docs/dev/demo-accounts.md). Phase 8 T2: setup checklist, logos, support requests.
 const OWNER = { email: 'owner@courtside-demo.example.com', password: 'courtside-demo-2026' }
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
-
-async function scan(page: Page, label: string) {
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 async function signIn(page: Page, path: string, heading: string | RegExp) {
   await page.goto(path)

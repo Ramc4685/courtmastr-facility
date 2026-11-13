@@ -1,5 +1,7 @@
-import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
+import { scanAfter } from './a11y'
+
+const scan = scanAfter(/Loading|Checking/)
 
 // Phase 10 chip E front-desk screens over seeded demo data (docs/dev/demo-accounts.md): Morgan Member (M-1001)
 // holds a membership and a lesson package; the Front desk register sells "Water 500 ml" (barcode 0001000500).
@@ -11,12 +13,6 @@ async function signIn(page: Page, path: string) {
   await page.getByRole('textbox', { name: 'Password' }).fill(ADMIN.password)
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page.getByRole('button', { name: /account menu/i })).toBeVisible({ timeout: 20_000 }) // cold password hash
-}
-
-async function scan(page: Page, label: string) {
-  await expect(page.getByRole('status').filter({ hasText: /Loading|Checking/ })).toHaveCount(0)
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
 }
 
 test('front-desk screens: quick client, receipt footer, membership details and package removal', async ({ page }) => {

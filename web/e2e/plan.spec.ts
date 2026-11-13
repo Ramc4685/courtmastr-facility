@@ -1,5 +1,5 @@
-import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
+import { scan } from './a11y'
 
 // Seeded demo data (docs/dev/demo-accounts.md): the demo tenant is on the Complete plan (Phase 8 T1).
 const ADMIN = { email: 'admin@courtside-demo.example.com', password: 'courtside-demo-2026' }
@@ -21,8 +21,7 @@ test('an admin sees the plan and its usage, and the page passes the axe WCAG 2.1
   await expect(page.getByRole('listitem').filter({ hasText: 'Branded mobile app' })).toContainText('Included')
   for (const colorScheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme })
-    const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-    expect(axe.violations.map((v) => `${colorScheme} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
+    await scan(page, colorScheme)
   }
 })
 

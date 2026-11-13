@@ -115,6 +115,8 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Cancelling guests' held places while deleting or archiving a program needs the online registration permission as well.
 
 ### Fixed
+- The public sign-up page keeps its heading and page title when online sign-up is off.
+- Links inside sentences on the Portal and videos and Rental setup screens are underlined, not told apart by colour alone.
 - Member app: invoice amounts show in the invoice's own currency even in demo mode or with the member app switched off, and Pay stays off until an amount is shown. The web portal no longer starts a card setup just to learn which processor is connected.
 - Program payment plans: a balance date that has already passed is charged at checkout, and a confirmed checkout still shows what is due later.
 - Guest checkout shows the full price a guest pays instead of the members' deposit plan.

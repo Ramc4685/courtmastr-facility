@@ -1,5 +1,7 @@
-import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
+import { scanAfter } from './a11y'
+
+const scan = scanAfter(/Loading|Checking/)
 
 // Seeded demo data (docs/dev/demo-accounts.md): Morgan Member is M-1001; the seed adds three pre-defined items.
 const ADMIN = { email: 'admin@courtside-demo.example.com', password: 'courtside-demo-2026' }
@@ -10,12 +12,6 @@ async function signIn(page: Page, path: string) {
   await page.getByRole('textbox', { name: 'Password' }).fill(ADMIN.password)
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page.getByRole('button', { name: /account menu/i })).toBeVisible()
-}
-
-async function scan(page: Page, label: string) {
-  await expect(page.getByRole('status').filter({ hasText: /Loading|Checking/ })).toHaveCount(0)
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
 }
 
 test('staff define a pre-defined item, sell it from client billing and cancel the sale', async ({ page }) => {

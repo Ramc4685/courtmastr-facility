@@ -1,7 +1,7 @@
-import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { scan as axeScan } from './a11y'
 
 // Seeded demo data (docs/dev/demo-accounts.md). A lane runs no worker, so the spec finishes each queued chunk run
 // itself with `app.cli run-import` against the lane database (the same code path the worker's actor runs).
@@ -11,8 +11,7 @@ const BACKEND = fileURLToPath(new URL('../../backend', import.meta.url))
 async function scan(page: Page, label: string) {
   for (const colorScheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
-    const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-    expect(axe.violations.map((v) => `${label} ${colorScheme} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
+    await axeScan(page, `${label} ${colorScheme}`)
   }
   await page.emulateMedia({ colorScheme: 'light' })
 }

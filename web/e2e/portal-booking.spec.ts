@@ -1,6 +1,7 @@
-import AxeBuilder from '@axe-core/playwright'
 import { expect as baseExpect, test, type APIRequestContext, type Browser, type Page } from '@playwright/test'
-import { ADMIN, MEMBER, PASSWORD } from './a11y'
+import { ADMIN, MEMBER, PASSWORD, scanAfter } from './a11y'
+
+const scan = scanAfter(/…$/, 30_000)
 
 // Phase 11 chip B (portal booking and buying). Seeded demo data (docs/dev/demo-accounts.md): Morgan Member holds a
 // stored test card and a lesson package, "Summer Sports Camp" is published at Downtown, and Downtown has a
@@ -8,12 +9,6 @@ import { ADMIN, MEMBER, PASSWORD } from './a11y'
 // the staff API and puts it back afterwards. No fixed dates: sessions are picked from the live listing.
 const expect = baseExpect.configure({ timeout: 30_000 })
 const SLUG = { 'x-tenant-slug': 'courtside-demo' }
-
-async function scan(page: Page, label: string) {
-  await expect(page.getByRole('status').filter({ hasText: /…$/ })).toHaveCount(0)
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 /** A signed-in member in a context of their own (the web sign-in form is staff-only; the portal app signs in by API). */
 async function memberPage(browser: Browser) {
@@ -182,6 +177,9 @@ test('portal booking and buying: saved cards, calendar, virtual session, payment
       await scan(anonymous, `${colorScheme} public progress`)
       await m.getByRole('button', { name: `Turn off link E2E ${tag} ${colorScheme}` }).click()
       await expect(m.getByText('The link no longer works.')).toBeVisible()
+      // Open the link afresh: from /progress, a goto that only adds the fragment is a same-document navigation and
+      // the page (which reads the token once, on load) never sees it.
+      await anonymous.goto('about:blank')
       await anonymous.goto(`/progress${new URL(url).hash}`)
       await expect(anonymous.getByText('This link has expired or was turned off.')).toBeVisible()
       await scan(anonymous, `${colorScheme} public progress expired`)

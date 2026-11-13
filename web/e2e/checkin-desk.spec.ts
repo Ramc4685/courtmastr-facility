@@ -1,13 +1,8 @@
-import AxeBuilder from '@axe-core/playwright'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
+import { scan } from './a11y'
 
 // Seeded demo manager (docs/dev/demo-accounts.md, "Demo check-in (build module 10)"); the client is the spec's own.
 const MANAGER = { email: 'manager@courtside-demo.example.com', password: 'courtside-demo-2026' }
-
-async function scan(page: Page, label: string) {
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 test('the desk sets up a station, checks in on it, books, checks out, sees who is in and prints a member card, all screens pass axe', async ({ page }) => {
   test.setTimeout(180_000) // eight axe scans on a shared machine

@@ -1,14 +1,9 @@
-import AxeBuilder from '@axe-core/playwright'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
+import { scan } from './a11y'
 
 // Seeded demo account (docs/dev/demo-accounts.md); exists only in dev and test databases. Only the Owner may
 // add a sign-in provider.
 const OWNER = { email: 'owner@courtside-demo.example.com', password: 'courtside-demo-2026' }
-
-async function scan(page: Page, label: string) {
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 // A real provider needs a public issuer (its discovery document is fetched when it is saved), so the sign-in
 // buttons are shown from a stubbed provider list; the rest runs against the live API.

@@ -1,5 +1,7 @@
-import AxeBuilder from '@axe-core/playwright'
 import { expect as baseExpect, test, type Page } from '@playwright/test'
+import { scanAfter } from './a11y'
+
+const scan = scanAfter(/…$/, 30_000)
 
 test.use({ actionTimeout: 30_000 })
 
@@ -10,12 +12,6 @@ const expect = baseExpect.configure({ timeout: 30_000 })
 // (inbox title "Court 3 closed"), a reminder rule, a payment-declined alert route and a video at Downtown.
 const OWNER = { email: 'owner@courtside-demo.example.com', password: 'courtside-demo-2026' }
 const MEMBER = { email: 'member@courtside-demo.example.com', password: 'courtside-demo-2026' }
-
-async function scan(page: Page, label: string) {
-  await expect(page.getByRole('status').filter({ hasText: /…$/ })).toHaveCount(0)
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 async function signIn(page: Page, who: typeof OWNER, entry: string, landed: RegExp) {
   await page.goto(entry)

@@ -1,14 +1,12 @@
-import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
-import { MEMBER, signIn } from './a11y'
+import { scan as axeScan, MEMBER, signIn } from './a11y'
 
 // Seeded demo data (backend/seeds/programs.py): a free "Open Day sign-up" form with a shirt cap, a priced
 // "Awards night" form, three classifiers and the "Summer Sports Camp" program at Downtown.
 
 async function scan(page: Page, label: string) {
   await expect(page.getByText(/^Loading/)).toHaveCount(0)
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
+  await axeScan(page, label)
 }
 
 test('staff build event forms and use the group tools; every screen passes axe', async ({ page }) => {
@@ -58,7 +56,8 @@ test('a visitor signs up for a free event without an account', async ({ page, br
   await expect(visitor.getByRole('heading', { level: 1, name: 'Club Open Day' })).toBeVisible()
   await scan(visitor, 'public form')
   await visitor.getByRole('textbox', { name: 'Your name' }).fill('Pat Visitor')
-  await visitor.getByRole('textbox', { name: 'Email' }).fill('pat.visitor@example.com')
+  // One sign-up per address and event: a fresh address each run, so the spec can run again on the same database.
+  await visitor.getByRole('textbox', { name: 'Email' }).fill(`pat.visitor-${crypto.randomUUID()}@example.com`)
   for (const group of await visitor.getByRole('group').all()) await group.getByRole('radio').first().check()
   await visitor.getByRole('button', { name: 'Register' }).click()
   await expect(visitor.getByText(/^Confirmation number \d+\.$/)).toBeVisible()
