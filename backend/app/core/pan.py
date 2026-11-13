@@ -14,9 +14,10 @@ This is a best-effort guard against accidental entry, not a guarantee. The log f
 every long digit run, Luhn or not, and is the stricter of the two (`app.core.logging`)."""
 
 import re
+import unicodedata
 
 # Digit groups joined by separator runs. A separator holds no digit, so each step is unambiguous: linear.
-_RUN = re.compile(r"\d+(?:[\s./_-]+\d+)*")
+_RUN = re.compile(r"\d+(?:[\s./_,\u2010-\u2015-]+\d+)*")  # dashes of every width and commas too
 _GROUP = re.compile(r"\d+")
 # Free-text fields are capped far below this by their schemas (10,000 characters at most); a longer value is
 # checked on its first 64 KiB.
@@ -70,4 +71,6 @@ def _run_has_card(run: str) -> bool:
 
 
 def contains_card_number(value: str) -> bool:
-    return any(_run_has_card(match.group()) for match in _RUN.finditer(value[:MAX_SCAN]))
+    # NFKC folds full-width and other compatibility digits to ASCII, so the prefixes match
+    value = unicodedata.normalize("NFKC", value[:MAX_SCAN])
+    return any(_run_has_card(match.group()) for match in _RUN.finditer(value))
