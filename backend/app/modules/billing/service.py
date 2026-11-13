@@ -1340,12 +1340,37 @@ def confirm_refund(session: Session, refund_id: UUID) -> Refund:
         _post_refund(session, row, payment)
     else:
         payment.refunded_minor -= row.amount_minor
+        session.flush()
+        _reapply_released(session, payment, row.release_allocation_ids or ())
     audit.record(
         session, "billing.refund.confirm", row, location_id=row.location_id,
         changes={"status": ["pending", row.status]},
     )  # fmt: skip
     _settle_projections(session, payment, ())
     return row
+
+
+def _reapply_released(session: Session, payment: Payment, allocation_ids: Sequence[UUID]) -> None:
+    """A failed refund puts back what its release took off items: each named allocation's amount goes to the same
+    item again, capped at what the item still owes and at the payment's free money. The release cannot wait for
+    success instead: a pending refund already counts in refunded_minor, so the money must leave the items."""
+    targets: dict[UUID, int] = {}
+    free = _remainder(session, payment) - _reserved(session, payment.id)
+    for allocation_id in dict.fromkeys(allocation_ids):
+        allocation = session.get(PaymentAllocation, allocation_id)
+        if allocation is None or allocation.payment_id != payment.id or allocation.status != "released":
+            continue
+        charge = session.get(Charge, allocation.charge_id)
+        owed = charge.total_minor - charge.applied_minor - targets.get(charge.id, 0) if charge.status == "active" else 0
+        if (amount := min(allocation.amount_minor, owed, free)) > 0:
+            targets[charge.id] = targets.get(charge.id, 0) + amount
+            free -= amount
+    if targets:
+        _allocate(session, payment, None, list(targets.items()))
+        audit.record(
+            session, "billing.payment.reallocate", payment, location_id=payment.location_id,
+            changes={"reapplied_minor": [None, sum(targets.values())]},
+        )  # fmt: skip
 
 
 def _post_refund(session: Session, row: Refund, payment: Payment) -> None:

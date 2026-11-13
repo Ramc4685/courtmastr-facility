@@ -295,6 +295,31 @@ def test_a_declined_composite_refund_releases_nothing(shop, monkeypatch):
         assert_books_agree(session)
 
 
+def test_a_pending_composite_refund_that_fails_pays_the_item_again(shop, monkeypatch):
+    ready(shop)
+    item_id, payment_id, allocation_id = _applied(shop)
+    with work(shop.tenant) as session:
+        before = (session.get(svc.Charge, item_id).applied_minor, session.get(svc.Payment, payment_id).unapplied_minor)
+    fake = payment_provider.get("fake")
+    monkeypatch.setattr(fake, "refund", lambda **_: RefundState("fake_ref_slow", "pending"))
+    with work(shop.tenant) as session:
+        row = svc.refund(
+            session, payment_id, amount_minor=600, reason="Closed", idempotency_key=uuid4().hex,
+            release_allocation_ids=[allocation_id],
+        )  # fmt: skip
+        assert row.status == "pending" and session.get(svc.Charge, item_id).applied_minor == 0
+        assert session.get(svc.Payment, payment_id).unapplied_minor == 483  # 600 is held for the pending refund
+    monkeypatch.setattr(fake, "get_refund", lambda **_: RefundState("fake_ref_slow", "failed", "Declined"))
+    for _ in range(2):  # a repeated webhook re-applies nothing
+        with work(shop.tenant) as session:
+            webhooks.apply_event(session, "refund", "fake_ref_slow")
+    with work(shop.tenant) as session:
+        assert session.get(Refund, row.id).status == "failed"
+        after = (session.get(svc.Charge, item_id).applied_minor, session.get(svc.Payment, payment_id).unapplied_minor)
+        assert after == before == (1083, 0)  # the item is paid again, no stray account credit
+        assert_books_agree(session)
+
+
 def test_a_caller_holding_the_payment_lock_still_gets_a_committed_refund_row(shop):
     """Cross-context refunds (membership cancel, POS return) lock the payment first; the pre-provider row must
     still commit on its own so a crash after the processor call is recoverable."""

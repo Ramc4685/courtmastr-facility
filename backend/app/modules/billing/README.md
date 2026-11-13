@@ -299,7 +299,10 @@ handlers re-read the object from the provider.
   happens only once the processor has accepted the refund, so a declined refund leaves the items paid and the
   books as they were (the 201 says `failed`). A replay with the key returns the first refund before releasing
   anything, and a retry of an `initiated` row releases what the first request named. What is released but not
-  refunded stays as account credit. Not built: a refund the processor
+  refunded stays as account credit. A refund the processor leaves `pending` has already released (its amount
+  counts in `refunded_minor` at once, so the money must leave the items); when it later fails, `confirm_refund`
+  re-applies each named allocation's amount to the same item, capped at what the item still owes and at the
+  payment's free money, with one reallocate audit row (`reapplied_minor`). Not built: a refund the processor
   reverses after it succeeded (Stripe `refund.failed` after `succeeded`); the `refund_returned` ledger kind
   is reserved for it.
 - **An account-credit refund stores its plan (PAY-05, migration 1805).** `refund_credit` plans one leg per payment
