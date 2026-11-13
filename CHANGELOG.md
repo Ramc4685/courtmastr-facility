@@ -11,6 +11,10 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - A payer locked out of the portal for a past-due balance can no longer buy a rental plan or pay for an event form registration there.
 
 ### Added
+- Member app: staff design the home screen (tiles, order, captions and styling) with a live preview, and the app takes its colours from the account.
+- Member app: members find a facility by name, switch between locations, and see each session in that location's time zone.
+- Member app: members buy packages and memberships and pay invoices with a new card.
+- Member app: staff choose whether sessions show spots left and full sessions, and how many days ahead.
 - Member app: staff can publish news, info pages, announcements, promotions and gallery images, with an optional picture and a publish window, for one location or all of them.
 - Member app: staff can list department phone lines and service contacts per location, shown in the app and on the public page while the portal is open.
 - Member app: visitors can ask for a trial pass and members can send feedback; both land in a new staff inbox.

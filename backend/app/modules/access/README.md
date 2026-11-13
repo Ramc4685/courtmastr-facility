@@ -146,8 +146,20 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
 - A tenant-wide card layout needs `access.settings.manage` at every location; a location-limited manager sees it
   and its own locations' layouts only.
 
+## Wallet passes (Phase 11 C1, CHK-13 partial)
+
+- **Routes.** `GET /portal/wallet-passes` (`client_id` for someone the caller may act for), `POST /portal/wallet-passes`
+  (201, returns the issued pass once) and `DELETE /portal/wallet-passes/{credential_id}` (204). Portal routes only.
+- **Credential.** A pass carries its own long-lived credential, kind `wallet_pass`: the token is `FHW` plus 40 hex, and
+  only its SHA-256 is stored. Issuing again revokes the client's previous active pass. Check-in accepts it the same way
+  it accepts the rotating app card.
+- **Adapter.** `FakeWalletPass` (`app/adapters/wallet_pass.py`, port `app/ports/wallet_pass.py`) builds an unsigned
+  pass with enough content for the app to show the barcode. Signed Apple and Google passes need issuer accounts and
+  certificates, so CHK-13 stays partial.
+- **Admin clear.** The clear-digital-cards action covers app cards and wallet passes alike.
+
 ## Deferred (P1 and later)
 
 CHK-20 summary analytics. CHK-21 "renew membership" and "update payment method" have no button at the window yet (staff open the
 client profile from the name on the status card); a QR on the printed card is not built. CHK-15 and CHK-16 (RFID, biometric,
-door hardware) wait for the v2 adapters; CHK-17 (vaccine flag) is P2. The wallet pass part of CHK-13 is deferred.
+door hardware) wait for the v2 adapters; CHK-17 (vaccine flag) is P2. The wallet pass part of CHK-13 is built on a fake adapter only (see Wallet passes above); signed passes wait for issuer certificates.

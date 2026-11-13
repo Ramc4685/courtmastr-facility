@@ -116,8 +116,7 @@ unchanged by this module: `/portal/clients`, `/portal/membership-contracts`, `/p
 ## Not built
 
 The HTML builder and image library (MKT-04, MKT-06), CSV export of campaign history, the daily staff summary
-(MKT-14), SMS (MKT-15), targeted push (MKT-17), portal theming and terms acknowledgment at checkout (SSP-14),
-and slug routing in the web app (SSP-01).
+(MKT-14), SMS (MKT-15), targeted push (MKT-17).
 
 ## Portal entry and accounts (Phase 11 chip A: SSP-01, 05, 07, 13, 15)
 
@@ -136,6 +135,30 @@ and slug routing in the web app (SSP-01).
   and the host must be one of the tenant's own hosts (`platform.service.tenant_hosts`) or an allow-listed domain or
   its subdomain; they are re-checked on every public read, so removing a domain disables a stored URL at once.
 - **Slug.** `GET /public/portal-config` carries `tenant_slug`; the web `/f/:slug` pages send it as `X-Tenant-Slug`.
+
+## Phase 11 C1: member app core (APP-01, 02, 04, 05, 16, 18, 19; CHK-13 partial)
+
+Code in `domain/app_config.py` (pure rules: tile types, layout, schedule flags, feature switches), `service.py` and
+`router.py`. The config is one JSON document per tenant.
+
+| Route | Gate | Notes |
+|---|---|---|
+| `GET /app-config`, `PUT /app-config` | staff; `PUT` needs the key at every location | the home layout, tile catalogue, schedule flags and feature switches; a bad value is `invalid-app-config` with the pointer |
+| `GET /public/app-config` | anonymous, `app-config` bucket | the live theme, home layout and switches the app reads (APP-02, APP-05) |
+| `GET /public/app-directory?q=&limit=` | anonymous, `app-directory` bucket | facility search by name for the app's facility screen (APP-01); only tenants whose portal is enabled and publicly listed; returns slug, name, logo and city |
+
+Rules and assumptions:
+
+- **Tiles.** Eleven types (`TILE_TYPES`): the six original tiles and news, contacts, favorites, feedback and try_us,
+  which C2 added. Home layouts may use all eleven. At most 12 tiles, captions up to 40 characters.
+- **Schedule flags (APP-18).** `shows_spots_left`, `shows_full_sessions` and `days_ahead` are applied server side
+  inside `listPortalSessionListings`. The app has no policy of its own.
+- **Feature switches.** `booking`, `purchases`, `membership_card` and `wallet_pass` are stored in the same document.
+- **Purchases.** In-app buying uses the existing portal sale routes, so every sale still ends in
+  `secure_online_checkout` and records the terms version shown (SSP-14).
+- **Location filter (APP-16).** `listPortalSessionListings` takes `location_id`; each session's times come in its own
+  location's zone.
+- **Wallet passes (CHK-13, partial).** See the access module README. The adapter is fake, so the pass is unsigned.
 
 ## Phase 11 C2: member app content (APP-07 to APP-14)
 
@@ -169,7 +192,9 @@ Rules and assumptions:
   optional 1-5 rating. Every inquiry publishes `engagement.app_inquiry.received`.
 - **PII.** Contact fields and the message are audited as flags only. A client merge re-points feedback; an erasure
   keeps the row (counts and rating) and blanks the name, contact fields and message (`subject.py`).
-- **Not built:** staff screens, email alerts to staff when an inquiry arrives (a subscriber of the event can add
+- **Staff screen:** built, `web/src/features/engagement/MemberContentPage.tsx` (content, location contacts, the inquiry
+  inbox and usage counts). The parent `/engagement` route still requires `engagement.campaign.read`, so the page needs
+  that key as well as the content keys. **Not built:** email alerts to staff when an inquiry arrives (a subscriber of the event can add
   them), and copying content to other locations (APP-16).
 
 ## Phase 11 C2 part 2: favourites (APP-13) and app usage counts (APP-17)
@@ -203,5 +228,5 @@ Rules and assumptions:
   one batch a run. Favourites go with the client: a merge re-points them (dropping ones the survivor already has),
   an erasure deletes them (`subject.py`).
 - **Not built:** instructor favourites (listings carry no instructor, so there is nothing to match), favourite
-  locations, slot offers in the schedule, staff screens, and installs, opens or push-open funnels (APP-17 counts only
+  locations, slot offers in the schedule, and installs, opens or push-open funnels (APP-17 counts only
   what the app sends). APP-13 stays partial.

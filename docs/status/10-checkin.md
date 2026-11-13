@@ -10,7 +10,7 @@ Date: 2026-11-10. Lane `claude/zen-villani-chk`. Module README: `backend/app/mod
 | CHK-06 | Kiosk settings | P0 | done | lookup methods, windows, timeout, welcome text, displayed alerts; read by the kiosk at boot |
 | CHK-11 | Credential assignment | P0 | done | scan or generate; member number shown as primary; clash checks; revoke |
 | - | Kiosk exit PIN | - | done | per location, hashed, rate limited; five wrong PINs revoke the device; no PIN means exit is refused |
-| CHK-13 | App member cards | P0 | partial | rotating signed QR issued in the portal API and accepted at kiosk and window; no mobile screen yet, no wallet pass |
+| CHK-13 | App member cards | P0 | partial | rotating signed QR issued in the portal API, shown in the member app card (APP-06) and accepted at kiosk and window; wallet passes (`/portal/wallet-passes`) use a fake adapter, so the pass is unsigned and not yet for Apple or Google |
 | CHK-14 | Barcode scanner input | P0 | done | shared burst hook on the window and the kiosk |
 | CHK-18 | Recent check-ins | P0 | done | per location, newest first |
 | CHK-19 | Client check-in history | P0 | done | screen, profile tab, CSV export (2000-row cap) |
@@ -26,4 +26,4 @@ Date: 2026-11-10. Lane `claude/zen-villani-chk`. Module README: `backend/app/mod
 | CHK-15, 16 | | v2-adapter | not built | |
 | CHK-17 | | P2 | not built | |
 
-P0: 8 done, 1 partial (CHK-13: the member app screen belongs to the mobile lane).
+P0: 8 done, 1 partial (CHK-13: the app card is built; signed wallet passes wait on issuer certificates).

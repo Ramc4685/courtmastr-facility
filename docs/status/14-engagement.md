@@ -6,7 +6,7 @@ Tests: `backend/app/modules/engagement/tests/` (`test_messaging.py`, `test_rules
 4), the generated isolation, RLS, location-scope and security suites, `web/src/features/engagement/engagement.test.tsx`
 and `web/e2e/engagement.spec.ts` (axe).
 
-Counts: P0 14 owned here (11 MKT, 3 SSP): 5 done, 9 partial. P1: MKT-20 done; MKT-04, 06, 11, 12, 17, 18 not built.
+Counts: P0 15 owned here (11 MKT, 4 SSP): 8 done, 7 partial. P1: MKT-20 done; MKT-04, 06, 11, 12, 17, 18 not built.
 The other SSP rows belong to the selling modules and the portal screens (see `README.md` in this directory).
 
 | Feature | Priority | Status | Where | Notes |
