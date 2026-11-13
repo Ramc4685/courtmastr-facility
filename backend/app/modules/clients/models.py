@@ -149,6 +149,7 @@ class Client(TenantOwned, Timestamps, Base):
         *tfk("merged_into_id", "client", index=False),
         *tfk("created_by_staff_user_id", "staff_user"),
         *tfk("updated_by_staff_user_id", "staff_user"),
+        *tfk("age_confirmed_by_staff_user_id", "staff_user"),
         *tfk("photo_file_id", "stored_file"),  # CLI-12, clients/files.py
         CheckConstraint("btrim(first_name) <> ''", name="first_name"),
         CheckConstraint("btrim(last_name) <> ''", name="last_name"),
@@ -197,8 +198,10 @@ class Client(TenantOwned, Timestamps, Base):
     preferred_name: Mapped[str | None] = mapped_column(info=_FLAG)
     gender: Mapped[str | None] = enum_column()
     birth_on: Mapped[date | None] = mapped_column(info=_FLAG)
-    # A birth date first entered through the portal: kept, and flagged until staff confirm or change it.
+    # A birth date the person typed online (sign-up, guest checkout, portal): flagged until staff confirm it once.
     is_birth_on_unverified: Mapped[bool] = mapped_column(server_default=text("false"))
+    age_confirmed_at: Mapped[datetime | None]  # staff saw ID (in person or a photo); nothing about it is kept
+    age_confirmed_by_staff_user_id: Mapped[UUID | None]
     organization_name: Mapped[str | None]
     phone_mobile: Mapped[str | None] = mapped_column(info=_FLAG)
     phone_home: Mapped[str | None] = mapped_column(info=_FLAG)

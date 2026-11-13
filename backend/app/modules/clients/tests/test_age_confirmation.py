@@ -4,9 +4,11 @@ needs a birth date the person declares true; a self-typed date is always flagged
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import update
+from sqlalchemy import select, update
 
+from app.core.audit import AuditEvent
 from app.core.auth import system_principal
+from app.core.events import OutboxEvent
 from app.core.db.session import tenant_session
 from app.modules.clients.models import Client
 from app.modules.engagement.tests.test_portal_entry import SIGNUPS, public, settings
@@ -14,7 +16,7 @@ from app.modules.programs.tests.test_checkout import online as online_program
 from app.modules.programs.tests.test_guest_checkout import GUEST, allow_guests, guest_clients, keyed, start
 from app.modules.rentals.tests.test_rentals import portal_client
 from app.modules.scheduling.tests.helpers import API, facility, ok
-from conftest import link_token, new_client
+from conftest import add_staff, link_token, login, new_client
 
 ADULT = "1990-01-02"
 CHILD = "2021-03-01"
@@ -32,6 +34,24 @@ def staff_view(client, owner, client_id: str) -> dict:
 def flagged(tenant, client_id) -> bool:
     with tenant_session(tenant.id) as session:
         return session.get(Client, client_id).is_birth_on_unverified
+
+
+def self_declared(client, owner, tenant, f, birth_on: str | None = ADULT) -> str:
+    """A record whose birth date the person typed online (as sign-up leaves it)."""
+    who = new_client(client, owner, f.location, **({"birth_on": birth_on} if birth_on else {}))["id"]
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        session.execute(update(Client).where(Client.id == who).values(is_birth_on_unverified=birth_on is not None))
+    return who
+
+
+def confirm(client, headers, who: str, **body):
+    return client.post(f"{API}/clients/{who}/age-confirmation", headers=headers, json=body)
+
+
+def confirmed_events(tenant, who) -> int:
+    with tenant_session(tenant.id) as session:
+        return len(session.scalars(select(OutboxEvent).where(
+            OutboxEvent.event_type == "clients.client.age_confirmed", OutboxEvent.aggregate_id == who)).all())  # fmt: skip
 
 
 def dependant(client, portal, **extra):
@@ -91,3 +111,57 @@ def test_merge_carries_the_flag_with_a_backfilled_birth_date(client, owner, tena
 def test_a_staff_entered_date_on_a_staff_record_counts_as_confirmed(client, owner, f):
     seen = new_client(client, owner, f.location, birth_on=ADULT)
     assert seen["is_birth_on_unverified"] is False
+
+
+# --- item 2: staff confirm age once ---------------------------------------------------------------------------------
+
+
+def test_staff_confirm_an_unchanged_date_audited_flag_only_and_the_event_fires_once(client, owner, tenant, f):
+    who = self_declared(client, owner, tenant, f)
+    assert staff_view(client, owner, who)["age_confirmed"] is False
+    done = ok(confirm(client, owner, who), 200)
+    assert (done["birth_on"], done["is_birth_on_unverified"], done["age_confirmed"]) == (ADULT, False, True)
+    assert done["age_confirmed_at"] and done["age_confirmed_by_staff_user_id"]
+    with tenant_session(tenant.id) as session:
+        record = session.scalars(select(AuditEvent).where(
+            AuditEvent.entity_id == who, AuditEvent.action == "clients.client.confirm_age")).one()  # fmt: skip
+    assert record.changes["is_birth_on_unverified"] == [True, False] and "birth_on" not in record.changes
+    assert ADULT not in str(record.changes)  # PII flag-only; no document detail exists to store
+    assert confirmed_events(tenant, who) == 1
+    ok(confirm(client, owner, who), 200)  # seeing the ID again is harmless and announces nothing new
+    assert confirmed_events(tenant, who) == 1
+
+
+def test_staff_may_correct_the_date_while_confirming(client, owner, tenant, f):
+    who = self_declared(client, owner, tenant, f)
+    done = ok(confirm(client, owner, who, birth_on="1991-04-05"), 200)
+    assert (done["birth_on"], done["age_confirmed"]) == ("1991-04-05", True)
+    with tenant_session(tenant.id) as session:
+        record = session.scalars(select(AuditEvent).where(
+            AuditEvent.entity_id == who, AuditEvent.action == "clients.client.confirm_age")).one()  # fmt: skip
+    assert record.changes["birth_on"] is True
+
+
+def test_confirming_needs_a_date(client, owner, tenant, f):
+    who = self_declared(client, owner, tenant, f, birth_on=None)
+    refused = confirm(client, owner, who)
+    assert (refused.status_code, refused.json()["code"]) == (422, "birth-date-required")
+
+
+def test_a_staff_save_of_a_new_date_confirms_it_and_fires_the_event(client, owner, tenant, f):
+    who = self_declared(client, owner, tenant, f)
+    seen = ok(client.patch(f"{API}/clients/{who}", headers=owner, json={"birth_on": "1990-01-03"}), 200)
+    assert (seen["is_birth_on_unverified"], seen["age_confirmed"]) == (False, True)
+    assert confirmed_events(tenant, who) == 1
+
+
+def test_confirm_age_has_its_own_key_and_stays_in_location_scope(client, owner, tenant, f):
+    who = self_declared(client, owner, tenant, f)
+    coach = login(client, tenant, add_staff(tenant, "coach", all_locations=True)[0])
+    assert confirm(client, coach, who).status_code == 403
+    elsewhere = ok(client.post(f"{API}/locations", headers=owner, json={
+        "name": f"Elsewhere {uuid4().hex[:4]}", "time_zone": "America/Chicago", "country_code": "US"}))["id"]  # fmt: skip
+    away = login(client, tenant, add_staff(tenant, "front_desk", location_ids=[elsewhere])[0])
+    assert confirm(client, away, who).status_code == 404
+    desk = login(client, tenant, add_staff(tenant, "front_desk", location_ids=[f.location])[0])
+    assert ok(confirm(client, desk, who), 200)["age_confirmed"] is True

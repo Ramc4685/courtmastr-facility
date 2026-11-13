@@ -21,6 +21,15 @@ class ClientUpdated(Event):
     client_id: UUID
 
 
+class ClientAgeConfirmed(Event):
+    """Staff confirmed the client's birth date once (owner decision 2026-11-13). Building control issues an entry
+    code it held for this client; there is no reverse event, because a confirmed date is never self-edited."""
+
+    aggregate_type: ClassVar[str] = "client"
+    type: Literal["clients.client.age_confirmed"] = "clients.client.age_confirmed"
+    client_id: UUID
+
+
 class ClientDisabled(Event):
     aggregate_type: ClassVar[str] = "client"
     type: Literal["clients.client.disabled"] = "clients.client.disabled"

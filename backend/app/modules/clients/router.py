@@ -75,6 +75,15 @@ def enable_client(client_id: UUID, ctx: Annotated[Ctx, Depends(require("clients.
     return _view(ctx, service.enable_client(ctx.session, ctx.principal, client_id))
 
 
+@router.post("/clients/{client_id}/age-confirmation", response_model=s.ClientOut)
+def confirm_client_age(
+    client_id: UUID, body: s.AgeConfirmation, ctx: Annotated[Ctx, Depends(require(service.CONFIRM_AGE))]
+):
+    """Staff confirm a self-declared birth date once (ID seen in person or by photo); after that entry is
+    self-service. Clears the flag even when the date is unchanged. Errors: birth-date-required."""
+    return _view(ctx, service.confirm_age(ctx.session, ctx.principal, client_id, body.model_dump(exclude_unset=True)))
+
+
 @router.get("/clients/{client_id}/emergency-contacts", response_model=s.EmergencyContactsOut)
 def get_client_emergency_contacts(
     client_id: UUID, ctx: Annotated[Ctx, Depends(require("clients.client.read_sensitive"))]

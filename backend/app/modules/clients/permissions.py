@@ -28,6 +28,8 @@ register(
     _p("client.merge", "Merge duplicate clients", "D", _AD_MG),
     _p("client.export", "Export clients", "X", _AD),
     _p("client.assign_owner", "Assign default trainer and salesperson", "W", _AD_MG),
+    # Owner decision 2026-11-13 ("Staff confirm once"): ID seen at the client's home location, nothing kept.
+    Permission("clients.client.confirm_age", Scope.LOCATION, "Confirm a client's age", (), _DESK),
     _p("relationship.manage", "Manage relationships", "", _DESK_LM),
     _p("activity.read", "View notes and activity", "", _ACTIVITY, own=True),
     _p("activity.write", "Add notes and activity", "", _ACTIVITY, own=True),

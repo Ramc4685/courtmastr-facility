@@ -103,7 +103,10 @@ class ClientOut(ClientListItem):
 
     gender: str | None
     birth_on: date | None
-    is_birth_on_unverified: bool = False  # first entered through the portal; staff confirm by saving a birth date
+    is_birth_on_unverified: bool = False  # self-declared online; waits for staff to confirm it once
+    age_confirmed: bool = False  # a birth date staff entered or confirmed (clients.service.is_age_confirmed)
+    age_confirmed_at: datetime | None = None
+    age_confirmed_by_staff_user_id: UUID | None = None
     organization_name: str | None
     phone_home: str | None
     phone_work: str | None
@@ -365,6 +368,12 @@ class PortalAccessOut(Out):
 
 class PortalAccessList(Out):
     data: list[PortalAccessOut]
+
+
+class AgeConfirmation(In):
+    """Staff saw the person's ID once. Send the birth date only to correct it; no document detail is taken."""
+
+    birth_on: date | None = None
 
 
 class PortalInvite(In):

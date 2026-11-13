@@ -23,7 +23,7 @@ from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
 from app.core.settings import get_settings
 from app.modules import platform
-from app.modules.clients.events import ClientCreated, ClientDisabled, ClientUpdated
+from app.modules.clients.events import ClientAgeConfirmed, ClientCreated, ClientDisabled, ClientUpdated
 from app.modules.clients.models import (
     Client,
     ClientCategory,
@@ -42,6 +42,7 @@ from app.modules.clients.models import (
 from app.ports import notifications
 
 _READ = "clients.client.read"
+CONFIRM_AGE = "clients.client.confirm_age"
 _SENSITIVE = "clients.client.read_sensitive"
 CONSTRAINT_FIELDS.update(
     {
@@ -133,6 +134,7 @@ def client_view(session: Session, principal: Principal, client: Client) -> dict:
         )
     )
     view["tag_ids"] = list(session.scalars(select(ClientTag.tag_id).where(ClientTag.client_id == client.id)))
+    view["age_confirmed"] = _age_confirmed(client)  # not masked: says nothing of the date itself
     masked = not principal.has(_SENSITIVE)
     if masked:
         view.update(dict.fromkeys(SENSITIVE_FIELDS))
@@ -829,8 +831,11 @@ def apply_update(session: Session, client: Client, data: dict, *, context: str, 
     _check_refs(session, data)
     check_capture(session, context, _policy_values(data, emails, custom), _policy_current(session, client))
     if "birth_on" in data and data["birth_on"] != client.birth_on:
-        # Staff saving a birth date confirms it; one first entered through the portal waits for staff review.
-        client.is_birth_on_unverified = context == "portal"
+        # Staff entering a birth date confirm it; one first entered through the portal waits for staff.
+        if context == "portal":
+            client.is_birth_on_unverified = True
+        else:
+            _mark_age_confirmed(client, actor_staff_id)
     for key, value in data.items():
         setattr(client, key, value)
     if custom is not None:
@@ -855,10 +860,48 @@ def update_client(session: Session, principal: Principal, client_id: UUID, data:
     if data.get("home_location_id") and principal.location_ids is not None:
         if data["home_location_id"] not in principal.location_ids:
             raise ValidationFailed("Unknown location.", pointer="/home_location_id")
+    confirmed = _age_confirmed(client)
     changes = apply_update(session, client, data, context="staff", actor_staff_id=principal.staff_user_id)
     if changes:
         audit.record(session, "clients.client.update", client, location_id=client.home_location_id, changes=changes)
         events.publish(session, ClientUpdated(client_id=client.id), client.id)
+        if not confirmed and _age_confirmed(client):
+            events.publish(session, ClientAgeConfirmed(client_id=client.id), client.id)
+    session.flush()
+    return client
+
+
+# --- age confirmation (owner decision 2026-11-13, "Staff confirm once") --------------------------------------
+
+
+def _age_confirmed(client: Client) -> bool:
+    return client.birth_on is not None and not client.is_birth_on_unverified
+
+
+def _mark_age_confirmed(client: Client, staff_user_id: UUID | None) -> None:
+    client.is_birth_on_unverified = False
+    client.age_confirmed_at, client.age_confirmed_by_staff_user_id = clock.now(), staff_user_id
+
+
+def confirm_age(session: Session, principal: Principal, client_id: UUID, data: dict) -> Client:
+    """Staff saw the person's ID once (in person or a photo): the birth date is confirmed, corrected first when
+    `birth_on` is sent, and the flag clears even when the date is unchanged. Nothing about the document is kept.
+    Errors: birth-date-required (no date on file and none sent)."""
+    client = load(session, principal, client_id, CONFIRM_AGE)
+    authorize(principal, CONFIRM_AGE, location_id=client.home_location_id)
+    _require_live(client)
+    confirmed = _age_confirmed(client)
+    client.birth_on = data.get("birth_on") or client.birth_on
+    if client.birth_on is None:
+        raise ValidationFailed("Enter the birth date shown on the ID.", pointer="/birth_on", code="birth-date-required")
+    _mark_age_confirmed(client, principal.staff_user_id)
+    changes = audit.diff(client)  # birth_on is flag-only (PII); who and when by value
+    client.version += 1
+    client.updated_by_staff_user_id = principal.staff_user_id
+    audit.record(session, CONFIRM_AGE, client, location_id=client.home_location_id, changes=changes)
+    events.publish(session, ClientUpdated(client_id=client.id), client.id)
+    if not confirmed:
+        events.publish(session, ClientAgeConfirmed(client_id=client.id), client.id)
     session.flush()
     return client
 
@@ -1033,6 +1076,13 @@ def resolve(session: Session, client_id: UUID) -> Client:
 
 def display_name(client: Client) -> str:
     return f"{client.first_name} {client.last_name}"
+
+
+def is_age_confirmed(session: Session, client_id: UUID) -> bool:
+    """Internal, the one shared answer for other contexts (building control holds the first entry code on it): a
+    birth date on file that staff entered or confirmed. A self-declared date (`is_birth_on_unverified`) or no date
+    is not confirmed: hold the code until `clients.client.age_confirmed` fires."""
+    return _age_confirmed(get(session, client_id))
 
 
 def is_minor(client: Client, on: date, age_of_majority: int) -> bool:
