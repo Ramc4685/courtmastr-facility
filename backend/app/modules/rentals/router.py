@@ -1,7 +1,7 @@
 """rentals HTTP surface (docs/api/openapi-core.yaml, tag rentals). Not routed: updateRental (P1; move a rental
 on the calendar instead; see README)."""
 
-from datetime import date
+from datetime import date, time
 from typing import Annotated
 from uuid import UUID
 
@@ -151,11 +151,13 @@ def list_public_rental_types(session: Public):
 @public.get("/public/rental-availability", response_model=s.Page[s.RentalSlot])
 def search_rental_availability(
     session: Public, rental_type_id: UUID, on: Annotated[date, Query(alias="on")], length_min: int | None = None,
-    resource_id: UUID | None = None, limit: Annotated[int, Query(ge=1, le=200)] = 200,
+    resource_id: UUID | None = None, from_time: time | None = None, to_time: time | None = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 200, cursor: str | None = None,
 ):  # fmt: skip
-    """Advisory: the hold insert at checkout decides. One page of at most `limit` slots for the day."""
-    slots = service.search_availability(session, rental_type_id, on, length_min=length_min, resource_id=resource_id)
-    return {"data": slots[:limit], "page": {"next_cursor": None, "has_more": len(slots) > limit}}
+    """Advisory: the hold insert at checkout decides. The day's slots by court, in keyset pages."""
+    slots = service.search_availability(session, rental_type_id, on, length_min=length_min, resource_id=resource_id,
+                                        from_time=from_time, to_time=to_time)  # fmt: skip
+    return service.slot_page(slots, limit, cursor)
 
 
 @staff.get("/locations/{location_id}/rental-portal-settings", response_model=s.RentalPortalSettingsOut)
@@ -173,13 +175,14 @@ def put_rental_portal_settings(location_id: UUID, body: s.RentalPortalSettings, 
            dependencies=[Depends(rate_limit("portal-availability"))])  # fmt: skip
 def search_portal_rental_availability(
     ctx: Client, client_id: UUID, rental_type_id: UUID, on: Annotated[date, Query(alias="on")],
-    length_min: int | None = None, resource_id: UUID | None = None, limit: Annotated[int, Query(ge=1, le=200)] = 200,
+    length_min: int | None = None, resource_id: UUID | None = None, from_time: time | None = None,
+    to_time: time | None = None, limit: Annotated[int, Query(ge=1, le=200)] = 200, cursor: str | None = None,
 ):  # fmt: skip
     """The open times priced for the client who will hold the rental: member prices, as the checkout charges."""
-    slots = service.portal_availability(
-        ctx.session, ctx.principal, client_id, rental_type_id, on, length_min=length_min, resource_id=resource_id
-    )
-    return {"data": slots[:limit], "page": {"next_cursor": None, "has_more": len(slots) > limit}}
+    slots = service.portal_availability(ctx.session, ctx.principal, client_id, rental_type_id, on,
+                                        length_min=length_min, resource_id=resource_id, from_time=from_time,
+                                        to_time=to_time)  # fmt: skip
+    return service.slot_page(slots, limit, cursor)
 
 
 @staff.get("/portal/rentals", response_model=s.Page[s.PortalRentalOut])

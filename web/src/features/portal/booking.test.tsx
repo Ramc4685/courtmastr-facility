@@ -131,6 +131,35 @@ describe('Portal booking and buying', { timeout: 20_000 }, () => {
     expect(confirms[0]?.headers['idempotency-key']).toBeTruthy()
   })
 
+  it('offers the whole day by court, narrows by court and time of day, and loads more times on request', async () => {
+    const type = { id: 'rt1', name: 'Court rental', location_id: 'l1', min_length_min: 60, max_length_min: 60, default_length_min: 60, slot_granularity_min: 60, min_lead_min: 0, horizon_days: null, online_description: null, cancel_cutoff_hours: null, late_cancel_fee_pct: null,
+      resources: [{ id: 'res1', name: 'Court 1' }, { id: 'res2', name: 'Court 2' }] }
+    const slot = (res: string, name: string, startsAt: string, price: number) => ({ resource_id: res, resource_name: name, starts_at: startsAt, ends_at: startsAt, price_minor: price, is_member_price: false })
+    const calls = open('/portal/bookings', {
+      'GET /api/v1/portal/rentals': page([]),
+      'GET /api/v1/public/rental-types': { status: 200, body: [type] },
+      'GET /api/v1/portal/rental-availability': (call) =>
+        call.url.includes('cursor=n1')
+          ? page([slot('res2', 'Court 2', '2031-05-07T02:00:00Z', 3000)])
+          : { status: 200, body: { data: [slot('res1', 'Court 1', '2031-05-06T15:00:00Z', 2400), slot('res2', 'Court 2', '2031-05-06T15:00:00Z', 2400)], page: { next_cursor: 'n1', has_more: true } } },
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'Book a rental' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Book a rental' })
+    const court2 = await within(dialog).findByRole('group', { name: 'Court 2' })
+    expect(within(dialog).getByRole('group', { name: 'Court 1' })).toBeInTheDocument()
+    expect(within(court2).getAllByRole('button')).toHaveLength(1)
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Show more times' }))
+    await waitFor(() => expect(within(court2).getAllByRole('button')).toHaveLength(2))
+    expect(within(court2).getByRole('button', { name: /9:00 PM.*\$30\.00/ })).toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'Show more times' })).toBeNull()
+    const first = calls.find((c) => c.url.includes('/portal/rental-availability'))?.url ?? ''
+    expect(first).not.toContain('limit=')
+    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Court' }), 'res2')
+    await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Time of day' }), 'evening')
+    await waitFor(() => expect(calls.at(-1)?.url).toContain('from_time=17%3A00'))
+    expect(calls.at(-1)?.url).toContain('resource_id=res2')
+  })
+
   it('keys the holder on the server\'s adult flag: a child the parent added (manager) still plays, never holds', async () => {
     const type = { id: 'rt1', name: 'Court rental', location_id: 'l1', min_length_min: 60, max_length_min: 60, default_length_min: 60, slot_granularity_min: 60, min_lead_min: 0, horizon_days: null, resources: [], online_description: null, cancel_cutoff_hours: null, late_cancel_fee_pct: null }
     const calls = open('/portal/bookings', {
@@ -144,7 +173,7 @@ describe('Portal booking and buying', { timeout: 20_000 }, () => {
     const dialog = await screen.findByRole('dialog', { name: 'Book a rental' })
     expect(dialog).toHaveAccessibleDescription('Booking for Morgan.')
     expect(within(dialog).getByRole('checkbox', { name: 'Kit' })).toBeChecked()
-    await within(dialog).findByText('No open times on this date. Try another day.')
+    await within(dialog).findByText('No open times for this choice. Try another day, court or time of day.')
     expect(calls.find((c) => c.url.includes('/portal/rental-availability'))?.url).toContain('client_id=c1')
   })
 

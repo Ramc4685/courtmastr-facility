@@ -3,7 +3,9 @@ staff, portal and recurring rentals), and the minors rule (a minor never holds a
 names the children who play)."""
 
 from datetime import UTC, datetime, timedelta
+from itertools import groupby
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlalchemy import select, update
@@ -181,6 +183,43 @@ def test_open_times_read_membership_once_per_request(client, owner, tenant, f, m
     query = f"rental_type_id={f.rtype}&on=2031-05-05&length_min=60&client_id={me}"
     slots = ok(client.get(f"{API}/portal/rental-availability?{query}", headers=portal), 200)["data"]
     assert len(slots) > 10 and len(calls) == 1  # every slot of the day, one membership read
+
+
+def _local_hour(slot: dict) -> int:
+    return datetime.fromisoformat(slot["starts_at"]).astimezone(ZoneInfo("America/Chicago")).hour
+
+
+def test_open_times_cover_the_whole_day_grouped_by_court_in_pages_never_truncated(client, owner, tenant, f):
+    me, portal = portal_member(client, owner, tenant, f)
+    url = f"{API}/portal/rental-availability?rental_type_id={f.rtype}&on=2031-05-05&length_min=60&client_id={me}"
+    whole = ok(client.get(url, headers=portal), 200)
+    assert not whole["page"]["has_more"] and whole["page"]["next_cursor"] is None
+    courts = [s["resource_id"] for s in whole["data"]]
+    assert [k for k, _ in groupby(courts)] == sorted(set(courts), key=courts.index)  # one run per court
+    assert len(set(courts)) == 2 and max(_local_hour(s) for s in whole["data"]) >= 21  # the evening is there
+    paged, cursor = [], ""
+    while True:
+        page = ok(client.get(f"{url}&limit=7{cursor}", headers=portal), 200)
+        paged += page["data"]
+        if not page["page"]["has_more"]:
+            break
+        cursor = f"&cursor={page['page']['next_cursor']}"
+    assert paged == whole["data"]  # keyset pages add up to the whole day, nothing dropped or repeated
+    assert client.get(f"{url}&cursor=not-a-cursor", headers=portal).status_code == 400
+
+
+def test_open_times_narrow_to_a_court_and_a_time_band(client, owner, tenant, f):
+    me, portal = portal_member(client, owner, tenant, f)
+    query = f"rental_type_id={f.rtype}&on=2031-05-05&length_min=60&from_time=18:00&to_time=22:00"
+    public = ok(client.get(f"{API}/public/rental-availability?{query}", headers={"X-Tenant-Slug": tenant.slug}), 200)
+    assert {_local_hour(s) for s in public["data"]} == {18, 19, 20, 21}  # starts in the band, both courts
+    assert {s["resource_id"] for s in public["data"]} == {f.court, f.court2}
+    mine = ok(client.get(f"{API}/portal/rental-availability?{query}&client_id={me}&resource_id={f.court2}",
+                         headers=portal), 200)["data"]  # fmt: skip
+    assert [_local_hour(s) for s in mine] == [18, 19, 20, 21] and {s["resource_id"] for s in mine} == {f.court2}
+    backwards = client.get(f"{API}/public/rental-availability?rental_type_id={f.rtype}&on=2031-05-05"
+                           "&from_time=20:00&to_time=18:00", headers={"X-Tenant-Slug": tenant.slug})  # fmt: skip
+    assert backwards.status_code == 422 and backwards.json()["errors"][0]["pointer"] == "/to_time"
 
 
 def test_a_membership_that_lapses_after_the_quote_the_charge_wins(client, owner, tenant, f):

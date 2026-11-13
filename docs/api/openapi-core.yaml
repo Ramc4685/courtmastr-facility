@@ -3977,7 +3977,9 @@ paths:
       tags: [rentals]
       summary: Bookable slots for a rental type on a local date
       description: 'Gaps between holds inside facility hours, availability windows and blackouts; starts snap to slot_granularity_min,
-        lengths obey min/max, lead time obeys min_lead_min. Advisory only: the hold insert at checkout is the truth.'
+        lengths obey min/max, lead time obeys min_lead_min. Advisory only: the hold insert at checkout is the truth.
+        The whole local day (or the from_time/to_time band), ordered by court then start, in keyset pages of at most
+        `limit` (default and maximum 200): follow page.next_cursor while page.has_more; nothing is cut off silently.'
       x-priority: P0
       x-permission: public
       x-features: [RNT-06, RNT-05, RES-02]
@@ -3998,10 +4000,19 @@ paths:
       - name: resource_id
         in: query
         schema: {type: string, format: uuid}
-      - {$ref: '#/components/parameters/Limit'}
+      - name: from_time
+        in: query
+        schema: {type: string, format: time, example: '18:00'}
+        description: Location-local time; only slots starting at or after it
+      - name: to_time
+        in: query
+        schema: {type: string, format: time, example: '22:00'}
+        description: Location-local time; only slots starting before it. Must be after from_time; equal or earlier is 422 at /to_time
+      - name: limit
+        in: query
+        description: Page size
+        schema: {type: integer, default: 200, minimum: 1, maximum: 200}
       - {$ref: '#/components/parameters/Cursor'}
-      - {$ref: '#/components/parameters/Sort'}
-      - {$ref: '#/components/parameters/Include'}
       responses:
         '200':
           description: OK (guest prices; signed-in members use searchPortalRentalAvailability)
@@ -4015,6 +4026,7 @@ paths:
                     type: array
                     items: {$ref: '#/components/schemas/RentalSlot'}
                   page: {$ref: '#/components/schemas/PageInfo'}
+        '400': {$ref: '#/components/responses/BadRequest'}
         '422': {$ref: '#/components/responses/ValidationFailed'}
         '429': {$ref: '#/components/responses/RateLimited'}
         default: {$ref: '#/components/responses/Problem'}
@@ -4025,7 +4037,8 @@ paths:
       summary: Bookable slots priced for the client who will hold the rental
       description: 'The public search priced for `client_id` (self or a client the identity holds direct access to): member
         prices from the same pricing function as the checkout charge, membership read on the slot''s local date. Advisory
-        only; a membership that lapses before checkout is charged the guest price, which the checkout quote shows.'
+        only; a membership that lapses before checkout is charged the guest price, which the checkout quote shows. Same
+        day coverage, band, court order and keyset pages as searchRentalAvailability.'
       x-priority: P0
       x-permission: client:can_act_for
       x-features: [RNT-06, RNT-02]
@@ -4049,7 +4062,19 @@ paths:
       - name: resource_id
         in: query
         schema: {type: string, format: uuid}
-      - {$ref: '#/components/parameters/Limit'}
+      - name: from_time
+        in: query
+        schema: {type: string, format: time, example: '18:00'}
+        description: Location-local time; only slots starting at or after it
+      - name: to_time
+        in: query
+        schema: {type: string, format: time, example: '22:00'}
+        description: Location-local time; only slots starting before it. Must be after from_time; equal or earlier is 422 at /to_time
+      - name: limit
+        in: query
+        description: Page size
+        schema: {type: integer, default: 200, minimum: 1, maximum: 200}
+      - {$ref: '#/components/parameters/Cursor'}
       responses:
         '200':
           description: OK
@@ -4063,6 +4088,7 @@ paths:
                     type: array
                     items: {$ref: '#/components/schemas/PortalRentalSlot'}
                   page: {$ref: '#/components/schemas/PageInfo'}
+        '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthenticated'}
         '403': {$ref: '#/components/responses/PermissionDenied'}
         '404': {$ref: '#/components/responses/NotFound'}

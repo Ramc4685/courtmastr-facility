@@ -78,7 +78,13 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
   provider `unknown` keeps the hold; `billing.invoice.paid` confirms it only when the whole invoice is paid.
 - Public availability is anonymous and quotes guest prices; the portal's `GET /portal/rental-availability`
   quotes the signed-in client's member prices, reading membership once per date per request (not per slot), behind
-  the `portal-availability` rate-limit bucket (60 a minute per IP). Both return one page of at most 200 slots. The
+  the `portal-availability` rate-limit bucket (60 a minute per IP). Both cover the whole local day for the chosen
+  court (`resource_id`) and time-of-day band (`from_time` inclusive, `to_time` exclusive, by slot start; a band
+  that ends at or before its start is 422 at `/to_time`; times are local wall clock, any offset is ignored),
+  ordered by court then start, in keyset pages of up to 200 (`cursor` from `page.next_cursor`; a bad cursor is
+  400): nothing is cut off silently. The slots are computed per request and paged in
+  memory, so the cursor (court name, court id, start) is stable only while the day's holds do not change; a booking
+  between pages can drop a slot, never repeat one. The portal shows "Show more times" while `has_more`. The
   past-due lockout covers portal POSTs only: a locked-out payer still sees open times and is refused at checkout.
 - Reads of types, rates and plans are `authenticated` (location containment only), as the contract says.
 - Internal functions added to other contexts (additive): `scheduling.service.template_for`, `book`,

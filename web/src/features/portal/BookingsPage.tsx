@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTermsGate } from '../entry/FacilityApp'
 import { useState } from 'react'
 import { api, type Schemas } from '../../api/client'
@@ -23,6 +23,27 @@ const useRentalTypes = () => useQuery({ queryKey: ['portal', 'rental-types'], qu
 
 function timeIn(iso: string, timeZone?: string) {
   return new Intl.DateTimeFormat(undefined, { timeStyle: 'short', timeZone }).format(new Date(iso))
+}
+
+type Slot = Schemas['PortalRentalSlot']
+
+// Location-local bands for the open-times search; prime time sits in the evening.
+const BANDS: { value: string; label: string; from_time?: string; to_time?: string }[] = [
+  { value: 'any', label: 'Any time' },
+  { value: 'morning', label: 'Morning (before noon)', to_time: '12:00' },
+  { value: 'afternoon', label: 'Afternoon (noon to 5 pm)', from_time: '12:00', to_time: '17:00' },
+  { value: 'evening', label: 'Evening (from 5 pm)', from_time: '17:00' },
+]
+
+/** Slots arrive ordered by court then start; keep that order and group them per court. */
+function byCourt(slots: Slot[]) {
+  const groups = new Map<string, { name: string; slots: Slot[] }>()
+  for (const s of slots) {
+    const group = groups.get(s.resource_id) ?? { name: s.resource_name, slots: [] }
+    group.slots.push(s)
+    groups.set(s.resource_id, group)
+  }
+  return [...groups.entries()]
 }
 
 const span = (m: number) => (m % 60 ? `${m} minutes` : `${m / 60} hour${m > 60 ? 's' : ''}`)
@@ -129,13 +150,23 @@ function BookRentalDialog({ onClose }: { onClose: () => void }) {
   const [result, setResult] = useState<Checkout | null>(null)
   const attempt = useAttemptKey()
 
-  const slots = useQuery({
-    queryKey: ['portal', 'availability', holder.id, type?.id, on, minutes],
-    queryFn: () => api.get('/api/v1/portal/rental-availability', { query: { client_id: holder.id, rental_type_id: type?.id ?? '', on, length_min: minutes, limit: 60 } }),
+  const [court, setCourt] = useState('')
+  const [bandValue, setBandValue] = useState('any')
+  const band = BANDS.find((b) => b.value === bandValue)
+  // The whole day for the chosen court and band, page by page: never silently cut off (the server pages by court).
+  const slots = useInfiniteQuery({
+    queryKey: ['portal', 'availability', holder.id, type?.id, on, minutes, court, bandValue],
+    queryFn: ({ pageParam }) =>
+      api.get('/api/v1/portal/rental-availability', {
+        query: { client_id: holder.id, rental_type_id: type?.id ?? '', on, length_min: minutes, resource_id: court || undefined, from_time: band?.from_time, to_time: band?.to_time, cursor: pageParam },
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => (last.page.has_more ? (last.page.next_cursor ?? undefined) : undefined),
     enabled: Boolean(type && on && holder.is_adult),
   })
+  const openTimes = slots.data?.pages.flatMap((p) => p.data) ?? []
   const hold = useMutation({
-    mutationFn: (slot: Schemas['PortalRentalSlot']) => {
+    mutationFn: (slot: Slot) => {
       setQuoted(slot.price_minor)
       return api.post('/api/v1/portal/rentals', { body: { client_id: holder.id, rental_type_id: type?.id ?? '', resource_id: slot.resource_id, starts_at: slot.starts_at, ends_at: slot.ends_at, player_client_ids: players }, idempotencyKey: attempt.key })
     },
@@ -187,9 +218,19 @@ function BookRentalDialog({ onClose }: { onClose: () => void }) {
     return (
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-3">
-          <Select label="Rental" value={type.id} onChange={(e) => setTypeId(e.target.value)} options={types.data.map((t) => ({ value: t.id, label: locations.length > 1 ? `${t.name} (${locations.find((l) => l.id === t.location_id)?.public_name ?? ''})` : t.name }))} />
+          <Select
+            label="Rental"
+            value={type.id}
+            onChange={(e) => {
+              setTypeId(e.target.value)
+              setCourt('')
+            }}
+            options={types.data.map((t) => ({ value: t.id, label: locations.length > 1 ? `${t.name} (${locations.find((l) => l.id === t.location_id)?.public_name ?? ''})` : t.name }))}
+          />
           <Input label="Date" type="date" value={on} min={todayIn(zone)} max={type.horizon_days ? addDays(todayIn(zone), type.horizon_days) : undefined} onChange={(e) => setOn(e.target.value)} />
           <Select label="Length" value={String(minutes)} onChange={(e) => setLength(Number(e.target.value))} options={lengths.map((m) => ({ value: String(m), label: span(m) }))} />
+          <Select label="Court" value={court} onChange={(e) => setCourt(e.target.value)} options={[{ value: '', label: 'All courts' }, ...type.resources.map((r) => ({ value: String(r.id), label: String(r.name) }))]} />
+          <Select label="Time of day" value={bandValue} onChange={(e) => setBandValue(e.target.value)} options={BANDS.map((b) => ({ value: b.value, label: b.label }))} />
         </div>
         {type.online_description && <p className="text-sm text-muted">{type.online_description}</p>}
         <p className="text-sm text-muted">{bookingLimits(type)}</p>
@@ -223,31 +264,46 @@ function BookRentalDialog({ onClose }: { onClose: () => void }) {
         <FormError error={hold.error} />
         <fieldset>
           <legend className="mb-2 text-sm font-medium">Available times{zone ? ` (${zone.replace(/_/g, ' ')})` : ''}</legend>
-          {slots.data?.data.some((s) => s.is_member_price) && (
+          {openTimes.some((s) => s.is_member_price) && (
             <p className="mb-2 text-sm text-muted">Member prices are for your membership on the day you play, checked again when you book.</p>
           )}
           {slots.isPending ? (
             <LoadingState label="Finding open times" />
           ) : slots.isError ? (
             <ErrorState error={slots.error} onRetry={() => slots.refetch()} />
-          ) : slots.data.data.length === 0 ? (
-            <p className="text-muted">No open times on this date. Try another day.</p>
+          ) : openTimes.length === 0 ? (
+            <p className="text-muted">No open times for this choice. Try another day, court or time of day.</p>
           ) : (
-            <ul className="grid gap-2 sm:grid-cols-2">
-              {slots.data.data.map((s) => (
-                <li key={`${s.resource_id}-${s.starts_at}`}>
-                  <Button variant="secondary" className="w-full justify-between" disabled={hold.isPending} onClick={() => hold.mutate(s)}>
-                    <span>
-                      {timeIn(s.starts_at, zone)} · {s.resource_name}
-                    </span>
-                    <span>
-                      {money(s.price_minor)}
-                      {s.is_member_price && <span className="ml-1 text-xs text-muted">member price</span>}
-                    </span>
-                  </Button>
-                </li>
+            <div className="space-y-4">
+              {byCourt(openTimes).map(([id, group]) => (
+                <div key={id} role="group" aria-labelledby={`court-${id}`}>
+                  <h3 id={`court-${id}`} className="mb-2 text-sm font-semibold">
+                    {group.name}
+                  </h3>
+                  <ul className="grid gap-2 sm:grid-cols-3">
+                    {group.slots.map((s) => (
+                      <li key={s.starts_at}>
+                        <Button variant="secondary" className="w-full justify-between" disabled={hold.isPending} onClick={() => hold.mutate(s)}>
+                          <span>
+                            {timeIn(s.starts_at, zone)}
+                            <span className="sr-only"> · {s.resource_name}</span>
+                          </span>
+                          <span>
+                            {money(s.price_minor)}
+                            {s.is_member_price && <span className="ml-1 text-xs text-muted">member price</span>}
+                          </span>
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+              {slots.hasNextPage && (
+                <Button variant="secondary" loading={slots.isFetchingNextPage} onClick={() => void slots.fetchNextPage()}>
+                  Show more times
+                </Button>
+              )}
+            </div>
           )}
         </fieldset>
       </div>

@@ -9,6 +9,8 @@ functions only: post_charge (idempotent by source), reverse, create_invoice_for_
 take_payment.
 """
 
+import base64
+import json
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
@@ -21,7 +23,7 @@ from sqlalchemy.orm import Session as Db
 from app.core import audit, clock, dates, events
 from app.core.api import CONSTRAINT_CODES
 from app.core.auth import Principal, authorize, scope_query
-from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
+from app.core.errors import Conflict, DomainError, NotFound, PermissionDenied, ValidationFailed
 from app.core.ids import new_id
 from app.core.jobs import tenant_actor
 from app.core.pagination import ListQuery, paginate
@@ -1394,10 +1396,15 @@ def search_availability(
     length_min: int | None = None,
     resource_id: UUID | None = None,
     client_id: UUID | None = None,
+    from_time: time | None = None,
+    to_time: time | None = None,
 ) -> list[dict]:
     """Advisory slots (RNT-06): free ranges of the type's resources on a local date, snapped to the grid,
     with room for the type's buffers, priced with the online rate for `client_id` (anonymous: the guest
-    price) through the same `_price_for` as the charge. The hold insert at checkout decides."""
+    price) through the same `_price_for` as the charge. The hold insert at checkout decides. The whole day,
+    or the slots starting in the local band [from_time, to_time), grouped by court then start."""
+    if from_time and to_time and to_time <= from_time:
+        raise ValidationFailed("The band must end after it starts.", pointer="/to_time")
     rtype = _online_type(session, type_id)
     limits = _limits(session, rtype)
     length = length_min or rtype.default_length_min or rtype.min_length_min
@@ -1410,6 +1417,8 @@ def search_availability(
     zone = _zone(session, rtype.location_id)
     start = datetime.combine(on, time(0), zone)
     end = datetime.combine(on + timedelta(days=1), time(0), zone)
+    band_from = datetime.combine(on, from_time, zone) if from_time else start
+    band_to = datetime.combine(on, to_time, zone) if to_time else end
     free = scheduling.service.free_ranges(session, rtype.location_id, start, end, resource_ids=ids)
     names = {r.id: r.name for r in resources.service.get_many(session, ids)}
     rate = _rate_input(session, session.get(RentalRate, rtype.online_rental_rate_id))
@@ -1427,7 +1436,7 @@ def search_availability(
             while cursor < gap["starts_at"] + before:
                 cursor += step
             while cursor + timedelta(minutes=length) + after <= gap["ends_at"]:
-                if cursor >= earliest and (latest is None or cursor < latest):
+                if max(earliest, band_from) <= cursor < band_to and (latest is None or cursor < latest):
                     finish = cursor + timedelta(minutes=length)
                     occurrence = pricing.Occurrence(0, cursor, finish, (column["resource_id"],))
                     lines = _price_for(session, rate, [occurrence], client_id, status=member_status)
@@ -1440,7 +1449,29 @@ def search_availability(
                         }
                     )  # fmt: skip
                 cursor += step
-    return sorted(slots, key=lambda s: (s["starts_at"], s["resource_name"]))
+    return sorted(slots, key=_slot_key)
+
+
+def _slot_key(slot: dict) -> tuple:
+    return slot["resource_name"], str(slot["resource_id"]), slot["starts_at"]
+
+
+def slot_page(slots: list[dict], limit: int, cursor: str | None) -> dict:
+    """Keyset page over the day's slots (court, then start), so nothing is ever cut off silently."""
+    if cursor:
+        try:
+            name, rid, at = json.loads(base64.urlsafe_b64decode(cursor.encode()))
+            after = (name, rid, datetime.fromisoformat(at))
+        except (ValueError, TypeError):
+            raise DomainError("Invalid cursor", status=400, code="bad-request") from None
+        slots = [s for s in slots if _slot_key(s) > after]
+    page, more = slots[:limit], len(slots) > limit
+    last = _slot_key(page[-1]) if more else None
+    next_cursor = (
+        base64.urlsafe_b64encode(json.dumps([last[0], last[1], last[2].isoformat()]).encode()).decode()
+        if last else None
+    )  # fmt: skip
+    return {"data": page, "page": {"next_cursor": next_cursor, "has_more": more}}
 
 
 def _portal_client(session: Db, principal: Principal, client_id: UUID) -> UUID:

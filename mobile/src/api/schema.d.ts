@@ -13257,7 +13257,7 @@ export interface paths {
         };
         /**
          * Search Rental Availability
-         * @description Advisory: the hold insert at checkout decides. One page of at most `limit` slots for the day.
+         * @description Advisory: the hold insert at checkout decides. The day's slots by court, in keyset pages.
          */
         get: operations["searchRentalAvailability"];
         put?: never;
@@ -70649,7 +70649,10 @@ export interface operations {
                 on: string;
                 length_min?: number | null;
                 resource_id?: string | null;
+                from_time?: string | null;
+                to_time?: string | null;
                 limit?: number;
+                cursor?: string | null;
             };
             header?: {
                 /** @description Optional; keys live 24 hours. */
@@ -76392,7 +76395,10 @@ export interface operations {
                 on: string;
                 length_min?: number | null;
                 resource_id?: string | null;
+                from_time?: string | null;
+                to_time?: string | null;
                 limit?: number;
+                cursor?: string | null;
             };
             header?: never;
             path?: never;

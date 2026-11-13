@@ -133,6 +133,30 @@ def test_a_member_books_court_1_online_and_overlaps_are_refused(client_module, w
             session.flush()
 
 
+def test_a_a_member_picks_an_8_pm_court_from_the_open_times_and_pays(client_module, w):
+    """Prime time is 18:00-22:00: the open times cover the whole day (here narrowed to the evening), every court."""
+    c, day = client_module, MON + timedelta(days=4)
+    query = (f"rental_type_id={w.types['Badminton court']}&on={day.isoformat()}&length_min=60&client_id={w.member}"
+             "&from_time=18:00&to_time=22:00")  # fmt: skip
+    page = ok(c.get(f"{API}/portal/rental-availability?{query}", headers=w.member_portal), 200)
+    assert not page["page"]["has_more"]
+    eight = [
+        s for s in page["data"] if datetime.fromisoformat(s["starts_at"]) == datetime.fromisoformat(at(day, "20:00"))
+    ]
+    assert len(eight) == len({s["resource_id"] for s in page["data"]}) >= 2  # 8 pm is offered on every court
+    slot = eight[-1]
+    assert slot["price_minor"] == 2500 and slot["is_member_price"]  # member prime
+    checkout = ok(c.post(f"{API}/portal/rentals", headers=w.member_portal, json={
+        "rental_type_id": w.types["Badminton court"], "client_id": w.member, "resource_id": slot["resource_id"],
+        "starts_at": slot["starts_at"], "ends_at": slot["ends_at"]}))  # fmt: skip
+    assert checkout["quote"]["subtotal_minor"] == 2500
+    paid = ok(c.post(f"{API}/portal/rentals/{checkout['rental']['id']}/confirm", headers=w.member_portal | key(),
+                     json={"provider_payment_token": "tok_card_ok"}), 200)  # fmt: skip
+    assert paid["rental"]["status"] == "confirmed"
+    again = ok(c.get(f"{API}/portal/rental-availability?{query}", headers=w.member_portal), 200)["data"]
+    assert (slot["resource_id"], slot["starts_at"]) not in {(s["resource_id"], s["starts_at"]) for s in again}
+
+
 # --- b. convertible courts: Court 2 and Court 3 each become one volleyball court ------------------------------
 
 

@@ -139247,6 +139247,40 @@
           },
           {
             "in": "query",
+            "name": "from_time",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From Time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to_time",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To Time"
+            }
+          },
+          {
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -139255,6 +139289,22 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
             }
           },
           {
@@ -150661,7 +150711,7 @@
     },
     "/api/v1/public/rental-availability": {
       "get": {
-        "description": "Advisory: the hold insert at checkout decides. One page of at most `limit` slots for the day.",
+        "description": "Advisory: the hold insert at checkout decides. The day's slots by court, in keyset pages.",
         "operationId": "searchRentalAvailability",
         "parameters": [
           {
@@ -150719,6 +150769,40 @@
           },
           {
             "in": "query",
+            "name": "from_time",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From Time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to_time",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To Time"
+            }
+          },
+          {
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -150727,6 +150811,22 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
             }
           }
         ],
