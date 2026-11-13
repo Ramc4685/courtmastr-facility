@@ -8,6 +8,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import yaml
 from pydantic import BaseModel
+from sqlalchemy.engine import URL, make_url
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -215,9 +216,7 @@ class Settings(BaseModel):
 
     def db_url(self, role: str) -> str:
         """role is owner, app or platform; the password comes from FH_DB_<ROLE>_PASSWORD."""
-        password = os.environ[f"FH_DB_{role.upper()}_PASSWORD"]
-        query = f"?sslmode={self.db.sslmode}" if self.db.sslmode else ""
-        return f"postgresql+psycopg://fh_{role}:{password}@{self.db.host}:{self.db.port}/{self.db.name}{query}"
+        return _postgres_url(self.db, f"fh_{role}", os.environ[f"FH_DB_{role.upper()}_PASSWORD"])
 
     @property
     def operator_token(self) -> str:
@@ -264,13 +263,21 @@ def _redis_unverified(url: str) -> bool:
     return False
 
 
+def _postgres_url(db: Db, user: str, password: str) -> str:
+    query = {"sslmode": db.sslmode} if db.sslmode else {}
+    url = URL.create("postgresql+psycopg", user, password, db.host, db.port, db.name, query)
+    return url.render_as_string(hide_password=False)  # URL.create escapes every part
+
+
 def _refuse_plaintext_backends(settings: "Settings") -> None:
     """security-baseline V9: names, emails and session data cross the network to Postgres and Redis, encrypted
     and to a verified server (Postgres verify-full with PGSSLROOTCERT; Redis with its CA in ssl_ca_certs)."""
+    # Checked on the URL the engine will parse, so nothing in the name, user or host can add a second sslmode.
+    sslmode = make_url(_postgres_url(settings.db, "fh_app", "")).query.get("sslmode")
     if settings.env == STACK_ENV:
-        if settings.db.sslmode not in _TLS_SSLMODES:
+        if sslmode not in _TLS_SSLMODES:
             raise RuntimeError("in the stack, db.sslmode (or FH_DB_SSLMODE) must be require or stricter")
-    elif settings.db.sslmode != "verify-full":
+    elif sslmode != "verify-full":
         raise RuntimeError("outside dev and test, db.sslmode (or FH_DB_SSLMODE) must be verify-full (PGSSLROOTCERT)")
     if urlsplit(settings.redis.url).scheme.casefold() != "rediss":
         raise RuntimeError("outside dev and test, the Redis URL (FH_REDIS_URL) must use TLS: rediss://")

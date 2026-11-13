@@ -335,6 +335,23 @@ def test_production_refuses_plaintext_postgres_and_redis(
         get_settings.__wrapped__()
 
 
+def test_a_database_name_cannot_smuggle_url_parameters_past_the_tls_guard(monkeypatch, tmp_path, deploy_secrets):
+    from sqlalchemy.engine import make_url
+
+    config = (REPO_ROOT / "config" / "app.yaml").read_text().replace("cookie_secure: false", "cookie_secure: true")
+    (tmp_path / "app.yaml").write_text(config)
+    overlay = "email: {log_links: false}\npayments: {provider: none}\nstorage: {scanner: clamd}\n"
+    (tmp_path / "app.prod.yaml").write_text(overlay + "api: {exposed_directly: true}\n")
+    monkeypatch.setenv("FH_CONFIG_DIR", str(tmp_path))
+    monkeypatch.setenv("FH_ENV", "prod")
+    monkeypatch.setenv("FH_PAYMENTS_PROVIDER", "")
+    monkeypatch.setenv("FH_DB_APP_PASSWORD", "p@ss/word?x")
+    monkeypatch.setenv("FH_DB_NAME", "fh?sslmode=disable&application_name=")
+    url = make_url(get_settings.__wrapped__().db_url("app"))
+    assert dict(url.query) == {"sslmode": "verify-full"}
+    assert (url.database, url.password) == ("fh?sslmode=disable&application_name=", "p@ss/word?x")
+
+
 def test_dev_and_test_keep_plain_local_postgres_and_redis():
     settings = get_settings()
     assert settings.db.sslmode is None and "sslmode" not in settings.db_url("app")
