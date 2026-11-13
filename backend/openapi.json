@@ -141504,7 +141504,7 @@
     },
     "/api/v1/program-groups/{program_group_id}": {
       "delete": {
-        "description": "Soft delete of the node and its subtree. Errors: has-registrations, has-guest-holds.",
+        "description": "Soft delete of the node and its subtree. `cancel_guest_holds=true` first abandons the open guest baskets\nholding a place in it (the whole basket; the guest can no longer pay). Errors: has-registrations,\nhas-guest-holds (without the flag, or a guest's payment is in flight).",
         "operationId": "deleteProgramGroup",
         "parameters": [
           {
@@ -141515,6 +141515,16 @@
               "format": "uuid",
               "title": "Program Group Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cancel_guest_holds",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Cancel Guest Holds",
+              "type": "boolean"
             }
           },
           {
@@ -141691,7 +141701,7 @@
     },
     "/api/v1/program-groups/{program_group_id}/archive": {
       "post": {
-        "description": "Errors: invalid-transition, has-guest-holds (a guest basket holds a place in it or its subtree).",
+        "description": "`cancel_guest_holds=true` first abandons the open guest baskets holding a place in it or its subtree. Errors:\ninvalid-transition, has-guest-holds (a guest basket holds a place, without the flag or with a payment in flight).",
         "operationId": "archiveProgramGroup",
         "parameters": [
           {
@@ -141702,6 +141712,16 @@
               "format": "uuid",
               "title": "Program Group Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cancel_guest_holds",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Cancel Guest Holds",
+              "type": "boolean"
             }
           },
           {

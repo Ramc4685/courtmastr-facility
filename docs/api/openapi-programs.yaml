@@ -227,6 +227,9 @@ paths:
       x-permission: programs.program.delete
       x-features: [REG-05]
       security: [{staffSession: []}, {apiKey: []}]
+      parameters:
+        - {name: cancel_guest_holds, in: query, required: false, schema: {type: boolean, default: false},
+           description: Abandon the open guest baskets holding a place in the subtree first (else 409 has-guest-holds).}
       responses:
         '204': {description: No content.}
         '401': {$ref: '#/components/responses/Unauthorized'}
@@ -294,6 +297,9 @@ paths:
       x-permission: programs.program.manage
       x-features: [REG-05]
       security: [{staffSession: []}, {apiKey: []}]
+      parameters:
+        - {name: cancel_guest_holds, in: query, required: false, schema: {type: boolean, default: false},
+           description: Abandon the open guest baskets holding a place in the subtree first (else 409 has-guest-holds).}
       responses:
         '200':
           description: OK.

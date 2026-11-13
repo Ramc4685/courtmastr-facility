@@ -11524,7 +11524,9 @@ export interface paths {
         post?: never;
         /**
          * Delete Program Group
-         * @description Soft delete of the node and its subtree. Errors: has-registrations, has-guest-holds.
+         * @description Soft delete of the node and its subtree. `cancel_guest_holds=true` first abandons the open guest baskets
+         *     holding a place in it (the whole basket; the guest can no longer pay). Errors: has-registrations,
+         *     has-guest-holds (without the flag, or a guest's payment is in flight).
          */
         delete: operations["deleteProgramGroup"];
         options?: never;
@@ -11547,7 +11549,8 @@ export interface paths {
         put?: never;
         /**
          * Archive Program Group
-         * @description Errors: invalid-transition, has-guest-holds (a guest basket holds a place in it or its subtree).
+         * @description `cancel_guest_holds=true` first abandons the open guest baskets holding a place in it or its subtree. Errors:
+         *     invalid-transition, has-guest-holds (a guest basket holds a place, without the flag or with a payment in flight).
          */
         post: operations["archiveProgramGroup"];
         delete?: never;
@@ -72050,7 +72053,9 @@ export interface operations {
     };
     deleteProgramGroup: {
         parameters: {
-            query?: never;
+            query?: {
+                cancel_guest_holds?: boolean;
+            };
             header?: {
                 /** @description Optional; keys live 24 hours. */
                 "idempotency-key"?: string | null;
@@ -72120,7 +72125,9 @@ export interface operations {
     };
     archiveProgramGroup: {
         parameters: {
-            query?: never;
+            query?: {
+                cancel_guest_holds?: boolean;
+            };
             header?: {
                 /** @description Optional; keys live 24 hours. */
                 "idempotency-key"?: string | null;

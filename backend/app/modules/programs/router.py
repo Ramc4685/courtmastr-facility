@@ -164,9 +164,11 @@ def update_program_group(program_group_id: UUID, body: s.ProgramGroupUpdate, ctx
 
 
 @router.delete("/program-groups/{program_group_id}", status_code=204)
-def delete_program_group(program_group_id: UUID, ctx: Ctx = GroupDelete):
-    """Soft delete of the node and its subtree. Errors: has-registrations, has-guest-holds."""
-    groups.delete_group(ctx.session, ctx.principal, program_group_id)
+def delete_program_group(program_group_id: UUID, ctx: Ctx = GroupDelete, cancel_guest_holds: bool = False):
+    """Soft delete of the node and its subtree. `cancel_guest_holds=true` first abandons the open guest baskets
+    holding a place in it (the whole basket; the guest can no longer pay). Errors: has-registrations,
+    has-guest-holds (without the flag, or a guest's payment is in flight)."""
+    groups.delete_group(ctx.session, ctx.principal, program_group_id, cancel_guest_holds=cancel_guest_holds)
     return Response(status_code=204)
 
 
@@ -181,9 +183,11 @@ def complete_program_group(program_group_id: UUID, ctx: Ctx = GroupManage):
 
 
 @router.post("/program-groups/{program_group_id}/archive", response_model=s.ProgramGroupOut)
-def archive_program_group(program_group_id: UUID, ctx: Ctx = GroupManage):
-    """Errors: invalid-transition, has-guest-holds (a guest basket holds a place in it or its subtree)."""
-    return groups.group_view(ctx.session, groups.archive_group(ctx.session, ctx.principal, program_group_id))
+def archive_program_group(program_group_id: UUID, ctx: Ctx = GroupManage, cancel_guest_holds: bool = False):
+    """`cancel_guest_holds=true` first abandons the open guest baskets holding a place in it or its subtree. Errors:
+    invalid-transition, has-guest-holds (a guest basket holds a place, without the flag or with a payment in flight)."""
+    row = groups.archive_group(ctx.session, ctx.principal, program_group_id, cancel_guest_holds=cancel_guest_holds)
+    return groups.group_view(ctx.session, row)
 
 
 @router.post("/program-groups/{program_group_id}/reopen", response_model=s.ProgramGroupOut)
@@ -725,11 +729,22 @@ def _guest_session(session: Public) -> Session:
 
 
 Guest = Annotated[Session, Depends(_guest_session)]
-_guest_limit = [Depends(rate_limit("guest-checkout"))]
+
+
+def _guest_rate_limit(name: str):
+    """Per-IP bucket keyed like the hold cap: an IPv6 client by its /64 (checkout.guest_ip_key)."""
+
+    def dependency(response: Response) -> None:
+        hit(name, checkout.guest_ip_key(), response)
+
+    return dependency
+
+
+_guest_limit = [Depends(_guest_rate_limit("guest-checkout"))]
 
 
 @public.post("/public/guest-checkouts", response_model=s.GuestCheckoutOut, status_code=201,
-             dependencies=[Depends(rate_limit("guest-checkout-create"))])  # fmt: skip
+             dependencies=[Depends(_guest_rate_limit("guest-checkout-create"))])  # fmt: skip
 def create_guest_checkout(body: s.GuestCheckoutCreate, session: Guest, response: Response):
     """Hold places for a guest (no account) in programs that allow it. The answer carries the guest token, the
     only key to confirm or abandon. Errors: capacity-full, registration-closed, guest-documents-required,

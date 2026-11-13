@@ -223,6 +223,22 @@ captain rosters (REG-26).
   with 409 `has-guest-holds` while an unexpired guest basket holds a place in it or its subtree (as `has-registrations`
   for roster rows); the place is free again once the basket is abandoned or expires (15 minutes). Completing is not
   refused: the guest's confirm is.
+- Staff may override that with `?cancel_guest_holds=true` on `DELETE /program-groups/{id}` and
+  `POST /program-groups/{id}/archive`: every open guest basket holding a place in the subtree is abandoned first (the
+  whole basket, as the guest's own abandon: places released, `guest_details` cleared, audited as
+  `programs.registration_checkout.cancel` with the reason), then the delete or archive goes ahead; the guest's later
+  confirm is 409 `checkout-closed`. No waitlist is promoted into the subtree being removed. A basket whose confirm is
+  in flight (its row locked) is skipped, so that one still answers 409 `has-guest-holds`.
+- Per-IP limits count an IPv6 client by its /64 network (an IPv4 or IPv4-mapped client by its address): the hold cap's
+  digest and the `guest-checkout-create` and `guest-checkout` buckets all use `checkout.guest_ip_key()`, so rotating
+  addresses inside one /64 gains nothing.
+- Guest create and confirm lock every group chain of the basket up front in one global order (depth, then id;
+  `groups.lock_chains`) and hold places in group id order, so two baskets naming the same programs in opposite order
+  cannot deadlock on group rows. **Known limit:** guest confirm holds those group row locks (taken by
+  `check_held_place`) across the payment processor call in `secure_online_checkout`, so staff edits, other
+  registrations and other guests' baskets in the same program wait for the processor's answer. The portal confirm
+  does not lock group rows (its places are already roster rows). Not restructured: moving the charge outside the
+  transaction needs a two-step payment saga.
 
 ## Phase 11 B: virtual sessions, buy and book, deposits and instalments
 

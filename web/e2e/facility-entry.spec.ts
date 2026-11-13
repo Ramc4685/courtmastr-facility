@@ -62,15 +62,26 @@ test('guest checkout for a program passes the scan, with and without field error
   const { csrf_token } = await (await signedIn).json()
   const staff = () => ({ ...TENANT, 'x-csrf-token': csrf_token, 'idempotency-key': crypto.randomUUID() })
 
-  // The seed publishes one open camp with guest checkout off (its default); switch it on here and back at the end.
+  // Its own program each run (no capacity limit, guest checkout on), so the paid place never fills a seeded one;
+  // archived at the end, cancelling any guest basket still holding a place, so it leaves the public listing.
   const groups: { id: string; registration_state: string }[] = await (await page.request.get('/api/v1/public/program-groups', { headers: TENANT })).json()
-  const camp = groups.find((g) => g.registration_state === 'open')
-  if (!camp) throw new Error('the demo seed publishes an open program group')
-  const config = `/api/v1/program-groups/${camp.id}/registration-config`
-  const before: { allows_guest_checkout: boolean } = await (await page.request.get(config, { headers: TENANT })).json()
-  const allowed = await page.request.put(config, { headers: staff(), data: { allows_guest_checkout: true } })
+  const seeded = groups.find((g) => g.registration_state === 'open')
+  if (!seeded) throw new Error('the demo seed publishes an open program group')
+  const { location_id }: { location_id: string } = await (await page.request.get(`/api/v1/program-groups/${seeded.id}`, { headers: TENANT })).json()
+  const made = await page.request.post('/api/v1/program-groups', { headers: staff(), data: { location_id, name: `E2E guest camp ${Date.now()}` } })
+  expect(made.ok(), await made.text()).toBe(true)
+  const camp: { id: string } = await made.json()
   try {
-    expect(allowed.ok(), await allowed.text()).toBe(true)
+    const steps = [
+      page.request.post(`/api/v1/program-groups/${camp.id}/fees`, { headers: staff(), data: { description: 'Camp', amount_minor: 9000 } }),
+      page.request.put(`/api/v1/program-groups/${camp.id}/registration-config`, {
+        headers: staff(),
+        data: { is_enabled: true, payment_requirement: 'immediate_card_payment', allows_guest_checkout: true },
+      }),
+    ]
+    for (const step of await Promise.all(steps)) expect(step.ok(), await step.text()).toBe(true)
+    const published = await page.request.post(`/api/v1/program-groups/${camp.id}/publish`, { headers: staff() })
+    expect(published.ok(), await published.text()).toBe(true)
     for (const colorScheme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme })
       await page.goto(`/f/${SLUG}/programs/${camp.id}/guest`)
@@ -81,7 +92,7 @@ test('guest checkout for a program passes the scan, with and without field error
       await scan(page, `${colorScheme} guest checkout with field errors`)
     }
 
-    // Through the payment step once (each run holds a real place): scan it, decline, then pay on retry.
+    // Through the payment step once (a place in this run's own program): scan it, decline, then pay on retry.
     // The fake processor's scripted test cards pick the outcome (PaymentMethodField FAKE_CARDS).
     const detail: { confirmation_message: string | null } = await (await page.request.get(`/api/v1/public/program-groups/${camp.id}?guest=true`, { headers: TENANT })).json()
     await page.emulateMedia({ colorScheme: 'light' })
@@ -111,6 +122,6 @@ test('guest checkout for a program passes the scan, with and without field error
     await expect(page.getByRole('status').filter({ hasText: detail.confirmation_message || 'You are registered' })).toBeVisible()
     await expect(payButton).toHaveCount(0)
   } finally {
-    await page.request.put(config, { headers: staff(), data: { allows_guest_checkout: before.allows_guest_checkout } })
+    await page.request.post(`/api/v1/program-groups/${camp.id}/archive?cancel_guest_holds=true`, { headers: staff() })
   }
 })

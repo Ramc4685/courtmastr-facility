@@ -8,6 +8,7 @@ must be someone it may buy for (`can_act_for(..., "buy")`). Anything else is 404
 """
 
 import hmac
+import ipaddress
 import json
 from datetime import date, timedelta
 from uuid import UUID
@@ -504,6 +505,20 @@ GUEST_TOKEN_PREFIX = "fhg"
 GUEST_HOLDS_PER_GROUP = 4  # unpaid places one IP may hold in one program at a time (one basket's worth)
 
 
+def guest_ip_key() -> str:
+    """The address a guest's per-IP cap and rate limits count: an IPv6 address as its /64 (one subscriber's network,
+    so rotating addresses inside it gains nothing), an IPv4 address (or an IPv4-mapped IPv6 one) as itself."""
+    raw = context.client_ip.get()
+    if raw is None:
+        return "unknown"
+    address = ipaddress.ip_address(raw)
+    if address.version == 4:
+        return raw
+    if address.ipv4_mapped is not None:
+        return str(address.ipv4_mapped)
+    return str(ipaddress.ip_network(f"{address}/64", strict=False))
+
+
 def _check_ip_holds(session: Db, ip_digest: str, chosen: list[ProgramGroup]) -> None:
     """409 too-many-held-places when this IP's unexpired guest baskets plus this one would hold more than
     GUEST_HOLDS_PER_GROUP places in one program (a place counts against its group and every ancestor). The
@@ -593,7 +608,7 @@ def guest_create(session: Db, data: dict) -> dict:
     for group in chosen:
         _guest_documents(session, group.id)
     # hashed, never the address; cleared with the rest of guest_details when the basket closes
-    ip_digest = tokens.digest(f"{session.info['tenant_id']}:{context.client_ip.get() or 'unknown'}")
+    ip_digest = tokens.digest(f"{session.info['tenant_id']}:{guest_ip_key()}")
     _check_ip_holds(session, ip_digest, chosen)
     details = json.loads(json.dumps({"payer": data["payer"], "participants": data["participants"]}, default=str))
     nested = session.begin_nested()
@@ -602,7 +617,8 @@ def guest_create(session: Db, data: dict) -> dict:
     finally:
         nested.rollback()
     held = []
-    for item, group in zip(data["items"], chosen, strict=True):
+    groups.lock_chains(session, chosen)  # one lock order across baskets, then hold in group id order
+    for item, group in sorted(zip(data["items"], chosen, strict=True), key=lambda pair: str(pair[1].id)):
         fee_ids = [item["program_fee_id"]] if item.get("program_fee_id") else []
         fees = groups.chosen_fees(session, group, fee_ids, online=True, pointer="/program_fee_id")
         groups.hold_place(session, group)
@@ -630,6 +646,9 @@ def guest_confirm(session: Db, checkout_id: UUID, data: dict, idempotency_key: s
     details = _open(checkout).guest_details or {}
     if not details.get("items"):
         raise Conflict("The basket is empty.", code="checkout-empty")
+    groups.lock_chains(
+        session, [session.get(ProgramGroup, UUID(item["program_group_id"])) for item in details["items"]]
+    )
     for item in details["items"]:  # deleted, archived, closed or a document bound since the places were held
         groups.check_held_place(session, session.get(ProgramGroup, UUID(item["program_group_id"])))
         _guest_documents(session, UUID(item["program_group_id"]))

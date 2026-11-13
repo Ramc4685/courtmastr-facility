@@ -370,3 +370,96 @@ def test_the_hold_cap_counts_every_week_of_a_program(client, owner, tenant, f):
     ok(basket(*weeks[1], [2, 3]))  # four held across the camp
     over = basket(*weeks[2], [None])
     assert (over.status_code, over.json()["code"]) == (409, "too-many-held-places")
+
+
+def _from(address: str):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    return TestClient(app, client=(address, 50000))
+
+
+def test_one_ipv6_slash_64_shares_the_hold_cap_and_the_create_bucket(client, owner, tenant, f, monkeypatch):
+    """Rotating addresses inside one /64 gains nothing: the cap and the per-IP bucket key on the network; IPv4
+    addresses stay one each."""
+    from app.core.settings import get_settings
+
+    camp, fee = online(client, owner, f, "immediate_card_payment")
+    allow_guests(client, owner, camp["id"])
+    net = f"2001:db8:{uuid4().int % 0xFFFF:x}:1"
+    payer = {"first_name": "Gale", "last_name": "Guest", "email": "v6@example.com", "birth_on": "1985-02-03"}
+    kids = [{"first_name": f"K{n}", "last_name": "Guest", "birth_on": "2015-04-01"} for n in range(4)]
+
+    def basket(address, people):
+        items = [{"program_group_id": camp["id"], "program_fee_id": fee["id"], "participant": p} for p in people]
+        body = {"location_id": f.location, "payer": payer, "participants": kids, "items": items}
+        return _from(address).post(GUEST, headers=public(tenant), json=body)
+
+    ok(basket(f"{net}::a", [0, 1, 2, 3]))
+    over = basket(f"{net}::b", [None])
+    assert (over.status_code, over.json()["code"]) == (409, "too-many-held-places")
+    v4 = f"198.51.100.{uuid4().int % 200 + 1}"
+    ok(basket(v4, [None]))  # another address, another cap
+    ok(basket(f"203.0.113.{uuid4().int % 200 + 1}", [None]))
+
+    cfg = get_settings().rate_limit
+    monkeypatch.setattr(cfg, "enabled", True)
+    monkeypatch.setitem(cfg.buckets, "guest-checkout-create",
+                        cfg.buckets["guest-checkout-create"].model_copy(update={"limit": 1}))  # fmt: skip
+    other = online(client, owner, f, "immediate_card_payment", name="Other")
+    allow_guests(client, owner, other[0]["id"])
+    camp, fee = other
+    net = f"2001:db8:{uuid4().int % 0xFFFF:x}:2"
+    ok(basket(f"{net}::1", [None]))
+    limited = basket(f"{net}::2", [0])
+    assert (limited.status_code, limited.json()["code"]) == (429, "rate-limited")
+    ok(basket(f"192.0.2.{uuid4().int % 100 + 1}", [None]))
+    ok(basket(f"192.0.2.{uuid4().int % 100 + 101}", [None]))
+
+
+def test_guest_baskets_naming_two_programs_in_opposite_order_both_hold_and_pay(client, owner, tenant, f):
+    camp, fee = online(client, owner, f, "immediate_card_payment")
+    allow_guests(client, owner, camp["id"])
+    other, other_fee = online(client, owner, f, "immediate_card_payment", name="Other")
+    allow_guests(client, owner, other["id"])
+    payer = {"first_name": "Gale", "last_name": "Guest", "email": "order@example.com", "birth_on": "1985-02-03"}
+    kids = [{"first_name": "Kit", "last_name": "Guest", "birth_on": "2015-04-01"}]
+    carts = []
+    for pair in ((camp, fee, other, other_fee), (other, other_fee, camp, fee)):
+        items = [{"program_group_id": pair[0]["id"], "program_fee_id": pair[1]["id"], "participant": 0},
+                 {"program_group_id": pair[2]["id"], "program_fee_id": pair[3]["id"], "participant": 0}]  # fmt: skip
+        body = {"location_id": f.location, "payer": payer, "participants": kids, "items": items}
+        carts.append(ok(client.post(GUEST, headers=public(tenant), json=body)))
+    for cart in carts:
+        ok(client.post(f"{GUEST}/{cart['id']}/confirm", headers=keyed(public(tenant)),
+                       json={"guest_token": cart["guest_token"], "method_token": "tok_card_ok"}), 200)  # fmt: skip
+    assert group_of(client, owner, camp["id"])["enrolled_count"] == 2
+    assert group_of(client, owner, other["id"])["enrolled_count"] == 2
+
+
+def test_staff_may_cancel_open_guest_holds_to_delete_or_archive(client, owner, tenant, f):
+    """`cancel_guest_holds=true` abandons the open guest baskets holding a place in the subtree (the whole basket,
+    its places released and details cleared), then deletes or archives; the guest can no longer pay."""
+    for action in ("delete", "archive"):
+        camp, fee = online(client, owner, f, "immediate_card_payment", name=f"Camp {action}")
+        allow_guests(client, owner, camp["id"])
+        other, other_fee = online(client, owner, f, "immediate_card_payment", name=f"Other {action}")
+        allow_guests(client, owner, other["id"])
+        body = {"location_id": f.location, "payer": {"first_name": "Gale", "last_name": "Guest",
+                "email": f"{action}@example.com", "birth_on": "1985-02-03"}, "participants": [],
+                "items": [{"program_group_id": camp["id"], "program_fee_id": fee["id"]},
+                          {"program_group_id": other["id"], "program_fee_id": other_fee["id"]}]}  # fmt: skip
+        cart = ok(client.post(GUEST, headers=public(tenant), json=body))
+        url = f"{API}/program-groups/{camp['id']}" + ("/archive" if action == "archive" else "")
+        call = client.post if action == "archive" else client.delete
+        refused = call(url, headers=owner)
+        assert (refused.status_code, refused.json()["code"]) == (409, "has-guest-holds")
+        done = call(url, headers=owner, params={"cancel_guest_holds": "true"})
+        assert done.status_code == (200 if action == "archive" else 204), done.text
+        assert details_of(tenant, cart["id"]) is None
+        assert group_of(client, owner, other["id"])["enrolled_count"] == 0  # the whole basket went
+        late = client.post(f"{GUEST}/{cart['id']}/confirm", headers=keyed(public(tenant)),
+                           json={"guest_token": cart["guest_token"], "method_token": "tok_card_ok"})  # fmt: skip
+        assert (late.status_code, late.json()["code"]) == (409, "checkout-closed")
+        assert guest_clients(tenant, f"{action}@example.com") == []

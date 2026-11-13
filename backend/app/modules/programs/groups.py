@@ -215,6 +215,42 @@ def check_held_place(session: Db, group: ProgramGroup) -> None:
         raise Conflict("Registration for this program is not open.", code="registration-closed")
 
 
+def lock_chains(session: Db, nodes: list[ProgramGroup]) -> None:
+    """Internal: lock every node of several chains FOR UPDATE in one global order, depth then id. A single
+    `_chain` lock (root first) is a sub-order of it, so two baskets naming the same programs in opposite order,
+    or sharing an ancestor, cannot deadlock on group rows."""
+    ids = {node.id for group in nodes for node in _chain(session, group)}
+    session.execute(
+        select(ProgramGroup.id).where(ProgramGroup.id.in_(ids)).order_by(ProgramGroup.depth, ProgramGroup.id)
+        .with_for_update()
+    )  # fmt: skip
+
+
+def _cancel_guest_holds(session: Db, group: ProgramGroup, ids: list[UUID], reason: str) -> None:
+    """Staff's explicit choice (`cancel_guest_holds`): abandon every open guest basket holding a place in `ids`,
+    the whole basket, as the guest's own abandon does (places released, details cleared). No queue is promoted
+    into `ids` (it is being deleted or archived). A basket locked by a confirm in flight is skipped, so
+    `_refuse_guest_holds` still refuses it."""
+    wanted = {str(i) for i in ids}
+    for checkout in session.scalars(
+        select(RegistrationCheckout).where(
+            RegistrationCheckout.location_id == group.location_id, RegistrationCheckout.channel == "guest",
+            RegistrationCheckout.status == "open",
+        ).with_for_update(skip_locked=True)
+    ):  # fmt: skip
+        items = (checkout.guest_details or {}).get("items", [])
+        if not any(item["program_group_id"] in wanted for item in items):
+            continue
+        for item in items:
+            release_place(session, session.get(ProgramGroup, UUID(item["program_group_id"])))
+            if item["program_group_id"] not in wanted:
+                promote_queue(session, UUID(item["program_group_id"]))
+        checkout.status, checkout.guest_details = "abandoned", None
+        audit.record(session, "programs.registration_checkout.cancel", checkout, location_id=checkout.location_id,
+                     changes={"status": ["open", "abandoned"], "reason": reason})  # fmt: skip
+    session.flush()
+
+
 def _refuse_guest_holds(session: Db, group: ProgramGroup, ids: list[UUID]) -> None:
     """A guest's held place has no roster row, so `_live_count` misses it: refuse while an unexpired guest
     basket holds a place in any of `ids` (it is released when the basket is abandoned or expires)."""
@@ -359,14 +395,20 @@ def get_tree(session: Db, principal: Principal, group_id: UUID) -> dict:
     return views[root.id]
 
 
-def _set_status(session: Db, principal: Principal, group_id: UUID, to: str, allowed: tuple[str, ...]) -> ProgramGroup:
+def _set_status(
+    session: Db, principal: Principal, group_id: UUID, to: str, allowed: tuple[str, ...], *,
+    cancel_guest_holds: bool = False,
+) -> ProgramGroup:  # fmt: skip
     row = load(session, principal, group_id, MANAGE, lock=True)
     if row.status == to:
         return row
     if row.status not in allowed:
         raise Conflict(f"A {row.status} program cannot become {to}.", code="invalid-transition")
     if to == "archived":
-        _refuse_guest_holds(session, row, [row.id, *_subtree_ids(session, row.id)])
+        ids = [row.id, *_subtree_ids(session, row.id)]
+        if cancel_guest_holds:
+            _cancel_guest_holds(session, row, ids, "program_archived")
+        _refuse_guest_holds(session, row, ids)
     was, row.status = row.status, to
     row.completed_at = None if to == "active" else row.completed_at or clock.now()
     audit.record(session, MANAGE, row, location_id=row.location_id, changes={"status": [was, to]})
@@ -381,20 +423,27 @@ def complete_group(session: Db, principal: Principal, group_id: UUID) -> Program
     return _set_status(session, principal, group_id, "completed", ("active",))
 
 
-def archive_group(session: Db, principal: Principal, group_id: UUID) -> ProgramGroup:
-    return _set_status(session, principal, group_id, "archived", ("active", "completed"))
+def archive_group(
+    session: Db, principal: Principal, group_id: UUID, *, cancel_guest_holds: bool = False
+) -> ProgramGroup:
+    return _set_status(
+        session, principal, group_id, "archived", ("active", "completed"), cancel_guest_holds=cancel_guest_holds
+    )
 
 
 def reopen_group(session: Db, principal: Principal, group_id: UUID) -> ProgramGroup:
     return _set_status(session, principal, group_id, "active", ("completed", "archived"))
 
 
-def delete_group(session: Db, principal: Principal, group_id: UUID) -> None:
-    """Soft delete of a node and its subtree (REG-05). Refused while anyone is registered in it."""
+def delete_group(session: Db, principal: Principal, group_id: UUID, *, cancel_guest_holds: bool = False) -> None:
+    """Soft delete of a node and its subtree (REG-05). Refused while anyone is registered in it, and while a guest
+    basket holds a place in it unless `cancel_guest_holds` (the baskets are then abandoned first)."""
     row = load(session, principal, group_id, DELETE, lock=True)
     ids = [row.id, *_subtree_ids(session, row.id)]
     if _live_count(session, ids):
         raise Conflict("Cancel or move the registrations first.", code="has-registrations")
+    if cancel_guest_holds:
+        _cancel_guest_holds(session, row, ids, "program_deleted")
     _refuse_guest_holds(session, row, ids)
     now = clock.now()
     for node in session.scalars(select(ProgramGroup).where(ProgramGroup.id.in_(ids))):
