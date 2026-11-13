@@ -290,7 +290,7 @@ list_seasons, get_season, create_season, update_season, delete_season = _referen
 
 _COMPETITION_FIELDS = (
     "name", "format", "age_group_id", "season_id", "division_label", "starts_on", "ends_on", "game_length_min",
-    "is_public", "shows_roster_publicly", "show_players", "max_defaults", "max_forfeits", "min_sportsmanship", "team_fee_text",
+    "is_public", "show_players", "max_defaults", "max_forfeits", "min_sportsmanship", "team_fee_text",
     "more_info", "rules_text", "registration_url", "color", "team_fee_minor", "revenue_category_id", *_SCORING,
 )  # fmt: skip
 _COMPETITION_NULLABLE = (

@@ -36,4 +36,5 @@ register(
     _p("league.run", "Run league reports", "", {**_AD_MG, "league_admin": "all"}),
     _p("marketing.run", "Run marketing reports", "", _AD_MG),
     _p("report.export", "Export reports to files", "X", {**_AD_MG, "league_admin": "all"}),
+    _p("report_schedule.manage", "See and delete any staff user's report schedule", "", {"admin": "all"}),
 )

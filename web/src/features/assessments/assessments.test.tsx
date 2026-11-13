@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Call } from '../../test/fetchMock'
@@ -6,6 +6,7 @@ import { page, renderAsStaff, SCREEN } from '../scheduling/testing'
 import { AssessmentSetupPage } from './AssessmentSetupPage'
 import { ClientAssessmentsTab } from './ClientAssessmentsTab'
 import { PortalProgress } from './PortalProgress'
+import { TrendChart } from './TrendChart'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -29,6 +30,24 @@ describe('assessment screens', SCREEN, () => {
     await userEvent.click(within(dialog).getByRole('button', { name: /Save|Record/ }))
     await waitFor(() => expect(posts).toHaveLength(1))
     expect(posts[0]?.body).toMatchObject({ client_id: 'c1', location_id: 'l1', values: [{ assessment_field_id: 'f1', value: '79.25' }] })
+  })
+
+  it('charts each field over time and links to the history report', async () => {
+    const points = [{ recorded_at: '2026-11-08T15:00:00Z', result_id: 'r2', value: '80.5' }, { recorded_at: '2026-10-01T15:00:00Z', result_id: 'r1', value: '82.0' }]
+    renderAsStaff(<ClientAssessmentsTab client={{ id: 'c1', home_location_id: 'l1' }} />, ['assessments.assessment.read', 'reporting.client.run'], {
+      ...templates,
+      'GET /api/v1/assessment-series': { status: 200, body: { series: [{ assessment_field_id: 'f1', points, latest_value: '80.5', first_value: '82.0', change: '-1.5', best_value: '80.5' }] } },
+      'GET /api/v1/assessment-results': page([]),
+    })
+    const chart = await screen.findByRole('img')
+    expect(chart.getAttribute('aria-label')).toMatch(/^Weight from 82\.0 kg on .+ to 80\.5 kg on .+, 2 entries$/)
+    expect(chart.querySelectorAll('circle')).toHaveLength(2)
+    expect(screen.getByRole('link', { name: /Assessment history report/ })).toHaveAttribute('href', '/reports/assessment_history?client_id=c1')
+  })
+
+  it('draws no trend from a single value', () => {
+    const { container } = render(<TrendChart points={[{ recorded_at: '2026-11-08T15:00:00Z', value: '80.5' }]} field={{ name: 'Weight', unit_label: 'kg' }} />)
+    expect(container).toBeEmptyDOMElement()
   })
 
   it('creates a category and turns on portal sharing', async () => {
