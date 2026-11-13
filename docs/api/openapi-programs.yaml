@@ -4911,7 +4911,7 @@ paths:
       x-priority: P0
       x-permission: engagement.suppression.manage
       x-features: [MKT-08]
-      security: [{staffSession: []}, {apiKey: []}]
+      security: [{staffSession: []}]
       responses:
         '200':
           description: OK.
@@ -4929,7 +4929,7 @@ paths:
       x-priority: P0
       x-permission: engagement.notification_rule.manage
       x-features: [MKT-13]
-      security: [{staffSession: []}, {apiKey: []}]
+      security: [{staffSession: []}]
       parameters:
       - {$ref: '#/components/parameters/LocationId'}
       - {name: subject_kind, in: query, schema: {type: string}}
@@ -4958,7 +4958,7 @@ paths:
       x-priority: P0
       x-permission: engagement.notification_rule.manage
       x-features: [MKT-13]
-      security: [{staffSession: []}, {apiKey: []}]
+      security: [{staffSession: []}]
       requestBody:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/ReminderRuleInput'}}}
@@ -4984,7 +4984,7 @@ paths:
       x-priority: P0
       x-permission: engagement.notification_rule.manage
       x-features: [MKT-13]
-      security: [{staffSession: []}, {apiKey: []}]
+      security: [{staffSession: []}]
       responses:
         '200':
           description: OK.
@@ -4999,7 +4999,7 @@ paths:
       x-priority: P0
       x-permission: engagement.notification_rule.manage
       x-features: [MKT-13]
-      security: [{staffSession: []}, {apiKey: []}]
+      security: [{staffSession: []}]
       requestBody:
         required: true
         content: {application/merge-patch+json: {schema: {$ref: '#/components/schemas/ReminderRuleInput'}}}
@@ -5020,7 +5020,7 @@ paths:
       x-priority: P0
       x-permission: engagement.notification_rule.manage
       x-features: [MKT-13]
-      security: [{staffSession: []}, {apiKey: []}]
+      security: [{staffSession: []}]
       responses:
         '204': {description: No content.}
         '401': {$ref: '#/components/responses/Unauthorized'}
@@ -5034,7 +5034,7 @@ paths:
       x-priority: P0
       x-permission: engagement.notification_rule.manage
       x-features: [MKT-14]
-      security: [{staffSession: []}, {apiKey: []}]
+      security: [{staffSession: []}]
       parameters:
       - {$ref: '#/components/parameters/LocationId'}
       - {name: kind, in: query, schema: {type: string}}
@@ -5063,7 +5063,7 @@ paths:
       x-priority: P0
       x-permission: engagement.notification_rule.manage
       x-features: [MKT-14]
-      security: [{staffSession: []}, {apiKey: []}]
+      security: [{staffSession: []}]
       requestBody:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/NotificationRouteInput'}}}
@@ -5089,7 +5089,7 @@ paths:
       x-priority: P0
       x-permission: engagement.notification_rule.manage
       x-features: [MKT-14]
-      security: [{staffSession: []}, {apiKey: []}]
+      security: [{staffSession: []}]
       responses:
         '200':
           description: OK.
@@ -5104,7 +5104,7 @@ paths:
       x-priority: P0
       x-permission: engagement.notification_rule.manage
       x-features: [MKT-14]
-      security: [{staffSession: []}, {apiKey: []}]
+      security: [{staffSession: []}]
       requestBody:
         required: true
         content: {application/merge-patch+json: {schema: {$ref: '#/components/schemas/NotificationRouteInput'}}}
@@ -5125,7 +5125,7 @@ paths:
       x-priority: P0
       x-permission: engagement.notification_rule.manage
       x-features: [MKT-14]
-      security: [{staffSession: []}, {apiKey: []}]
+      security: [{staffSession: []}]
       responses:
         '204': {description: No content.}
         '401': {$ref: '#/components/responses/Unauthorized'}
@@ -5141,7 +5141,7 @@ paths:
       x-priority: P0
       x-permission: engagement.portal_settings.manage
       x-features: [SSP-01, SSP-10, SSP-12, SSP-14]
-      security: [{staffSession: []}, {apiKey: []}]
+      security: [{staffSession: []}]
       responses:
         '200':
           description: OK.
@@ -5157,7 +5157,7 @@ paths:
       x-priority: P0
       x-permission: engagement.portal_settings.manage
       x-features: [SSP-01, SSP-04, SSP-05, SSP-10, SSP-12, SSP-14]
-      security: [{staffSession: []}, {apiKey: []}]
+      security: [{staffSession: []}]
       requestBody:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/PortalSettings'}}}
