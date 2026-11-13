@@ -1553,9 +1553,23 @@ def get_series_run(session: Db, principal: Principal, series_id: UUID, run_id: U
     return run
 
 
+def _refuse_owned(session: Db, series_id: UUID) -> None:
+    """A series whose template carries an owner's source (a rental) gains occurrences only through its owner,
+    which runs its own rules (the minors rule, its override key and a fresh reason); scheduling's generic routes
+    would copy the template, override reason included, past them."""
+    templates = session.scalars(
+        select(BookingSeriesRule.template).where(BookingSeriesRule.booking_series_id == series_id)
+    )
+    if any((t or {}).get("source") for t in templates):
+        raise Conflict(
+            "This series belongs to a rental; add or change its dates from the rental.", code="series-owned-by-rental"
+        )
+
+
 def add_series_rule(session: Db, principal: Principal, series_id: UUID, data: dict) -> dict:
     """Stack another pass onto a series ("add occurrences", SCH-09): same attributes, new pattern."""
     series = _series(session, principal, series_id, UPDATE_SERIES, lock=True)
+    _refuse_owned(session, series.id)
     return add_rule(session, series.id, data, principal.staff_user_id, principal=principal)
 
 
@@ -1625,6 +1639,7 @@ def change_series_rule(session: Db, principal: Principal, series_id: UUID, rule_
     rule = session.get(BookingSeriesRule, rule_id)
     if rule is None or rule.booking_series_id != series.id:
         raise NotFound()
+    _refuse_owned(session, series.id)
     if data["start_on"] < platform.service.location_today(session, series.location_id):
         raise ValidationFailed("A pattern change starts today or later.", pointer="/start_on")
     targets = list(

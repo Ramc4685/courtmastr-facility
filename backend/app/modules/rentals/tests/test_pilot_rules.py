@@ -288,6 +288,30 @@ def test_extending_a_minors_series_needs_a_fresh_reason(client, owner, f):
     ]  # fmt: skip
 
 
+@pytest.mark.parametrize("who", ["front_desk", "owner"])
+def test_scheduling_routes_never_extend_a_rental_series(client, owner, tenant, f, who):
+    """Scheduling's generic add-rule and replace-rule routes are not a side door past the minors rule: a series
+    that belongs to a rental is extended only through the rental, whoever asks."""
+    _, kid = family(client, owner, f)
+    weekly = {"pattern": "weekly", "range_type": "count", "occurrence_limit": 2}
+    created = ok(
+        rent(client, owner, body(f, kid, 15, 16, recurrence=weekly, minor_override_reason="Coach's own child"))
+    )
+    series_id = created["booking_series_id"]
+    headers = owner if who == "owner" else login(client, tenant, add_staff(tenant, who, all_locations=True)[0])
+    more = {"start_on": "2031-06-02", "start_time": "10:00", "end_time": "11:00", "rule": weekly}
+    url = f"{API}/booking-series/{series_id}/rules"
+    for preview in (False, True):
+        refused(client.post(url, headers=headers | {"Idempotency-Key": uuid4().hex}, json=more | {"preview": preview}),
+                409, "series-owned-by-rental")  # fmt: skip
+    rule_id = ok(client.get(f"{API}/booking-series/{series_id}", headers=owner), 200)["rules"][0]["id"]
+    replace = {"start_on": DAY.date().isoformat(), "start_time": "12:00", "end_time": "13:00", "rule": weekly}
+    refused(client.patch(f"{url}/{rule_id}", headers=headers | {"Idempotency-Key": uuid4().hex}, json=replace),
+            409, "series-owned-by-rental")  # fmt: skip
+    series = ok(client.get(f"{API}/rentals?booking_series_id={series_id}", headers=owner), 200)
+    assert len(series["data"]) == 2 and all(r["cancelled_at"] is None for r in series["data"])
+
+
 def test_a_guardian_books_and_names_the_children_who_play(client, owner, f):
     parent, kid = family(client, owner, f)
     party = [{"client_id": kid}]

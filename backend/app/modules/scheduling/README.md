@@ -101,7 +101,10 @@ winner named. Moves delete and re-insert the booking's holds in one transaction 
     `materialise_slot` and then `reserve_seat`. Releasing the last seat cancels the session, returning the
     time to the window. A window whose offer has live slot sessions cannot be deleted (FK `RESTRICT`,
     409 `slot-offer-in-use`); pause the offer instead.
-14. **Changing a pattern (SCH-09).** `PATCH /booking-series/{id}/rules/{rule_id}` cancels the rule's live
+14. **Owned series.** Adding or changing a pass (`POST .../rules`, `PATCH .../rules/{rule_id}`) on a series
+    whose template carries an owner's `source` (a rental) is 409 `series-owned-by-rental`: the owner extends it
+    through `add_rule` with its own checks, so these routes never copy its source data forward.
+    **Changing a pattern (SCH-09).** `PATCH /booking-series/{id}/rules/{rule_id}` cancels the rule's live
     occurrences from `start_on` (today or later, location time) and books the new pattern from there, in one
     transaction; `preview` rolls both halves back. Cancellations publish the usual events, so programs
     drops their enrolments. Because it cancels, it also needs `scheduling.booking.delete_series`. The new

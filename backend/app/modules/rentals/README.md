@@ -73,6 +73,9 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
 - Only recurring rentals can be extended (`not-a-series` otherwise); extension occurrences arrive unbilled.
   Extending a series booked in a minor's name needs a fresh `minor_override_reason` (and the key); the original
   reason is never copied to the new occurrences (`add_rule(source_data=...)` replaces it in the copied template).
+  Scheduling's generic `POST /booking-series/{id}/rules` and `PATCH .../rules/{rule_id}` refuse a series whose
+  template carries a source (409 `series-owned-by-rental`, owners too), so the rental's extension route is the
+  only way to add dates.
 - A series above 50 occurrences accepts only `unbilled` or `no_charge`; bill it from the queue once generated.
 - Portal payment is a one-off card token through the PaymentProvider port; confirm takes no stored method. A
   provider `unknown` keeps the hold; `billing.invoice.paid` confirms it only when the whole invoice is paid.
