@@ -302,6 +302,20 @@ handlers re-read the object from the provider.
   refunded stays as account credit. Not built: a refund the processor
   reverses after it succeeded (Stripe `refund.failed` after `succeeded`); the `refund_returned` ledger kind
   is reserved for it.
+- **An account-credit refund stores its plan (PAY-05, migration 1805).** `refund_credit` plans one leg per payment
+  (newest first) and commits the plan (`refund_credit_plan`: key, client, total, reason, batch, legs with their
+  amounts) before any processor call. A retry with the key replays exactly those legs, each idempotent under
+  `<key>:<payment id>`; it never re-plans from current balances, which the first attempt's `initiated` legs have
+  already lowered (re-planning paid twice: a 1000 request could pay 1500). The same key with another client,
+  amount or reason (the caller's location scope is not compared: the stored plan is replayed) is 409 `idempotency-key-reused`; a lost race on the plan is 409 `request-in-progress`. A leg
+  that can no longer be refunded (its credit was spent after a crash rolled the leg back) stops the retry with 409
+  `refund-plan-incomplete`, so what the processor paid never exceeds the plan. **Every leg is reserved when the
+  plan is committed**: the same short transaction locks the client's payments and writes an `initiated` refund row
+  per leg (record-only legs too, finished without a processor call), so a second refund, autopay or a staff
+  allocation sees only genuinely free credit and the first request always completes. A plan whose request dies
+  is finished or cancelled leg by leg by the sweep; a leg nobody finishes is cancelled after 30 minutes, which
+  frees its reservation. The plan follows the client on a merge, is in the export, and erasure replaces its
+  free-text reason (the plan stays, as the refunds do).
 - **A voided invoice has total 0** (totals are projections of its items, and it has none); the audit event
   keeps what it was.
 - **Tax-exclusive only** (ADR 0003 section 10). **No late fees or interest** (ADR 0005: the reference shows

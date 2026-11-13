@@ -1727,7 +1727,7 @@ paths:
       requestBody:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/CreditApplyRequest'}}}
-      x-problem-codes: [permission-denied, not-found, validation-failed, request-in-progress, idempotency-key-reused, insufficient-credit,
+      x-problem-codes: [permission-denied, not-found, validation-failed, request-in-progress, idempotency-key-reused, allocation-exceeds-payment,
         allocation-exceeds-balance]
       responses:
         '200':
@@ -1753,8 +1753,8 @@ paths:
       requestBody:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/CreditRefundRequest'}}}
-      x-problem-codes: [permission-denied, not-found, validation-failed, request-in-progress, idempotency-key-reused, insufficient-credit,
-        provider-unavailable, period-locked]
+      x-problem-codes: [permission-denied, not-found, validation-failed, request-in-progress, idempotency-key-reused, refund-exceeds-unapplied,
+        provider-unavailable, period-locked, refund-plan-incomplete]
       responses:
         '201':
           description: Created.

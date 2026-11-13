@@ -318,3 +318,176 @@ def test_an_on_account_refund_replays_with_its_key(shop):
             svc.refund(session, payment.id, amount_minor=200, reason="On account", idempotency_key=refund_key)
         assert caught.value.code == "idempotency-key-reused"
         assert_books_agree(session)
+
+
+# --- account-credit refunds: the plan is stored, a retry replays it ---------------------------------------
+
+
+def _three_cards(shop) -> tuple:
+    """P1 1000 (oldest), P2 500, P3 500 (newest), all on account: a credit refund of 1000 plans P3 then P2."""
+    ids = []
+    with work(shop.tenant) as session:
+        for minutes, amount in ((0, 1000), (1, 500), (2, 500)):
+            with clock.freeze(clock.now() + timedelta(minutes=minutes)):
+                ids.append(card(session, shop, amount).id)
+    return tuple(ids)
+
+
+def _paid_out(session, payment_ids) -> int:
+    return sum(_provider_refunded(session, payment_id) for payment_id in payment_ids)
+
+
+def _sweep(shop):
+    with clock.freeze(clock.now() + timedelta(minutes=10)), work(shop.tenant) as session:
+        webhooks.reconcile(session)
+
+
+def test_a_credit_refund_retried_after_a_leg_timed_out_pays_the_plan_once(shop, monkeypatch):
+    ready(shop)
+    p1, p2, p3 = _three_cards(shop)
+    with work(shop.tenant) as session:
+        p2_ref = session.get(svc.Payment, p2).provider_payment_ref
+    fake, real = payment_provider.get("fake"), payment_provider.get("fake").refund
+    stalls = {"n": 1}
+
+    def refund(**kw):
+        if kw["provider_payment_ref"] == p2_ref and stalls["n"]:
+            stalls["n"] -= 1
+            raise TimeoutError("the processor did not answer")
+        return real(**kw)
+
+    monkeypatch.setattr(fake, "refund", refund)
+    refund_key = uuid4().hex
+    with pytest.raises(TimeoutError), work(shop.tenant) as session:
+        svc.refund_credit(session, shop.client_id, amount_minor=1000, reason="Leaving", idempotency_key=refund_key)
+    with work(shop.tenant) as session:
+        assert [session.get(svc.Payment, p).unapplied_minor for p in (p1, p2, p3)] == [1000, 0, 0]  # reserved
+        refunds = svc.refund_credit(session, shop.client_id, amount_minor=1000, reason="Leaving",
+                                    idempotency_key=refund_key)  # fmt: skip
+        assert [(r.payment_id, r.amount_minor, r.status) for r in refunds] == [
+            (p3, 500, "succeeded"), (p2, 500, "succeeded")
+        ]  # fmt: skip
+    _sweep(shop)
+    with work(shop.tenant) as session:
+        assert _paid_out(session, (p1, p2, p3)) == 1000  # never the 1500 a re-plan from balances would pay
+        assert session.get(svc.Payment, p1).unapplied_minor == 1000
+        assert_books_agree(session)
+
+
+def test_a_credit_refund_whose_legs_all_timed_out_replays_them(shop, monkeypatch):
+    ready(shop)
+    p1, p2, p3 = _three_cards(shop)
+    fake, real = payment_provider.get("fake"), payment_provider.get("fake").refund
+    monkeypatch.setattr(fake, "refund", lambda **kw: (_ for _ in ()).throw(TimeoutError("no answer")))
+    refund_key = uuid4().hex
+    with pytest.raises(TimeoutError), work(shop.tenant) as session:
+        svc.refund_credit(session, shop.client_id, amount_minor=1000, reason="Leaving", idempotency_key=refund_key)
+    monkeypatch.setattr(fake, "refund", real)
+    with work(shop.tenant) as session:
+        refunds = svc.refund_credit(session, shop.client_id, amount_minor=1000, reason="Leaving",
+                                    idempotency_key=refund_key)  # fmt: skip
+        assert [(r.payment_id, r.amount_minor, r.status) for r in refunds] == [
+            (p3, 500, "succeeded"), (p2, 500, "succeeded")
+        ]  # fmt: skip
+    _sweep(shop)
+    with work(shop.tenant) as session:
+        assert _paid_out(session, (p1, p2, p3)) == 1000
+        assert_books_agree(session)
+
+
+def test_a_declined_credit_refund_leg_is_not_paid_on_retry(shop, monkeypatch):
+    ready(shop)
+    p1, p2, p3 = _three_cards(shop)
+    with work(shop.tenant) as session:
+        p2_ref = session.get(svc.Payment, p2).provider_payment_ref
+    fake, real = payment_provider.get("fake"), payment_provider.get("fake").refund
+
+    def refund(**kw):
+        if kw["provider_payment_ref"] == p2_ref:
+            return RefundState(f"fake_ref_{uuid4().hex}", "failed", "Declined by the bank.")
+        return real(**kw)
+
+    monkeypatch.setattr(fake, "refund", refund)
+    refund_key = uuid4().hex
+    with work(shop.tenant) as session:
+        first = svc.refund_credit(session, shop.client_id, amount_minor=1000, reason="Leaving",
+                                  idempotency_key=refund_key)  # fmt: skip
+        assert [r.status for r in first] == ["succeeded", "failed"]
+    monkeypatch.setattr(fake, "refund", real)
+    with work(shop.tenant) as session:
+        again = svc.refund_credit(session, shop.client_id, amount_minor=1000, reason="Leaving",
+                                  idempotency_key=refund_key)  # fmt: skip
+        assert [r.id for r in again] == [r.id for r in first]  # replayed, the declined leg is not re-sent
+        assert _paid_out(session, (p1, p2, p3)) == 500
+        assert_books_agree(session)
+
+
+def test_another_key_while_a_credit_refund_is_initiated_plans_around_it(shop, monkeypatch):
+    """Every leg is reserved when the plan is committed: a second key plans only from genuinely free credit, and
+    the first request still completes."""
+    ready(shop)
+    p1, p2, p3 = _three_cards(shop)
+    fake, real = payment_provider.get("fake"), payment_provider.get("fake").refund
+    monkeypatch.setattr(fake, "refund", lambda **kw: (_ for _ in ()).throw(TimeoutError("no answer")))
+    first_key, second_key = uuid4().hex, uuid4().hex
+    with pytest.raises(TimeoutError), work(shop.tenant) as session:
+        svc.refund_credit(session, shop.client_id, amount_minor=1000, reason="Leaving", idempotency_key=first_key)
+    monkeypatch.setattr(fake, "refund", real)
+    with work(shop.tenant) as session:
+        assert [session.get(svc.Payment, p).unapplied_minor for p in (p1, p2, p3)] == [1000, 0, 0]  # both legs held
+        with pytest.raises(ValidationFailed):  # only 1000 is free
+            svc.refund_credit(session, shop.client_id, amount_minor=1001, reason="Moving", idempotency_key=uuid4().hex)
+    with work(shop.tenant) as session:
+        second = svc.refund_credit(session, shop.client_id, amount_minor=1000, reason="Moving",
+                                   idempotency_key=second_key)  # fmt: skip
+        assert [(r.payment_id, r.amount_minor) for r in second] == [(p1, 1000)]
+    with work(shop.tenant) as session:
+        first = svc.refund_credit(session, shop.client_id, amount_minor=1000, reason="Leaving",
+                                  idempotency_key=first_key)  # fmt: skip
+        assert [(r.payment_id, r.status) for r in first] == [(p3, "succeeded"), (p2, "succeeded")]
+    _sweep(shop)
+    with work(shop.tenant) as session:
+        assert _paid_out(session, (p1, p2, p3)) == 2000  # two requests of 1000, each paid once
+        assert_books_agree(session)
+
+
+def test_a_crashed_credit_refund_holds_its_credit_until_the_retry(shop):
+    """The request died after planning: the cash leg's credit stays reserved, so it cannot be spent, and the retry
+    pays both legs once (the record-only leg is finished without a processor)."""
+    ready(shop)
+    with work(shop.tenant) as session:
+        older = cash(session, shop, 500).id
+        with clock.freeze(clock.now() + timedelta(minutes=1)):
+            newest = card(session, shop, 500).id
+    refund_key = uuid4().hex
+    with pytest.raises(RuntimeError), work(shop.tenant) as session:
+        svc.refund_credit(session, shop.client_id, amount_minor=1000, reason="Leaving", idempotency_key=refund_key)
+        raise RuntimeError("the process died before commit")
+    with work(shop.tenant) as session:
+        item = charge(session, shop, 400)
+        assert svc.spend_credit(session, shop.client_id) == 0  # the reserved credit cannot be spent
+        assert item.applied_minor == 0
+    with work(shop.tenant) as session:
+        refunds = svc.refund_credit(session, shop.client_id, amount_minor=1000, reason="Leaving",
+                                    idempotency_key=refund_key)  # fmt: skip
+        assert [(r.payment_id, r.method, r.status) for r in refunds] == [
+            (newest, "original", "succeeded"), (older, "external", "succeeded")
+        ]  # fmt: skip
+        assert _provider_refunded(session, newest) == 500
+        assert session.get(svc.Payment, older).refunded_minor == 500
+        assert_books_agree(session)
+
+
+def test_an_abandoned_credit_refund_plan_frees_its_reservations(shop):
+    ready(shop)
+    with work(shop.tenant) as session:
+        older = cash(session, shop, 500).id
+    with pytest.raises(RuntimeError), work(shop.tenant) as session:
+        svc.refund_credit(session, shop.client_id, amount_minor=300, reason="Leaving", idempotency_key=uuid4().hex)
+        raise RuntimeError("died")
+    with clock.freeze(clock.now() + timedelta(minutes=40)), work(shop.tenant) as session:
+        webhooks.reconcile(session)
+    with work(shop.tenant) as session:
+        assert session.scalars(select(Refund.status)).all() == ["cancelled"]
+        assert session.get(svc.Payment, older).unapplied_minor == 500
+        assert_books_agree(session)

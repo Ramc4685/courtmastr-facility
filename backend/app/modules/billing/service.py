@@ -63,6 +63,7 @@ from app.modules.billing.models import (
     ProviderAccount,
     ProviderCustomer,
     Refund,
+    RefundCreditPlan,
     RevenueCategory,
     RevenueCategoryTax,
     Tax,
@@ -95,6 +96,7 @@ CONSTRAINT_CODES["ct_payment_schedule_balanced"] = "schedule-not-balanced"
 # Two requests with one key racing past the replay lookup: the loser is told to retry, never 500 or "already exists".
 CONSTRAINT_CODES["uq_refund_idempotency_key"] = "request-in-progress"
 CONSTRAINT_CODES["uq_billing_bulk_action_key"] = "request-in-progress"
+CONSTRAINT_CODES["uq_refund_credit_plan_key"] = "request-in-progress"
 
 
 # === staff commands and queries ============================================================================
@@ -1131,6 +1133,10 @@ def refund(
         _release_for_refund(session, payment, release)
         _finish_refund(session, row, payment, "succeeded")
         return row
+    if row.method == "external":  # an account-credit plan's record-only leg: reserved up front, nothing to call
+        _release_for_refund(session, payment, release)
+        _finish_refund(session, row, payment, "succeeded")
+        return row
     account = session.get(ProviderAccount, payment.provider_account_id)
     result = payment_provider.get(account.provider).refund(
         account_ref=account.provider_account_ref, provider_payment_ref=payment.provider_payment_ref,
@@ -1290,11 +1296,13 @@ def resume_refund(session: Session, refund_id: UUID, *, abandon: bool = False) -
     if row.status != "initiated":
         return row
     payment = _lock(session, Payment, row.payment_id)
-    account = session.get(ProviderAccount, payment.provider_account_id)
-    found = payment_provider.get(account.provider).find_refund(
-        account_ref=account.provider_account_ref, idempotency_key=_refund_provider_key(session, row),
-        provider_payment_ref=payment.provider_payment_ref,
-    )  # fmt: skip
+    found = None
+    if row.method != "external":  # a plan's record-only leg was never sent anywhere: it only waits or is cancelled
+        account = session.get(ProviderAccount, payment.provider_account_id)
+        found = payment_provider.get(account.provider).find_refund(
+            account_ref=account.provider_account_ref, idempotency_key=_refund_provider_key(session, row),
+            provider_payment_ref=payment.provider_payment_ref,
+        )  # fmt: skip
     if found is not None:
         row.provider_refund_ref, row.failure_message = found.provider_refund_ref or None, found.failure_message
         if found.outcome != "failed":
@@ -1600,33 +1608,113 @@ def refund_credit(
 ) -> list[Refund]:
     """Give account credit back (PAY-05): one refund per payment, newest payment first, each to its own
     original method (or as an external record for record-only tenders), grouped by one refund_batch_id.
-    `location_ids` (not None) draws only on payments taken at those locations."""
+    `location_ids` (not None) draws only on payments taken at those locations.
+
+    The legs are planned once and the plan is committed (`refund_credit_plan`) before any processor call. A retry
+    with the key replays exactly those legs, each idempotent under `<key>:<payment id>`; it never re-plans from
+    current balances, which the first attempt's `initiated` legs already lowered (re-planning would pay twice). A
+    leg that can no longer be refunded is 409 `refund-plan-incomplete`: what was paid stays within the plan."""
+    plan = session.scalar(select(RefundCreditPlan).where(RefundCreditPlan.idempotency_key == idempotency_key))
+    if plan is not None:
+        if (plan.client_id, plan.amount_minor, plan.reason) != (client_id, amount_minor, reason):
+            raise Conflict("This Idempotency-Key was used for another refund.", code="idempotency-key-reused")
+    else:
+        plan = _plan_credit_refund(session, client_id, amount_minor, reason, idempotency_key, location_ids)
+    refunds = []
+    for leg in plan.legs:
+        payment_id = UUID(leg["payment_id"])
+        try:
+            refunds.append(
+                refund(
+                    session,
+                    payment_id,
+                    amount_minor=leg["amount_minor"],
+                    reason=reason,
+                    refund_batch_id=plan.refund_batch_id,
+                    idempotency_key=f"{idempotency_key}:{payment_id}",
+                )  # fmt: skip
+            )
+        except ValidationFailed as error:
+            if error.code != "refund-exceeds-unapplied":
+                raise
+            raise Conflict(
+                "This refund was started earlier and one of its payments can no longer be refunded. "
+                "Check the client's refunds before trying again.", code="refund-plan-incomplete",
+            ) from error  # fmt: skip
+    return refunds
+
+
+def _plan_credit_refund(
+    session: Session,
+    client_id: UUID,
+    amount_minor: int,
+    reason: str,
+    idempotency_key: str,
+    location_ids: Iterable[UUID] | None,
+) -> RefundCreditPlan:
+    """Plan the legs from today's credit and commit, in a short transaction of its own, the plan AND an `initiated`
+    refund row per leg: every leg's amount is reserved before any processor call, so another refund (or autopay,
+    or a staff allocation) can never take an unstarted leg's credit. A plan that dies is finished or cancelled leg
+    by leg by the sweep (`webhooks.reconcile`: 30 minutes for a leg the processor never saw, which frees its
+    reservation). The same 500 ms fallback as the refund rows: then it rides in the caller's transaction."""
+    try:
+        with tenant_session(session.info["tenant_id"], actor=session.info.get("actor")) as short:
+            short.execute(text("SET LOCAL lock_timeout = '500ms'"))
+            plan_id = _write_plan(short, client_id, amount_minor, reason, idempotency_key, location_ids).id
+    except (IntegrityError, OperationalError, ValidationFailed):
+        # The short transaction cannot see the caller's uncommitted payments, or lost a race: plan again in the
+        # caller's transaction (a twin with this key that committed first makes it 409 request-in-progress; a
+        # plan that took the credit meanwhile makes it refund-exceeds-unapplied).
+        return _write_plan(session, client_id, amount_minor, reason, idempotency_key, location_ids)
+    return session.get(RefundCreditPlan, plan_id)
+
+
+def _write_plan(
+    session: Session,
+    client_id: UUID,
+    amount_minor: int,
+    reason: str,
+    idempotency_key: str,
+    location_ids: Iterable[UUID] | None,
+) -> RefundCreditPlan:
     stmt = select(Payment).where(
         Payment.client_id == client_id, Payment.status == "succeeded", Payment.unapplied_minor > 0
     )
     if location_ids is not None:
         stmt = stmt.where(Payment.location_id.in_(list(location_ids)))
-    payments = session.scalars(stmt.order_by(Payment.received_at.desc(), Payment.id.desc())).all()
+    locked = session.scalars(stmt.order_by(Payment.id).with_for_update(key_share=True)).all()  # id order: no deadlock
+    payments = sorted(locked, key=lambda p: (p.received_at, p.id), reverse=True)  # newest first
     if not 0 < amount_minor <= sum(payment.unapplied_minor for payment in payments):
         raise ValidationFailed(
             "The amount exceeds the credit on account.", pointer="/amount_minor", code="refund-exceeds-unapplied"
         )
-    batch_id, refunds, left = new_id(), [], amount_minor
+    plan = RefundCreditPlan(
+        client_id=client_id, idempotency_key=idempotency_key, amount_minor=amount_minor, reason=reason,
+        refund_batch_id=new_id(), legs=[],
+    )  # fmt: skip
+    session.add(plan)
+    left, legs = amount_minor, []
     for payment in payments:
         part = min(left, payment.unapplied_minor)
-        if part > 0:
-            refunds.append(
-                refund(
-                    session,
-                    payment.id,
-                    amount_minor=part,
-                    reason=reason,
-                    refund_batch_id=batch_id,
-                    idempotency_key=f"{idempotency_key}:{payment.id}",
-                )  # fmt: skip
+        if part <= 0:
+            continue
+        legs.append({"payment_id": str(payment.id), "amount_minor": part})
+        left -= part
+        session.add(
+            Refund(
+                payment_id=payment.id, client_id=payment.client_id, location_id=payment.location_id,
+                amount_minor=part, currency=payment.currency, status="initiated",
+                method="original" if payment.provider_account_id is not None else "external",
+                refund_on=platform.service.location_today(session, payment.location_id), reason=reason,
+                issued_by_staff_user_id=_staff_id(session), refund_batch_id=plan.refund_batch_id,
+                idempotency_key=f"{idempotency_key}:{payment.id}",
             )
-            left -= part
-    return refunds
+        )  # fmt: skip
+        session.flush()
+        _settle_projections(session, payment, ())  # the reservation
+    plan.legs = legs
+    session.flush()
+    return plan
 
 
 # --- invoices: edits, regrouping, void, schedule -----------------------------------------------------------

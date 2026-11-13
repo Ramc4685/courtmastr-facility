@@ -25,6 +25,7 @@ from app.modules.billing.models import (
     PaymentMethod,
     ProviderCustomer,
     Refund,
+    RefundCreditPlan,
     StatementRecipient,
 )
 
@@ -56,6 +57,7 @@ def _repoint(session: Session, loser_id: UUID, survivor_id: UUID) -> None:
         (Charge, Charge.client_id),
         (Payment, Payment.client_id),
         (Refund, Refund.client_id),
+        (RefundCreditPlan, RefundCreditPlan.client_id),
         (CouponRedemption, CouponRedemption.redeemer_client_id),
         (BillingDocumentDelivery, BillingDocumentDelivery.client_id),
         (CatalogItemSale, CatalogItemSale.client_id),
@@ -103,6 +105,7 @@ def _export(session: Session, client_id: UUID) -> dict:
     invoices = session.scalars(select(Invoice).where(Invoice.bill_to_client_id == client_id))
     payments = session.scalars(select(Payment).where(Payment.client_id == client_id))
     stored = session.scalars(select(PaymentMethod).where(PaymentMethod.client_id == client_id))
+    plans = session.scalars(select(RefundCreditPlan).where(RefundCreditPlan.client_id == client_id))
     return {
         "invoices": [
             {"number": r.number, "invoice_on": r.invoice_on.isoformat(), "total_minor": r.total_minor,
@@ -115,6 +118,10 @@ def _export(session: Session, client_id: UUID) -> dict:
             for r in payments
         ],
         "payment_methods": [{"kind": r.kind, "brand": r.brand, "last4": r.last4, "status": r.status} for r in stored],
+        "account_credit_refunds": [
+            {"amount_minor": r.amount_minor, "reason": r.reason, "requested_at": r.created_at.isoformat()}
+            for r in plans
+        ],
     }  # fmt: skip
 
 
@@ -135,6 +142,10 @@ def _erase(session: Session, client_id: UUID) -> dict:
     )
     session.execute(update(Payment).where(Payment.client_id == client_id).values(memo=None, external_reference=None))
     session.execute(update(Refund).where(Refund.client_id == client_id).values(comments=None))
+    # A credit refund's plan is part of the retained refund record (it keeps its client, as refunds do); only the
+    # free-text reason goes (the column is required, so it is replaced).
+    plan = RefundCreditPlan
+    session.execute(update(plan).where(plan.client_id == client_id).values(reason="Erased"))
     d = BillingDocumentDelivery
     mine = or_(
         d.client_id == client_id,
@@ -163,7 +174,7 @@ def _erase(session: Session, client_id: UUID) -> dict:
 _TABLES = (
     "invoice", "charge", "payment", "refund", "ledger_entry", "coupon_redemption", "provider_customer",
     "payment_method", "billing_notice", "billing_document_delivery", "statement_recipient", "catalog_item_sale",
-    "client_collections_profile",
+    "client_collections_profile", "refund_credit_plan",
 )  # fmt: skip
 clients.merge.register_merge_handler("billing", tables=_TABLES, repoint=_repoint)
 platform.privacy.register_subject_handler(

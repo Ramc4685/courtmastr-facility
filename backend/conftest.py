@@ -259,6 +259,13 @@ def populate(client, tenant) -> SimpleNamespace:
     post(
         f"/payments/{payment['id']}/refunds", {"amount_minor": 500, "reason": "Overpaid"}, key=f"populate-{uuid4().hex}"
     )
+    post("/payments", {  # + refund_credit_plan: credit on account, part of it given back
+        "client_id": person["id"], "location_id": location["id"], "amount_minor": 200, "tender_kind": "cash",
+    }, key=f"populate-credit-{uuid4().hex}")  # fmt: skip
+    post(
+        f"/clients/{person['id']}/account-credit/refund", {"amount_minor": 100, "reason": "Leaving"},
+        key=f"populate-credit-refund-{uuid4().hex}",
+    )  # fmt: skip
     billing_ids = _populate_billing(client, headers, post, person, location, category_id, tax_id, payment)
     billing_ids |= _populate_pos(client, headers, post, person, location, category_id, tax_id)
     disputed = post("/payments", {  # + dispute: a settled card payment the payer then disputes

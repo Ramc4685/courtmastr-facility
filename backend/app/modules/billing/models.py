@@ -513,6 +513,25 @@ class Refund(TenantOwned, Timestamps, Base):
     release_allocation_ids: Mapped[list[UUID] | None] = mapped_column(ARRAY(PgUUID(as_uuid=True)))
 
 
+class RefundCreditPlan(TenantOwned, Timestamps, Base):
+    """An account-credit refund's legs, committed before any processor call, so a retry with the same key replays
+    exactly these legs instead of re-planning from balances the first attempt already lowered (migration 1805)."""
+
+    __tablename__ = "refund_credit_plan"
+    __table_args__ = tenant_args(
+        *tfk("client_id", "client"),
+        CheckConstraint("amount_minor > 0", name="amount_positive"),
+        UniqueConstraint("tenant_id", "idempotency_key", name="uq_refund_credit_plan_key"),
+    )
+
+    client_id: Mapped[UUID]
+    idempotency_key: Mapped[str]
+    amount_minor: Mapped[int] = _money()
+    reason: Mapped[str]
+    refund_batch_id: Mapped[UUID]
+    legs: Mapped[list] = mapped_column(JSONB)  # [{"payment_id": "...", "amount_minor": 500}, ...] in order
+
+
 class Dispute(TenantOwned, Timestamps, Base):
     """A chargeback or a bank-debit return after settlement (PAY-17, ADR 0003 section 9). Mirrors the processor:
     created and moved only by webhooks.apply_event through service.sync_dispute."""
