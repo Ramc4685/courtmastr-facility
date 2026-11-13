@@ -42,6 +42,26 @@ describe('PublicLeaguesPage site', SCREEN, () => {
     await waitFor(() => expect(calls.some((c) => c.url.startsWith('/api/v1/public/competitions?') && c.url.includes('sport_id=sp1'))).toBe(true))
   })
 
+  it('leaves for the app by a full, top-level navigation, so the app gets its own CSP and never runs in the frame', async () => {
+    renderAsStaff(at('/leagues/public', '/leagues/public', <PublicLeaguesPage />), [], {
+      'GET /api/v1/public/league-site': { status: 200, body: { ...site, shows_classes: true, facilities: [] } },
+      'GET /api/v1/public/competitions': { status: 200, body: [competition] },
+      'GET /api/v1/public/league-site/news': { status: 200, body: [] },
+      'GET /api/v1/public/league-site/classes': { status: 200, body: [{ id: 'k1', name: 'Junior clinic', kind: 'clinic', location_name: 'Courtside Downtown', starts_on: null, description: null, is_open: true, spots_left: 4 }] },
+      'GET /api/v1/public/league-site/posts': { status: 200, body: [post] },
+    })
+    await screen.findByRole('link', { name: 'Register in the member portal' })
+    await screen.findByRole('link', { name: 'Post or reply in the member portal' })
+    const framable = /^\/(leagues\/public|leagues\/board|schedule\/public)(\/|\?|$)/
+    const leaving = screen.getAllByRole('link').filter((a) => a.getAttribute('href')?.startsWith('/') && !framable.test(a.getAttribute('href') ?? ''))
+    expect(leaving.map((a) => a.textContent)).toEqual(['Register in the member portal', 'Post or reply in the member portal'])
+    for (const a of leaving) {
+      expect(a).toHaveAttribute('target', '_top')
+      // A router link cancels the click and routes in the document; a plain anchor lets the browser load the page.
+      expect(a.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }))).toBe(true)
+    }
+  })
+
   it('embeds without the site chrome', async () => {
     renderAsStaff(at('/leagues/public?embed=1', '/leagues/public', <PublicLeaguesPage />), [], {
       'GET /api/v1/public/league-site': { status: 200, body: { ...site, facilities: [] } },
