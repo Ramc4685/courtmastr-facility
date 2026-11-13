@@ -21,6 +21,9 @@ CARDS = [
     "4111/1111/1111/1111", "4111_1111_1111_1111", "4111  1111  1111  1111", "4111 1111\n1111 1111",
     "4111 - 1111 - 1111 - 1111", "4111 1111 1111 1111 003",  # 19-digit Visa, 4-4-4-4-3
     "6011 0009 9013 9424", "3530111333300000",  # Discover, JCB
+    # whole groups of any size (at least 3 digits each), repeated and mixed separators
+    "41111111 11111111", "4111 1111 11111111", "4111-1111--1111 1111", "4111--1111--1111--1111",
+    "4111 / 1111 . 1111_1111", "3782 8224 6310 005", "411 111 111 111 1111",
 ]  # fmt: skip
 NOT_CARDS = [
     "217-555-0123", "(217) 555-0123", "+1 217 555 0123", "+44 20 7946 0958", "2175550123",
@@ -31,10 +34,10 @@ NOT_CARDS = [
     "tracking 9400111899223817364821", "tracking 9400 1118 9922 3817 3648 21",  # USPS-style, 22 digits
     "IBAN DE89 3704 0044 0532 0130 00", "GB29 NWBK 6016 1331 9268 19",
     "scores 21 19 21 17 21 15", "ids 1000023 1000024 1000025",
-    "scores 51 48 55 60 52 47 63 58", "51 48 55 60 52 47 63 58 51 48 55 60",  # short tokens are never joined
+    "scores 51 48 55 60 52 47 63 58", "51 48 55 60 52 47 63 58 51 48 55 60",  # groups under 3 digits never join
+    "41 11 11 11 11 11 11 11", "4111 11 1111 1111 11",
     "4000000000006", "barcode 4006381333931",  # EAN-13 barcodes; 13-digit Visa is not detected
-    "1234 5678 9012 3456 7890 1234",  # grouped, but no 4-4-4-4 window passes prefix and Luhn
-    "3782 8224 6310 005",  # a valid Amex in a grouping no card is printed in (Amex is 4-6-5)
+    "1234 5678 9012 3456 7890 1234",  # grouped, but no window of whole groups passes prefix, length and Luhn
     "3782822463100052",  # Luhn-valid, Amex prefix, but 16 digits: Amex is 15
 ]  # fmt: skip
 
@@ -103,7 +106,9 @@ def test_api_refuses_a_note_with_a_card_number(client, owner):
     assert kept.status_code == 201, kept.text
 
 
-@pytest.mark.parametrize("hostile", ["1 " * 500_000, "1-" * 500_000, "4" * 1_000_000, "4111 " * 200_000])
+@pytest.mark.parametrize(
+    "hostile", ["1 " * 500_000, "1-" * 500_000, "4" * 1_000_000, "4111 " * 200_000, "411 -- " * 100_000]
+)
 def test_detector_is_linear_on_hostile_input(hostile):
     started = time.perf_counter()
     contains_card_number(hostile)
