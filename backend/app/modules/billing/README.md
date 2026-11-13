@@ -367,7 +367,9 @@ handlers re-read the object from the provider.
   render dry runs run the send checks (`documents.check_invoice_send`: an address, a renderable invoice), so a
   dry run shows `no-email-address` before the real one. **Each item stores `amount_minor`** (migration 1804; a charge's or
   invoice's total, or the catalogue item's net fee): a run that names `preview_id` (a dry run of the same action at
-  the same location) is 409 `bulk-preview-stale` when any subject or amount differs, 422 at `/preview_id` when it
+  the same location) is 409 `bulk-preview-stale` when any subject, amount or param (autopay, due date, item,
+  reason) differs, and an added item is sold only at the amount stored on its row (a catalogue price changed since
+  fails that item, `bulk-price-changed`), 422 at `/preview_id` when it
   is not such a dry run, 404 when it does not exist. `add_catalog_item` loads each client and checks its home
   location against a location-limited caller's locations (a client with no home location is out of reach for
   them; an API key is held to its creator's locations, narrowed by its own): unknown or out of reach is `skipped` / `client-not-found`. **The `Idempotency-Key` is required** (an API client could otherwise

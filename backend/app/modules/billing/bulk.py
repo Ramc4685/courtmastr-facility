@@ -59,7 +59,7 @@ def create_bulk_action(session: Session, principal: Principal, data: dict, idemp
     params = _params(session, action, location_id, data.get("params") or {})
     subjects = _subjects(session, principal, action, location_id, data, params)
     if data.get("preview_id"):
-        _check_preview(session, principal, data, subjects)
+        _check_preview(session, principal, data, params, subjects)
     row = BillingBulkAction(
         location_id=location_id, action=action, is_dry_run=bool(data.get("is_dry_run")), params=params,
         item_count=len(subjects), requested_by_staff_user_id=service._staff_id(session),
@@ -115,12 +115,15 @@ def _params(session: Session, action: str, location_id: UUID, params: dict) -> d
     return {}
 
 
-def _check_preview(session: Session, principal: Principal, data: dict, subjects: list[tuple]) -> None:
-    """A run that names its dry run must act on the same subjects at the same amounts, else 409: the person
-    approved what the preview showed, not what the books say now."""
+def _check_preview(session: Session, principal: Principal, data: dict, params: dict, subjects: list[tuple]) -> None:
+    """A run that names its dry run must act on the same subjects at the same amounts with the same params
+    (autopay, due date, item, reason), else 409: the person approved what the preview showed, not what the books
+    or the form say now."""
     preview = _load(session, principal, data["preview_id"])
     if not preview.is_dry_run or (preview.action, preview.location_id) != (data["action"], data["location_id"]):
         raise ValidationFailed("Name a dry run of this action at this location.", pointer="/preview_id")
+    if preview.params != params:
+        raise Conflict("The options changed since the preview. Preview again.", code="bulk-preview-stale")
     shown = dict(
         session.execute(
             select(BillingBulkActionItem.subject_id, BillingBulkActionItem.amount_minor).where(
@@ -185,7 +188,7 @@ def _subjects(
     item = session.get(CatalogItem, UUID(params["catalog_item_id"]))
     if item is None:
         raise ValidationFailed("Choose an item of this location.", pointer="/params/catalog_item_id")
-    fee = item.fee_minor - service._pct_discount(item.fee_minor, item.discount_pct, item.discount_minor or 0)
+    fee = _net_fee(item)
     reach = principal.location_ids  # None: every location; a key is held to its creator's (and its own)
 
     def reachable(client_id: UUID) -> bool:  # unknown and out-of-reach clients look the same (404 rule)
@@ -199,6 +202,10 @@ def _subjects(
         ("client", client_id, client_id, None if reachable(client_id) else "client-not-found", fee)
         for client_id in wanted
     ]
+
+
+def _net_fee(item: CatalogItem) -> int:
+    return item.fee_minor - service._pct_discount(item.fee_minor, item.discount_pct, item.discount_minor or 0)
 
 
 def _capped(session: Session, stmt, pointer: str) -> list:
@@ -293,6 +300,12 @@ def _apply(
         return "billing_document_delivery", documents.send_invoice(
             session, session.info["actor"], subject, {"channel": channel}
         ).id
+    # The item is sold at the price it was given (and previewed) at, never at one changed since.
+    if (
+        items[0].amount_minor is not None
+        and _net_fee(service._get(session, CatalogItem, UUID(params["catalog_item_id"]))) != items[0].amount_minor
+    ):
+        raise Conflict("The item's price changed after this action priced it.", code="bulk-price-changed")
     sale = catalog.sell(session, UUID(params["catalog_item_id"]), client_id=subject)
     return "catalog_item_sale", sale.id
 

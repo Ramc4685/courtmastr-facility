@@ -6290,8 +6290,8 @@ components:
         preview_id:
           type: [string, 'null']
           format: uuid
-          description: The dry run this run was previewed as; 409 `bulk-preview-stale` when a subject or its amount
-            changed since.
+          description: The dry run this run was previewed as; 409 `bulk-preview-stale` when a subject or its amount,
+            or any of the params (autopay, due date, item, reason), changed since.
     BillingBulkAction:
       type: object
       required: [id, location_id, action, is_dry_run, status, item_count, done_count, failed_count, created_at]
@@ -6324,7 +6324,7 @@ components:
           description: Why the item was skipped or failed. Skipped when the action was created
             (`charge-not-invoiceable`, `charge-not-reversible`, `charge-has-no-client`, `invoice-not-found`,
             `client-not-found`); failed while it ran (`no-email-address`, `not-processed`, `requester-not-allowed`,
-            `internal-error`, or the code of the domain error the item raised).
+            `bulk-price-changed` (an added item's price changed after the action priced it), `internal-error`, or the code of the domain error the item raised).
     AllocationInput:
       type: object
       required: [charge_id, amount_minor]

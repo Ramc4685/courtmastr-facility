@@ -176,3 +176,31 @@ def test_a_job_an_api_key_started_stops_when_the_key_is_revoked(client, api, sho
         assert bulk.run_job_chunk(session, made["id"]) is False
         row = session.get(bulk.BillingBulkAction, UUID(made["id"]))
         assert (row.status, row.done_count, row.failed_count) == ("completed_with_errors", 1, 2)
+
+
+def test_a_run_is_refused_when_its_params_differ_from_the_preview(api, shop):
+    charge_id = api("POST", "/charges", item(shop, 1000), 201)["id"]
+    body = {"action": "create_invoices", "location_id": str(shop.location_id), "charge_ids": [charge_id],
+            "params": {"is_autopay": False, "due_on": "2026-12-01"}}  # fmt: skip
+    preview, _ = _bulk(api, body | {"is_dry_run": True})
+    for changed in ({"is_autopay": True, "due_on": "2026-12-01"}, {"is_autopay": False, "due_on": "2026-12-15"}):
+        stale = api("POST", "/billing-bulk-actions", body | {"params": changed, "preview_id": preview["id"]}, 409)
+        assert stale["code"] == "bulk-preview-stale"
+    done, _ = _bulk(api, body | {"preview_id": preview["id"]})
+    assert done["status"] == "completed"
+
+
+def test_a_job_fails_an_add_item_whose_price_changed_after_it_was_priced(api, shop, monkeypatch):
+    monkeypatch.setattr(bulk, "IN_REQUEST_LIMIT", 0)
+    monkeypatch.setattr(bulk.run_bulk_action, "send", lambda *args: None)
+    catalog_item = _catalog_item(api, shop, fee=1000)
+    body = {"action": "add_catalog_item", "location_id": str(shop.location_id), "client_ids": [str(shop.client_id)],
+            "params": {"catalog_item_id": catalog_item["id"]}}  # fmt: skip
+    made = api("POST", "/billing-bulk-actions", body, 202)
+    api("PATCH", f"/catalog-items/{catalog_item['id']}", {"fee_minor": 1500})
+    with work(shop.tenant) as session:
+        assert bulk.run_job_chunk(session, made["id"]) is False
+    rows = api("GET", f"/billing-bulk-actions/{made['id']}/items")["data"]
+    assert [(row["status"], row["error_code"], row["amount_minor"]) for row in rows] == [
+        ("failed", "bulk-price-changed", 1000)
+    ]
