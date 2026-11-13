@@ -364,13 +364,6 @@ def list_portal_session_listings(
     return selfservice.list_listings(ctx.session, ctx.principal, client_id, filters)
 
 
-@router.get("/portal/sessions/{schedule_session_id}/join-link", response_model=s.PortalJoinLinkOut)
-def get_portal_session_join_link(schedule_session_id: UUID, ctx: Portal):
-    """SSP-18: for an enrolled client (or someone acting for one), from 15 minutes before the start to the end.
-    Errors: join-not-open (409, with opens_at and closes_at)."""
-    return selfservice.portal_join_link(ctx.session, ctx.principal, schedule_session_id)
-
-
 @router.get("/portal/enrollments", response_model=s.Page[s.PortalEnrollmentOut])
 def list_portal_enrollments(query: Lists, ctx: Portal):
     """Filters: status, target_kind, client_id."""

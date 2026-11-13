@@ -27,7 +27,7 @@ const card = { id: 'pm1', client_id: 'c1', kind: 'card', brand: 'visa', last4: '
 const processor = { status: 200, body: { provider: 'fake' } }
 const listing = (id: string, startsAt: string, extra: Record<string, unknown> = {}) => ({
   session_id: id, location_id: 'l1', title: 'Private lesson', starts_at: startsAt, ends_at: startsAt, spots_left: 1, is_bookable: true, can_join_waitlist: false, reason: null,
-  reservation_type_id: 'rt1', is_virtual: false, ...extra,
+  reservation_type_id: 'rt1', ...extra,
 })
 const sold = { id: 'cp9', name: 'Ten lessons', is_unlimited: false, sessions_available_count: 10, valid_until_on: null, payment_status: 'succeeded' }
 
@@ -132,17 +132,16 @@ describe('Portal booking and buying', { timeout: 20_000 }, () => {
 
   it('shows the week in the location zone and books from the calendar', async () => {
     const noon = toInstant(today(ZONE), 12 * 60, ZONE)
-    const calls = open('/portal/sessions', sessionRoutes([listing('s1', noon, { title: 'Yoga', is_virtual: true })], { 'POST /api/v1/portal/enrollments': { status: 201, body: { id: 'e1' } } }))
+    const calls = open('/portal/sessions', sessionRoutes([listing('s1', noon, { title: 'Yoga' })], { 'POST /api/v1/portal/enrollments': { status: 201, body: { id: 'e1' } } }))
     await userEvent.click(await screen.findByRole('button', { name: 'Week' }))
     expect(screen.getByRole('button', { name: 'Week' })).toHaveAttribute('aria-pressed', 'true')
     const table = await screen.findByRole('table', { name: /Sessions, .* times in America\/Chicago/ })
-    const session = await within(table).findByRole('button', { name: /^12:00\sPM Yoga, .*, virtual$/ })
+    const session = await within(table).findByRole('button', { name: /^12:00\sPM Yoga, .*day, / })
     const range = calls.filter((c) => c.url.includes('session-listings') && c.url.includes('starts_at')).map((c) => new URL(c.url, 'http://x').searchParams)
     expect(range[0]?.get('location_id')).toBe('l1')
     expect(new Date(range[0]?.get('starts_at[lt]') ?? '').getTime() - new Date(range[0]?.get('starts_at[gte]') ?? '').getTime()).toBeGreaterThanOrEqual(167 * 3600_000)
     await userEvent.click(session)
     const dialog = await screen.findByRole('dialog', { name: 'Yoga' })
-    expect(within(dialog).getByText('Virtual')).toBeInTheDocument()
     await userEvent.click(within(dialog).getByRole('button', { name: /^Book Yoga/ }))
     await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/portal/enrollments'))).toBe(true))
     await userEvent.click(screen.getByRole('button', { name: 'Month' }))
@@ -179,36 +178,19 @@ describe('Portal booking and buying', { timeout: 20_000 }, () => {
     expect(booking).toBe(2)
   })
 
-  it('books with the package already held, and joins an open virtual session in a new tab', async () => {
-    const windowOpen = vi.fn()
-    vi.stubGlobal('open', windowOpen)
+  it('books with the package already held', async () => {
     const enrol: Call[] = []
-    let joins = 0
-    open('/portal/sessions', sessionRoutes([listing('s1', '2031-05-06T15:00:00Z', { is_virtual: true })], {
+    open('/portal/sessions', sessionRoutes([listing('s1', '2031-05-06T15:00:00Z')], {
       'GET /api/v1/portal/client-packages': page([{ id: 'cp1', status: 'active', reservation_type_id: 'rt1', is_unlimited: false, sessions_available_count: 3 }]),
-      'GET /api/v1/portal/enrollments': page([{ id: 'e1', client_id: 'c1', session_id: 's1', status: 'enrolled', target_kind: 'session' }]),
       'POST /api/v1/portal/enrollments': (call) => {
         enrol.push(call)
         return { status: 201, body: { id: 'e2' } }
-      },
-      'GET /api/v1/portal/sessions/s1/join-link': () => {
-        joins += 1
-        return joins === 1
-          ? { status: 409, body: { status: 409, code: 'join-not-open', detail: 'Not open yet.', opens_at: '2031-05-06T14:45:00Z', closes_at: '2031-05-06T16:00:00Z' } }
-          : { status: 200, body: { session_id: 's1', join_url: 'https://meet.example/j/1', opens_at: '2031-05-06T14:45:00Z', closes_at: '2031-05-06T16:00:00Z' } }
       },
     }))
     await userEvent.click(await screen.findByRole('button', { name: /^Book Private lesson/ }))
     await waitFor(() => expect(enrol).toHaveLength(1))
     expect(enrol[0]?.body).toEqual({ client_id: 'c1', session_id: 's1', client_package_id: 'cp1' })
     expect(screen.queryByRole('button', { name: /^Buy a package/ })).not.toBeInTheDocument()
-    const mine = await screen.findByRole('list', { name: 'Your bookings' })
-    await userEvent.click(await within(mine).findByRole('button', { name: 'Join Private lesson online' }))
-    expect(await within(mine).findByRole('status')).toHaveTextContent(/^Opens at May 6, 2031,? 9:45\sAM\.$/)
-    expect(windowOpen).not.toHaveBeenCalled()
-    await userEvent.click(within(mine).getByRole('button', { name: 'Join Private lesson online' }))
-    await waitFor(() => expect(windowOpen).toHaveBeenCalledWith('https://meet.example/j/1', '_blank', 'noopener,noreferrer'))
-    expect(screen.queryByText(/meet\.example/)).not.toBeInTheDocument()
   })
 
   it('shows the due-today amount and the instalments of a payment plan, and pays with the saved card', async () => {

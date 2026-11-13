@@ -625,16 +625,6 @@ class PortalSessionListing(Out):
     can_join_waitlist: bool
     reason: str | None
     reservation_type_id: UUID | None = None  # SSP-08: which online package plans cover it
-    is_virtual: bool = False  # SSP-18: the join link comes from getPortalSessionJoinLink, never from here
-
-
-class PortalJoinLinkOut(Out):
-    """SSP-18: the join link of a virtual session, for an enrolled client or someone acting for one."""
-
-    session_id: UUID
-    join_url: str
-    opens_at: datetime
-    closes_at: datetime
 
 
 class PortalEnrollmentCreate(In):

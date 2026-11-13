@@ -239,7 +239,7 @@ Lane detail: `02-resources-scheduling.md`, `02-resources-scheduling-web.md`.
 | CLS-05 Free booking | P0 | done | Integration: with the flag off a package of the session's type is required, or the free-book override permission. |
 | CLS-06 Waitlist | P0 | partial | Add (auto-promote), promote, remove. A full session points staff to the waitlist. The offer and accept flow has no screen (API partial). |
 | CLS-07 Public class listing | P2 | done | Phase 14 B2: `/public/league-site/classes` on the league site (`11-leagues.md`). |
-| CLS-08 Virtual sessions | P1 | done | Staff session panel makes a session virtual through the video port (simulated adapter only); enrolled clients get the join link in the portal from 15 minutes before the start (SSP-18). No real Zoom or Meet adapter (phase 11 B). |
+| CLS-08 Virtual sessions | P1 | not built | The `virtual_room` kind can be created and booked. |
 | CLS-09 Client self-booking | P0 | not built | Portal/mobile. |
 | CLS-10 Program registration | P0 | not built | Module 6. |
 

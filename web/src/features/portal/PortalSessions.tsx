@@ -60,7 +60,7 @@ function Calendar({ view, anchor, zone, listings, onPick }: { view: 'week' | 'mo
               size="sm"
               variant={l.is_bookable ? 'secondary' : 'ghost'}
               className="w-full justify-start text-left"
-              aria-label={`${formatTime(l.starts_at, zone)} ${l.title ?? 'Session'}, ${formatDay(d)}${l.is_virtual ? ', virtual' : ''}${l.is_bookable ? '' : ', not bookable'}`}
+              aria-label={`${formatTime(l.starts_at, zone)} ${l.title ?? 'Session'}, ${formatDay(d)}${l.is_bookable ? '' : ', not bookable'}`}
               onClick={() => onPick(l)}
             >
               <span className="truncate">
@@ -182,7 +182,7 @@ function BuyAndBookDialog({ listing, clientId, onClose }: { listing: Listing; cl
 }
 
 /** Bookable sessions as a list or a week or month calendar, with the reason when one is not bookable, plus the
- * client's own bookings (with Join for virtual ones) and waitlists. */
+ * client's own bookings (with Join online for sessions that have a meeting) and waitlists. */
 export function PortalSessions() {
   const qc = useQueryClient()
   const toast = useToast()
@@ -198,7 +198,6 @@ export function PortalSessions() {
   const [anchor, setAnchor] = useState(() => today(zone))
   const [selected, setSelected] = useState<Listing | null>(null)
   const [buying, setBuying] = useState<Listing | null>(null)
-  const [joinNote, setJoinNote] = useState<Record<string, string>>({})
   const range = view === 'list' ? null : period(view, anchor)
   const listings = useQuery({ queryKey: ['portal', 'listings', clientId], queryFn: () => api.get('/api/v1/portal/session-listings', { query: { client_id: clientId } }) })
   const calendar = useQuery({
@@ -272,20 +271,6 @@ export function PortalSessions() {
     },
     onError: fail,
   })
-  // SSP-18: the link is fetched on demand and opened, never shown on the page.
-  const meet = useMutation({
-    mutationFn: (sessionId: string) => api.get('/api/v1/portal/sessions/{schedule_session_id}/join-link', { path: { schedule_session_id: sessionId } }),
-    onSuccess: (link) => {
-      setJoinNote((n) => ({ ...n, [link.session_id]: '' }))
-      window.open(link.join_url, '_blank', 'noopener,noreferrer')
-    },
-    onError: (e, sessionId) => {
-      const l = known.get(sessionId)
-      const opens = e instanceof ApiError && e.code === 'join-not-open' && typeof e.problem.opens_at === 'string' ? e.problem.opens_at : null
-      setJoinNote((n) => ({ ...n, [sessionId]: opens ? `Opens at ${formatDateTime(opens, zoneOf(l?.location_id))}.` : programError(e) }))
-    },
-  })
-
   const actions = (l: Listing) => {
     const when = formatDateTime(l.starts_at, zoneOf(l.location_id))
     const offerPackage = l.is_bookable && !usable(l.reservation_type_id) && sellable(l.reservation_type_id)
@@ -311,9 +296,7 @@ export function PortalSessions() {
   }
   const summary = (l: Listing) => (
     <span>
-      <span className="flex flex-wrap items-center gap-2 font-medium">
-        {l.title ?? 'Session'} {l.is_virtual && <Badge tone="info">Virtual</Badge>}
-      </span>
+      <span className="block font-medium">{l.title ?? 'Session'}</span>
       <span className="text-sm text-muted">
         {formatDateTime(l.starts_at, zoneOf(l.location_id))}
         {l.spots_left !== null && ` · ${l.spots_left} left`}
@@ -433,7 +416,7 @@ export function PortalSessions() {
               {mine.map((e) => (
                 <li key={e.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                   <span>
-                    <span className="block font-medium">{(e.session_id && titles.get(e.session_id)) || (e.starts_at ? `Session, ${formatDateTime(e.starts_at)}` : 'Session')}</span>
+                    <span className="block font-medium">{e.session_id && known.has(e.session_id) ? titleOf(e.session_id) : e.starts_at ? `Session, ${formatDateTime(e.starts_at)}` : 'Session'}</span>
                     <span className="text-sm text-muted">{names.get(e.client_id)}</span>
                   </span>
                   <span className="flex gap-2">

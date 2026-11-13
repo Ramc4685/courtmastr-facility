@@ -50517,38 +50517,6 @@
         "title": "PortalInvoiceOut",
         "type": "object"
       },
-      "PortalJoinLinkOut": {
-        "description": "SSP-18: the join link of a virtual session, for an enrolled client or someone acting for one.",
-        "properties": {
-          "closes_at": {
-            "format": "date-time",
-            "title": "Closes At",
-            "type": "string"
-          },
-          "join_url": {
-            "title": "Join Url",
-            "type": "string"
-          },
-          "opens_at": {
-            "format": "date-time",
-            "title": "Opens At",
-            "type": "string"
-          },
-          "session_id": {
-            "format": "uuid",
-            "title": "Session Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "session_id",
-          "join_url",
-          "opens_at",
-          "closes_at"
-        ],
-        "title": "PortalJoinLinkOut",
-        "type": "object"
-      },
       "PortalLeaguePostOut": {
         "properties": {
           "body": {
@@ -53094,11 +53062,6 @@
           },
           "is_bookable": {
             "title": "Is Bookable",
-            "type": "boolean"
-          },
-          "is_virtual": {
-            "default": false,
-            "title": "Is Virtual",
             "type": "boolean"
           },
           "location_id": {
@@ -73055,11 +73018,6 @@
           "is_self_bookable": {
             "title": "Is Self Bookable",
             "type": "boolean"
-          },
-          "is_virtual": {
-            "default": false,
-            "title": "Is Virtual",
-            "type": "boolean"
           }
         },
         "required": [
@@ -73157,74 +73115,6 @@
         "title": "SessionInstructorOut",
         "type": "object"
       },
-      "SessionMeetingOut": {
-        "description": "A virtual session's meeting (CLS-08). Staff only: the links are credentials.",
-        "properties": {
-          "closes_at": {
-            "format": "date-time",
-            "title": "Closes At",
-            "type": "string"
-          },
-          "host_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Host Url"
-          },
-          "is_virtual": {
-            "title": "Is Virtual",
-            "type": "boolean"
-          },
-          "join_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Join Url"
-          },
-          "opens_at": {
-            "format": "date-time",
-            "title": "Opens At",
-            "type": "string"
-          },
-          "provider": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Provider"
-          },
-          "session_id": {
-            "format": "uuid",
-            "title": "Session Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "session_id",
-          "is_virtual",
-          "provider",
-          "join_url",
-          "host_url",
-          "opens_at",
-          "closes_at"
-        ],
-        "title": "SessionMeetingOut",
-        "type": "object"
-      },
       "SessionOut": {
         "properties": {
           "allows_free_booking": {
@@ -73282,11 +73172,6 @@
           },
           "is_self_bookable": {
             "title": "Is Self Bookable",
-            "type": "boolean"
-          },
-          "is_virtual": {
-            "default": false,
-            "title": "Is Virtual",
             "type": "boolean"
           },
           "location_id": {
@@ -140007,69 +139892,6 @@
         ]
       }
     },
-    "/api/v1/portal/sessions/{schedule_session_id}/join-link": {
-      "get": {
-        "description": "SSP-18: for an enrolled client (or someone acting for one), from 15 minutes before the start to the end.\nErrors: join-not-open (409, with opens_at and closes_at).",
-        "operationId": "getPortalSessionJoinLink",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "schedule_session_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Schedule Session Id",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Optional; keys live 24 hours.",
-            "in": "header",
-            "name": "idempotency-key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional; keys live 24 hours.",
-              "title": "Idempotency-Key"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PortalJoinLinkOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Portal Session Join Link",
-        "tags": [
-          "programs"
-        ]
-      }
-    },
     "/api/v1/portal/statement": {
       "get": {
         "description": "The caller's own statement; default period the 30 days up to today at their home location.",
@@ -161863,192 +161685,6 @@
         "summary": "Assign Session Instructor",
         "tags": [
           "staff"
-        ],
-        "x-api-key-scopes": [
-          "scheduling.session.manage"
-        ]
-      }
-    },
-    "/api/v1/sessions/{schedule_session_id}/meeting": {
-      "delete": {
-        "operationId": "deleteSessionMeeting",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "schedule_session_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Schedule Session Id",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Optional; keys live 24 hours.",
-            "in": "header",
-            "name": "idempotency-key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional; keys live 24 hours.",
-              "title": "Idempotency-Key"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Delete Session Meeting",
-        "tags": [
-          "scheduling"
-        ],
-        "x-api-key-scopes": [
-          "scheduling.session.manage"
-        ]
-      },
-      "get": {
-        "description": "CLS-08: the meeting links of a virtual session (staff only).",
-        "operationId": "getSessionMeeting",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "schedule_session_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Schedule Session Id",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Optional; keys live 24 hours.",
-            "in": "header",
-            "name": "idempotency-key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional; keys live 24 hours.",
-              "title": "Idempotency-Key"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SessionMeetingOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Session Meeting",
-        "tags": [
-          "scheduling"
-        ],
-        "x-api-key-scopes": [
-          "scheduling.booking.read"
-        ]
-      },
-      "put": {
-        "description": "Make the session virtual (a meeting through the video port). Idempotent.",
-        "operationId": "createSessionMeeting",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "schedule_session_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Schedule Session Id",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Optional; keys live 24 hours.",
-            "in": "header",
-            "name": "idempotency-key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Optional; keys live 24 hours.",
-              "title": "Idempotency-Key"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SessionMeetingOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Create Session Meeting",
-        "tags": [
-          "scheduling"
         ],
         "x-api-key-scopes": [
           "scheduling.session.manage"

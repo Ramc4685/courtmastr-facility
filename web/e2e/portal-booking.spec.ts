@@ -80,7 +80,7 @@ test('portal booking and buying: saved cards, calendar, virtual session, payment
   // The member books a session; staff make it virtual (CLS-08).
   const member = await memberPage(browser)
   const { listing, enrollment } = await bookSomething(member.page.request, member.headers)
-  const made = await page.request.put(`/api/v1/sessions/${listing.session_id}/meeting`, { headers: staff() })
+  const made = await page.request.put(`/api/v1/sessions/${listing.session_id}/video-meeting`, { headers: staff(), data: { provider: 'manual', join_url: 'https://meet.example.com/e2e' } })
   // REG-10: a three-instalment plan on the camp, put back at the end.
   const config = await (await page.request.get(`/api/v1/program-groups/${camp}/registration-config`, { headers: SLUG })).json()
   const planned = await page.request.put(`/api/v1/program-groups/${camp}/registration-config`, {
@@ -98,9 +98,7 @@ test('portal booking and buying: saved cards, calendar, virtual session, payment
       await m.goto('/portal/sessions')
       await expect(m.getByRole('heading', { level: 1, name: 'Book a session' })).toBeVisible()
       const mine = m.getByRole('list', { name: 'Your bookings' })
-      await expect(mine.getByText('Virtual').first()).toBeVisible()
-      await mine.getByRole('button', { name: /^Join .* online$/ }).first().click()
-      await expect(mine.getByRole('status').first()).toContainText('Opens at')
+      await expect(mine.getByRole('button', { name: /^Join online/ }).first()).toBeVisible() // the join itself: portal.spec.ts
       await scan(m, `${colorScheme} sessions list`)
       await m.getByRole('button', { name: 'Week', exact: true }).click()
       await expect(m.getByRole('table', { name: /^Sessions,/ })).toBeVisible()
@@ -190,22 +188,8 @@ test('portal booking and buying: saved cards, calendar, virtual session, payment
       await anonymousContext.close()
     }
 
-    // Staff see the host and join links on the session (calendar, that day, the session's entry).
-    const zone = (await (await page.request.get('/api/v1/public/locations?limit=100', { headers: SLUG })).json()).data.find((l: { id: string }) => l.id === listing.location_id).time_zone
-    const day = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(listing.starts_at))
-    const time = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeStyle: 'short' }).format(new Date(listing.starts_at)).replace(/\s/g, '\\s')
-    await page.goto('/schedule')
-    await page.getByLabel('Go to date').fill(day)
-    const entry = page.getByRole('button', { name: new RegExp(`${time}`) }).filter({ hasText: listing.title ?? '' }).first()
-    await entry.focus()
-    await page.keyboard.press('Enter')
-    const panel = page.getByRole('region', { name: /Online meeting/ })
-    await expect(panel.getByRole('link', { name: 'Start the meeting as host' })).toBeVisible()
-    await scan(page, 'staff session with a meeting')
-    await panel.getByRole('button', { name: 'Remove meeting' }).click()
-    await expect(panel.getByRole('button', { name: 'Make virtual' })).toBeVisible()
   } finally {
-    await page.request.delete(`/api/v1/sessions/${listing.session_id}/meeting`, { headers: staff() })
+    await page.request.delete(`/api/v1/sessions/${listing.session_id}/video-meeting`, { headers: staff() })
     await page.request.put(`/api/v1/program-groups/${camp}/registration-config`, {
       headers: staff(),
       data: { payment_requirement: config.payment_requirement, payment_plan: config.payment_plan, instalment_count: config.instalment_count, instalment_unit: config.instalment_unit, balance_due_on: config.balance_due_on },

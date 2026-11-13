@@ -10749,27 +10749,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/portal/sessions/{schedule_session_id}/join-link": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Portal Session Join Link
-         * @description SSP-18: for an enrolled client (or someone acting for one), from 15 minutes before the start to the end.
-         *     Errors: join-not-open (409, with opens_at and closes_at).
-         */
-        get: operations["getPortalSessionJoinLink"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/portal/statement": {
         parameters: {
             query?: never;
@@ -15105,31 +15084,6 @@ export interface paths {
         put: operations["assignSessionInstructor"];
         post?: never;
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/sessions/{schedule_session_id}/meeting": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Session Meeting
-         * @description CLS-08: the meeting links of a virtual session (staff only).
-         */
-        get: operations["getSessionMeeting"];
-        /**
-         * Create Session Meeting
-         * @description Make the session virtual (a meeting through the video port). Idempotent.
-         */
-        put: operations["createSessionMeeting"];
-        post?: never;
-        /** Delete Session Meeting */
-        delete: operations["deleteSessionMeeting"];
         options?: never;
         head?: never;
         patch?: never;
@@ -33100,29 +33054,6 @@ export interface components {
             /** Total Minor */
             total_minor: number;
         };
-        /**
-         * PortalJoinLinkOut
-         * @description SSP-18: the join link of a virtual session, for an enrolled client or someone acting for one.
-         */
-        PortalJoinLinkOut: {
-            /**
-             * Closes At
-             * Format: date-time
-             */
-            closes_at: string;
-            /** Join Url */
-            join_url: string;
-            /**
-             * Opens At
-             * Format: date-time
-             */
-            opens_at: string;
-            /**
-             * Session Id
-             * Format: uuid
-             */
-            session_id: string;
-        };
         /** PortalLeaguePostOut */
         PortalLeaguePostOut: {
             /** Body */
@@ -34052,11 +33983,6 @@ export interface components {
             ends_at: string;
             /** Is Bookable */
             is_bookable: boolean;
-            /**
-             * Is Virtual
-             * @default false
-             */
-            is_virtual: boolean;
             /**
              * Location Id
              * Format: uuid
@@ -40388,11 +40314,6 @@ export interface components {
             is_direct_link_active: boolean;
             /** Is Self Bookable */
             is_self_bookable: boolean;
-            /**
-             * Is Virtual
-             * @default false
-             */
-            is_virtual: boolean;
         };
         /** SessionInput */
         SessionInput: {
@@ -40419,35 +40340,6 @@ export interface components {
             session_id: string;
             /** Staff Payee Id */
             staff_payee_id: string | null;
-        };
-        /**
-         * SessionMeetingOut
-         * @description A virtual session's meeting (CLS-08). Staff only: the links are credentials.
-         */
-        SessionMeetingOut: {
-            /**
-             * Closes At
-             * Format: date-time
-             */
-            closes_at: string;
-            /** Host Url */
-            host_url: string | null;
-            /** Is Virtual */
-            is_virtual: boolean;
-            /** Join Url */
-            join_url: string | null;
-            /**
-             * Opens At
-             * Format: date-time
-             */
-            opens_at: string;
-            /** Provider */
-            provider: string | null;
-            /**
-             * Session Id
-             * Format: uuid
-             */
-            session_id: string;
         };
         /** SessionOut */
         SessionOut: {
@@ -40486,11 +40378,6 @@ export interface components {
             is_direct_link_active: boolean;
             /** Is Self Bookable */
             is_self_bookable: boolean;
-            /**
-             * Is Virtual
-             * @default false
-             */
-            is_virtual: boolean;
             /**
              * Location Id
              * Format: uuid
@@ -71018,40 +70905,6 @@ export interface operations {
             };
         };
     };
-    getPortalSessionJoinLink: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Optional; keys live 24 hours. */
-                "idempotency-key"?: string | null;
-            };
-            path: {
-                schedule_session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PortalJoinLinkOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     getPortalStatement: {
         parameters: {
             query?: {
@@ -81708,106 +81561,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SessionInstructorOut"];
                 };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    getSessionMeeting: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Optional; keys live 24 hours. */
-                "idempotency-key"?: string | null;
-            };
-            path: {
-                schedule_session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SessionMeetingOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    createSessionMeeting: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Optional; keys live 24 hours. */
-                "idempotency-key"?: string | null;
-            };
-            path: {
-                schedule_session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SessionMeetingOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    deleteSessionMeeting: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Optional; keys live 24 hours. */
-                "idempotency-key"?: string | null;
-            };
-            path: {
-                schedule_session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             /** @description Validation Error */
             422: {

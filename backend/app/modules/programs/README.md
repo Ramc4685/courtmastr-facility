@@ -240,12 +240,11 @@ captain rosters (REG-26).
   does not lock group rows (its places are already roster rows). Not restructured: moving the charge outside the
   transaction needs a two-step payment saga.
 
-## Phase 11 B: virtual sessions, buy and book, deposits and instalments
+## Phase 11 B: buy and book, deposits and instalments
 
-- Join link (SSP-18): `GET /portal/sessions/{id}/join-link` returns the meeting link only to the identity's own
-  enrolment or one it acts for (household guardian), from 15 minutes before the start to the end. Not virtual, not
-  enrolled or not confirmed: 404; outside the window: 409 `join-not-open` with `opens_at` and `closes_at`. Listings
-  carry `is_virtual` and `reservation_type_id` but never the link.
+- Listings carry `reservation_type_id` (which online package plans cover the session). Virtual sessions and the
+  portal join (SSP-18, CLS-08) are the integrations context's (`/sessions/{id}/video-meeting`,
+  `/portal/enrollment-meetings`, `/portal/enrollments/{id}/join`).
 - Buy and book (SSP-08): the web flow buys an online-sellable package plan whose `reservation_type_id` matches the
   session's, then books the session with it. Assumption: "covering" means that match; the plans' own online flags
   decide what is offered. Two calls, each idempotent; a failed booking leaves the bought package in place.

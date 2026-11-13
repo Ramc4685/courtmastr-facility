@@ -230,20 +230,7 @@ class SessionBrief(Out):
     fill: Literal["empty", "partial", "full"]
     is_self_bookable: bool
     allows_free_booking: bool
-    is_virtual: bool = False  # CLS-08: the meeting links are only on getSessionMeeting
     is_direct_link_active: bool = False
-
-
-class SessionMeetingOut(Out):
-    """A virtual session's meeting (CLS-08). Staff only: the links are credentials."""
-
-    session_id: UUID
-    is_virtual: bool
-    provider: str | None
-    join_url: str | None
-    host_url: str | None
-    opens_at: datetime
-    closes_at: datetime
 
 
 class SessionOut(SessionBrief):

@@ -7,13 +7,11 @@ import { Checkbox, Input, Select } from '../../components/Field'
 import { ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
-import { formatDateTime } from '../../lib/format'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { VideoMeetingPanel } from '../integrations/VideoMeetingPanel'
 import { CancelDialog } from '../programs/CancelDialog'
 import { SellPackageDialog } from '../packages/ClientPackagesTab'
 import { BatchBookDialog, MessageDialog, RebookDialog } from '../programs/SessionTools'
-import { useWorkingLocation } from './location'
 import { DirectLinkControls } from './sharing'
 
 type Attendance = Schemas['Participant']['attendance']
@@ -354,68 +352,6 @@ export function SessionPanel({ sessionId, canEdit }: { sessionId: string; canEdi
 }
 
 /** Waitlist rows carry only a client id; the name comes from the client record. */
-/** CLS-08: a virtual session's meeting. Staff see the host and join links here; members get the join link only
- * from the portal, from 15 minutes before the start. */
-function MeetingSection({ sessionId, canManage }: { sessionId: string; canManage: boolean }) {
-  const qc = useQueryClient()
-  const toast = useToast()
-  const zone = useWorkingLocation().location?.time_zone
-  const meeting = useQuery({ queryKey: ['session', sessionId, 'meeting'], queryFn: () => api.get('/api/v1/sessions/{schedule_session_id}/meeting', { path: { schedule_session_id: sessionId } }) })
-  const done = (text: string) => () => {
-    void qc.invalidateQueries({ queryKey: ['session', sessionId] })
-    void qc.invalidateQueries({ queryKey: ['calendar'] })
-    toast('success', text)
-  }
-  const make = useMutation({
-    mutationFn: () => api.put('/api/v1/sessions/{schedule_session_id}/meeting', { path: { schedule_session_id: sessionId }, body: undefined as never }),
-    onSuccess: done('The session is virtual.'),
-    onError: (e: Error) => toast('error', e.message),
-  })
-  const remove = useMutation({
-    mutationFn: () => api.delete('/api/v1/sessions/{schedule_session_id}/meeting', { path: { schedule_session_id: sessionId } }),
-    onSuccess: done('Meeting removed.'),
-    onError: (e: Error) => toast('error', e.message),
-  })
-  if (meeting.isPending) return <LoadingState label="Loading the meeting" />
-  if (meeting.isError) return <ErrorState error={meeting.error} />
-  const m = meeting.data
-  const link = (href: string, text: string) => (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline">
-      {text}
-    </a>
-  )
-  return (
-    <section aria-labelledby="meeting-heading" className="space-y-2 rounded border border-border p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 id="meeting-heading" className="flex items-center gap-2 font-semibold">
-          Online meeting {m.is_virtual && <Badge tone="info">Virtual</Badge>}
-        </h3>
-        {canManage &&
-          (m.is_virtual ? (
-            <Button size="sm" variant="secondary" loading={remove.isPending} onClick={() => remove.mutate()}>
-              Remove meeting
-            </Button>
-          ) : (
-            <Button size="sm" variant="secondary" loading={make.isPending} onClick={() => make.mutate()}>
-              Make virtual
-            </Button>
-          ))}
-      </div>
-      {m.is_virtual ? (
-        <ul className="space-y-1 text-sm">
-          {m.host_url && <li>Host: {link(m.host_url, 'Start the meeting as host')}</li>}
-          {m.join_url && <li>Participants: {link(m.join_url, 'Join link')}</li>}
-          <li className="text-muted">
-            Members can join from {formatDateTime(m.opens_at, zone)} to {formatDateTime(m.closes_at, zone)}.
-          </li>
-        </ul>
-      ) : (
-        <p className="text-sm text-muted">This session takes place in person.</p>
-      )}
-    </section>
-  )
-}
-
 function WaitlistName({ clientId, fallback }: { clientId: string; fallback: string }) {
   const c = useQuery({ queryKey: ['clients', 'one', clientId], queryFn: () => api.get('/api/v1/clients/{client_id}', { path: { client_id: clientId } }), staleTime: 60_000 })
   return <span className="font-medium">{c.data ? `${c.data.first_name} ${c.data.last_name}` : fallback}</span>

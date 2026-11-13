@@ -28,7 +28,6 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Secrets shown once (padlock combinations, API keys, webhook signing secrets, kiosk pairing codes, payment onboarding links) are no longer kept with retried requests; repeating such a request returns an error instead of the secret.
 - A payer locked out of the portal for a past-due balance can no longer buy a rental plan or pay for an event form registration there.
 - Portal redirect addresses with a backslash, a port, sign-in details or an unusual host name are refused.
-- Video meeting host links are shown only to staff who can run the session.
 - Member app: the facility search no longer works while its request limiter is unavailable, and neither the search nor the app start-up answer reveals internal account ids; the app start-up answer is given only once the member app is switched on.
 - Member app feedback is limited to 10 messages an hour per member and only goes to the member's home location or one whose portal is public.
 - Unconfirmed portal sign-ups are deleted a week after their link expires, trial requests 180 days after they arrive (or 90 days after they are closed), and erasing a client clears the IP address on their recorded terms acceptances.
@@ -67,7 +66,6 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Online rentals: per-location settings switch them on or off and set a lead time, a longest booking and how far ahead clients can book.
 - The portal pays for rentals, memberships and packages with a card already on file, as well as a new one.
 - Portal sessions show a week and month calendar in the location's time zone, next to the list, and can buy a package and book in one go.
-- Virtual sessions: staff add a video meeting to a session, and enrolled clients get the join link from 15 minutes before the start.
 - Program registration can take a deposit and charge the rest on a date or in instalments, collected by autopay.
 - Clients can see their progress on a portal page and share it through a link they can revoke.
 - Reports: export to Excel or PDF as well as CSV, print the results, filter by category, type, trainer or staff, chart revenue against the goal, and email saved reports on a schedule; the home page shows at-a-glance tiles.
