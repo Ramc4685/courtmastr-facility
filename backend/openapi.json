@@ -87757,6 +87757,9 @@
         "summary": "List Campaigns",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       },
       "post": {
@@ -87818,6 +87821,9 @@
         "summary": "Create Campaign",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.create"
         ]
       }
     },
@@ -87873,6 +87879,9 @@
         "summary": "Delete Campaign",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.create"
         ]
       },
       "get": {
@@ -87933,6 +87942,9 @@
         "summary": "Get Campaign",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       },
       "patch": {
@@ -88004,6 +88016,9 @@
         "summary": "Update Campaign",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.create"
         ]
       }
     },
@@ -88066,6 +88081,9 @@
         "summary": "Cancel Campaign",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.create"
         ]
       }
     },
@@ -88129,6 +88147,9 @@
         "summary": "Recall Campaign",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.push.send"
         ]
       }
     },
@@ -88278,6 +88299,9 @@
         "summary": "List Campaign Recipients",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       }
     },
@@ -88350,6 +88374,9 @@
         "summary": "Schedule Campaign",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       }
     },
@@ -88413,6 +88440,9 @@
         "summary": "Send Campaign",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       }
     },
@@ -88475,6 +88505,9 @@
         "summary": "Get Campaign Stats",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       }
     },
@@ -88538,6 +88571,9 @@
         "summary": "Test Campaign",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.edit"
         ]
       }
     },
@@ -121687,6 +121723,9 @@
         "summary": "List Message Templates",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       },
       "post": {
@@ -121748,6 +121787,9 @@
         "summary": "Create Message Template",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.edit"
         ]
       }
     },
@@ -121804,6 +121846,9 @@
         "summary": "Delete Message Template",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.edit"
         ]
       },
       "get": {
@@ -121864,6 +121909,9 @@
         "summary": "Get Message Template",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       },
       "patch": {
@@ -121935,6 +121983,9 @@
         "summary": "Update Message Template",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.edit"
         ]
       }
     },
@@ -122074,6 +122125,9 @@
         "summary": "List Messages",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       },
       "post": {
@@ -122135,6 +122189,9 @@
         "summary": "Send Direct Message",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.message.send_direct"
         ]
       }
     },
@@ -122197,6 +122254,9 @@
         "summary": "Get Message",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       }
     },
@@ -153956,6 +154016,9 @@
         "summary": "List Segments",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       },
       "post": {
@@ -154017,6 +154080,9 @@
         "summary": "Create Segment",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.edit"
         ]
       }
     },
@@ -154080,6 +154146,9 @@
         "summary": "Preview Segment",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       }
     },
@@ -154136,6 +154205,9 @@
         "summary": "Delete Segment",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.edit"
         ]
       },
       "get": {
@@ -154196,6 +154268,9 @@
         "summary": "Get Segment",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       },
       "patch": {
@@ -154267,6 +154342,9 @@
         "summary": "Update Segment",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.edit"
         ]
       }
     },
@@ -161011,6 +161089,9 @@
         "summary": "List Suppressions",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.campaign.read"
         ]
       },
       "post": {
@@ -163687,6 +163768,9 @@
         "summary": "List Videos",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.app_content.manage"
         ]
       },
       "post": {
@@ -163748,6 +163832,9 @@
         "summary": "Create Video",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.app_content.manage"
         ]
       }
     },
@@ -163803,6 +163890,9 @@
         "summary": "Delete Video",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.app_content.manage"
         ]
       },
       "get": {
@@ -163863,6 +163953,9 @@
         "summary": "Get Video",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.app_content.manage"
         ]
       },
       "patch": {
@@ -163933,6 +164026,9 @@
         "summary": "Update Video",
         "tags": [
           "engagement"
+        ],
+        "x-api-key-scopes": [
+          "engagement.app_content.manage"
         ]
       }
     },

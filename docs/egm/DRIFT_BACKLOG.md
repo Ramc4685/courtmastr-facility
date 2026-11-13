@@ -125,7 +125,7 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [x] [undocumented] A row that hits a database IntegrityError is `failed`/`invalid` with code `already-exists` (service.py:321-325). README line 58-59 describes only refusals and `unexpected`. Docs batch.
 - [x] [wording] README line 113 says the commit hits `entitlements.enforce_limit` "inside `clients._create`". The function is `clients.service._create` (backend/app/modules/clients/service.py:756, call at :769). Docs batch.
 
-### integrations (51 open, 25 closed) — [evidence](drift/integrations.md)
+### integrations (54 open, 25 closed) — [evidence](drift/integrations.md)
 
 INT-07 QuickBooks (2026-11-13, refreshed for the uncommitted queued-sync, request-id, finished-day, simulated-poster, row-lock and connection-reuse changes; the public-schedule items re-read after `feeds.public_schedule` moved to `programs.selfservice.public_seats`):
 
@@ -217,6 +217,9 @@ INT-13 analytics on registration pages (new 2026-11-13):
 - [x] [wording] `backend/app/modules/integrations/analytics.py:4` names `features/integrations/analytics.ts`, which does not exist (the file is `AnalyticsConsent.tsx`); `AnalyticsConsent.tsx:9` points to the missing `docs/status/phase15-api.md`.
 - [ ] [undocumented] The analytics PATCH branch lives in `quickbooks.update_settings` and the update schema text names only QuickBooks keys (a disconnected one is now refused with 409; `backend/app/modules/integrations/quickbooks.py:204-213`, `schemas.py:147-149`).
 - [ ] [undocumented] Disconnect calls `release_account` with the measurement id although nothing was claimed (`backend/app/modules/integrations/service.py:700-701, 705-716`, `analytics.py:44`).
+- [ ] [contract] 22 engagement operations in `docs/api/openapi-programs.yaml` (lines 5648 to 5993, e.g. `scheduleCampaign`, portal content) declare no `security`, so the contract never says a key may call them although their permission is in `service.KEY_PERMISSIONS` (2026-11-13).
+- [ ] [undocumented] Bulk-send (`B`) scopes `engagement.campaign.send` and `engagement.push.send` go on a key without `confirm_sensitive_scopes`; only `$` and `P` need it (`service.py:56`). Decide whether `B` should join the confirmed set.
+- [ ] [undocumented] Migration 1705 was edited in place to keep the seven engagement keys; a database that ran the earlier 1705 keeps the stripped scopes. Nothing is deployed, so no new revision was added.
 
 ### leagues (5) — [evidence](drift/leagues.md)
 

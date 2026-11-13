@@ -35,8 +35,11 @@ through `service.adapter_for`.
 
 - **API keys.** Shown once, stored as SHA-256 with a 12-character lookup prefix. Only a staff person can create,
   rotate or revoke one, never another key. Scopes must be grantable: an allow-list of the documented API
-  resources' contexts (`service.KEY_CONTEXTS`; platform, reporting, integrations, staff and engagement are off
-  it), minus rbac-matrix section 11's flags, held by the
+  resources' contexts (`service.KEY_CONTEXTS`; platform, reporting, integrations and staff are off it) plus
+  single keys from engagement (`service.KEY_PERMISSIONS`: campaigns, templates, segments, direct messages, app
+  content, including the bulk `campaign.send` and `push.send` as the contract and rbac-matrix section 12 allow;
+  not portal settings, inbox replies, SMS, send-to-all, automations, suppression release or staff alert routes),
+  pinned by `test_the_key_grantable_set_is_pinned`, minus rbac-matrix section 11's flags, held by the
   creator, and confirmed when they move money (`$`) or set prices (`P`). A location-limited creator must name
   locations inside their own and sees only keys within them. The key's principal is recomputed from the
   creator on every request, so it shrinks with them, and its scopes pass the allow-list again there, so a scope
