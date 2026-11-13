@@ -201,12 +201,17 @@ Door entry codes tied to bookings and court lights that follow bookings, behind 
   tenant data key (`crypto.encrypt`) so the portal and the app can show it again. Regenerating on view would change
   a code already emailed; a plain hash could not be shown again. Codes never appear in logs, the notification log
   or audit: audit changes carry `"code": true` only.
-- **Minors (unmanned building rule).** A code is never delivered to, or shown to, a minor or a person of unknown
-  age: `building.is_known_adult` (a known birth date at or over `platform.service.minor_age`, today at the location)
-  is the one check. A rental whose holder fails it gets no code and one `code_withheld` activity row. On a session, a
-  minor's code goes to their adult guardians (`clients.households.guardian_ids`), never the child; a minor with no
-  adult guardian gets none sent. The portal list and "open the door" answer only a caller who is a known adult.
-  Shortcut: the enrollment's payer is not consulted (programs does not expose it); guardianship links decide.
+- **Minors (unmanned building rule).** One function, `building.code_recipients`, decides who may receive, see or use
+  a person's code; delivery, the portal list and the portal unlock all call it. Nobody when the check-in evaluation
+  refuses the person. An adult's code goes to that adult only. A minor's, or someone of unknown age's, goes to each
+  guardian (`clients.households.guardian_ids`) who is a known adult and whom the full evaluation admits (status,
+  access mode, paid entry); never the child, a delegate, a household manager or another child. `is_known_adult` (a
+  trusted birth date at or over `platform.service.minor_age`, today at the location) runs before the "window
+  unchanged" shortcut in sync, and an active code whose person fails it is revoked. A rental's holder must be a known
+  adult themselves (else no code and one `code_withheld` row per booking and person). Seam: a birth date the person set
+  themselves through the portal is not proof of age; `_trusted_birth_on` treats it as unknown once the rentals
+  branch's `client.is_birth_on_unverified` lands (read through getattr until then). Shortcut: the enrollment's payer
+  is not consulted (programs does not expose it); guardianship links decide.
 - **Entitlement at the door.** Every verify and portal unlock re-checks, for every kind of code, that the booking is
   still confirmed and the person still entitled (still the holder, still enrolled), that the code's window equals the
   live booking's window (a moved booking's old code fails at once, before any handler runs), that the person passes

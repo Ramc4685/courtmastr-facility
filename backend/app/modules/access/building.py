@@ -18,7 +18,7 @@ portal commands carry both gates."""
 import logging
 import secrets
 import time
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -268,11 +268,18 @@ def _doors(session: Session, location_id: UUID) -> list[DoorDevice]:
     return list(session.scalars(select(DoorDevice).where(DoorDevice.location_id == location_id, DoorDevice.is_active)))
 
 
+def _trusted_birth_on(client) -> date | None:
+    """The birth date this module may rely on. A date the person set themselves through the portal is not proof
+    of age: until staff review it, it counts as unknown. Seam: the rentals branch adds `is_birth_on_unverified`
+    on client; read through getattr until that column is on this branch, then read it directly."""
+    return None if getattr(client, "is_birth_on_unverified", False) else client.birth_on
+
+
 def is_known_adult(session: Session, client_id: UUID, location_id: UUID | None) -> bool:
-    """The one rule for who may receive or see a door code in an unmanned building: a known birth date at or
-    over the tenant's minor age (`platform.service.minor_age`) today at the location. Unknown age is no."""
+    """A known (and trusted) birth date at or over the tenant's minor age (`platform.service.minor_age`) today
+    at the location. Unknown or self-set unverified age is no."""
     client = clients.service.get(session, client_id)
-    if client.birth_on is None:
+    if _trusted_birth_on(client) is None:
         return False
     today = platform.service.location_today(session, location_id) if location_id else clock.now().date()
     return not clients.service.is_minor(client, today, platform.service.minor_age(session))
@@ -301,21 +308,30 @@ def _may_hold(session: Session, client_id: UUID, location_id: UUID, kind: str) -
     )
 
 
+def code_recipients(session: Session, client_id: UUID, location_id: UUID) -> list[UUID]:
+    """THE rule for who may receive, see or use one person's door code in an unmanned building (delivery, the
+    portal list and the portal unlock all call this). Nobody when the check-in evaluation refuses the person. An
+    adult's code: that adult only. A minor's, or someone of unknown age: each of their guardians who is a known
+    adult and whom the check-in evaluation (`_refusal`: status, access mode, paid entry) admits; never the child, a
+    delegate, a household manager or another child."""
+    if _refusal(session, client_id, location_id):
+        return []
+    if is_known_adult(session, client_id, location_id):
+        return [client_id]
+    return [
+        g
+        for g in clients.households.guardian_ids(session, client_id)
+        if is_known_adult(session, g, location_id) and not _refusal(session, g, location_id)
+    ]
+
+
 def deliver_code_to(session: Session, row: EntryCode, client_id: UUID) -> bool:
-    """Internal: email the code for one member of its party, unless the check-in evaluation would refuse them.
-    An adult gets it themselves; for a minor or someone of unknown age it goes to their adult guardians instead
-    (never to the child). Sent through the email port, not the notification log, so it is never stored in clear."""
-    if _refusal(session, client_id, row.location_id):
-        return False
-    if is_known_adult(session, client_id, row.location_id):
-        to = [client_id]
-    else:
-        to = [
-            g
-            for g in clients.households.guardian_ids(session, client_id)
-            if is_known_adult(session, g, row.location_id)
-        ]
-    sent = [_email_code(session, row, clients.service.get(session, c)) for c in to]
+    """Internal: email the person's code to `code_recipients`. Sent through the email port, not the notification
+    log, so it is never stored in clear."""
+    sent = [
+        _email_code(session, row, clients.service.get(session, c))
+        for c in code_recipients(session, client_id, row.location_id)
+    ]
     return any(sent)
 
 
@@ -416,15 +432,18 @@ def sync_booking_code(session: Session, booking_id: UUID, booking: dict | None =
     kept = []
     for client_id in entitled:
         row = active.get(client_id)
+        if not _may_hold(session, client_id, booking["location_id"], booking["kind"]):  # before any shortcut
+            if row is not None:
+                _revoke(session, row, "not_known_adult")
+            if issuable:
+                _withhold(session, booking, client_id)
+            continue
         if row is not None and (row.valid_from_at, row.valid_until_at) == window:
             kept.append(row)
             continue
         if row is not None:
             _revoke(session, row, "rescheduled")
         if not issuable:
-            continue
-        if not _may_hold(session, client_id, booking["location_id"], booking["kind"]):
-            _withhold(session, booking, client_id)
             continue
         kept.append(_issue(session, booking, client_id, window))
     return kept
@@ -646,21 +665,22 @@ def _phone(session: Session, location_id: UUID) -> str | None:
     return platform.service.get_location(session, system_principal("access"), location_id).phone
 
 
-def _my_codes(session: Session, principal: Principal):
-    """Codes of the caller and of anyone they act for, shown only when the caller is a known adult."""
-    mine = service._portal_clients(session, principal)  # 404s a principal without an identity
+def _my_codes(session: Session, principal: Principal) -> list[EntryCode]:
+    """Live codes the caller may see and use: exactly the delivery rule (`code_recipients`) applied to the caller's
+    own client record, over the codes of everyone they can reach in the portal."""
+    reach = service._portal_clients(session, principal)  # 404s a principal without an identity
     identity_id = principal.identity_id
     assert identity_id is not None
-    me = [c for c in mine if clients.households.authority(session, identity_id, c) == "self"]
-    if not any(is_known_adult(session, c, clients.service.get(session, c).home_location_id) for c in me):
-        mine = []
-    return select(EntryCode).where(EntryCode.status == "active", EntryCode.client_id.in_(mine),
-                                   EntryCode.valid_until_at > clock.now())  # fmt: skip
+    me = {c for c in reach if clients.households.authority(session, identity_id, c) == "self"}
+    rows = session.scalars(select(EntryCode).where(
+        EntryCode.status == "active", EntryCode.client_id.in_(reach), EntryCode.valid_until_at > clock.now(),
+    ).order_by(EntryCode.valid_from_at, EntryCode.id)).all()  # fmt: skip
+    return [r for r in rows if me & set(code_recipients(session, r.client_id, r.location_id))]
 
 
 def list_portal_entry_codes(session: Session, principal: Principal) -> list[dict]:
     """The caller's (and dependants') live door codes, one per booking and person, for the portal and the app."""
-    rows = session.scalars(_my_codes(session, principal).order_by(EntryCode.valid_from_at)).all()
+    rows = _my_codes(session, principal)
     tenant_id, now = session.info["tenant_id"], clock.now()
     phones = {lid: _phone(session, lid) for lid in {row.location_id for row in rows}}
     return [
@@ -676,9 +696,7 @@ def list_portal_entry_codes(session: Session, principal: Principal) -> list[dict
 def member_unlock(session: Session, principal: Principal, booking_id: UUID) -> dict:
     """ "Open the door" from the portal: the same decision as the keypad, for the booking's holder or someone who
     may act for them, inside the code's window. Opens every active door of the location."""
-    row = session.scalar(
-        _my_codes(session, principal).where(EntryCode.booking_id == booking_id).order_by(EntryCode.id).limit(1)
-    )
+    row = next((r for r in _my_codes(session, principal) if r.booking_id == booking_id), None)
     if row is None:
         raise NotFound()
     reason, check_in = _admit(session, row, _booking(session, booking_id))

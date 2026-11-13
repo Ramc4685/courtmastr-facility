@@ -299,6 +299,68 @@ def test_codes_never_go_to_a_minor_or_someone_of_unknown_age(client, tenant, own
         assert client.post(f"{API}/portal/bookings/{held}/door-unlock", headers=member).status_code == 404
 
 
+def test_portal_and_delivery_follow_one_rule_for_a_childs_code(client, tenant, owner, b, mailbox):
+    """Only the child's eligible guardian gets, lists or uses the child's code: not a delegate, a barred guardian,
+    a household manager who is not a guardian, or another child holding a guardianship link."""
+    from app.modules.clients.models import ClientPortalAccess
+
+    child = adult(client, owner, b.location, birth_on="2020-01-01")
+    guardian, barred, delegate, manager = (adult(client, owner, b.location) for _ in range(4))
+    kid = adult(client, owner, b.location, birth_on="2018-01-01")
+    types = {t["code"]: t["id"] for t in ok(client.get(f"{API}/relationship-types", headers=owner), 200)}
+    for person, kind in (
+        (guardian, "guardian_of"),
+        (barred, "guardian_of"),
+        (delegate, "spouse_of"),
+        (kid, "guardian_of"),
+    ):
+        ok(client.post(f"{API}/clients/{person['id']}/relationships", headers=owner,
+                       json={"other_client_id": child["id"], "relationship_type_id": types[kind]}))  # fmt: skip
+    ok(client.put(f"{API}/clients/{barred['id']}/access-mode", headers=owner,
+                  json={"access_mode": "always_deny", "reason": "Barred"}), 200)  # fmt: skip
+    with clock.freeze(at(9)):
+        lesson = book(b, 10, 11, kind="session", resources=[b.court2])
+    seat = scalar(tenant, select(Session.id).where(Session.booking_id == UUID(lesson)))
+    ok(client.post(f"{API}/enrollments", headers=owner, json={"session_id": str(seat), "client_id": child["id"]}))
+    mailbox.clear()
+    with clock.freeze(at(9)):
+        sync(b, lesson)
+    assert [m.to for m in mailbox] == [guardian["primary_email"]]
+    with clock.freeze(at(10.5)):
+        logins = {name: portal(client, tenant, p) for name, p in
+                  (("guardian", guardian), ("barred", barred), ("delegate", delegate), ("manager", manager), ("kid", kid))}  # fmt: skip
+        with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+            identity = session.scalar(select(ClientPortalAccess.identity_id).where(
+                ClientPortalAccess.client_id == UUID(manager["id"])))  # fmt: skip
+            session.add(ClientPortalAccess(identity_id=identity, client_id=UUID(child["id"]), is_primary=False,
+                                           status="active"))  # fmt: skip
+        for name, headers in logins.items():
+            listed = ok(client.get(f"{API}/portal/entry-codes", headers=headers), 200)["data"]
+            unlock = client.post(f"{API}/portal/bookings/{lesson}/door-unlock", headers=headers)
+            if name == "guardian":
+                assert [c["booking_id"] for c in listed] == [lesson] and unlock.status_code == 200
+            else:
+                assert listed == [] and unlock.status_code == 404, name
+
+
+def test_a_holder_who_stops_being_a_known_adult_loses_the_active_code(client, b):
+    with clock.freeze(at(9)):
+        booking = book(b, 10, 11)
+        sync(b, booking)
+        with tenant_session(b.tenant.id, actor=system_principal("tests")) as session:
+            clients.service.get(session, UUID(b.person["id"])).birth_on = None
+        sync(b, booking)  # the window is unchanged, but the rule runs before that shortcut
+    assert [(c.status, c.revoke_reason) for c in codes(b, booking)] == [("revoked", "not_known_adult")]
+
+
+def test_a_self_set_unverified_birth_date_counts_as_unknown():
+    from datetime import date
+    from types import SimpleNamespace
+
+    assert building._trusted_birth_on(SimpleNamespace(birth_on=date(1990, 1, 1))) == date(1990, 1, 1)
+    assert building._trusted_birth_on(SimpleNamespace(birth_on=date(1990, 1, 1), is_birth_on_unverified=True)) is None
+
+
 def test_blocks_get_no_code_and_far_bookings_wait_for_the_horizon(b, mailbox):
     with clock.freeze(at(9)):
         block = book(b, 10, 11, kind="block")
