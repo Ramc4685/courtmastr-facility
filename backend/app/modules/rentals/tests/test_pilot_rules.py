@@ -536,7 +536,7 @@ def test_a_portal_dependant_needs_a_birth_date_and_never_holds_the_rental(client
                      if t["code"] == "parent_of")  # fmt: skip
     child = {"relationship_type_id": parent_of["id"], "first_name": "Kit", "last_name": "Pat"}
     assert client.post(f"{API}/portal/dependents", headers=portal, json=child).status_code == 422
-    kid = ok(client.post(f"{API}/portal/dependents", headers=portal, json=child | {"birth_on": CHILD}), 201)
+    kid = ok(client.post(f"{API}/portal/dependents", headers=portal, json=child | {"birth_on": CHILD, "birth_on_declared": True}), 201)
     assert (kid["authority"], kid["is_adult"], kid["is_my_ward"]) == ("manager", False, True)
     assert ok(client.get(f"{API}/clients/{kid['id']}", headers=owner), 200)["is_birth_on_unverified"] is True
     refused(client.post(f"{API}/portal/rentals", headers=portal, json=online(f, kid["id"], 15, 16)), 422,
@@ -551,7 +551,7 @@ def test_a_dateless_dependant_online_counts_as_a_minor(client, owner, tenant, f)
     parent_of = next(t for t in ok(client.get(f"{API}/portal/relationship-types", headers=portal), 200)
                      if t["code"] == "parent_of")  # fmt: skip
     kid = ok(client.post(f"{API}/portal/dependents", headers=portal, json={
-        "relationship_type_id": parent_of["id"], "first_name": "Kit", "last_name": "Pat", "birth_on": CHILD}), 201)["id"]  # fmt: skip
+        "relationship_type_id": parent_of["id"], "first_name": "Kit", "last_name": "Pat", "birth_on": CHILD, "birth_on_declared": True}), 201)["id"]  # fmt: skip
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
         session.execute(update(Client).where(Client.id == kid).values(birth_on=None))
     refused(client.post(f"{API}/portal/rentals", headers=portal, json=online(f, kid, 15, 16)), 422,

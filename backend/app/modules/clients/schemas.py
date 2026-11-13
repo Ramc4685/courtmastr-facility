@@ -434,6 +434,7 @@ class PortalDependentCreate(In):
     first_name: Name
     last_name: Name
     birth_on: date  # required: the minors rule on rentals and the unmanned site fail closed without it
+    birth_on_declared: Literal[True]  # the parent declares the birth date is true; staff confirm it once
     gender: GenderValue | None = None
     email: EmailStr | None = None  # may repeat the parent's address (FAM-02)
 

@@ -778,7 +778,8 @@ def _create(
         created_via=created_via,
         created_by_staff_user_id=principal.staff_user_id,
         member_number_source="manual" if data.get("member_number") else None,
-        is_birth_on_unverified=context == "portal" and data.get("birth_on") is not None,
+        # A date the person typed (sign-up, guest checkout, a portal dependant) waits for staff to confirm it once.
+        is_birth_on_unverified=context in ("portal", "registration") and data.get("birth_on") is not None,
     )
     session.add(client)
     session.flush()

@@ -230,6 +230,8 @@ def merge(session: Session, principal: Principal, survivor_id: UUID, loser_ids: 
                 source, loser.member_number, loser.member_number_source = loser.member_number_source, None, None
                 session.flush()
                 survivor.member_number_source = source
+            if field == "birth_on":  # a self-typed date stays unconfirmed on the survivor
+                survivor.is_birth_on_unverified = loser.is_birth_on_unverified
             setattr(survivor, field, value)
         survivor.custom_values = loser.custom_values | survivor.custom_values
         session.flush()

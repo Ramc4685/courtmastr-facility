@@ -565,6 +565,8 @@ def test_j_a_newcomer_goes_from_finding_cirqt_to_a_paid_court_with_no_staff(clie
         "email": f"new-{uuid4().hex[:6]}@{w.mail}",
         "first_name": "Nova",
         "last_name": "Newcomer",
+        "birth_on": "1994-06-07",
+        "birth_on_declared": True,
     }
     mailbox.clear()
     assert c.post(f"{API}/public/portal-signups", headers=w.public, json=body).status_code == 202
@@ -722,7 +724,7 @@ def _portal_child(c, w, born: str) -> str:
     parent_of = next(t for t in ok(c.get(f"{API}/portal/relationship-types", headers=w.parent_portal), 200)
                      if t["code"] == "parent_of")  # fmt: skip
     return ok(c.post(f"{API}/portal/dependents", headers=w.parent_portal, json={
-        "relationship_type_id": parent_of["id"], "first_name": "Remy", "last_name": "Added", "birth_on": born}))["id"]  # fmt: skip
+        "relationship_type_id": parent_of["id"], "first_name": "Remy", "last_name": "Added", "birth_on": born, "birth_on_declared": True}))["id"]  # fmt: skip
 
 
 def test_m_a_child_the_parent_added_online_never_holds_a_court(client_module, w):
