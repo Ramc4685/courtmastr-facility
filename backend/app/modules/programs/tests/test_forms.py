@@ -406,6 +406,8 @@ def test_one_live_anonymous_registration_per_address_and_rate_limits(client, own
     other = new_form(client, owner, f, items=[NOTE])
     ok(submit(client, tenant, other["id"], [], contact_email="lee@example.com"))
     assert code(submit(client, tenant, form["id"], [], contact_email="LEE@example.com")) == (429, "rate-limited")
+    rows = ok(client.get(f"{API}/form-submissions?form_id={form['id']}", headers=owner), 200)["data"]
+    assert len(rows) == 2  # the refused registration was rolled back with its mail
 
 
 def test_export_refuses_more_than_the_cap_and_anonymous_rows_age_out(client, owner, tenant, f, monkeypatch):

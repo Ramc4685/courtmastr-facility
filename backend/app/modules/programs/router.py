@@ -699,5 +699,8 @@ def create_public_form_submission(
 ):
     """Anonymous registration on a free form. Errors: sign-in-required (a priced form), form-closed, sold-out,
     already-registered (a live registration for this address), rate-limited."""
-    hit("public-form-email", body.contact_email, response, tenant=session.info["tenant_id"])  # per address too
-    return forms.public_submit(session, form_id, body.model_dump())
+    receipt = forms.public_submit(session, form_id, body.model_dump())
+    # Per address too, counted only for a valid registration: a 429 here rolls it and its mail back, so failed
+    # or duplicate attempts cannot burn someone else's allowance.
+    hit("public-form-email", body.contact_email, response, tenant=session.info["tenant_id"])
+    return receipt
