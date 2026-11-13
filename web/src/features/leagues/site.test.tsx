@@ -67,7 +67,7 @@ describe('LeagueBoardPage', SCREEN, () => {
 })
 
 describe('LeagueSitePage', SCREEN, () => {
-  it('saves the options and offers the embed code', async () => {
+  it('saves the options and links the public site', async () => {
     const calls = renderAsStaff(<LeagueSitePage />, ['leagues.public_site.manage'], {
       'GET /api/v1/league-site': { status: 200, body: { ...site, is_enabled: false } },
       'PUT /api/v1/league-site': { status: 200, body: site },
@@ -77,18 +77,12 @@ describe('LeagueSitePage', SCREEN, () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(calls.some((c) => c.method === 'PUT')).toBe(true))
     expect(calls.find((c) => c.method === 'PUT')?.body).toMatchObject({ is_enabled: true, shows_pickup_games: true, title: 'Club leagues' })
-    expect((screen.getByLabelText('Embed code') as HTMLTextAreaElement).value).toContain('/leagues/public?embed=1')
+    expect(screen.getByRole('link', { name: /\/leagues\/public$/ })).toBeVisible()
+    expect(screen.getByText(/Embedding it inside another website is not switched on yet/)).toBeVisible()
+    expect(screen.queryByLabelText('Embed code')).toBeNull()
     expect(screen.queryByRole('tab', { name: 'Sponsors' })).toBeNull()
   })
 
-  it('escapes the site title in the embed code', async () => {
-    renderAsStaff(<LeagueSitePage />, ['leagues.public_site.manage'], {
-      'GET /api/v1/league-site': { status: 200, body: { ...site, title: 'A "B" <C>' } },
-    })
-    await screen.findByLabelText('Publish the league site')
-    const code = (screen.getByLabelText('Embed code') as HTMLTextAreaElement).value
-    expect(code).toContain('title="A &quot;B&quot; &lt;C&gt;"')
-  })
 })
 
 describe('inside a frame', SCREEN, () => {
