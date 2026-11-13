@@ -57,8 +57,8 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
   read-only). Overview section 2 lists memberships in rentals' "May call" column and the import contract
   allows it, so no contract exception was needed. A members-only plan refuses a non-member
   (`membership-required`) and a member pays `member_price_minor` when set. Online booking of a rental type
-  whose `eligibility` is not `everyone` reads the same `is_member` and refuses a non-member
-  (`membership-required`). Assumption: `active_members` and `paid_up_members` behave the same, because
+  whose `eligibility` is not `everyone` reads the same `is_member` on the rental's local date and refuses
+  a non-member (`membership-required`). Assumption: `active_members` and `paid_up_members` behave the same, because
   non-payment suspends a contract and a suspended contract is not active. Rental prices still treat every payer
   as a non-member (no member rates on bookings).
 - "Capacity" for rentals is resource availability enforced by the hold exclusion constraint; rentals have no

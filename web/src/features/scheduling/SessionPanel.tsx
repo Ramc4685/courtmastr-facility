@@ -253,18 +253,14 @@ export function SessionPanel({ sessionId, canEdit }: { sessionId: string; canEdi
         </form>
       )}
 
-      {canEdit && (can('scheduling.enrollment.create') || can('engagement.message.send_direct')) && (
+      {canEdit && can('scheduling.enrollment.create') && (
         <div className="flex flex-wrap gap-2">
-          {can('scheduling.enrollment.create') && (
-            <Button size="sm" variant="secondary" onClick={() => setTool('batch')}>
-              Book across sessions
-            </Button>
-          )}
-          {can('engagement.message.send_direct') && (
-            <Button size="sm" variant="secondary" onClick={() => setTool('message')}>
-              Message participants
-            </Button>
-          )}
+          <Button size="sm" variant="secondary" onClick={() => setTool('batch')}>
+            Book across sessions
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => setTool('message')}>
+            Message participants
+          </Button>
         </div>
       )}
 

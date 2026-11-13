@@ -1297,9 +1297,9 @@ def create_portal_rental(session: Db, principal: Principal, data: dict) -> dict:
     client_id = _portal_client(session, principal, data["client_id"])
     rtype = _online_type(session, data["rental_type_id"])
     # active_members and paid_up_members read the same: non-payment suspends a contract, so it is no longer active.
-    if rtype.eligibility != "everyone" and not _is_member(
-        session, client_id, platform.service.location_today(session, rtype.location_id)
-    ):
+    # Membership is read on the rental's own date, so a contract that ends before it does not pass.
+    rental_on = data["starts_at"].astimezone(_zone(session, rtype.location_id)).date()
+    if rtype.eligibility != "everyone" and not _is_member(session, client_id, rental_on):
         raise ValidationFailed(
             "Online booking of this rental is for members.", pointer="/rental_type_id", code="membership-required"
         )

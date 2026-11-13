@@ -21,6 +21,17 @@ from app.modules.programs import groups, service
 from app.modules.programs.models import Enrollment, SessionBookingPolicy, WaitlistEntry
 
 POLICY = "engagement.portal_settings.manage"  # engagement owns the key; programs may not import engagement
+# League managers kept booking policies through this key; it stays accepted so no role loses them without the
+# owner's sign-off, and it does not open the rest of the portal settings.
+LEAGUE_POLICY = groups.CONFIG
+
+
+def _authorize_policy(principal: Principal, location_id: UUID) -> None:
+    """Either key admits; the portal key is checked first so its 403 names the key engagement owns."""
+    held = LEAGUE_POLICY if not principal.has(POLICY) and principal.has(LEAGUE_POLICY) else POLICY
+    authorize(principal, held, location_id=location_id)
+
+
 FIELDS = (
     "listing_mode", "requires_active_membership", "visible_range_days", "hides_full_sessions",
     "booking_cutoff_minutes", "allows_self_cancel", "cancel_notice_minutes", "waitlist_mode",
@@ -56,7 +67,7 @@ def effective(session: Db, location_id: UUID, reservation_type_id: UUID | None) 
 
 
 def list_policies(session: Db, principal: Principal, location_id: UUID) -> list[SessionBookingPolicy]:
-    authorize(principal, POLICY, location_id=location_id)
+    _authorize_policy(principal, location_id)
     p = SessionBookingPolicy
     stmt = select(p).where(p.location_id == location_id).order_by(p.reservation_type_id.nulls_first(), p.id)
     return list(session.scalars(stmt))
@@ -77,14 +88,14 @@ def _put(session: Db, location_id: UUID, reservation_type_id: UUID | None, data:
 
 def put_default(session: Db, principal: Principal, location_id: UUID, data: dict) -> SessionBookingPolicy:
     platform.service.get_location(session, principal, location_id)  # unknown or out of scope: 404
-    authorize(principal, POLICY, location_id=location_id)
+    _authorize_policy(principal, location_id)
     return _put(session, location_id, None, data)
 
 
 def _type_location(session: Db, principal: Principal, reservation_type_id: UUID) -> UUID:
     """The type's own location, gated: a type outside the caller's locations is 404."""
     location_id = scheduling.service.type_location(session, reservation_type_id)
-    authorize(principal, POLICY, location_id=location_id)
+    _authorize_policy(principal, location_id)
     return location_id
 
 

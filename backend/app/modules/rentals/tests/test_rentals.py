@@ -13,8 +13,9 @@ from app.core.auth import passwords, system_principal
 from app.core.db.session import tenant_session
 from app.core.events import OutboxEvent
 from app.modules import billing, clients, scheduling
+from app.modules.memberships.tests.support import membership_plan
 from app.modules.platform.models import Identity
-from app.modules.rentals import handlers, service
+from app.modules.rentals import handlers
 from app.modules.rentals.models import RentalBookingCharge, RentalPlanLedgerEntry
 from app.modules.scheduling.tests.helpers import API, DAY, at, drain, facility, ok
 from conftest import PASSWORD, add_staff, login, new_client
@@ -284,7 +285,7 @@ def portal_client(client, owner, tenant, f) -> tuple[str, dict]:
     return person["id"], login(client, tenant, person["primary_email"], audience="client")
 
 
-def test_online_checkout_hold_payment_abandon_and_expiry(client, owner, f, tenant, monkeypatch):
+def test_online_checkout_hold_payment_abandon_and_expiry(client, owner, f, tenant):
     ok(client.patch(f"{API}/rental-types/{f.rtype}", headers=owner, json={
         "access": "self_service", "online_rental_rate_id": f.rate, "deposit_pct": "25", "slot_granularity_min": 30,
     }), 200)  # fmt: skip
@@ -354,7 +355,27 @@ def test_online_checkout_hold_payment_abandon_and_expiry(client, owner, f, tenan
     members = client.post(f"{API}/portal/rentals", headers=portal, json=body | {"starts_at": at(21), "ends_at": at(22)})
     assert members.status_code == 422 and members.json()["code"] == "membership-required"
     assert members.json()["detail"] == "Online booking of this rental is for members."
-    monkeypatch.setattr(service, "_is_member", lambda *a: True)  # a member books it online
+    # Real contracts through memberships: a one-month term that ended weeks ago is a lapsed member, refused.
+    plan = membership_plan(client, owner, tenant, billing_occurrences_count=1)
+    sold = {"client_id": me, "location_id": f.location, "membership_plan_id": plan["id"]}
+    lapsed_on = (clock.now() - timedelta(days=70)).date().isoformat()
+    ok(client.post(f"{API}/membership-contracts", headers=owner, json=sold | {"start_on": lapsed_on}), 201)
+    lapsed = client.post(f"{API}/portal/rentals", headers=portal, json=body | {"starts_at": at(21), "ends_at": at(22)})
+    assert lapsed.status_code == 422 and lapsed.json()["code"] == "membership-required"
+    # Active today but ending before the rental date: membership is read on the rental's date, so still refused.
+    ok(
+        client.post(
+            f"{API}/membership-contracts", headers=owner, json=sold | {"start_on": clock.now().date().isoformat()}
+        ),
+        201,
+    )
+    ends_first = client.post(
+        f"{API}/portal/rentals", headers=portal, json=body | {"starts_at": at(21), "ends_at": at(22)}
+    )
+    assert ends_first.status_code == 422 and ends_first.json()["code"] == "membership-required"
+    # A contract that covers the rental date: the member books it online.
+    covering = (DAY - timedelta(days=10)).date().isoformat()
+    ok(client.post(f"{API}/membership-contracts", headers=owner, json=sold | {"start_on": covering}), 201)
     member = client.post(f"{API}/portal/rentals", headers=portal, json=body | {"starts_at": at(21), "ends_at": at(22)})
     assert member.status_code == 201, member.text
 

@@ -27,7 +27,6 @@ from app.ports import notifications
 
 READ = "scheduling.booking.read"
 ENROLL, CANCEL, FREE = (f"scheduling.enrollment.{verb}" for verb in ("create", "cancel", "free_book"))
-ROSTER_MESSAGE = "engagement.message.send_direct"  # engagement owns the key; programs may not import it
 MARK, MARK_EXCEPTION, WAITLIST = (
     "scheduling.attendance.mark",
     "scheduling.attendance.mark_exception",
@@ -532,7 +531,7 @@ def attended_enrollments(session: Db, session_ids) -> dict[UUID, list[UUID]]:
 def send_roster_message(session: Db, principal: Principal, session_id: UUID, data: dict) -> dict:
     """Email everyone registered in a session. Goes out through the notification port after commit; clients with
     no email address are skipped. Returns an already-finished job handle (the engagement module will queue)."""
-    seat = _seat(session, principal, session_id, ROSTER_MESSAGE)
+    seat = _seat(session, principal, session_id, ENROLL)
     statuses = data.get("statuses") or ["enrolled"]
     client_ids = session.scalars(
         select(Enrollment.client_id).where(Enrollment.session_id == session_id, Enrollment.status.in_(statuses))
