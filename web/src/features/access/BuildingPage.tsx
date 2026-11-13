@@ -76,7 +76,7 @@ function LightsCard({ locationId, zones, timeZone, canHold, canManage }: { locat
   const [holding, setHolding] = useState<Zone | null>(null)
   const done = () => qc.invalidateQueries({ queryKey: ['building-status', locationId] })
   const release = useMutation({
-    mutationFn: (z: Zone) => api.put('/api/v1/lighting-zones/{lighting_zone_id}/override', { path: { lighting_zone_id: z.id }, body: { is_on: null } }),
+    mutationFn: (z: Zone) => api.put('/api/v1/lighting-zones/{lighting_zone_id}/override', { path: { lighting_zone_id: z.id }, body: { is_on: null, confirm_in_progress: false } }),
     onSuccess: done,
     onError: fail(toast),
   })
