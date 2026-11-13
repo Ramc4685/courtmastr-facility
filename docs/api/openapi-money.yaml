@@ -53,7 +53,7 @@ info:
     8. A denied check-in is `201` with `result: denied`, not a 4xx: it is a logged fact (CHK-01). 4xx is kept for
        malformed or unauthorised requests. Kiosk responses collapse the reason to `admitted | see_staff`.
     9. Kiosk lookup returns an opaque short-lived `match_token`, never a client id, and records whether the client
-       was identified by possession (scan) or by name; purchases require a signed card payload (rbac 10).
+       was identified by possession (scan) or by name; purchases require possession (rbac 10).
     10. POS cart is server-side (`pos_sale` draft) so totals, tax and discounts have one implementation and a
         handed-over tablet resumes. Rejected: client-side cart posted whole (duplicates rounding rules in TS).
     11. Split tender: each `POST /pos-sales/{id}/tenders` captures one leg; `complete` requires legs to equal the
@@ -4737,56 +4737,16 @@ paths:
     post:
       operationId: createKioskPackagePurchase
       tags: [access]
-      summary: Buy a package at the kiosk (signed card check-ins only)
-      description: Card on file only (owner decisions 2026-11-13). A kiosk-only body; the buyer and payer are the client of
-        the check-in, never a body field. 404 unless the location sells at the kiosk, the check-in was by a signed card
-        payload (identified_by signed_card, the app's QR or a wallet pass; never a typed number or a name), the
-        client is an adult and has a default card saved. A plan not offered to the client is 422; any
-        refusal from the sale or the payment, a decline included, is see-staff.
+      summary: Buy a package at the kiosk (possession-identified sessions only)
+      description: Not built (a first version was dropped in review, 2026-11-13; the access README lists what a future
+        version needs, and the settings below are not stored yet). When
+        specified it takes a kiosk-only body (additionalProperties false; plan id and provider token only, never the staff
+        ClientPackageSell), and the buyer and payer are the client identified in the kiosk session, never a body field.
       x-priority: P1
       x-permission: kiosk-device
-      x-features: [CHK-05, CHK-06]
-      security:
-      - {kioskDevice: []}
-      x-idempotent: required
-      parameters:
-      - {$ref: '#/components/parameters/IdempotencyKeyRequired'}
-      requestBody:
-        required: true
-        content: {application/json: {schema: {$ref: '#/components/schemas/KioskPackagePurchase'}}}
-      x-problem-codes: [not-found, validation-failed, request-in-progress, idempotency-key-reused, rate-limited, see-staff,
-        response-not-stored, provider-unavailable]
+      x-features: [CHK-06]
       responses:
-        '201':
-          description: Created.
-          content: {application/json: {schema: {$ref: '#/components/schemas/KioskCheckInResult'}}}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '404': {$ref: '#/components/responses/NotFound'}
-        '409': {$ref: '#/components/responses/Conflict'}
-        '422': {$ref: '#/components/responses/Unprocessable'}
-        '429': {$ref: '#/components/responses/RateLimited'}
-        '503': {description: The processor did not answer; retry with the same key.}
-  /kiosk/check-ins/{check_in_id}/package-plans:
-    get:
-      operationId: listKioskPackagePlans
-      tags: [access]
-      summary: The kiosk package page for a card-identified visit
-      x-priority: P1
-      x-permission: kiosk-device
-      x-features: [CHK-05, CHK-06]
-      security:
-      - {kioskDevice: []}
-      parameters:
-      - {name: check_in_id, in: path, required: true, schema: {type: string, format: uuid}}
-      - {name: kiosk-visit-token, in: header, required: true, schema: {type: string, maxLength: 64}}
-      x-problem-codes: [not-found, rate-limited]
-      responses:
-        '200':
-          description: OK.
-          content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/KioskPackagePlan'}}}}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '404': {$ref: '#/components/responses/NotFound'}
-        '429': {$ref: '#/components/responses/RateLimited'}
+        default: {$ref: '#/components/responses/NotSpecified'}
   /staff-payees:
     get:
       operationId: listStaffPayees
@@ -7565,7 +7525,7 @@ components:
         check_in_station_id: {type: [string, 'null'], format: uuid}
         kiosk_device_id: {type: [string, 'null'], format: uuid}
         channel: {type: string, enum: [staff_window, client_profile, kiosk, pos, door, api]}
-        identified_by: {type: string, enum: [credential, signed_card, name_search, client_record]}
+        identified_by: {type: string, enum: [credential, name_search, client_record]}
         credential_id: {type: [string, 'null'], format: uuid}
         checked_in_at: {type: string, format: date-time}
         local_on: {type: string, format: date}
@@ -7805,22 +7765,6 @@ components:
       properties:
         target_type: {type: string, enum: [enrollment, booking, session]}
         target_id: {type: string, format: uuid}
-        visit_token: {type: string, maxLength: 64}
-    KioskPackagePlan:
-      type: object
-      required: [package_plan_id, name, price_minor, is_purchasable]
-      properties:
-        package_plan_id: {type: string, format: uuid}
-        name: {type: string}
-        price_minor: {type: integer}
-        is_purchasable: {type: boolean}
-    KioskPackagePurchase:
-      type: object
-      additionalProperties: false
-      required: [check_in_id, package_plan_id, visit_token]
-      properties:
-        check_in_id: {type: string, format: uuid}
-        package_plan_id: {type: string, format: uuid}
         visit_token: {type: string, maxLength: 64}
     KioskExitRequest:
       type: object

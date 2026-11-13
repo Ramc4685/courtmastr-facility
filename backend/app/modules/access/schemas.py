@@ -178,8 +178,6 @@ class KioskSettingsOut(Out):
     is_auto_book: bool
     reservation_timeout_seconds: int
     is_name_search_booking_allowed: bool
-    is_package_purchase_enabled: bool
-    package_timeout_seconds: int
     has_exit_pin: bool
 
 
@@ -194,8 +192,6 @@ class KioskSettingsWrite(In):
     is_auto_book: bool | None = None
     reservation_timeout_seconds: int | None = Field(None, ge=3, le=300)
     is_name_search_booking_allowed: bool | None = None
-    is_package_purchase_enabled: bool | None = None
-    package_timeout_seconds: int | None = Field(None, ge=3, le=300)
     exit_pin: Pin | None = None  # write-only; stored as an argon2id hash
 
 
@@ -481,23 +477,6 @@ class KioskAttendanceCreate(In):
     target_type: Literal["session"]
     target_id: UUID
     visit_token: str = Field(min_length=1, max_length=64)  # from the check-in or the previous booking
-
-
-class KioskPackagePlan(Out):
-    """A package plan the kiosk may sell: sold online, one-off, priced. Prices are the public price list."""
-
-    package_plan_id: UUID
-    name: str
-    price_minor: int
-    is_purchasable: bool
-
-
-class KioskPackagePurchase(In):
-    """Kiosk-only body: the buyer and payer are the client of the check-in, paid with their card on file."""
-
-    check_in_id: UUID
-    package_plan_id: UUID
-    visit_token: str = Field(min_length=1, max_length=64)
 
 
 # --- portal app cards ----------------------------------------------------------------------------------------

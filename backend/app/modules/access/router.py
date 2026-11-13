@@ -441,33 +441,6 @@ def create_kiosk_attendance(check_in_id: UUID, body: s.KioskAttendanceCreate, re
     return kiosk_flow.attend(_session(request), device, check_in_id, body.model_dump())
 
 
-@kiosk.get(
-    "/kiosk/check-ins/{check_in_id}/package-plans", response_model=list[s.KioskPackagePlan],
-    dependencies=[Depends(kiosk_rate_limit)],
-)  # fmt: skip
-def list_kiosk_package_plans(
-    check_in_id: UUID, request: Request, device: Device,
-    kiosk_visit_token: Annotated[str, Header(max_length=64)],
-):  # fmt: skip
-    """The package page for a card-identified visit at a location that sells at the kiosk; otherwise 404. The
-    visit token rides in a header (never the URL) and is checked, not spent."""
-    return kiosk_flow.package_plans(_session(request), device, check_in_id, kiosk_visit_token)
-
-
-@kiosk.post(
-    "/kiosk/package-purchases", response_model=s.KioskCheckInResult, status_code=201,
-    dependencies=[Depends(kiosk_booking_rate_limit), Depends(kiosk_idempotency)],
-)  # fmt: skip
-@secret_response
-def create_kiosk_package_purchase(
-    body: s.KioskPackagePurchase, request: Request, device: Device,
-    idempotency_key: Annotated[str, Header(pattern=KEY_PATTERN)],
-):  # fmt: skip
-    """Buy a package with the card on file (no card entry on the tablet), spending the visit token. A replayed key
-    is 409 response-not-stored and never sells twice. Errors: see-staff, validation-failed."""
-    return kiosk_flow.buy_package(_session(request), device, body.model_dump(), idempotency_key)
-
-
 @kiosk.post("/kiosk/visits/end", status_code=204)
 def end_kiosk_visit(request: Request, device: Device) -> None:
     """The kiosk returned to its start screen: every visit token it holds stops working."""

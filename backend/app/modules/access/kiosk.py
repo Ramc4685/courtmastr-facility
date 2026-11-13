@@ -5,9 +5,8 @@ Internal functions for the kiosk router (device cookie, no principal). An admitt
 (stored hashed, `kiosk_visit`): every action on the visit spends it and gets a fresh one, it dies at its screens'
 timeouts, and it ends when the kiosk goes back to its start screen or takes the next check-in. Booking goes through
 programs' kiosk functions, which apply the portal's rules unchanged, and the past-due lockout applies as it does
-online. Spending a package credit needs identification by possession, a card or the app's code; charging the card
-on file needs a signed card payload (`signed_card`); a visit found by name books only free sessions, when the
-location allows even that. Refusals that would reveal the
+online. Spending anything (a package credit) needs identification by possession, a card or the app's code; a visit
+found by name books only free sessions, when the location allows even that. Refusals that would reveal the
 client's standing answer only "see staff"."""
 
 import secrets
@@ -19,9 +18,8 @@ from sqlalchemy.orm import Session
 
 from app.core import audit, clock, events
 from app.core.auth import tokens
-from app.core.errors import Conflict, DomainError, NotFound, ValidationFailed
-from app.core.pagination import ListQuery
-from app.modules import billing, clients, memberships, packages, platform, programs
+from app.core.errors import Conflict, DomainError, NotFound
+from app.modules import billing, clients, programs
 from app.modules.access import events as ev
 from app.modules.access import service
 from app.modules.access.models import CheckIn, CheckInAttendance, KioskDevice, KioskVisit
@@ -30,13 +28,7 @@ VISIT_GRACE = timedelta(seconds=5)  # the network round trips on top of the scre
 
 
 def _by_possession(row: CheckIn) -> bool:
-    return row.identified_by in ("credential", "signed_card")
-
-
-def _by_signed_card(row: CheckIn) -> bool:
-    """Charging a card on file needs more than possession: a verified app QR or wallet-pass payload, never a
-    typed or looked-up number (security review 2026-11-13)."""
-    return row.identified_by == "signed_card"
+    return row.identified_by == "credential"
 
 
 def end_visits(session: Session, device: KioskDevice) -> None:
@@ -45,10 +37,9 @@ def end_visits(session: Session, device: KioskDevice) -> None:
 
 
 def _issue(session: Session, device: KioskDevice, row: CheckIn, config: dict) -> str:
-    """A fresh visit token, alive for the result screen and then the reservation or package page."""
+    """A fresh visit token, alive for the result screen and then the reservation page."""
     raw = secrets.token_urlsafe(24)
-    page = max(config["reservation_timeout_seconds"], config["package_timeout_seconds"])
-    ttl = timedelta(seconds=config["confirmation_timeout_seconds"] + page)
+    ttl = timedelta(seconds=config["confirmation_timeout_seconds"] + config["reservation_timeout_seconds"])
     session.add(KioskVisit(
         kiosk_device_id=device.id, check_in_id=row.id, token_hash=tokens.digest(raw),
         expires_at=clock.now() + ttl + VISIT_GRACE,
@@ -56,18 +47,16 @@ def _issue(session: Session, device: KioskDevice, row: CheckIn, config: dict) ->
     return raw
 
 
-def visit(session: Session, device: KioskDevice, check_in_id: UUID, token: str, *, spend: bool = True) -> CheckIn:
+def visit(session: Session, device: KioskDevice, check_in_id: UUID, token: str) -> CheckIn:
     """Spend the visit token this device holds for this admitted, open check-in; anything else is 404. A refused
-    action rolls back with its transaction, so the token stays good for another choice until it expires. A read
-    (`spend` False) checks the token without spending it."""
+    action rolls back with its transaction, so the token stays good for another choice until it expires."""
     held = session.scalar(select(KioskVisit).where(KioskVisit.token_hash == tokens.digest(token)))
     if (
         held is None or held.kiosk_device_id != device.id or held.check_in_id != check_in_id
         or held.expires_at < clock.now()
     ):  # fmt: skip
         raise NotFound()
-    if spend:
-        session.delete(held)
+    session.delete(held)
     row = session.get_one(CheckIn, check_in_id)
     if row.result == "denied" or row.checked_out_at is not None:
         raise NotFound()
@@ -174,88 +163,6 @@ def check_in(session: Session, device: KioskDevice, data: dict) -> dict:
         else:
             listed = _sessions(session, row, config)
     return result(session, row, config, listed, _issue(session, device, row, config))
-
-
-# --- package purchase (card on file only) ------------------------------------------------------------------------
-
-
-def _buyer(session: Session, device: KioskDevice, check_in_id: UUID, token: str, *, spend: bool) -> CheckIn:
-    """The visit's client may buy here only when the location allows it, the check-in was by a signed card payload
-    (the app's QR or a wallet pass; not a typed barcode, fob, member number or name), they are not a minor and have
-    a default card on file. Anything else is 404: the kiosk never offers what it would refuse."""
-    row = visit(session, device, check_in_id, token, spend=spend)
-    client = clients.service.get(session, row.client_id)
-    today = platform.service.location_today(session, row.location_id)
-    if (
-        not service.settings_view(session, device.location_id)["is_package_purchase_enabled"]
-        or not _by_signed_card(row)
-        or clients.service.is_minor(client, today, platform.service.minor_age(session))
-        or billing.methods.autopay_method(session, row.client_id) is None
-    ):  # fmt: skip
-        raise NotFound()
-    return row
-
-
-def _plans(session: Session, row: CheckIn) -> list[dict]:
-    member = memberships.service.is_member(session, row.client_id)
-    out = []
-    # shortcut: first page of 50 published plans; page through them if a location ever publishes more
-    for plan in packages.service.public_list_plans(session, ListQuery(limit=50))["data"]:
-        try:
-            offer = packages.service.offer(session, plan["id"], row.location_id)
-        except DomainError:
-            continue  # recurring, ranged or unpriced: not for a one-tap sale
-        out.append({
-            "package_plan_id": plan["id"], "name": offer["name"], "price_minor": offer["price_minor"],
-            "is_purchasable": member or not plan["is_members_only_online"],
-        })  # fmt: skip
-    return out
-
-
-def package_plans(session: Session, device: KioskDevice, check_in_id: UUID, token: str) -> list[dict]:
-    """The package page: plans published for online sale that a till could sell (one-off, priced, no quantity
-    to choose), at their public price, marked whether this client may buy them (members-only plans)."""
-    return _plans(session, _buyer(session, device, check_in_id, token, spend=False))
-
-
-def buy_package(session: Session, device: KioskDevice, data: dict, idempotency_key: str) -> dict:
-    """Buy a package for the visit's client with their default card on file, through packages' sale and billing's
-    secured checkout, as the portal does; no card is entered on the tablet. A plan not offered to the client
-    (members-only included) is 422. Any other refusal (decline, an unsigned document, portal terms the kiosk cannot
-    show, past due) is 409 see-staff and nothing is sold;
-    a document the sale issued for signing is kept for the desk."""
-    row = _buyer(session, device, data["check_in_id"], data["visit_token"], spend=True)
-    if billing.collections.is_portal_locked(session, [row.client_id]):
-        raise see_staff()
-    if data["package_plan_id"] not in {p["package_plan_id"] for p in _plans(session, row) if p["is_purchasable"]}:
-        raise ValidationFailed("This package is not sold here.", pointer="/package_plan_id")
-    method = billing.methods.autopay_method(session, row.client_id)
-    try:
-        clients.terms.acknowledge(
-            session,
-            client_id=row.client_id,
-            terms_version_id=None,
-            sale_kind="package",
-            subject_id=data["package_plan_id"],
-        )
-        sold = packages.service.sell(
-            session, client_id=row.client_id, location_id=row.location_id, package_plan_id=data["package_plan_id"],
-            channel="portal", online=True, invoice_mode="single",
-        )  # fmt: skip
-        billing.checkout.secure_online_checkout(
-            session, client_id=row.client_id, location_id=row.location_id, total_minor=sold["package"].price_minor,
-            invoice=sold["invoice"], idempotency_key=f"kiosk:{device.id}:{idempotency_key}",
-            payment_method_id=method.id if method else None, must_pay_now=True,
-        )  # fmt: skip
-    except DomainError as exc:
-        if exc.status >= 500:
-            raise  # the processor did not answer: a retry with the same key replays, nothing is a decline yet
-        raise Conflict("Please see the front desk.", code="see-staff", persist=exc.persist) from None
-    audit.record(session, service.CREATE, row, location_id=row.location_id,
-                 changes={"package_purchased": [None, str(sold["package"].id)]})  # fmt: skip
-    session.flush()
-    config = service.settings_view(session, device.location_id)
-    return result(session, row, config, _sessions(session, row, config), _issue(session, device, row, config))
 
 
 def attend(session: Session, device: KioskDevice, check_in_id: UUID, data: dict) -> dict:

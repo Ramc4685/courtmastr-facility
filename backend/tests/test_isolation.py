@@ -466,7 +466,6 @@ def test_api_foreign_tenant_id_is_404(client, two_tenants, method, path, name):
         from app.modules.access.tests.test_checkin import _pair
 
         _pair(client, a.tenant, a.headers, a.location_id)
-        headers |= {"Kiosk-Visit-Token": "iso"}
     response = client.request(method, url, headers=headers, json=body)
     assert response.status_code == 404, response.text
     assert response.json()["code"] == "not-found"

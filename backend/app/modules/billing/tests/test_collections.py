@@ -41,7 +41,7 @@ OPEN_PORTAL_POSTS = {
 
 # Kiosk POST routes (no client principal, so the portal guard cannot see them): the ones that book or buy apply the
 # same lockout in access/kiosk.py, the rest stay open.
-KIOSK_LOCKED_POSTS = {"/kiosk/check-ins/{check_in_id}/attendances", "/kiosk/package-purchases"}
+KIOSK_LOCKED_POSTS = {"/kiosk/check-ins/{check_in_id}/attendances"}
 KIOSK_OPEN_POSTS = {
     "/kiosk/pair",
     "/kiosk/lookups",

@@ -177,7 +177,7 @@ def test_a_visit_token_is_single_use_device_bound_and_short_lived(client, tenant
     entered = enter(client, k.person)
     from app.modules.access import kiosk
 
-    later = clock.now() + timedelta(minutes=2)  # past every screen's default timeout and the grace
+    later = clock.now() + timedelta(seconds=10 + 30 + 6)  # past both screens' default timeouts and the grace
     monkeypatch.setattr(kiosk, "clock", SimpleNamespace(now=lambda: later))
     assert book(client, entered, third.id).status_code == 404
 

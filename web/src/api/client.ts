@@ -105,7 +105,7 @@ const PRE_SESSION = [
 // Kiosk routes answer 401 for an unpaired device, never for a staff session (the kiosk cookie is not one).
 const notSession = (template: string) => PRE_SESSION.includes(template) || template.startsWith('/api/v1/kiosk/')
 
-type Options = { path?: Record<string, string>; query?: Record<string, string | number | boolean | null | undefined>; body?: unknown; idempotencyKey?: string; headers?: Record<string, string> }
+type Options = { path?: Record<string, string>; query?: Record<string, string | number | boolean | null | undefined>; body?: unknown; idempotencyKey?: string }
 
 function buildUrl(template: string, opts: Options): string {
   const path = template.replace(/\{(\w+)\}/g, (_, k: string) => encodeURIComponent(opts.path?.[k] ?? ''))
@@ -135,7 +135,7 @@ const refusedWith = async (res: Response, code: string) =>
 
 export async function request<T>(method: Method, template: string, opts: Options = {}): Promise<T> {
   const url = buildUrl(template, opts)
-  const headers: Record<string, string> = { ...opts.headers, accept: 'application/json' }
+  const headers: Record<string, string> = { accept: 'application/json' }
   if (opts.body !== undefined) headers['content-type'] = 'application/json'
   if (TENANT_SLUG) headers['x-tenant-slug'] = TENANT_SLUG
   // A caller that may retry one user action across requests (taking a payment) passes its own stable key.
@@ -174,8 +174,7 @@ export async function request<T>(method: Method, template: string, opts: Options
 
 /** Typed entry points: paths, path params and bodies are checked against the generated schema. */
 export const api = {
-  // `headers`: a single-use secret that must stay out of the URL (the kiosk visit token).
-  get: <P extends keyof paths>(path: P, opts?: { path?: PathParams<Op<P, 'get'>>; query?: Options['query']; headers?: Options['headers'] }) =>
+  get: <P extends keyof paths>(path: P, opts?: { path?: PathParams<Op<P, 'get'>>; query?: Options['query'] }) =>
     request<Ok<Op<P, 'get'>>>('get', path as string, opts as Options),
   post: <P extends keyof paths>(path: P, opts?: { path?: PathParams<Op<P, 'post'>>; body?: Body<Op<P, 'post'>>; idempotencyKey?: string }) =>
     request<Ok<Op<P, 'post'>>>('post', path as string, opts as Options),

@@ -10,11 +10,11 @@ nothing writes it yet.
 
 | Table | Holds |
 |---|---|
-| `check_in` | client, location, channel, how the client was identified (`credential`, `signed_card` (kiosk card payload, migration 1963), `name_search`, `client_record`), credential used, result (`granted` / `denied` / `granted_override`), deny reasons, alert codes, override and its reason, staff user or kiosk device |
+| `check_in` | client, location, channel, how the client was identified (`credential`, `name_search`, `client_record`), credential used, result (`granted` / `denied` / `granted_override`), deny reasons, alert codes, override and its reason, staff user or kiosk device |
 | `check_in_attendance` | each programme session place marked attended by a check-in (the link back for history) |
 | `credential` | membership number, barcode, app card, wallet pass, RFID and biometric reference; value unique per tenant while active; app cards keep the rotating-QR secret, which revocation wipes |
 | `kiosk_device` | a named device at a location, its single-use pairing code (hashed, 10 minutes), its revocation and the count of wrong exit PINs since the last right one (`exit_pin_failure_count`, migration 1022) |
-| `kiosk_settings` | one row per location: lookup methods, early and late windows, confirmation timeout, welcome text, alerts the kiosk may show, the hashed exit PIN (migration 1021); visible range, auto-book and reservation timeout (migration 1961); name-search booking switch (migration 1962); package purchase switch and timeout (migration 1963) |
+| `kiosk_settings` | one row per location: lookup methods, early and late windows, confirmation timeout, welcome text, alerts the kiosk may show, the hashed exit PIN (migration 1021); visible range, auto-book and reservation timeout (migration 1961); name-search booking switch (migration 1962) |
 
 Migration `1021_access_rules` (phase 10 chip B) adds:
 
@@ -98,40 +98,20 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   token, or a denied or checked-out check-in, is 404. Responses carrying a token are `@secret_response`: a replayed
   Idempotency-Key is 409 `response-not-stored`. Booking attempts have their own per-device limit (10 a minute).
 - **What a name-search check-in may do (owner decisions 2026-11-13).** Spending anything at the kiosk (a package
-  credit, and in future a membership visit or an account charge) needs identification by possession:
-  `check_in.identified_by` `credential` (a card, fob, wallet pass or app code found through a lookup) or
-  `signed_card` (see the package purchase rule below, which is stricter for charging a card). A lookup by
+  credit, and in future a membership visit, an account charge or a payment) needs identification by possession:
+  `check_in.identified_by = credential`, which is a scanned card, fob, wallet pass or the app's code. A lookup by
   card keeps the matched credential on `kiosk_match.credential_id`, so the check-in records it. The kiosk cannot
   tell a scanned credential value from a typed one, so any value that matches a credential row counts (the tablet
   only takes values from the scanner). A member number on the client record, or a name search, is `name_search`. Such a visit may book only sessions that allow free booking, so nothing is
   spent, and only while the location's `is_name_search_booking_allowed` is on (default on). Any refusal is 409
   `see-staff`, `is_booked` is always false on its page, and auto-book follows the same rule. It never learns the
   client's packages, balance or eligibility. Possession unlocks the full portal rules above.
-- **Package purchase, card on file only (owner decisions 2026-11-13, question 15; `kiosk.py`, migration 1963).**
-  Off unless the location turns on `is_package_purchase_enabled`. `GET /kiosk/check-ins/{id}/package-plans` (visit
-  token in the `Kiosk-Visit-Token` header, checked, not spent) lists the plans published for online sale that
-  `packages.service.offer` accepts (one-off, priced, fixed), at the public price, with `is_purchasable` false for a
-  members-only plan and a non-member. It and `POST /kiosk/package-purchases` are 404 unless the check-in was by a
-  signed card payload, the client is not a minor and has a default card on file (`billing.methods.autopay_method`):
-  the kiosk never offers what it would refuse. **Paying needs more than possession (security review 2026-11-13):**
-  only a check-in sent as `card_payload` that verifies as the app's rotating QR (HMAC per 30-second step) or an
-  active wallet-pass token records `check_in.identified_by = signed_card`, and only that may charge the card on
-  file. A typed or plain-scanned barcode, fob or member number, the app card's static number, a name search and a
-  staff lookup stay `credential` or `name_search` and are refused; booking keeps the possession rule above (both
-  `credential` and `signed_card`). The tablet sends `fhq.` and `FHW` scans as card payloads. A wallet-pass token is
-  a 160-bit secret matched by its hash rather than a signature; it counts as signed because only the pass holds it, so a copied token pays until the pass is revoked or reissued (an
-  app QR is good for its 30-second step). Lookups and staff-window scans never record `signed_card`. The purchase spends the visit token, applies the past-due lockout, then
-  sells as the portal does: `clients.terms.acknowledge` (bound terms the kiosk cannot show refuse), `packages.service.sell`
-  (`online=True`, so the plan's online mode, members-only and required documents apply; channel `portal`, invoice
-  single), and `billing.checkout.secure_online_checkout` with the saved card, `must_pay_now`, and an idempotency key
-  scoped to the device. A plan not on the page, or marked not purchasable for this client, is 422 `validation-failed`
-  (the page already shows it). Any refusal from the sale or the payment, a decline included, is 409 `see-staff` and
-  nothing is sold (a document issued for signing is kept); a processor timeout passes through as 503. Idempotency-Key
-  is required; the answer carries a new visit token, so a replay is 409 `response-not-stored` and never sells twice.
-  Buying shares the per-device booking attempt limit (10 a minute); the plan list counts with the check-ins (30).
-  At most the first 50 published plans are offered. `package_timeout_seconds` (default 60) sends the package screen
-  back to the start, and the visit token lives for the confirmation timeout plus the longer of the reservation and
-  package timeouts (plus 5 seconds). Each purchase is audited on the check-in (`package_purchased`).
+- **Kiosk package purchase: not built (review 2026-11-13).** A first version was dropped before merge: a routine
+  check-in scan authorised a one-tap charge that could repeat (each purchase handed back a fresh visit token), a
+  wallet pass is a static bearer barcode, and an app QR could be replayed at a second kiosk inside its step. A future
+  version must have all of: a fresh app-QR step, strictly above the credential's last accepted step, carried in the
+  purchase request itself (not inherited from the check-in); no wallet passes unless a PIN or an in-app approval
+  backs them; at most one purchase per check-in; and a per-client daily cap.
 - **App cards (CHK-13).** The portal issues an app card to the member or a household member they may book for;
   the app shows `fhq.<credential>.<30 s step>.<hmac>`, accepted for the current and previous step at the kiosk and
   the staff window.
@@ -231,4 +211,5 @@ door hardware) wait for the v2 adapters; CHK-17 (vaccine flag) is P2. The wallet
 The permissions `access.door.unlock` and `access.device.manage` are registered for the door hardware and have no
 route yet. The staff eligible-sessions list (`listEligibleSessions`, P1, CHK-04) is not built: the window books from
 the schedule, and the kiosk receives its list in the check-in result. `KioskAttendanceCreate` accepts only
-`session`: places already booked and court bookings are marked by the check-in itself.
+`session`: places already booked and court bookings are marked by the check-in itself. Kiosk package purchase is in
+the contract but not built.

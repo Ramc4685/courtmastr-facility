@@ -84,7 +84,7 @@ describe('CheckInPage', SCREEN, () => {
   })
 })
 
-const config = { kiosk_device_id: 'd1', location_id: 'l1', location_name: 'Courtside Downtown', time_zone: 'America/Chicago', settings: { location_id: 'l1', lookup_method: 'both', early_window_minutes: 60, late_window_minutes: 30, welcome_message: 'Hello!', displayed_alert_codes: ['balance_due'], confirmation_timeout_seconds: 10, visible_range_minutes: 240, is_auto_book: false, reservation_timeout_seconds: 30, is_name_search_booking_allowed: true, is_package_purchase_enabled: true, package_timeout_seconds: 60, has_exit_pin: true } }
+const config = { kiosk_device_id: 'd1', location_id: 'l1', location_name: 'Courtside Downtown', time_zone: 'America/Chicago', settings: { location_id: 'l1', lookup_method: 'both', early_window_minutes: 60, late_window_minutes: 30, welcome_message: 'Hello!', displayed_alert_codes: ['balance_due'], confirmation_timeout_seconds: 10, visible_range_minutes: 240, is_auto_book: false, reservation_timeout_seconds: 30, is_name_search_booking_allowed: true, has_exit_pin: true } }
 
 function renderKiosk(routes: Parameters<typeof mockFetch>[0]) {
   const calls = mockFetch(routes)
@@ -149,32 +149,6 @@ describe('KioskPage', SCREEN, () => {
     await userEvent.click(within(list).getByRole('button', { name: /^Book Yoga at/ }))
     expect(await screen.findByText("You're booked, Avery!")).toBeInTheDocument()
     expect(calls.find((c) => c.url === '/api/v1/kiosk/check-ins/k1/attendances')?.body).toEqual({ target_type: 'session', target_id: 's1', visit_token: 'v1' })
-  })
-
-  it('a card holder buys a package with the card on file; a refusal only says see the desk', async () => {
-    const entered = { check_in_id: 'k1', status: 'admitted', first_name: 'Avery', displayed_alert_codes: [], attended: [], welcome_message: null, sessions: [], visit_token: 'v1' }
-    const pack = { package_plan_id: 'p1', name: 'Ten classes', price_minor: 10000, is_purchasable: true }
-    let tries = 0
-    const calls = renderKiosk({
-      'GET /api/v1/kiosk/config': { status: 200, body: config },
-      'POST /api/v1/kiosk/check-ins': { status: 201, body: entered },
-      'GET /api/v1/kiosk/check-ins/k1/package-plans': { status: 200, body: [pack, { ...pack, package_plan_id: 'p2', name: 'Members pack', is_purchasable: false }] },
-      'POST /api/v1/kiosk/package-purchases': () =>
-        ++tries === 1 ? { status: 409, body: { code: 'see-staff', status: 409, detail: 'Please see the front desk.' } } : { status: 201, body: { ...entered, visit_token: 'v2' } },
-    })
-    await screen.findByRole('heading', { name: 'Welcome to Courtside Downtown' })
-    const clock = vi.spyOn(Event.prototype, 'timeStamp', 'get').mockReturnValue(1000)
-    ;[...'fhq.abc.1.x', 'Enter'].forEach((key) => fireEvent.keyDown(document.body, { key }))
-    clock.mockRestore()
-    await userEvent.click(await screen.findByRole('button', { name: 'Buy a package' }))
-    const list = screen.getByRole('list', { name: 'Packages for sale' })
-    expect(within(list).getByText('Members pack').closest('li')).toHaveTextContent('See the front desk')
-    await userEvent.click(within(list).getByRole('button', { name: /^Buy Ten classes for/ }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Please see the front desk to buy a package.')
-    await userEvent.click(within(list).getByRole('button', { name: /^Buy Ten classes for/ }))
-    expect(await screen.findByText('Ten classes is yours, paid with your card on file.')).toBeInTheDocument()
-    expect(calls.find((c) => c.url === '/api/v1/kiosk/package-purchases')?.body).toEqual({ check_in_id: 'k1', package_plan_id: 'p1', visit_token: 'v1' })
-    expect(calls.find((c) => c.url.endsWith('/package-plans'))?.headers?.['kiosk-visit-token']).toBe('v1')
   })
 
   it('a client found by name cannot book a paid class from the screen, and leaving ends the visit', async () => {

@@ -602,7 +602,7 @@ _SETTING_DEFAULTS = {
     "lookup_method": "both", "early_window_minutes": 60, "late_window_minutes": 30, "welcome_message": None,
     "displayed_alert_codes": ["balance_due", "membership_expired", "visits_depleted"], "confirmation_timeout_seconds": 10,
     "visible_range_minutes": 240, "is_auto_book": False, "reservation_timeout_seconds": 30,
-    "is_name_search_booking_allowed": True, "is_package_purchase_enabled": False, "package_timeout_seconds": 60,
+    "is_name_search_booking_allowed": True,
 }  # fmt: skip
 
 
@@ -805,7 +805,7 @@ def kiosk_check_in(session: Session, device: KioskDevice, data: dict) -> dict:
         card = _app_card(session, data["card_payload"]) or _wallet_pass(session, data["card_payload"])
         if card is None:
             raise ValidationFailed("This is not a member card.", code="card-invalid", pointer="/card_payload")
-        client, credential, identified = clients.service.get(session, card.client_id), card, "signed_card"
+        client, credential, identified = clients.service.get(session, card.client_id), card, "credential"
     elif data.get("match_token"):
         client, credential = _from_match(session, device, data["match_token"])
         identified = "credential" if credential else "name_search"
