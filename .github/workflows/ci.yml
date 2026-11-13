@@ -110,6 +110,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: mobile/pnpm-lock.yaml
       - run: cd mobile && pnpm install --frozen-lockfile
+      - name: Generated API types match backend/openapi.json
+        run: make mobile-api && git diff --exit-code mobile/src/api/schema.d.ts
       - run: cd mobile && pnpm lint
       - run: cd mobile && pnpm typecheck
       - run: cd mobile && pnpm test --ci
