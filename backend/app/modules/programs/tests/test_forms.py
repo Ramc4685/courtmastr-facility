@@ -137,6 +137,7 @@ def test_anonymous_free_registration_with_stock_and_dependencies(client, owner, 
                                                   {"item_key": "size_note", "text_value": "Kid"}]))  # fmt: skip
     assert first["status"] == "confirmed" and first["total_minor"] == 0 and first["confirmation_no"] >= 1
     assert mailbox[-1].to == "pat@example.com" and "Open Day" in mailbox[-1].subject
+    assert "Hello there" in mailbox[-1].body and "Pat" not in mailbox[-1].body  # no visitor text in mail
     sold = submit(client, tenant, form["id"], [{"item_key": "shirt", "choice_keys": ["s"]},
                                                {"item_key": "size_note", "text_value": "Kid"}])  # fmt: skip
     assert code(sold) == (409, "sold-out") and sold.json()["detail"] == "No small left"

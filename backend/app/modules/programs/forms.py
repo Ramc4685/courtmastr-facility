@@ -566,8 +566,10 @@ def _submit(
         ),
         submission.id,
     )
+    # Anonymous visitors type any address, so their own text never goes into the mail they trigger.
     notifications.send(session, "programs.form_confirmation", submission.contact_email, {
-        "name": submission.contact_name, "event": form.event_name or form.name, "number": submission.confirmation_no,
+        "name": submission.contact_name if identity_id or account_client_id else "there",
+        "event": form.event_name or form.name, "number": submission.confirmation_no,
         "status": "on the wait list" if status == "waitlisted" else "confirmed",
         "message": form.confirmation_message or "",
     })  # fmt: skip
@@ -785,6 +787,7 @@ def cancel_submission(session: Db, principal: Principal, submission_id: UUID, da
     if data.get("reverse_charges"):
         authorize(principal, REVERSE, location_id=row.location_id)
     form = _lock_form(session, row.form_id)
+    session.refresh(row, with_for_update=True)  # re-read under the lock; a concurrent cancel may have won
     if row.status == "cancelled":
         raise Conflict("This registration is already cancelled.", code="already-cancelled")
     before = row.status

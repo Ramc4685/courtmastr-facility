@@ -248,7 +248,7 @@ def put_page_setting(session: Db, principal: Principal, page_key: str, data: dic
 
 
 def _move_one(session: Db, principal: Principal, enrollment_id: UUID, target: ProgramGroup) -> None:
-    row = session.get(Enrollment, enrollment_id)
+    row = session.get(Enrollment, enrollment_id, with_for_update=True, populate_existing=True)
     if row is None or row.target_kind != "group" or row.program_group_id is None:
         raise NotFound()
     source = groups.load(session, principal, row.program_group_id, UPDATE)
