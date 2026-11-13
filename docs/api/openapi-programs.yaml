@@ -7194,6 +7194,22 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
       x-problem-codes: [invalid-state-transition, policy-violation]
+  /portal/enrollment-meetings:
+    get:
+      operationId: listPortalEnrollmentMeetings
+      tags: [integrations]
+      summary: My booked places whose session has an online meeting
+      description: Enrolment and session ids only, never the link (that comes from the join). The portal shows Join
+        online on these places until the session ends; the enrolment list carries the session times. Integrations
+        answers it because programs may not import integrations.
+      x-priority: P0
+      x-permission: client:self
+      x-features: [SSP-18, INT-09]
+      security: [{clientSession: []}]
+      responses:
+        '200': {description: 'OK: a list of {enrollment_id, session_id}.'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
   /calendar-feeds:
     get:
       operationId: listCalendarFeeds

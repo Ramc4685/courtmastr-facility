@@ -13,8 +13,10 @@ from sqlalchemy.orm import Session
 from app.core import audit, clock, crypto
 from app.core.auth import Principal, authorize
 from app.core.errors import Conflict, NotFound, ValidationFailed
+from app.core.pagination import ListQuery
 from app.core.settings import get_settings
 from app.modules import programs, scheduling
+from app.modules.integrations.feeds import _pages
 from app.modules.integrations.models import (
     ConnectionStatus,
     ExternalConnection,
@@ -246,6 +248,22 @@ def on_session_cancelled(session: Session, session_id: UUID) -> None:
 
 
 # --- the member join ---------------------------------------------------------------------------------------
+
+
+def portal_meetings(session: Session, principal: Principal) -> list[dict]:
+    """The caller's booked session places (theirs and their household's) whose session has a scheduled meeting.
+    Computed here, not on the programs enrolment read, because programs may not import integrations."""
+    query = ListQuery(200, None, None, False, None, {"status": "enrolled", "target_kind": "session"})
+    places = list(_pages(lambda q: programs.selfservice.portal_list_enrollments(session, principal, q), query))
+    online = set(
+        session.scalars(
+            select(VideoMeeting.session_id).where(
+                VideoMeeting.session_id.in_({place["session_id"] for place in places}),
+                VideoMeeting.status == MeetingStatus.SCHEDULED,
+            )
+        )
+    )
+    return [{"enrollment_id": p["id"], "session_id": p["session_id"]} for p in places if p["session_id"] in online]
 
 
 def join(session: Session, principal: Principal, enrollment_id: UUID) -> dict:

@@ -239,6 +239,28 @@ def test_a_zoom_meeting_follows_its_session_after_commit(client, tenant, owner, 
     assert client.get(_meeting(seat), headers=owner).status_code == 404
 
 
+def test_portal_places_carry_session_times_and_which_have_a_meeting(client, tenant, owner):
+    f = facility(client, owner)
+    client_id, member = _member(client, tenant, owner)
+    started = clock.now().replace(second=0, microsecond=0) - timedelta(minutes=20)  # gone from the listings
+    online, plain = _session(client, owner, f, started), _session(client, owner, f, WHEN)
+    ok(client.put(_meeting(online), headers=owner, json={"provider": "manual", "join_url": "https://m.example/n"}), 200)
+    place, other = (
+        ok(client.post(f"{API}/enrollments", headers=owner, json={"session_id": seat, "client_id": client_id}))
+        for seat in (online, plain)
+    )
+    listed = {row["id"]: row for row in ok(client.get(f"{API}/portal/enrollments", headers=member), 200)["data"]}
+    assert datetime.fromisoformat(listed[place["id"]]["starts_at"]) == started
+    assert datetime.fromisoformat(listed[place["id"]]["ends_at"]) == started + timedelta(hours=1)
+    assert datetime.fromisoformat(listed[other["id"]]["starts_at"]) == WHEN
+
+    path = f"{API}/portal/enrollment-meetings"
+    assert ok(client.get(path, headers=member), 200) == [{"enrollment_id": place["id"], "session_id": online}]
+    _, stranger = _member(client, tenant, owner)
+    assert ok(client.get(path, headers=stranger), 200) == []  # someone else's places stay out
+    assert client.get(path, headers=owner).status_code in (403, 404)  # staff use the staff screens
+
+
 def test_a_zoom_host_id_cannot_walk_the_api_path(client, owner):
     f = facility(client, owner)
     seat = _session(client, owner, f, WHEN)

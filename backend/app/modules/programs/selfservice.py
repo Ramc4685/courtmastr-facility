@@ -283,17 +283,29 @@ def portal_cancel(session: Db, principal: Principal, enrollment_id: UUID) -> Enr
     return row
 
 
+_PLACE_FIELDS = ("id", "client_id", "target_kind", "session_id", "program_group_id", "status", "enrolled_at",
+                 "cancelled_at", "cancel_kind")  # fmt: skip
+
+
 def portal_list_enrollments(session: Db, principal: Principal, query: ListQuery) -> dict:
-    """The schedule of the identity and everyone it may book for."""
+    """The schedule of the identity and everyone it may book for, each session place with its session's times
+    (sessions that have started or are hidden leave the listings, so the portal reads the times from here)."""
     ids = clients.households.actable_client_ids(session, _identity(principal))
     e = Enrollment
     filters = {k: v for k, v in query.filters.items() if k in ("status", "target_kind", "client_id")}
     query = ListQuery(query.limit, query.cursor, query.sort, query.include_total, query.q, filters)
-    return paginate(
+    page = paginate(
         session, select(e).where(e.client_id.in_(ids)), query, id_column=e.id,
         sort_fields={"created_at": e.created_at}, default_sort="-created_at",
         filter_fields={"status": e.status, "target_kind": e.target_kind, "client_id": e.client_id},
     )  # fmt: skip
+    seats = scheduling.service.get_sessions(session, {row.session_id for row in page["data"] if row.session_id})
+    page["data"] = [
+        {key: getattr(row, key) for key in _PLACE_FIELDS}
+        | {key: seats[row.session_id][key] if row.session_id in seats else None for key in ("starts_at", "ends_at")}
+        for row in page["data"]
+    ]
+    return page
 
 
 # --- portal: waitlist ------------------------------------------------------------------------------------------

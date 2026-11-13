@@ -124,7 +124,11 @@ through `service.adapter_for`.
   (stored, not yet returned by any route) and passcode are sealed; staff read the join URL on the meeting, members never see it listed. `POST
   /portal/enrollments/{id}/join` returns it for one's own `enrolled` place in a confirmed session, from 10
   minutes before the start until the end, and marks the place attended (source `video_join`, credits by the
-  normal rule). It is a POST, not the contract's redirecting GET, because it writes attendance. Gate:
+  normal rule). It is a POST, not the contract's redirecting GET, because it writes attendance.
+  `GET /portal/enrollment-meetings` lists the caller's booked places whose session has a scheduled meeting
+  (ids only, never the link). It lives here, not as a `has_meeting` flag on the programs enrolment read,
+  because programs may not import integrations; the enrolment read carries the session times, and the portal
+  merges the two to show Join online until the session ends (the join command enforces the window). Gate:
   `scheduling.session.manage` on the session's location. **ZoomVideo has never called Zoom:** tests drive it on
   `httpx.MockTransport`.
 - **Analytics on registration pages (INT-13).** A `google_analytics` connection is tenant-wide only, active at

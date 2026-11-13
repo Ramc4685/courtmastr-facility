@@ -285,9 +285,9 @@ def _member_events(session: Session, feed: CalendarFeed, start: datetime, end: d
     member = Principal(kind="client", tenant_id=feed.tenant_id, identity_id=feed.owner_identity_id)
     query = ListQuery(200, None, None, False, None, {"target_kind": "session"})
     ids = {
-        enrollment.session_id
-        for enrollment in _pages(lambda q: programs.selfservice.portal_list_enrollments(session, member, q), query)
-        if enrollment.status in ("enrolled", "pending")
+        place["session_id"]
+        for place in _pages(lambda q: programs.selfservice.portal_list_enrollments(session, member, q), query)
+        if place["status"] in ("enrolled", "pending")
     }
     events = []
     for session_id, seat in scheduling.service.get_sessions(session, ids).items():  # one read, not one per place

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
@@ -71,16 +71,12 @@ export function PortalSessions() {
     onError: fail,
   })
 
-  // The join window (10 minutes before the start until the end) comes from the listing's times. Listings drop a
-  // session once it starts, so times seen earlier on this visit are kept; the API is the final word either way.
-  // shortcut: a member who opens the page after the start sees no button; expose session times on enrolments to fix.
-  const seen = useRef(new Map<string, { starts: number; ends: number }>())
-  for (const l of listings.data ?? []) seen.current.set(l.session_id, { starts: Date.parse(l.starts_at), ends: Date.parse(l.ends_at) })
+  // Join online shows on every booked place whose session has a meeting, until the session ends; the API refuses
+  // outside the join window (10 minutes before the start) and the refusal is shown.
+  const meetings = useQuery({ queryKey: ['portal', 'enrollment-meetings'], queryFn: () => api.get('/api/v1/portal/enrollment-meetings') })
+  const withMeeting = new Set((meetings.data ?? []).map((m) => m.enrollment_id))
   const now = useNow()
-  const joinable = (sessionId: string | null) => {
-    const t = sessionId ? seen.current.get(sessionId) : undefined
-    return !!t && now >= t.starts - JOIN_EARLY_MS && now < t.ends
-  }
+  const joinable = (e: { id: string; ends_at?: string | null }) => withMeeting.has(e.id) && !!e.ends_at && now < Date.parse(e.ends_at)
   const online = useMutation({
     mutationFn: (enrollmentId: string) => api.post('/api/v1/portal/enrollments/{enrollment_id}/join', { path: { enrollment_id: enrollmentId } }),
     onMutate: () => window.open('', '_blank'), // opened in the click, so pop-up blockers allow it; pointed at the link once it arrives
@@ -167,11 +163,11 @@ export function PortalSessions() {
               {mine.map((e) => (
                 <li key={e.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                   <span>
-                    <span className="block font-medium">{(e.session_id && titles.get(e.session_id)) || 'Session'}</span>
+                    <span className="block font-medium">{(e.session_id && titles.get(e.session_id)) || (e.starts_at ? `Session, ${formatDateTime(e.starts_at)}` : 'Session')}</span>
                     <span className="text-sm text-muted">{names.get(e.client_id)}</span>
                   </span>
                   <span className="flex gap-2">
-                    {joinable(e.session_id) && (
+                    {joinable(e) && (
                       <Button size="sm" aria-label={`Join online for ${names.get(e.client_id) ?? 'client'}`} loading={online.isPending && online.variables === e.id} onClick={() => online.mutate(e.id)}>
                         Join online
                       </Button>
@@ -240,8 +236,6 @@ export function PortalSessions() {
     </>
   )
 }
-
-const JOIN_EARLY_MS = 10 * 60_000
 
 /** The current time, refreshed every 30 seconds so time-window buttons appear and go without a reload. */
 function useNow() {

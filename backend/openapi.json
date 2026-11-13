@@ -47688,6 +47688,27 @@
         "title": "PortalEnrollmentCreate",
         "type": "object"
       },
+      "PortalEnrollmentMeetingOut": {
+        "description": "One of my booked places whose session has an online meeting. The link comes only from the join command.",
+        "properties": {
+          "enrollment_id": {
+            "format": "uuid",
+            "title": "Enrollment Id",
+            "type": "string"
+          },
+          "session_id": {
+            "format": "uuid",
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "enrollment_id",
+          "session_id"
+        ],
+        "title": "PortalEnrollmentMeetingOut",
+        "type": "object"
+      },
       "PortalEnrollmentOut": {
         "properties": {
           "cancel_kind": {
@@ -47717,6 +47738,18 @@
             "format": "uuid",
             "title": "Client Id",
             "type": "string"
+          },
+          "ends_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends At"
           },
           "enrolled_at": {
             "anyOf": [
@@ -47758,6 +47791,19 @@
               }
             ],
             "title": "Session Id"
+          },
+          "starts_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The session's start; none for a program registration",
+            "title": "Starts At"
           },
           "status": {
             "title": "Status",
@@ -128034,6 +128080,63 @@
         "summary": "Get Portal Document Requirements",
         "tags": [
           "documents"
+        ]
+      }
+    },
+    "/api/v1/portal/enrollment-meetings": {
+      "get": {
+        "description": "My booked session places whose session has a scheduled online meeting, so the portal can offer Join\nonline until the session ends. Never the link: that comes only from the join command.",
+        "operationId": "listPortalEnrollmentMeetings",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PortalEnrollmentMeetingOut"
+                  },
+                  "title": "Response Listportalenrollmentmeetings",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Portal Enrollment Meetings",
+        "tags": [
+          "integrations"
         ]
       }
     },

@@ -342,6 +342,13 @@ def join_portal_virtual_session(enrollment_id: UUID, ctx: Ctx = Depends(current_
     return meetings.join(ctx.session, ctx.principal, enrollment_id)
 
 
+@router.get("/portal/enrollment-meetings", response_model=list[s.PortalEnrollmentMeetingOut])
+def list_portal_enrollment_meetings(ctx: Ctx = Depends(current_ctx)):
+    """My booked session places whose session has a scheduled online meeting, so the portal can offer Join
+    online until the session ends. Never the link: that comes only from the join command."""
+    return meetings.portal_meetings(ctx.session, ctx.principal)
+
+
 @router.post("/portal/calendar-feeds", response_model=s.CalendarFeedCreated, status_code=201)
 @secret_response
 def create_portal_calendar_feed(body: s.PortalCalendarFeedCreate, ctx: Ctx = Depends(current_ctx)):

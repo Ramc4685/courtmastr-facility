@@ -7,6 +7,7 @@ const expect = baseExpect.configure({ timeout: 30_000 })
 // Seeded demo data (docs/dev/demo-accounts.md): Morgan Member signs in to the portal, acts for Mia, holds a
 // stored test card, has open invoices, and "Ten private lessons" and "Court rental" are sold online.
 const MEMBER = { email: 'member@courtside-demo.example.com', password: 'courtside-demo-2026' }
+const OWNER = { email: 'owner@courtside-demo.example.com', password: 'courtside-demo-2026' }
 
 async function scan(page: Page, label: string) {
   // Every LoadingState has role=status and ends in an ellipsis; scan once none is left.
@@ -142,7 +143,52 @@ test('member views invoices, buys a package, books and cancels a rental, and act
   await expect(page).toHaveURL(/\/sign-in/)
 })
 
-// The Join online button depends on the clock (10 minutes before a start), so the Vitest suite covers it.
+test('a booked online session offers Join online, the early click is refused, and the screen passes axe', async ({ browser }) => {
+  test.setTimeout(180_000)
+  // Staff side through the API: a session of its own two hours out with a pasted meeting, and Morgan booked in.
+  const staff = await (await browser.newContext()).newPage()
+  await staff.goto('/integrations')
+  await staff.getByRole('textbox', { name: 'Email' }).fill(OWNER.email)
+  await staff.getByRole('textbox', { name: 'Password' }).fill(OWNER.password)
+  const signedIn = staff.waitForResponse((r) => r.url().endsWith('/api/v1/auth/sign-in') && r.ok())
+  await staff.getByRole('button', { name: 'Sign in' }).click()
+  const { csrf_token } = await (await signedIn).json()
+  const headers = () => ({ 'x-tenant-slug': 'courtside-demo', 'x-csrf-token': csrf_token, 'idempotency-key': crypto.randomUUID() })
+  const call = async (method: 'get' | 'post' | 'put', url: string, data?: object) => {
+    const response = await staff.request[method](url, { headers: headers(), data })
+    expect(response.ok(), `${method} ${url}: ${await response.text()}`).toBe(true)
+    return response.json()
+  }
+  const tag = Date.now().toString(36)
+  const downtown = (await call('get', '/api/v1/locations')).data.find((l: { name: string }) => l.name === 'Courtside Downtown')
+  const group = await call('post', '/api/v1/resource-groups', { location_id: downtown.id, name: `Online ${tag}` })
+  const room = await call('post', '/api/v1/resources', { location_id: downtown.id, resource_group_id: group.id, name: `Studio ${tag}` })
+  const kind = await call('post', '/api/v1/reservation-types', { location_id: downtown.id, name: `Online class ${tag}`, default_capacity: 4, default_allows_free_booking: true, color: '#22aa66' })
+  const starts = new Date(Date.now() + 2 * 3_600_000)
+  starts.setUTCSeconds(0, 0)
+  const made = await call('post', '/api/v1/bookings', {
+    location_id: downtown.id, kind: 'session', reservation_type_id: kind.id, public_title: `Online yoga ${tag}`,
+    starts_at: starts.toISOString(), ends_at: new Date(starts.getTime() + 3_600_000).toISOString(), resources: [{ resource_id: room.id }],
+  })
+  const seat = (made.booking ?? made).session.id
+  await call('put', `/api/v1/sessions/${seat}/video-meeting`, { provider: 'manual', join_url: 'https://meet.example.com/yoga' })
+  const morgan = (await call('get', '/api/v1/clients?q=Morgan')).data.find((c: { first_name: string; last_name: string }) => c.first_name === 'Morgan' && c.last_name === 'Member')
+  await call('post', '/api/v1/enrollments', { session_id: seat, client_id: morgan.id })
+  await staff.context().close()
+
+  const page = await (await browser.newContext()).newPage()
+  await signIn(page)
+  await page.goto('/portal/sessions')
+  // the title comes from the listings, which may not show a new class, so any online place will do (all are early)
+  const join = page.getByRole('list', { name: 'Your bookings' }).getByRole('button', { name: /^Join online/ }).first()
+  await expect(join).toBeVisible()
+  await scan(page, 'portal sessions with an online booking')
+  await join.click() // two hours early: the API refuses and the screen says why
+  await expect(page.getByText('The session opens 10 minutes before it starts')).toBeVisible()
+  await page.context().close()
+})
+
+// The join itself depends on the clock (10 minutes before a start), so the Vitest suite covers the opened link.
 test('a member gets a calendar address and stops the feed, and the dialogs pass axe', async ({ page }) => {
   await signIn(page)
   await page.goto('/portal/sessions')

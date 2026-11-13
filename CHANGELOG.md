@@ -82,6 +82,7 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Sending a campaign to every client needs its own permission.
 
 ### Fixed
+- Portal: Join online now shows on every booking with an online meeting until the session ends, including sessions that have started or are not listed.
 - Reports: receivables and open invoices no longer fail as "too large" on a tenant with many settled invoices; expiring memberships at one location are no longer hidden by a renewal at another; package session value no longer loses a cent to rounding (100.00 over three sessions reports 100.00).
 - Reports: a dashboard tile with too much data shows as unavailable instead of disappearing; a failing report schedule no longer stops the others, a schedule whose owner lost access is switched off, and an admin can see and delete anyone's schedule.
 - Erasing a client's data also clears stored report results and export files, including any report being built at that moment; report schedules that already sent that day send again with working links.

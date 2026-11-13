@@ -9298,6 +9298,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/enrollment-meetings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Enrollment Meetings
+         * @description My booked session places whose session has a scheduled online meeting, so the portal can offer Join
+         *     online until the session ends. Never the link: that comes only from the join command.
+         */
+        get: operations["listPortalEnrollmentMeetings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/enrollments": {
         parameters: {
             query?: never;
@@ -30982,6 +31003,22 @@ export interface components {
              */
             session_id: string;
         };
+        /**
+         * PortalEnrollmentMeetingOut
+         * @description One of my booked places whose session has an online meeting. The link comes only from the join command.
+         */
+        PortalEnrollmentMeetingOut: {
+            /**
+             * Enrollment Id
+             * Format: uuid
+             */
+            enrollment_id: string;
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+        };
         /** PortalEnrollmentOut */
         PortalEnrollmentOut: {
             /** Cancel Kind */
@@ -30993,6 +31030,8 @@ export interface components {
              * Format: uuid
              */
             client_id: string;
+            /** Ends At */
+            ends_at?: string | null;
             /** Enrolled At */
             enrolled_at: string | null;
             /**
@@ -31004,6 +31043,11 @@ export interface components {
             program_group_id: string | null;
             /** Session Id */
             session_id: string | null;
+            /**
+             * Starts At
+             * @description The session's start; none for a program registration
+             */
+            starts_at?: string | null;
             /** Status */
             status: string;
             /** Target Kind */
@@ -64702,6 +64746,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DocumentRequirementList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalEnrollmentMeetings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalEnrollmentMeetingOut"][];
                 };
             };
             /** @description Validation Error */
