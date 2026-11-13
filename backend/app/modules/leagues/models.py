@@ -254,6 +254,7 @@ class Competition(_Scoring, TenantOwned, Timestamps, Base):
     status: Mapped[str] = enum_column(server_default=text("'draft'"))
     is_public: Mapped[bool] = mapped_column(server_default=text("true"))
     shows_roster_publicly: Mapped[bool] = mapped_column(server_default=text("true"))
+    show_players: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})  # B2 privacy
     max_defaults: Mapped[int | None] = mapped_column(info={"audit": "value"})
     max_forfeits: Mapped[int | None] = mapped_column(info={"audit": "value"})
     min_sportsmanship: Mapped[Decimal | None] = mapped_column(Numeric(4, 2), info={"audit": "value"})
@@ -785,3 +786,145 @@ class TeamFeeShare(TenantOwned, Timestamps, Base):
     client_id: Mapped[UUID] = mapped_column(info={"audit": "flag"})
     amount_minor: Mapped[int] = mapped_column(BigInteger, info={"audit": "value"})
     charge_id: Mapped[UUID | None]
+
+
+# --- public league site (Phase 14 B2: LGE-17 to LGE-24, LGE-33, MKT-18, CLS-07, PLT-12) ------------------------
+
+
+class LeagueSite(TenantOwned, Timestamps, Base):
+    """LGE-19, PLT-12: the tenant's one public league site, its sections and branding. `is_enabled` gates the
+    site's own sections (news, gallery, posts, ...); public competitions and the TV board show regardless."""
+
+    __tablename__ = "league_site"
+    __table_args__ = tenant_args(
+        UniqueConstraint("tenant_id", name="uq_league_site_tenant"),
+        CheckConstraint("accent_color IS NULL OR accent_color ~ '^#[0-9a-fA-F]{6}$'", name="accent_color"),
+        CheckConstraint("board_refresh_sec BETWEEN 15 AND 600", name="board_refresh"),
+    )
+
+    is_enabled: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
+    title: Mapped[str] = mapped_column(server_default=text("'Leagues'"), info={"audit": "value"})
+    tagline: Mapped[str | None]
+    about_text: Mapped[str | None]
+    accent_color: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    shows_facility_info: Mapped[bool] = mapped_column(server_default=text("true"), info={"audit": "value"})
+    shows_classes: Mapped[bool] = mapped_column(server_default=text("true"), info={"audit": "value"})
+    shows_news: Mapped[bool] = mapped_column(server_default=text("true"), info={"audit": "value"})
+    shows_gallery: Mapped[bool] = mapped_column(server_default=text("true"), info={"audit": "value"})
+    shows_sponsors: Mapped[bool] = mapped_column(server_default=text("true"), info={"audit": "value"})
+    shows_links: Mapped[bool] = mapped_column(server_default=text("true"), info={"audit": "value"})
+    shows_classifieds: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
+    shows_pickup_games: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
+    board_refresh_sec: Mapped[int] = mapped_column(server_default=text("60"), info={"audit": "value"})
+
+
+class LeagueSiteLink(TenantOwned, Timestamps, Base):
+    """LGE-20: the links directory."""
+
+    __tablename__ = "league_site_link"
+    __table_args__ = tenant_args(CheckConstraint("url ~ '^https?://'", name="url"))
+
+    title: Mapped[str] = mapped_column(info={"audit": "value"})
+    url: Mapped[str] = mapped_column(info={"audit": "value"})
+    category: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    sort_order: Mapped[int] = mapped_column(server_default=text("0"))
+
+
+class LeagueSitePhoto(TenantOwned, Timestamps, Base):
+    """LGE-21: a gallery photo; the bytes are a `platform.files` row, served by our own public route."""
+
+    __tablename__ = "league_site_photo"
+    __table_args__ = tenant_args(*tfk("file_id", "stored_file"))
+
+    file_id: Mapped[UUID]
+    caption: Mapped[str | None]
+    album: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    sort_order: Mapped[int] = mapped_column(server_default=text("0"))
+    is_published: Mapped[bool] = mapped_column(server_default=text("true"), info={"audit": "value"})
+
+
+class LeagueSponsor(TenantOwned, Timestamps, Base):
+    """LGE-33: a sponsor advert, shown between its dates while active."""
+
+    __tablename__ = "league_sponsor"
+    __table_args__ = tenant_args(
+        *tfk("logo_file_id", "stored_file"),
+        CheckConstraint("url IS NULL OR url ~ '^https?://'", name="url"),
+        CheckConstraint("ends_on IS NULL OR starts_on IS NULL OR ends_on >= starts_on", name="dates"),
+    )
+
+    name: Mapped[str] = mapped_column(info={"audit": "value"})
+    url: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    blurb: Mapped[str | None]
+    logo_file_id: Mapped[UUID | None]
+    starts_on: Mapped[date | None] = mapped_column(info={"audit": "value"})
+    ends_on: Mapped[date | None] = mapped_column(info={"audit": "value"})
+    sort_order: Mapped[int] = mapped_column(server_default=text("0"))
+    is_active: Mapped[bool] = mapped_column(server_default=text("true"), info={"audit": "value"})
+
+
+class LeagueNewsStory(TenantOwned, Timestamps, Base):
+    """MKT-18: a news story; public once `published_at` is set and reached."""
+
+    __tablename__ = "league_news_story"
+    __table_args__ = tenant_args(Index("ix_league_news_story_published", "tenant_id", "published_at", "id"))
+
+    title: Mapped[str] = mapped_column(info={"audit": "value"})
+    summary: Mapped[str | None]
+    body: Mapped[str]
+    published_at: Mapped[datetime | None] = mapped_column(info={"audit": "value"})
+    is_pinned: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
+
+
+class PostKind(StrEnum):
+    CLASSIFIED = "classified"
+    PICKUP = "pickup"
+
+
+class PostCategory(StrEnum):
+    PLAYER_WANTED = "player_wanted"
+    TEAM_WANTED = "team_wanted"
+    COACH_WANTED = "coach_wanted"
+    OTHER = "other"
+
+
+class PostStatus(StrEnum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    WITHDRAWN = "withdrawn"
+
+
+class LeaguePost(TenantOwned, Timestamps, Base):
+    """LGE-22 classifieds and LGE-23 pickup games: posted by a signed-in client, shown once staff approve, until
+    `expires_at` (30 days after posting). The poster's address is never stored here or shown; contact is relayed."""
+
+    __tablename__ = "league_post"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", index=False),
+        *tfk("client_id", "client"),
+        *tfk("sport_id", "sport"),
+        *tfk("moderated_by_staff_user_id", "staff_user"),
+        enum_check("kind", PostKind),
+        enum_check("category", PostCategory),
+        enum_check("status", PostStatus),
+        CheckConstraint("kind <> 'pickup' OR starts_at IS NOT NULL", name="pickup_time"),
+        CheckConstraint("players_needed IS NULL OR players_needed BETWEEN 1 AND 50", name="players_needed"),
+        Index("ix_league_post_list", "tenant_id", "location_id", "status", "id"),
+    )
+
+    location_id: Mapped[UUID]
+    kind: Mapped[str] = enum_column()
+    category: Mapped[str] = enum_column(server_default=text("'other'"))
+    client_id: Mapped[UUID] = mapped_column(info={"audit": "flag"})
+    sport_id: Mapped[UUID | None]
+    title: Mapped[str]
+    body: Mapped[str]
+    starts_at: Mapped[datetime | None] = mapped_column(info={"audit": "value"})
+    skill_level: Mapped[str | None]
+    players_needed: Mapped[int | None] = mapped_column(info={"audit": "value"})
+    status: Mapped[str] = enum_column(server_default=text("'pending'"))
+    expires_at: Mapped[datetime] = mapped_column(info={"audit": "value"})
+    moderated_at: Mapped[datetime | None]
+    moderated_by_staff_user_id: Mapped[UUID | None]
+    reject_reason: Mapped[str | None]

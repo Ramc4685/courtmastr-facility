@@ -11,6 +11,9 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - A payer locked out of the portal for a past-due balance can no longer buy a rental plan or pay for an event form registration there.
 
 ### Added
+- Leagues: a public league site with your branding, facility info, news, photos, sponsors, links and a class listing; competition filters with a shareable link and embed code; public teams and brackets, with player names shown only where you turn them on.
+- Leagues: a TV board per location showing today's games and scores, refreshing on its own.
+- Leagues: members post classifieds and pickup games from the portal; staff approve them first, they expire after 30 days, and replies go through the club without showing anyone's address.
 - Leagues: the schedule generator runs in the background over several weekly windows, with all four bye modes and live progress.
 - Leagues: double elimination with a reset game, three games guaranteed, and pool-to-bracket crossover.
 - Leagues: league venues, per-team scheduling preferences, ladders, player stat tables with formula stats, and game card PDFs.

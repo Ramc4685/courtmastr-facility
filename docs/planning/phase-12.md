@@ -3,7 +3,7 @@
 Date: 2026-11-12. Phase branch: `claude/phase12-wave4-54830f`, cut from `main` at `752a99b` (Phase 9 merged, chain
 head `1331`). Source: `docs/planning/remaining-work.md` "Wave 4", `docs/planning/phase-features.md` "Phase 12" (46
 rows: 7 P0, 39 P1; RPT-30 is listed under both, so 45 distinct features) and ADR 0010.
-Status: **built; integrated on `claude/phase12-reports-exports-4e22fb` on top of main `aa20e1b` (chain 1401 → 1601 → 1621 → 1641 → 1661).** Phase 14 (1400s) and Phase 11 (1500s) run beside this phase.
+Status: **built; integrated on `claude/phase12-reports-exports-4e22fb` on top of main `e71b51f` (chain 1441 → 1601 → 1621 → 1641 → 1661).** Phase 14 (1400s) and Phase 11 (1500s) run beside this phase.
 
 ## How the phase runs
 
