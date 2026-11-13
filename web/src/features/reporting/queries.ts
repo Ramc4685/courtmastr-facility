@@ -15,7 +15,7 @@ export const EXPORT_KEY = 'reporting.report.export'
 export const RUN_KEYS = ['reporting.financial.run', 'reporting.membership.run', 'reporting.attendance.run', 'reporting.pos.run', 'reporting.time_clock.run', 'reporting.league.run', 'reporting.client.run']
 
 export const CATEGORY_LABEL: Record<string, string> = {
-  financial: 'Financial', membership: 'Memberships', programs: 'Attendance', pos: 'Point of sale', time_clock: 'Time clock', leagues: 'Leagues', lockers: 'Lockers',
+  financial: 'Financial', membership: 'Memberships', programs: 'Attendance', packages: 'Packages', pos: 'Point of sale', time_clock: 'Time clock', leagues: 'Leagues', lockers: 'Lockers',
 }
 
 export const useDefinitions = () => useQuery({ queryKey: ['reporting', 'definitions'], queryFn: () => api.get('/api/v1/report-definitions') })

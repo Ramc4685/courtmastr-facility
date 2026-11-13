@@ -83,6 +83,26 @@ Status per feature: `docs/status/15-reporting.md`.
 - **Lockers (RPT-35)** list uncleared leases; "expiring" uses each location's today and includes lapsed leases.
 - **Game cards (RPT-36)** are scheduled league games by sport, or active teams per competition for manual cards.
 - **Time clock (RPT-37)** reports raw clocked minutes; rounding rules belong to payroll (module 12).
+- **Receivables (RPT-06 due mode, BIL-19)** are a new report, `receivables`, beside `open_invoices` (registry is
+  chip A's). By due date, each instalment counts once due on or before the cut; invoices without a schedule are
+  one instalment on their due date; allocations cover the oldest first and days past due run from the oldest
+  uncovered one. "Deleted" clients are those whose status is not active. The decline reason is the latest failed
+  auto-pay attempt's message (else its category). The collections flag is the current state, not as of the cut.
+  No sort parameter: the rows endpoint sorts.
+- **Unapplied payments (RPT-07)** are current state (no as-of) and list clients holding money on account.
+- **Unused session value (RPT-22)** has no "which statuses consume" option: package settings decide what consumes.
+  Consumption is cut by session date, grants and forfeits by movement date; sessions after the cut count as unused.
+  Expired packages that cannot be booked after expiry are left out (the option drops every expired one). Group
+  enrolments without a booking use the credit movement date as the session date.
+- **Package pipeline (RPT-23)**: "default trainer" is the client's default trainer; the last booked session comes
+  from package reserve entries; renewal candidates need at least one session left. Package reports sit in the
+  `packages` category under `reporting.attendance.run`, as the RBAC matrix maps them; coaches have own reach.
+- **Membership revenue (RPT-11)** has no future presets (`periods.py` is shared); pick dates ahead to forecast.
+- **Membership actions and attrition (RPT-13, RPT-14)** derive from contracts, freezes and suspensions (removed
+  ones excluded); there is no status-event table. A contract is lost in the month of a voluntary cancellation or of
+  an end without a renewal. No "both dates" option for actions. A month without losses has no drill-down.
+- **Expiring memberships (RPT-15)** show email and phone; **referrals (RPT-16)** value a contract as the sum of
+  its schedule periods. MEM-21's un-accrued revenue report is not built.
 
 ## Deviations from the contract
 

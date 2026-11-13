@@ -17,6 +17,7 @@ from app.core.jobs import broker
 from app.modules import billing
 from app.modules.platform.models import StoredFile
 from app.modules.reporting import jobs, views
+from app.modules.reporting.catalogue import REGISTRY
 from app.modules.reporting.domain import csv_file, periods
 from app.modules.reporting.models import ExportJob, ReportRun
 from conftest import add_staff, login, new_client
@@ -125,14 +126,16 @@ def test_views_match_their_column_contract_and_run_as_the_invoker(tenant):
 
 def test_catalogue_lists_only_what_the_caller_may_run(client, tenant, owner):
     everything = ok(client.get(f"{API}/report-definitions", headers=owner))["data"]
-    assert len(everything) == 14 and all(d["params_schema"]["properties"] for d in everything)
+    assert len(everything) == len(REGISTRY) and all(d["params_schema"]["properties"] for d in everything)
     financial = ok(client.get(f"{API}/report-definitions?category=financial", headers=owner))["data"]
-    assert {d["key"] for d in financial} == {"revenue_summary", "deposits", "invoices", "open_invoices"}
+    assert {d["key"] for d in financial} == {"revenue_summary", "deposits", "invoices", "open_invoices", "receivables",
+                                             "unapplied_payments", "income_balances", "underpaid_items",
+                                             "accrued_session_revenue"}  # fmt: skip
     desk = login(client, tenant, add_staff(tenant, "front_desk", all_locations=True)[0])
     assert {d["key"] for d in ok(client.get(f"{API}/report-definitions", headers=desk))["data"]} == {
-        "attendance",
-        "attendance_overview",
-    }
+        "attendance", "attendance_overview", "unused_session_value", "package_summary", "expiring_packages",
+        "renewal_candidates", "package_sales",
+    }  # fmt: skip
     assert code(client.get(f"{API}/report-definitions/revenue_summary", headers=desk), 403) == "permission-denied"
     assert code(client.get(f"{API}/report-definitions/nope", headers=owner), 404) == "not-found"
     assert ok(client.get(f"{API}/report-definitions/deposits", headers=owner))["date_basis"] == "payment_date"
@@ -386,6 +389,12 @@ def test_every_report_has_rows_against_a_fully_populated_tenant(client, tenant):
         done = ran(client, world.headers, definition["key"], **params)
         found[definition["key"]] = done["row_count"]
         if definition["supports_detail"] and done["row_count"]:
-            group = rows(client, world.headers, done["id"])["data"][0]["group_key"]
-            assert rows(client, world.headers, done["id"], group_key=group)["data"], definition["key"]
-    assert all(found.values()), found
+            group = next(
+                (r["group_key"] for r in rows(client, world.headers, done["id"])["data"] if r["group_key"]), None
+            )  # a month without losses (attrition) has nothing to drill into
+            assert group is None or rows(client, world.headers, done["id"], group_key=group)["data"], definition["key"]
+    # populate() writes no payment on account, consumption today, nearly used pack, expiring non-renewing contract
+    # or referral; test_money_memberships builds each of these
+    situational = {"unapplied_payments", "accrued_session_revenue", "renewal_candidates", "expiring_memberships",
+                   "membership_referrals"}  # fmt: skip
+    assert not [key for key, count in found.items() if not count and key not in situational], found
