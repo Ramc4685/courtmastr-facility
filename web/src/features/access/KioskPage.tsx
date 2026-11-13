@@ -81,15 +81,16 @@ function Kiosk({ config }: { config: Config }) {
   const byName = settings.lookup_method !== 'membership_number'
 
   const reset = useCallback(() => {
-    // Back at the start screen: the server forgets this visit, so nobody can act on it from here.
-    if (result?.visit_token) api.post('/api/v1/kiosk/visits/end').catch(() => undefined)
+    // Back at the start screen: the server forgets this visit, so nobody can act on it from here. The call names the
+    // visit, so landing after a new scan's check-in it cannot end the new visit.
+    if (result?.visit_token) api.post('/api/v1/kiosk/visits/end', { body: { check_in_id: result.check_in_id } }).catch(() => undefined)
     setName('')
     setMatches(null)
     setResult(null)
     setView('result')
     setBooked(null)
     setProblem(null)
-  }, [result?.visit_token])
+  }, [result?.visit_token, result?.check_in_id])
   const fail = (e: unknown) =>
     setProblem(
       e instanceof ApiError && e.status === 401

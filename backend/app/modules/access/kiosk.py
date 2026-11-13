@@ -32,9 +32,11 @@ def _by_possession(row: CheckIn) -> bool:
     return row.identified_by == "credential"
 
 
-def end_visits(session: Session, device: KioskDevice) -> None:
-    """The kiosk is back at its start screen: every visit token it holds stops working."""
-    session.execute(delete(KioskVisit).where(KioskVisit.kiosk_device_id == device.id))
+def end_visits(session: Session, device: KioskDevice, check_in_id: UUID | None = None) -> None:
+    """Every visit token the kiosk holds stops working (a new lookup or check-in), or only that check-in's (the
+    screen went back to the start: a late call must not end the next visitor's visit)."""
+    stmt = delete(KioskVisit).where(KioskVisit.kiosk_device_id == device.id)
+    session.execute(stmt if check_in_id is None else stmt.where(KioskVisit.check_in_id == check_in_id))
 
 
 def _issue(session: Session, device: KioskDevice, row: CheckIn, config: dict) -> str:

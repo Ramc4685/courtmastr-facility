@@ -4396,15 +4396,21 @@ paths:
     post:
       operationId: endKioskVisit
       tags: [access]
-      summary: The kiosk returned to its start screen; its visit tokens stop working
+      summary: The kiosk returned to its start screen; that visit's tokens stop working
       x-priority: P0
       x-permission: kiosk-device
       x-features: [CHK-05]
       security:
       - {kioskDevice: []}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/KioskVisitEnd'}
       responses:
         '204': {description: Ended.}
         '401': {$ref: '#/components/responses/Unauthorized'}
+        '422': {$ref: '#/components/responses/Unprocessable'}
   /kiosk/exit:
     post:
       operationId: exitKiosk
@@ -7771,6 +7777,12 @@ components:
         target_type: {type: string, enum: [session]}
         target_id: {type: string, format: uuid}
         visit_token: {type: string, maxLength: 64}
+    KioskVisitEnd:
+      type: object
+      description: Names the visit to end, so a late call from an old screen cannot end a newer visit.
+      required: [check_in_id]
+      properties:
+        check_in_id: {type: string, format: uuid}
     KioskExitRequest:
       type: object
       required: [staff_pin]

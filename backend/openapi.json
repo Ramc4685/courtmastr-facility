@@ -31000,6 +31000,21 @@
         "title": "KioskSettingsWrite",
         "type": "object"
       },
+      "KioskVisitEnd": {
+        "additionalProperties": false,
+        "properties": {
+          "check_in_id": {
+            "format": "uuid",
+            "title": "Check In Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "check_in_id"
+        ],
+        "title": "KioskVisitEnd",
+        "type": "object"
+      },
       "LadderChallengeCreate": {
         "additionalProperties": false,
         "properties": {
@@ -66747,6 +66762,19 @@
             ],
             "title": "Quantity"
           },
+          "renewal_wait_days": {
+            "anyOf": [
+              {
+                "maximum": 90.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Renewal Wait Days"
+          },
           "rental_type_id": {
             "format": "uuid",
             "title": "Rental Type Id",
@@ -67001,6 +67029,10 @@
             ],
             "title": "Quantity"
           },
+          "renewal_wait_days": {
+            "title": "Renewal Wait Days",
+            "type": "integer"
+          },
           "rental_type_id": {
             "format": "uuid",
             "title": "Rental Type Id",
@@ -67055,6 +67087,7 @@
           "is_shareable",
           "is_auto_renew",
           "is_autopay_default",
+          "renewal_wait_days",
           "status"
         ],
         "title": "RentalPlanOut",
@@ -67292,6 +67325,19 @@
               }
             ],
             "title": "Quantity"
+          },
+          "renewal_wait_days": {
+            "anyOf": [
+              {
+                "maximum": 90.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Renewal Wait Days"
           },
           "rental_type_id": {
             "anyOf": [
@@ -118497,11 +118543,31 @@
     },
     "/api/v1/kiosk/visits/end": {
       "post": {
-        "description": "The kiosk returned to its start screen: every visit token it holds stops working.",
+        "description": "The kiosk returned to its start screen from this visit: its visit tokens stop working (and no other's).",
         "operationId": "endKioskVisit",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KioskVisitEnd"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "End Kiosk Visit",

@@ -190,7 +190,7 @@ def test_a_visit_token_is_single_use_device_bound_and_short_lived(client, tenant
     assert book(client, entered, second.id).status_code == 404  # spent by the first booking
     assert done["visit_token"] and done["visit_token"] != entered["visit_token"]
 
-    ended = client.post(f"{API}/kiosk/visits/end")  # the kiosk went back to its start screen
+    ended = client.post(f"{API}/kiosk/visits/end", json={"check_in_id": done["check_in_id"]})  # back at the start
     assert ended.status_code == 204
     assert book(client, done, second.id).status_code == 404
 
@@ -472,7 +472,6 @@ def test_a_kiosk_spend_at_the_renewal_threshold_defers_the_sale_to_the_daily_run
     from app.modules.billing.models import Invoice
     from app.modules.packages import service as packages_service
     from app.modules.packages.models import ClientPackage
-    from app.modules.memberships.tests.support import package_plan
 
     paid = soon(client, owner, k.loc, 30, free=False)
     plan = package_plan(client, owner, tenant, reservation_type_id=paid.type_id, session_count=2,
@@ -491,3 +490,12 @@ def test_a_kiosk_spend_at_the_renewal_threshold_defers_the_sale_to_the_daily_run
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
         assert packages_service.run_daily(session)["renewed"] == 0  # once
 
+
+def test_ending_an_old_visit_never_ends_a_newer_one(client, tenant, owner, k):
+    """A new scan's check-in and the old screen's late `visits/end` race: the end names the visit it ends."""
+    seat = soon(client, owner, k.loc, 30)
+    old = enter(client, k.person)
+    new = enter(client, k.person)  # the next check-in already ended the old visit on the server
+    assert client.post(f"{API}/kiosk/visits/end").status_code == 422  # the visit must be named
+    assert client.post(f"{API}/kiosk/visits/end", json={"check_in_id": old["check_in_id"]}).status_code == 204
+    ok(book(client, new, seat.id))  # the newer visit's token still works

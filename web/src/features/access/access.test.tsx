@@ -189,7 +189,7 @@ describe('KioskPage', SCREEN, () => {
     expect(within(list).getByText('Spin').closest('li')).toHaveTextContent('See the front desk')
     expect(within(list).queryByRole('button', { name: /^Book Spin at/ })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Done' }))
-    await waitFor(() => expect(calls.some((c) => c.url === '/api/v1/kiosk/visits/end')).toBe(true))
+    await waitFor(() => expect(calls.find((c) => c.url === '/api/v1/kiosk/visits/end')?.body).toEqual({ check_in_id: 'k1' }))
     expect(calls.some((c) => c.url.endsWith('/attendances'))).toBe(false)
   })
 
@@ -234,6 +234,31 @@ describe('KioskPage', SCREEN, () => {
     expect(await screen.findByText('We could not find you. Please see the front desk.')).toBeInTheDocument()
     expect(calls.find((c) => c.url === '/api/v1/kiosk/check-ins')?.body).toEqual({ card_payload: 'KC12345' })
     expect(calls.some((c) => c.url === '/api/v1/kiosk/lookups')).toBe(false)
+  })
+
+  it('a new scan ends only the old visit, so a late end cannot kill the new visit token', async () => {
+    let n = 0
+    const calls = renderKiosk({
+      'GET /api/v1/kiosk/config': { status: 200, body: config },
+      'POST /api/v1/kiosk/check-ins': () => {
+        n += 1
+        return { status: 201, body: { check_in_id: `k${n}`, status: 'admitted', first_name: 'Kit', displayed_alert_codes: [], attended: [], welcome_message: null, sessions: [], visit_token: `v${n}` } }
+      },
+      'POST /api/v1/kiosk/visits/end': { status: 204 },
+    })
+    await screen.findByRole('heading', { name: 'Welcome to Courtside Downtown' })
+    const scan = (value: string) => {
+      const clock = vi.spyOn(Event.prototype, 'timeStamp', 'get').mockReturnValue(1000)
+      ;[...value, 'Enter'].forEach((key) => fireEvent.keyDown(document.body, { key }))
+      clock.mockRestore()
+    }
+    scan('fhq.abc.1.x')
+    await waitFor(() => expect(calls.filter((c) => c.url === '/api/v1/kiosk/check-ins')).toHaveLength(1))
+    expect(await screen.findByRole('button', { name: 'Book a class' })).toBeInTheDocument()
+    scan('fhq.abc.2.y')
+    await waitFor(() => expect(calls.filter((c) => c.url === '/api/v1/kiosk/check-ins')).toHaveLength(2))
+    const ends = calls.filter((c) => c.url === '/api/v1/kiosk/visits/end')
+    expect(ends.map((c) => c.body)).toEqual([{ check_in_id: 'k1' }]) // names the old visit, never the new one
   })
 })
 

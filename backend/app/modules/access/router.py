@@ -442,9 +442,9 @@ def create_kiosk_attendance(check_in_id: UUID, body: s.KioskAttendanceCreate, re
 
 
 @kiosk.post("/kiosk/visits/end", status_code=204)
-def end_kiosk_visit(request: Request, device: Device) -> None:
-    """The kiosk returned to its start screen: every visit token it holds stops working."""
-    kiosk_flow.end_visits(_session(request), device)
+def end_kiosk_visit(body: s.KioskVisitEnd, request: Request, device: Device) -> None:
+    """The kiosk returned to its start screen from this visit: its visit tokens stop working (and no other's)."""
+    kiosk_flow.end_visits(_session(request), device, body.check_in_id)
 
 
 @kiosk.post("/kiosk/exit", status_code=204, dependencies=[Depends(rate_limit("kiosk-exit"))])

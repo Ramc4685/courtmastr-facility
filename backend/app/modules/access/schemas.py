@@ -195,6 +195,10 @@ class KioskSettingsWrite(In):
     exit_pin: Pin | None = None  # write-only; stored as an argon2id hash
 
 
+class KioskVisitEnd(In):
+    check_in_id: UUID  # only this visit ends, so a late call from an old screen cannot end a newer one
+
+
 class KioskExitRequest(In):
     staff_pin: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=16)]
 

@@ -6653,7 +6653,7 @@ export interface paths {
         put?: never;
         /**
          * End Kiosk Visit
-         * @description The kiosk returned to its start screen: every visit token it holds stops working.
+         * @description The kiosk returned to its start screen from this visit: its visit tokens stop working (and no other's).
          */
         post: operations["endKioskVisit"];
         delete?: never;
@@ -26858,6 +26858,14 @@ export interface components {
             /** Welcome Message */
             welcome_message?: string | null;
         };
+        /** KioskVisitEnd */
+        KioskVisitEnd: {
+            /**
+             * Check In Id
+             * Format: uuid
+             */
+            check_in_id: string;
+        };
         /** LadderChallengeCreate */
         LadderChallengeCreate: {
             /**
@@ -38446,6 +38454,8 @@ export interface components {
             price_minor: number;
             /** Quantity */
             quantity?: number | string | null;
+            /** Renewal Wait Days */
+            renewal_wait_days?: number | null;
             /**
              * Rental Type Id
              * Format: uuid
@@ -38532,6 +38542,8 @@ export interface components {
             price_minor: number;
             /** Quantity */
             quantity: string | null;
+            /** Renewal Wait Days */
+            renewal_wait_days: number;
             /**
              * Rental Type Id
              * Format: uuid
@@ -38590,6 +38602,8 @@ export interface components {
             price_minor?: number | null;
             /** Quantity */
             quantity?: number | string | null;
+            /** Renewal Wait Days */
+            renewal_wait_days?: number | null;
             /** Rental Type Id */
             rental_type_id?: string | null;
             /** Revenue Category Id */
@@ -60754,7 +60768,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KioskVisitEnd"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             204: {
@@ -60762,6 +60780,15 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
