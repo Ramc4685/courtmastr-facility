@@ -1577,7 +1577,6 @@ def create_portal_rental(session: Db, principal: Principal, data: dict) -> dict:
         clients.service.require_active(session, player, pointer="/player_client_ids")
         players.append({"client_id": player, "is_charged": False})
     _check_minors(session, client_id, players, rental_on, pointer="/player_client_ids", online=True)
-    clients.service.note_unconfirmed_booking(session, client_id, data["starts_at"], rtype.location_id)
     plan = data.get("rental_plan_purchase_id")
     _share_holder_documents(session, plan, client_id, online=True)
     hold = None
@@ -1602,6 +1601,8 @@ def create_portal_rental(session: Db, principal: Principal, data: dict) -> dict:
     if hold and due == 0:
         scheduling.service.confirm_booking(session, booking.id)
     audit.record(session, CREATE, row, location_id=row.location_id, changes={"booked_via": [None, "portal"]})
+    # only once the rental is written: a refusal above (some commit, like document-required) must not tell staff
+    clients.service.note_unconfirmed_booking(session, client_id, data["starts_at"], rtype.location_id)
     return _checkout(
         session, row, booking, quote, invoice_ids[0] if invoice_ids else None, hold is not None and due > 0
     )

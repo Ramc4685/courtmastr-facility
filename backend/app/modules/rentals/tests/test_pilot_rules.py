@@ -637,3 +637,34 @@ def test_staff_get_one_notice_on_a_newcomers_first_booking_and_a_queue_with_book
     assert waiting not in [r["id"] for r in ok(client.get(f"{API}/client-age-reviews", headers=away), 200)["data"]]
     coach = login(client, tenant, add_staff(tenant, "coach", all_locations=True)[0])
     assert client.get(f"{API}/client-age-reviews", headers=coach).status_code == 403
+
+
+def test_a_refused_booking_neither_tells_staff_nor_burns_the_one_notice(client, owner, tenant, f, mailbox):
+    """The notice is noted only once the rental is written, in the same transaction: a 409 that commits (the
+    document prompt) leaves nothing behind."""
+    from app.modules.rentals.models import RentalBooking
+
+    ok(client.patch(f"{API}/locations/{f.location}", headers=owner, json={"alert_email": "desk@example.com"}), 200)
+    me, portal = portal_client(client, owner, tenant, f)  # a self-typed adult date: unconfirmed
+    kid = new_client(client, owner, f.location, first_name="Kit", birth_on=CHILD)["id"]
+    parent_of = next(t for t in ok(client.get(f"{API}/relationship-types", headers=owner), 200)
+                     if t["code"] == "parent_of")  # fmt: skip
+    ok(client.post(f"{API}/clients/{me}/relationships", headers=owner,
+                   json={"other_client_id": kid, "relationship_type_id": parent_of["id"]}))  # fmt: skip
+    cover = _junior_plan(client, owner, f, kid)
+    bought = ok(client.get(f"{API}/rental-plan-purchases/{cover['rental_plan_purchase_id']}", headers=owner), 200)
+    bind_waiver(client, owner, {"id": bought["rental_plan_id"]})
+    mailbox.clear()
+    payload = online(f, me, 15, 16) | {
+        "player_client_ids": [kid],
+        "rental_plan_purchase_id": cover["rental_plan_purchase_id"],
+    }
+    refused(client.post(f"{API}/portal/rentals", headers=portal | {"Idempotency-Key": uuid4().hex}, json=payload),
+            409, "document-required")  # fmt: skip
+    with tenant_session(tenant.id) as session:
+        row = session.get(Client, me)
+        assert (row.age_review_notified_at, row.earliest_booking_at) == (None, None)
+        assert not session.scalars(select(RentalBooking)).all()
+    assert not [m for m in mailbox if m.to == "desk@example.com"]
+    ok(client.post(f"{API}/portal/rentals", headers=portal, json=online(f, me, 17, 18)))  # a booking that lands
+    assert len([m for m in mailbox if m.to == "desk@example.com"]) == 1
