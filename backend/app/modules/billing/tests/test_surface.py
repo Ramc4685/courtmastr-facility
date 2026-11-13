@@ -280,6 +280,57 @@ def test_bulk_actions_are_capped_keyed_and_run_as_a_job_when_large(api, shop, mo
     assert (done["status"], done["done_count"]) == ("completed", 3)
 
 
+@pytest.mark.parametrize("in_request", [True, False])
+def test_bulk_invoicing_skips_a_charge_with_no_client_and_always_finishes(api, shop, monkeypatch, in_request):
+    """A clientless (POS) charge left uninvoiced by a void cannot go on a client's invoice: it is skipped with a
+    reason, and a chunk that selects nothing fails what is left instead of looping for ever."""
+    from app.modules.billing import bulk
+
+    api("POST", "/charges", item(shop, 100), 201)
+    with work(shop.tenant) as session:
+        walk_in = charge(session, shop, 250, client_id=None, source_context="pos").id
+    if not in_request:
+        monkeypatch.setattr(bulk, "IN_REQUEST_LIMIT", 1)
+        monkeypatch.setattr(bulk.run_bulk_action, "send", lambda *args: None)
+    made = api(
+        "POST", "/billing-bulk-actions", {"action": "create_invoices", "location_id": str(shop.location_id)}, 202
+    )
+    with work(shop.tenant) as session:
+        for _ in range(5):  # the job: a bounded number of chunks, never for ever
+            if not bulk.run_chunk(session, UUID(made["id"])):
+                break
+        else:
+            pytest.fail("the bulk action never finished")
+    done = api("GET", f"/billing-bulk-actions/{made['id']}")
+    rows = api("GET", f"/billing-bulk-actions/{made['id']}/items?limit=100")["data"]
+    assert (done["status"], done["done_count"]) == ("completed", 1)
+    skipped = next(row for row in rows if row["subject_id"] == str(walk_in))
+    assert (skipped["status"], skipped["error_code"]) == ("skipped", "charge-has-no-client")
+
+
+def test_a_chunk_that_selects_nothing_fails_the_rest(api, shop):
+    from app.modules.billing import bulk
+    from app.modules.billing.models import BillingBulkActionItem
+
+    api("POST", "/charges", item(shop, 100), 201)
+    made = api("POST", "/billing-bulk-actions", {"action": "create_invoices", "location_id": str(shop.location_id),
+                                                 "is_dry_run": True}, 202)  # fmt: skip
+    with work(shop.tenant) as session:  # an item that no chunk can pick up (a payer the grouping cannot match)
+        session.add(BillingBulkActionItem(
+            billing_bulk_action_id=UUID(made["id"]), subject_type="charge", subject_id=uuid4(), group_client_id=None,
+            status="pending",
+        ))  # fmt: skip
+        action = session.get(bulk.BillingBulkAction, UUID(made["id"]))
+        action.status = "running"
+        assert bulk.run_chunk(session, action.id) is False
+        assert (
+            session.scalar(
+                select(BillingBulkActionItem.error_code).where(BillingBulkActionItem.group_client_id.is_(None))
+            )
+            == "not-processed"
+        )
+
+
 def test_bulk_reverse_email_render_and_add_item(api, shop, desk):
     from app.modules.billing.models import BillingDocumentDelivery
 

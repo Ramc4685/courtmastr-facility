@@ -13,7 +13,7 @@ import logging
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.core import audit, clock
@@ -126,9 +126,15 @@ def _subjects(session: Session, principal: Principal, action: str, location_id: 
         rows = _capped(session, stmt.order_by(Charge.client_id, Charge.id), "/charge_ids")
         found = {row.id for row in rows}
         missing = "charge-not-invoiceable" if action == "create_invoices" else "charge-not-reversible"
-        return [("charge", row.id, row.client_id, None) for row in rows] + [
-            ("charge", charge_id, None, missing) for charge_id in dict.fromkeys(wanted) if charge_id not in found
-        ]
+        return [  # a clientless (POS) charge has no payer to invoice; reversing one is fine
+            (
+                "charge",
+                row.id,
+                row.client_id,
+                "charge-has-no-client" if action == "create_invoices" and row.client_id is None else None,
+            )
+            for row in rows
+        ] + [("charge", charge_id, None, missing) for charge_id in dict.fromkeys(wanted) if charge_id not in found]
     if action in ("email_invoices", "render_invoices"):
         wanted = data.get("invoice_ids") or []
         if not wanted:
@@ -178,8 +184,15 @@ def run_chunk(session: Session, action_id: UUID) -> bool:
         for group in groups.values():
             _attempt(session, row, group)
     else:
-        for item in session.scalars(pending.order_by(BillingBulkActionItem.id).limit(CHUNK_ITEMS)).all():
+        items = session.scalars(pending.order_by(BillingBulkActionItem.id).limit(CHUNK_ITEMS)).all()
+        for item in items:
             _attempt(session, row, [item])
+    if not items:  # pending items no chunk can select would loop for ever: fail them instead
+        session.execute(
+            update(BillingBulkActionItem)
+            .where(BillingBulkActionItem.billing_bulk_action_id == row.id, BillingBulkActionItem.status == "pending")
+            .values(status="failed", error_code="not-processed")
+        )
     counts = dict(
         session.execute(
             select(BillingBulkActionItem.status, func.count())
