@@ -6,7 +6,7 @@ import time
 import pytest
 from pydantic import ValidationError
 
-from app.core.pan import contains_card_number
+from app.core.pan import MAX_SCAN, contains_card_number
 from app.core.schemas import In
 from conftest import new_client
 
@@ -296,10 +296,19 @@ def test_api_refuses_a_note_with_a_card_number(client, owner):
     assert kept.status_code == 201, kept.text
 
 
-@pytest.mark.parametrize(
-    "hostile", ["1 " * 500_000, "1-" * 500_000, "4" * 1_000_000, "4111 " * 200_000, "411 -- " * 100_000]
-)
-def test_detector_is_linear_on_hostile_input(hostile):
-    started = time.perf_counter()
-    contains_card_number(hostile)
-    assert time.perf_counter() - started < 1.0
+def _best_of_three(text: str) -> float:
+    times = []
+    for _ in range(3):
+        started = time.perf_counter()
+        contains_card_number(text)
+        times.append(time.perf_counter() - started)
+    return min(times)
+
+
+@pytest.mark.parametrize("unit", ["1 ", "1-", "4", "4111 ", "411 -- "])
+def test_detector_is_linear_on_hostile_input(unit):
+    """Growth, not seconds, so coverage or a slow runner cannot flake it: 4x the input must cost about 4x, where
+    a quadratic scan costs 16x. Both sizes stay under MAX_SCAN, so the cap cannot hide the growth."""
+    small = unit * (50_000 // len(unit))
+    assert len(small) * 4 <= MAX_SCAN
+    assert _best_of_three(small * 4) < 8 * _best_of_three(small)
