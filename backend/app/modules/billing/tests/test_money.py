@@ -908,3 +908,53 @@ def test_a_pending_provider_refund_reserves_the_money_until_it_settles(shop, mon
         assert svc.confirm_refund(session, pending.id).status == answer  # a replay changes nothing
         assert transactions(session) == posted + (answer == "succeeded")
         assert_books_agree(session)
+
+
+def test_a_payment_under_a_held_receipt_counter_charges_nothing_and_its_key_replays(shop, monkeypatch):
+    """The `initiated` payment row commits in a short transaction before the processor is charged. When another
+    transaction holds what that needs (the receipt counter) past 500 ms, the payment is 409 `request-in-progress`
+    before any charge; it never falls back to an uncommitted row a dying request would leave unfindable. The same
+    Idempotency-Key afterwards charges once."""
+    import threading
+
+    from app.modules import platform
+
+    ready(shop)
+    with work(shop.tenant) as session:
+        cash(session, shop, 100)  # the tenant has issued a receipt: its counter row exists
+    fake, charged = payment_provider.get("fake"), []
+    real = fake.create_payment
+
+    def spy(**kwargs):
+        with tenant_session(shop.tenant.id) as other:
+            charged.append(other.scalar(select(func.count()).select_from(Payment)))
+        return real(**kwargs)
+
+    monkeypatch.setattr(fake, "create_payment", spy)
+    locked, release = threading.Event(), threading.Event()
+
+    def hold():
+        with tenant_session(shop.tenant.id) as other:
+            platform.service.next_number(other, "receipt")
+            locked.set()
+            release.wait(15)
+        # rolled back: the number is not used
+
+    holder = threading.Thread(target=hold)
+    holder.start()
+    assert locked.wait(10)
+    try:
+        with pytest.raises(Conflict) as refused, work(shop.tenant) as session:
+            card(session, shop, 500, idempotency_key="pay-1")
+        assert refused.value.code == "request-in-progress"
+    finally:
+        release.set()
+        holder.join(20)
+    assert charged == []  # the processor was never asked to charge
+    with work(shop.tenant) as session:
+        assert session.scalar(select(func.count()).select_from(Payment)) == 1  # the cash payment only
+        first = card(session, shop, 500, idempotency_key="pay-1")
+        assert first.status == "succeeded"
+    with work(shop.tenant) as session:
+        again = card(session, shop, 500, idempotency_key="pay-1")
+        assert again.id == first.id and charged == [2]  # committed before the charge, and charged once

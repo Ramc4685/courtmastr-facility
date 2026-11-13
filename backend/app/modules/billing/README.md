@@ -262,10 +262,13 @@ and record a failed attempt ("payload missing").
   model: security-baseline 17.2 asks for hashed at rest and single-use, which a stateless token cannot be. It
   expires after 14 days; a decline does not consume it.
 - **`payment.idempotency_key`** is a column the data model does not list; the pre-provider row needs it.
-- **The pre-provider transaction is best effort inside a larger transaction.** It cannot see rows the caller
-  has not committed and must not wait on the caller's own locks, so it gives up after 500 ms and the payment
-  is inserted in the caller's transaction (replay still safe, crash recovery not). The staff, portal, pay-link
-  and autopay paths all get the committed row once the tenant's tender rows exist.
+- **The pre-provider payment row never waits on another request.** It cannot see rows the caller has not
+  committed and must not wait on the caller's own locks, so it gives up after 500 ms; the caller then probes
+  with NOWAIT (the receipt counter, every row the payment references) who holds them. Another request: 409
+  `request-in-progress` before any charge, so a held lock never leaves a charge without a committed row. The
+  caller's own transaction (a guest checkout's new client, first-use tender rows, the receipt counter after a
+  cash leg in the same transaction): the payment is inserted in the caller's transaction (replay still safe
+  through the provider key, crash recovery not), the one case left, since it cannot commit before those rows.
 - **A processed refund has a pre-provider row (PAY-05, Phase 9 orphans).** `refund(method="original")` commits
   a `refund` row as `initiated` with its `idempotency_key` (migration 1801) in a short transaction before it
   locks the payment and calls the processor. It has **no fallback**: a row the short transaction cannot commit
