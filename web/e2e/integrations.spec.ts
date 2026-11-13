@@ -89,3 +89,28 @@ test('a webhook endpoint receives a signed test delivery that shows in the log',
     receiver.close()
   }
 })
+
+test('a calendar feed shows its address once and the connection screens pass axe', async ({ page }) => {
+  await signIn(page)
+  await page.getByRole('tab', { name: 'Calendar feeds' }).click()
+  await page.getByRole('button', { name: 'New feed' }).click()
+  const dialog = page.getByRole('dialog', { name: 'New calendar feed' })
+  await dialog.getByRole('textbox', { name: 'Name' }).fill(`E2E feed ${Date.now()}`)
+  await scan(page, 'new feed dialog')
+  await dialog.getByRole('button', { name: 'Create feed' }).click()
+  const address = page.getByRole('dialog', { name: 'Your feed address' }).getByRole('textbox', { name: 'Secret' })
+  const url = await address.inputValue()
+  expect(url).toContain('/api/v1/public/calendar-feeds/')
+  expect((await page.request.get(url)).headers()['content-type']).toContain('text/calendar')
+  await page.getByRole('button', { name: 'I have copied it' }).click()
+  await scan(page, 'calendar feeds')
+
+  await page.getByRole('tab', { name: 'Connections' }).click()
+  await page.getByRole('button', { name: 'Connect a service' }).click()
+  const connect = page.getByRole('dialog', { name: 'Connect a service' })
+  await connect.getByRole('combobox', { name: 'Service' }).selectOption('zoom')
+  await scan(page, 'connect zoom dialog')
+  await connect.getByRole('button', { name: 'Cancel' }).click()
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await scan(page, 'connections dark')
+})

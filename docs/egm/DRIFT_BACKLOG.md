@@ -125,7 +125,7 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [ ] [undocumented] A row that hits a database IntegrityError is `failed`/`invalid` with code `already-exists` (service.py:321-325). README line 58-59 describes only refusals and `unexpected`.
 - [ ] [wording] README line 113 says the commit hits `entitlements.enforce_limit` "inside `clients._create`". The function is `clients.service._create` (backend/app/modules/clients/service.py:756, call at :769).
 
-### integrations (51 open, 17 closed) — [evidence](drift/integrations.md)
+### integrations (50 open, 18 closed) — [evidence](drift/integrations.md)
 
 INT-07 QuickBooks (2026-11-13, refreshed after the security fixes):
 
@@ -142,7 +142,7 @@ INT-07 QuickBooks (2026-11-13, refreshed after the security fixes):
 - [ ] [undocumented] Mapping `local_key` must be the posting key (`revenue:<id>`, `tax_payable:<id>`, account name; `backend/app/modules/integrations/domain/journal.py:18-23`, `service.py:802`), not the raw id the yaml and ADR describe. The kind collision is fixed and in the README (lines 80-81).
 - [x] [missing] ADR 0012 rules with no code: sub-category inheritance, refusing sync until required rows exist, `needs_reauth`. Closed: the README lists them as not built (lines 141-142). Remainder in the next item.
 - [ ] [undocumented] Still not in the README: a refresh failure (`invalid_grant`) emits no `integrations.connection.failed` and notifies no Owner, rotation is not row-locked, `ExternalConnection.failure_count` is never written (adr/0012:155-158; `backend/app/modules/integrations/quickbooks.py:90-92`, `models.py:154`).
-- [ ] [missing] The OAuth round trip cannot finish in a browser: the web page `/integrations/quickbooks/callback` and the default `return_url` page `/setup/integrations` do not exist in `web/src` (`backend/app/modules/integrations/quickbooks.py:72, 112`, `backend/app/adapters/accounting.py:101-102`).
+- [x] [missing] Fixed (`QuickBooksCallbackPage.tsx`, default return `/integrations`): the OAuth round trip could not finish in a browser: the web page `/integrations/quickbooks/callback` and the default `return_url` page `/setup/integrations` do not exist in `web/src` (`backend/app/modules/integrations/quickbooks.py:72, 112`, `backend/app/adapters/accounting.py:101-102`).
 - [x] [missing] A pending QuickBooks connection already had `connected_at`. Fixed: null until the callback completes (`backend/app/modules/integrations/service.py:662`).
 - [ ] [undocumented] `getSyncMappings` can refresh and reseal credentials, so a GET writes (`backend/app/modules/integrations/quickbooks.py:82-92, 240`).
 - [x] [undocumented] Security: `receive_webhook` verified through `FakeQuickBooks` (a public secret) whatever `quickbooks_enabled` said. Fixed: 401 while QuickBooks is off, and outside dev and test whenever the simulated adapter is in use (`backend/app/modules/integrations/quickbooks.py:340`).

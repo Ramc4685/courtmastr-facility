@@ -109,7 +109,7 @@ def start(session: Session, row: ExternalConnection, principal: Principal, retur
         raise ValidationFailed("The return address must be on this app", pointer="/return_url")
     tenant_id = session.info["tenant_id"]
     row.status = ConnectionStatus.PENDING
-    row.settings = {**(row.settings or {}), "return_url": return_url or f"{web}/setup/integrations"}
+    row.settings = {**(row.settings or {}), "return_url": return_url or f"{web}/integrations"}
     payload = {"c": str(row.id), "u": str(principal.staff_user_id), "x": clock.now().timestamp() + STATE_TTL}
     state = f"{tenant_id.hex}.{crypto.encrypt(json.dumps(payload), tenant_id)}"
     return _port(session, row.location_id).authorize_url(state=state, redirect_uri=redirect_uri())

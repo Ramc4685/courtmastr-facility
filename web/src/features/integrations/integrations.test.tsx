@@ -24,7 +24,7 @@ const perm = (key: string, label: string, flags: string[] = []) => ({ key, conte
 const page = (data: unknown[]) => ({ data, page: { next_cursor: null, has_more: false } })
 const key = { id: 'k1', name: 'Door system', key_prefix: 'abcdef123456', scopes: ['clients.client.read'], location_ids: null, status: 'active', expires_at: null, last_used_at: null, rotated_at: null, previous_valid_until: null, revoked_at: null, created_by_staff_user_id: 's1', created_at: '2026-11-10T00:00:00Z' }
 
-function renderAt(permissions: string[], routes: Record<string, unknown>) {
+function renderAt(permissions: string[], routes: Record<string, unknown>, entry = '/integrations') {
   const calls = mockFetch({
     'GET /api/v1/auth/session': { status: 200, body: { csrf_token: 'c' } },
     'GET /api/v1/me': { status: 200, body: me(permissions) },
@@ -35,7 +35,7 @@ function renderAt(permissions: string[], routes: Record<string, unknown>) {
     <QueryClientProvider client={makeQueryClient()}>
       <AuthProvider>
         <ToastProvider>
-          <MemoryRouter initialEntries={['/integrations']} future={ROUTER_FUTURE}>
+          <MemoryRouter initialEntries={[entry]} future={ROUTER_FUTURE}>
             <AppRoutes />
           </MemoryRouter>
         </ToastProvider>
@@ -53,6 +53,7 @@ describe('integrations settings', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Integrations' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Directory' })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'API keys' })).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Calendar feeds' })).toBeInTheDocument()
     expect(await screen.findByText('Not configured')).toBeInTheDocument()
   })
 
@@ -122,5 +123,52 @@ describe('integrations settings', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Select all I may receive' }))
     expect(within(dialog).getByLabelText('clients.client.created')).toBeChecked()
     expect(within(dialog).getByLabelText('billing.charge.created')).not.toBeChecked()
+  })
+
+  it('connects Zoom with the tenant app and lists the connection', async () => {
+    const user = userEvent.setup()
+    let rows: unknown[] = []
+    const zoomRow = { id: 'c1', location_id: null, provider: 'zoom', status: 'active', external_account_id: 'acct-1', external_account_name: null, connected_at: '2026-11-10T00:00:00Z', last_sync_at: null, last_error: null, created_at: '2026-11-10T00:00:00Z' }
+    const calls = renderAt(ALL, {
+      'GET /api/v1/external-connections': () => ({ status: 200, body: page(rows) }),
+      'POST /api/v1/external-connections': () => {
+        rows = [zoomRow]
+        return { status: 201, body: { ...zoomRow, authorize_url: null } }
+      },
+    })
+    await user.click(await screen.findByRole('tab', { name: 'Connections' }))
+    await user.click(await screen.findByRole('button', { name: 'Connect a service' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Connect a service' })
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Service' }), 'zoom')
+    await user.type(within(dialog).getByRole('textbox', { name: 'Account ID' }), 'acct-1')
+    await user.type(within(dialog).getByRole('textbox', { name: 'Client ID' }), 'cid')
+    await user.type(within(dialog).getByLabelText('Client secret'), 'shh')
+    await user.click(within(dialog).getByRole('button', { name: 'Connect' }))
+    expect(await screen.findByRole('cell', { name: 'Zoom' })).toBeInTheDocument()
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ provider: 'zoom', zoom: { account_id: 'acct-1', client_id: 'cid', client_secret: 'shh' } })
+  })
+
+  it('shows a new calendar feed address once, to any staff member', async () => {
+    const user = userEvent.setup()
+    const feed = { id: 'f1', kind: 'staff_schedule', name: 'My bookings', status: 'active', owner_staff_user_id: 's1', location_id: null, competition_team_id: null, include_shifts: false, last_fetched_at: null, created_at: '2026-11-10T00:00:00Z' }
+    renderAt([], {
+      'GET /api/v1/calendar-feeds': { status: 200, body: page([]) },
+      'POST /api/v1/calendar-feeds': { status: 201, body: { ...feed, url_token: 'tok123' } },
+    })
+    await user.click(await screen.findByRole('tab', { name: 'Calendar feeds' }))
+    await user.click(await screen.findByRole('button', { name: 'New feed' }))
+    await user.click(within(await screen.findByRole('dialog', { name: 'New calendar feed' })).getByRole('button', { name: 'Create feed' }))
+    const secret = await screen.findByRole('dialog', { name: 'Your feed address' })
+    expect(within(secret).getByRole('textbox', { name: 'Secret' })).toHaveValue(`${window.location.origin}/api/v1/public/calendar-feeds/tok123`)
+  })
+
+  it('posts the QuickBooks callback once, in the signed-in session, and shows a refusal', async () => {
+    const calls = renderAt(ALL, {
+      'POST /api/v1/external-connections/oauth/callback': { status: 403, body: { status: 403, code: 'state-invalid', detail: 'This connection link has expired.' } },
+    }, '/integrations/quickbooks/callback?state=abc&code=xyz&realmId=4620816365')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Back to Integrations')
+    const posts = calls.filter((c) => c.url.endsWith('/oauth/callback'))
+    expect(posts).toHaveLength(1)
+    expect(posts[0]?.body).toEqual({ state: 'abc', code: 'xyz', realm_id: '4620816365', error: null })
   })
 })
