@@ -301,6 +301,7 @@ def test_a_balance_date_already_passed_is_due_now(client, owner, tenant, f, mail
                           json={"method_token": "tok_card_ok"}), 200)  # fmt: skip
     bill = ok(client.get(f"{API}/invoices/{paid['invoice_id']}", headers=owner), 200)
     assert (bill["total_minor"], bill["balance_minor"], bill["status"]) == (9000, 0, "paid")
+    assert bill["is_autopay"] is False  # no later rows, so not an autopay invoice
 
 
 def test_terms_are_recorded_against_the_whole_basket(client, owner, tenant, f, mailbox):

@@ -248,6 +248,21 @@ def test_feedback_is_rate_limited(client, tenant, owner, f, mailbox, monkeypatch
     assert code(client.post(url, headers=portal, json=body)) == (429, "rate-limited")
 
 
+def test_feedback_fails_closed_when_the_limiter_is_down(client, tenant, owner, f, mailbox, monkeypatch):
+    """Like the app directory: without Redis to count, feedback is refused rather than taken unmetered."""
+    import redis
+
+    from app.core import ratelimit
+
+    person, portal = member(client, tenant, owner, f, mailbox)
+    monkeypatch.setattr(get_settings().rate_limit, "enabled", True)
+    down = redis.Redis(host="127.0.0.1", port=1, socket_connect_timeout=0.2)
+    monkeypatch.setattr(ratelimit, "_redis", lambda: down)
+    refused = client.post(f"{API}/portal/feedback", headers=portal, json={"client_id": person["id"], "message": "Hi"})
+    assert code(refused) == (503, "rate-limit-unavailable")
+    assert [r for r in inquiries(tenant, kind="feedback") if str(r.client_id) == person["id"]] == []
+
+
 def test_trial_requests_are_purged_after_180_days_or_90_after_closing(client, tenant, owner, f):
     open_portal(client, owner, f.location)
     names = {}

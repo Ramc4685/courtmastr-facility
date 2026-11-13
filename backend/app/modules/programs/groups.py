@@ -28,6 +28,7 @@ from app.modules.programs.models import (
     ProgramFee,
     ProgramGroup,
     ProgramSession,
+    RegistrationCheckout,
     RegistrationConfig,
     RegistrationDefault,
     WaitlistEntry,
@@ -166,12 +167,17 @@ def _live_count(session: Db, group_ids: list[UUID]) -> int:
 # --- places -------------------------------------------------------------------------------------------------
 
 
-def _take_place(session: Db, group: ProgramGroup) -> None:
-    """One place in the node, its ancestors and every session linked along the chain, or 409 capacity-full."""
-    chain = _chain(session, group, lock=True)
+def _check_active(chain: list[ProgramGroup]) -> None:
     for node in chain:
         if node.status != "active" or node.deleted_at is not None:
             raise Conflict("This program is not open for registration.", code="program-not-active")
+
+
+def _take_place(session: Db, group: ProgramGroup) -> None:
+    """One place in the node, its ancestors and every session linked along the chain, or 409 capacity-full."""
+    chain = _chain(session, group, lock=True)
+    _check_active(chain)
+    for node in chain:
         if node.capacity is not None and node.enrolled_count >= node.capacity:
             raise Conflict(f"{node.name} is full.", code="capacity-full", program_group_id=str(node.id))
     for node in chain:
@@ -198,6 +204,29 @@ def hold_place(session: Db, group: ProgramGroup) -> None:
 def release_place(session: Db, group: ProgramGroup) -> None:
     """Internal: give back a place `hold_place` took."""
     _release_place(session, group)
+
+
+def check_held_place(session: Db, group: ProgramGroup) -> None:
+    """Internal: a place `hold_place` took may still be paid for: the chain is active and not deleted (409
+    program-not-active) and online registration has not closed since (409 registration-closed). Capacity is not
+    checked again: the place is already counted. Locks the chain against a concurrent delete or archive."""
+    _check_active(_chain(session, group, lock=True))
+    if registration_state(session, group, config_for(session, group.id)) in ("closed", "not_yet_open"):
+        raise Conflict("Registration for this program is not open.", code="registration-closed")
+
+
+def _refuse_guest_holds(session: Db, group: ProgramGroup, ids: list[UUID]) -> None:
+    """A guest's held place has no roster row, so `_live_count` misses it: refuse while an unexpired guest
+    basket holds a place in any of `ids` (it is released when the basket is abandoned or expires)."""
+    wanted = {str(i) for i in ids}
+    for details in session.scalars(
+        select(RegistrationCheckout.guest_details).where(
+            RegistrationCheckout.location_id == group.location_id, RegistrationCheckout.channel == "guest",
+            RegistrationCheckout.status == "open", RegistrationCheckout.expires_at > clock.now(),
+        )
+    ):  # fmt: skip
+        if any(item["program_group_id"] in wanted for item in (details or {}).get("items", [])):
+            raise Conflict("A guest is paying for a place; try again in a few minutes.", code="has-guest-holds")
 
 
 def has_space(session: Db, group: ProgramGroup) -> bool:
@@ -336,6 +365,8 @@ def _set_status(session: Db, principal: Principal, group_id: UUID, to: str, allo
         return row
     if row.status not in allowed:
         raise Conflict(f"A {row.status} program cannot become {to}.", code="invalid-transition")
+    if to == "archived":
+        _refuse_guest_holds(session, row, [row.id, *_subtree_ids(session, row.id)])
     was, row.status = row.status, to
     row.completed_at = None if to == "active" else row.completed_at or clock.now()
     audit.record(session, MANAGE, row, location_id=row.location_id, changes={"status": [was, to]})
@@ -364,6 +395,7 @@ def delete_group(session: Db, principal: Principal, group_id: UUID) -> None:
     ids = [row.id, *_subtree_ids(session, row.id)]
     if _live_count(session, ids):
         raise Conflict("Cancel or move the registrations first.", code="has-registrations")
+    _refuse_guest_holds(session, row, ids)
     now = clock.now()
     for node in session.scalars(select(ProgramGroup).where(ProgramGroup.id.in_(ids))):
         node.deleted_at, node.deleted_by_staff_user_id = now, principal.staff_user_id

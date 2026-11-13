@@ -27336,7 +27336,7 @@
             "items": {
               "$ref": "#/components/schemas/GuestItem"
             },
-            "maxItems": 10,
+            "maxItems": 4,
             "minItems": 1,
             "title": "Items",
             "type": "array"
@@ -139485,7 +139485,7 @@
     },
     "/api/v1/program-groups/{program_group_id}": {
       "delete": {
-        "description": "Soft delete of the node and its subtree. Errors: has-registrations.",
+        "description": "Soft delete of the node and its subtree. Errors: has-registrations, has-guest-holds.",
         "operationId": "deleteProgramGroup",
         "parameters": [
           {
@@ -139672,6 +139672,7 @@
     },
     "/api/v1/program-groups/{program_group_id}/archive": {
       "post": {
+        "description": "Errors: invalid-transition, has-guest-holds (a guest basket holds a place in it or its subtree).",
         "operationId": "archiveProgramGroup",
         "parameters": [
           {
@@ -142347,7 +142348,7 @@
     },
     "/api/v1/public/guest-checkouts": {
       "post": {
-        "description": "Hold places for a guest (no account) in programs that allow it. The answer carries the guest token, the\nonly key to confirm or abandon. Errors: capacity-full, registration-closed, guest-documents-required,\nrate-limited (per IP and per payer address).",
+        "description": "Hold places for a guest (no account) in programs that allow it. The answer carries the guest token, the\nonly key to confirm or abandon. Errors: capacity-full, registration-closed, guest-documents-required,\ntoo-many-held-places (unpaid places per program per IP), rate-limited (per IP and per payer address).",
         "operationId": "createGuestCheckout",
         "requestBody": {
           "content": {
@@ -142442,7 +142443,7 @@
     },
     "/api/v1/public/guest-checkouts/{checkout_id}/confirm": {
       "post": {
-        "description": "Pay in full by a new card and register. Errors: payment-failed, checkout-expired, terms-changed.",
+        "description": "Pay in full by a new card and register. Errors: payment-failed, checkout-expired, terms-changed,\nprogram-not-active, registration-closed (the program stopped taking registrations while the place was held).",
         "operationId": "confirmGuestCheckout",
         "parameters": [
           {

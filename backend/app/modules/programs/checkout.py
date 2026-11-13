@@ -15,7 +15,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session as Db
 
-from app.core import audit, clock
+from app.core import audit, clock, context
 from app.core.auth import Principal, authorize, tokens
 from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.core.ids import new_id
@@ -501,6 +501,27 @@ def portal_abandon(session: Db, principal: Principal, checkout_id: UUID) -> dict
 # payer become new clients (never matched by email; staff merge duplicates), created unverified.
 
 GUEST_TOKEN_PREFIX = "fhg"
+GUEST_HOLDS_PER_GROUP = 4  # unpaid places one IP may hold in one program at a time (one basket's worth)
+
+
+def _check_ip_holds(session: Db, ip_digest: str, chosen: list[ProgramGroup]) -> None:
+    """409 too-many-held-places when this IP's unexpired guest baskets plus this one would hold more than
+    GUEST_HOLDS_PER_GROUP places in one program."""
+    held: dict[str, int] = {}
+    for details in session.scalars(
+        select(RegistrationCheckout.guest_details).where(
+            RegistrationCheckout.channel == "guest", RegistrationCheckout.status == "open",
+            RegistrationCheckout.expires_at > clock.now(),
+            RegistrationCheckout.guest_details["ip_digest"].astext == ip_digest,
+        )
+    ):  # fmt: skip
+        for item in details["items"]:
+            held[item["program_group_id"]] = held.get(item["program_group_id"], 0) + 1
+    for group in chosen:
+        held[str(group.id)] = held.get(str(group.id), 0) + 1
+        if held[str(group.id)] > GUEST_HOLDS_PER_GROUP:
+            raise Conflict("Too many unpaid places are held in this program; pay for or release them first.",
+                           code="too-many-held-places", program_group_id=str(group.id))  # fmt: skip
 
 
 def _guest(session: Db, checkout_id: UUID, token: str) -> RegistrationCheckout:
@@ -568,6 +589,9 @@ def guest_create(session: Db, data: dict) -> dict:
         raise ValidationFailed("Each person takes one place in a program.", pointer="/items")
     for group in chosen:
         _guest_documents(session, group.id)
+    # hashed, never the address; cleared with the rest of guest_details when the basket closes
+    ip_digest = tokens.digest(f"{session.info['tenant_id']}:{context.client_ip.get() or 'unknown'}")
+    _check_ip_holds(session, ip_digest, chosen)
     details = json.loads(json.dumps({"payer": data["payer"], "participants": data["participants"]}, default=str))
     nested = session.begin_nested()
     try:  # the client field policy refuses now, not after the card is charged; nothing is kept
@@ -584,7 +608,7 @@ def guest_create(session: Db, data: dict) -> dict:
     raw, hashed = tokens.mint(GUEST_TOKEN_PREFIX, session.info["tenant_id"])
     checkout = RegistrationCheckout(
         location_id=location_id, channel="guest", guest_token_hash=hashed, expires_at=_expiry(),
-        guest_details=details | {"items": held},
+        guest_details=details | {"items": held, "ip_digest": ip_digest},
     )  # fmt: skip
     session.add(checkout)
     session.flush()
@@ -603,7 +627,8 @@ def guest_confirm(session: Db, checkout_id: UUID, data: dict, idempotency_key: s
     details = _open(checkout).guest_details or {}
     if not details.get("items"):
         raise Conflict("The basket is empty.", code="checkout-empty")
-    for item in details["items"]:  # a document bound since the places were held
+    for item in details["items"]:  # deleted, archived, closed or a document bound since the places were held
+        groups.check_held_place(session, session.get(ProgramGroup, UUID(item["program_group_id"])))
         _guest_documents(session, UUID(item["program_group_id"]))
     checkout.payer_client_id, people = _guest_clients(session, checkout.location_id, details)
     items = []

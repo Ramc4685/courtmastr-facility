@@ -165,7 +165,7 @@ def update_program_group(program_group_id: UUID, body: s.ProgramGroupUpdate, ctx
 
 @router.delete("/program-groups/{program_group_id}", status_code=204)
 def delete_program_group(program_group_id: UUID, ctx: Ctx = GroupDelete):
-    """Soft delete of the node and its subtree. Errors: has-registrations."""
+    """Soft delete of the node and its subtree. Errors: has-registrations, has-guest-holds."""
     groups.delete_group(ctx.session, ctx.principal, program_group_id)
     return Response(status_code=204)
 
@@ -182,6 +182,7 @@ def complete_program_group(program_group_id: UUID, ctx: Ctx = GroupManage):
 
 @router.post("/program-groups/{program_group_id}/archive", response_model=s.ProgramGroupOut)
 def archive_program_group(program_group_id: UUID, ctx: Ctx = GroupManage):
+    """Errors: invalid-transition, has-guest-holds (a guest basket holds a place in it or its subtree)."""
     return groups.group_view(ctx.session, groups.archive_group(ctx.session, ctx.principal, program_group_id))
 
 
@@ -732,7 +733,7 @@ _guest_limit = [Depends(rate_limit("guest-checkout"))]
 def create_guest_checkout(body: s.GuestCheckoutCreate, session: Guest, response: Response):
     """Hold places for a guest (no account) in programs that allow it. The answer carries the guest token, the
     only key to confirm or abandon. Errors: capacity-full, registration-closed, guest-documents-required,
-    rate-limited (per IP and per payer address)."""
+    too-many-held-places (unpaid places per program per IP), rate-limited (per IP and per payer address)."""
     held = checkout.guest_create(session, body.model_dump())
     # per address too, counted only for a valid basket: a 429 here rolls its holds back
     hit("guest-checkout-email", body.payer.email, response, tenant=session.info["tenant_id"])
@@ -745,7 +746,8 @@ def create_guest_checkout(body: s.GuestCheckoutCreate, session: Guest, response:
 def confirm_guest_checkout(
     checkout_id: UUID, body: s.GuestCheckoutConfirm, session: Guest, idempotency_key: RequiredKey
 ):
-    """Pay in full by a new card and register. Errors: payment-failed, checkout-expired, terms-changed."""
+    """Pay in full by a new card and register. Errors: payment-failed, checkout-expired, terms-changed,
+    program-not-active, registration-closed (the program stopped taking registrations while the place was held)."""
     return checkout.guest_confirm(session, checkout_id, body.model_dump(), idempotency_key)
 
 

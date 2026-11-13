@@ -528,7 +528,7 @@ class GuestCheckoutCreate(In):
     location_id: UUID
     payer: GuestPayer
     participants: Annotated[list[GuestParticipant], Field(max_length=4)] = []
-    items: Annotated[list[GuestItem], Field(min_length=1, max_length=10)]
+    items: Annotated[list[GuestItem], Field(min_length=1, max_length=4)]  # with the per-IP hold cap (checkout)
 
 
 class GuestCheckoutConfirm(In):

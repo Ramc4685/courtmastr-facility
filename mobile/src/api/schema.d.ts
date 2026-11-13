@@ -11297,7 +11297,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Program Group
-         * @description Soft delete of the node and its subtree. Errors: has-registrations.
+         * @description Soft delete of the node and its subtree. Errors: has-registrations, has-guest-holds.
          */
         delete: operations["deleteProgramGroup"];
         options?: never;
@@ -11318,7 +11318,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Archive Program Group */
+        /**
+         * Archive Program Group
+         * @description Errors: invalid-transition, has-guest-holds (a guest basket holds a place in it or its subtree).
+         */
         post: operations["archiveProgramGroup"];
         delete?: never;
         options?: never;
@@ -12085,7 +12088,7 @@ export interface paths {
          * Create Guest Checkout
          * @description Hold places for a guest (no account) in programs that allow it. The answer carries the guest token, the
          *     only key to confirm or abandon. Errors: capacity-full, registration-closed, guest-documents-required,
-         *     rate-limited (per IP and per payer address).
+         *     too-many-held-places (unpaid places per program per IP), rate-limited (per IP and per payer address).
          */
         post: operations["createGuestCheckout"];
         delete?: never;
@@ -12122,7 +12125,8 @@ export interface paths {
         put?: never;
         /**
          * Confirm Guest Checkout
-         * @description Pay in full by a new card and register. Errors: payment-failed, checkout-expired, terms-changed.
+         * @description Pay in full by a new card and register. Errors: payment-failed, checkout-expired, terms-changed,
+         *     program-not-active, registration-closed (the program stopped taking registrations while the place was held).
          */
         post: operations["confirmGuestCheckout"];
         delete?: never;

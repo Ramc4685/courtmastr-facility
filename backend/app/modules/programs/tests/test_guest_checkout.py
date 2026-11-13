@@ -240,3 +240,105 @@ def test_guests_see_and_pay_the_full_price_of_a_plan_program(client, owner, tena
         invoice_id = session.get(RegistrationCheckout, UUID(cart["id"])).invoice_id
     bill = ok(client.get(f"{API}/invoices/{invoice_id}", headers=owner), 200)
     assert (bill["balance_minor"], bill["status"]) == (0, "paid")
+    assert bill["is_autopay"] is False  # paid in full once: nothing left for an autopay run
+
+
+def _rows_of(tenant, checkout_id: str) -> tuple[int, object]:
+    from sqlalchemy import func, select
+
+    from app.core.db.session import tenant_session
+    from app.modules.programs.models import Enrollment, RegistrationCheckout
+
+    with tenant_session(tenant.id) as session:
+        count = session.scalar(select(func.count()).where(Enrollment.checkout_id == UUID(checkout_id)))
+        return count, session.get(RegistrationCheckout, UUID(checkout_id)).invoice_id
+
+
+def test_a_held_place_is_not_paid_for_once_the_program_stops_taking_registrations(client, owner, tenant, f):
+    """A guest's place is held with no roster row, so confirm checks again that the program is still open:
+    deleted, completed or past its closing date refuses before any client, charge or registration exists."""
+    from datetime import timedelta
+
+    from app.core import clock
+    from app.core.db.session import tenant_session
+    from app.modules.programs.models import ProgramGroup
+
+    def held(email: str) -> tuple[dict, dict]:
+        camp, fee = online(client, owner, f, "immediate_card_payment", name=f"Camp {uuid4().hex[:6]}")
+        allow_guests(client, owner, camp["id"])
+        return camp, ok(start(client, tenant, f, camp, fee, email=email))
+
+    def pay(cart: dict):
+        return client.post(f"{GUEST}/{cart['id']}/confirm", headers=keyed(public(tenant)),
+                           json={"guest_token": cart["guest_token"], "method_token": "tok_card_ok"})  # fmt: skip
+
+    camp, cart = held("deleted@example.com")
+    with tenant_session(tenant.id) as session:  # deleted under the hold (the staff route now refuses, below)
+        session.get(ProgramGroup, UUID(camp["id"])).deleted_at = clock.now()
+    refused = pay(cart)
+    assert (refused.status_code, refused.json()["code"]) == (409, "program-not-active")
+    assert guest_clients(tenant, "deleted@example.com") == [] and _rows_of(tenant, cart["id"]) == (0, None)
+
+    camp, cart = held("completed@example.com")
+    ok(client.post(f"{API}/program-groups/{camp['id']}/complete", headers=owner), 200)
+    refused = pay(cart)
+    assert (refused.status_code, refused.json()["code"]) == (409, "program-not-active")
+    assert guest_clients(tenant, "completed@example.com") == [] and _rows_of(tenant, cart["id"]) == (0, None)
+
+    camp, cart = held("closed@example.com")
+    yesterday = (clock.now() - timedelta(days=2)).date().isoformat()
+    body = {"is_enabled": True, "payment_requirement": "immediate_card_payment", "allows_guest_checkout": True,
+            "closes_on": yesterday}  # fmt: skip
+    ok(client.put(f"{API}/program-groups/{camp['id']}/registration-config", headers=owner, json=body), 200)
+    refused = pay(cart)
+    assert (refused.status_code, refused.json()["code"]) == (409, "registration-closed")
+    assert guest_clients(tenant, "closed@example.com") == [] and _rows_of(tenant, cart["id"]) == (0, None)
+
+
+def test_staff_cannot_delete_or_archive_a_program_while_a_guest_holds_a_place(client, owner, tenant, f):
+    camp, fee = online(client, owner, f, "immediate_card_payment")
+    allow_guests(client, owner, camp["id"])
+    week = ok(client.post(f"{API}/program-groups", headers=owner, json={"parent_id": camp["id"], "name": "Wk 1"}))
+    body = {"is_enabled": True, "payment_requirement": "immediate_card_payment", "allows_guest_checkout": True}
+    ok(client.put(f"{API}/program-groups/{week['id']}/registration-config", headers=owner, json=body), 200)
+    week_fee = ok(client.post(f"{API}/program-groups/{week['id']}/fees", headers=owner,
+                              json={"description": "Week", "amount_minor": 2000}))  # fmt: skip
+    cart = ok(start(client, tenant, f, week, week_fee))
+    for parent_or_node in (camp["id"], week["id"]):
+        gone = client.delete(f"{API}/program-groups/{parent_or_node}", headers=owner)
+        assert (gone.status_code, gone.json()["code"]) == (409, "has-guest-holds")
+        archived = client.post(f"{API}/program-groups/{parent_or_node}/archive", headers=owner)
+        assert (archived.status_code, archived.json()["code"]) == (409, "has-guest-holds")
+    abandon = client.post(
+        f"{GUEST}/{cart['id']}/abandon", headers=public(tenant), json={"guest_token": cart["guest_token"]}
+    )
+    ok(abandon, 200)
+    assert client.delete(f"{API}/program-groups/{week['id']}", headers=owner).status_code == 204
+
+
+def test_one_address_holds_at_most_four_unpaid_places_in_a_program(client, owner, tenant, f):
+    """Without paying, one IP holds at most four places of a program at a time (as many as one basket), and a
+    basket carries at most four places."""
+    camp, fee = online(client, owner, f, "immediate_card_payment")
+    allow_guests(client, owner, camp["id"])
+    other, other_fee = online(client, owner, f, "immediate_card_payment", name="Other")
+    allow_guests(client, owner, other["id"])
+    payer = {"first_name": "Gale", "last_name": "Guest", "email": "cap@example.com", "birth_on": "1985-02-03"}
+    kids = [{"first_name": f"K{n}", "last_name": "Guest", "birth_on": "2015-04-01"} for n in range(4)]
+
+    def basket(group, fee_id, people: list[int | None]):
+        items = [{"program_group_id": group["id"], "program_fee_id": fee_id, "participant": p} for p in people]
+        body = {"location_id": f.location, "payer": payer, "participants": kids, "items": items}
+        return client.post(GUEST, headers=public(tenant), json=body)
+
+    assert basket(camp, fee["id"], [None, 0, 1, 2, 3]).status_code == 422  # five items in one basket
+    first = ok(basket(camp, fee["id"], [0, 1, 2]))
+    ok(basket(camp, fee["id"], [3]))  # four held now
+    over = basket(camp, fee["id"], [None])
+    assert (over.status_code, over.json()["code"]) == (409, "too-many-held-places")
+    assert group_of(client, owner, camp["id"])["enrolled_count"] == 4
+    ok(basket(other, other_fee["id"], [None]))  # per program
+    ok(client.post(f"{GUEST}/{first['id']}/abandon", headers=public(tenant),
+                   json={"guest_token": first["guest_token"]}), 200)  # fmt: skip
+    again = ok(basket(camp, fee["id"], [None]))  # released places no longer count
+    assert details_of(tenant, again["id"])["ip_digest"]  # hashed, and cleared with the other details

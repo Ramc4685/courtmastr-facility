@@ -78,3 +78,21 @@ def test_program_enrolment_gets_the_join_link_of_its_sessions(client, owner, ten
         assert ok(client.get(join, headers=mine), 200)["join_url"] == meeting["join_url"]
         theirs = login(client, tenant, stranger["primary_email"], audience="client")
         assert client.get(join, headers=theirs).status_code == 404
+
+    # a session linked to Wk 1 only: a registration in its sibling Wk 2 does not reach it (subtree, not siblings)
+    later = ok(book(client, owner, f, [f.court], at(12, SOON), at(13, SOON), kind="session", session={"capacity": 4}))
+    only_week = later["booking"]["session"]["id"]
+    week_meeting = ok(client.put(f"{API}/sessions/{only_week}/meeting", headers=owner), 200)
+    ok(
+        client.post(f"{API}/program-groups/{week['id']}/sessions", headers=owner, json={"session_ids": [only_week]}),
+        200,
+    )
+    sibling = ok(client.post(f"{API}/program-groups", headers=owner, json={"parent_id": camp["id"], "name": "Wk 2"}))
+    neighbour, _ = member(client, tenant, owner, f, mailbox)
+    ok(register(client, owner, sibling["id"], neighbour["id"]))
+    week_join = f"{API}/portal/sessions/{only_week}/join-link"
+    with clock.freeze(SOON + timedelta(hours=12, minutes=-5)):
+        mine = login(client, tenant, person["primary_email"], audience="client")
+        assert ok(client.get(week_join, headers=mine), 200)["join_url"] == week_meeting["join_url"]
+        next_door = login(client, tenant, neighbour["primary_email"], audience="client")
+        assert client.get(week_join, headers=next_door).status_code == 404

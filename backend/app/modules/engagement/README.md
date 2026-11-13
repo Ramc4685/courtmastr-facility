@@ -151,7 +151,9 @@ route uses it). SMS (MKT-15) also has its `engagement.sms_campaign.send` key reg
 - **Terms have one source: the documents `portal_terms` binding** (`GET /public/portal-terms`, recorded per sale by
   `clients.terms`). `portal_settings.terms_text` and `terms_version` predate Phase 11; the columns stay but the
   staff settings no longer take or return them and the public portal config no longer serves them, so a terms text
-  that is not the binding can never be shown without an acknowledgment being recorded. The staff portal page edits
+  that is not the binding can never be shown without an acknowledgment being recorded. A `terms_text` stored there
+  before is not moved into a binding: it simply stops being served. Nothing is deployed, so there is no data
+  migration; a tenant that had one re-enters it as the binding's text. The staff portal page edits
   the binding's plain text (tenant-wide, not per location). Web and mobile read terms only through `useTermsGate`.
 - **Online rentals have one switch: rentals' `rental_portal_setting.is_online_enabled`.**
   `portal_settings.allows_online_rentals` predates Phase 11 but nothing enforced or read it; the column stays and the

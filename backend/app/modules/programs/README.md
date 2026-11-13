@@ -208,7 +208,17 @@ captain rosters (REG-26).
 - Rate limits, all closed on Redis failure: `guest-checkout-create` (5 baskets per 15 minutes per IP) and
   `guest-checkout-email` (5 per hour per lowercased payer address, counted only for a valid basket: its 429 rolls
   the holds back) on create; `guest-checkout` (20 per 15 minutes per IP) on confirm and abandon. A basket names at
-  most 4 participants and 10 places.
+  most 4 participants and 4 places, and one IP holds at most 4 unpaid places of one program at a time across its
+  open baskets (409 `too-many-held-places`). The IP is kept only as a tenant-salted SHA-256 digest in
+  `guest_details.ip_digest`, so it is cleared with the other details when the basket completes, is abandoned or
+  expires (no separate retention or erasure step).
+- A guest's held place has no roster row, so confirm checks each program again before any client or charge exists:
+  deleted, completed or archived (anywhere up the chain) is 409 `program-not-active`, closed online registration or
+  a passed closing date is 409 `registration-closed`. **Decision:** deleting a program, or archiving it, is refused
+  with 409 `has-guest-holds` while an unexpired guest basket holds a place in it or its subtree (as `has-registrations`
+  for roster rows); the place is free again once the basket is abandoned or expires (15 minutes). Completing is not
+  refused: the guest's confirm is.
+
 ## Phase 11 B: virtual sessions, buy and book, deposits and instalments
 
 - Join link (SSP-18): `GET /portal/sessions/{id}/join-link` returns the meeting link only to the identity's own
