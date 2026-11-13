@@ -115,6 +115,7 @@ def test_open_offer_first_claim_wins(client, owner, tenant, f, mailbox):
     first = ok(client.post(join, headers=a_portal, json={"client_id": a["id"], "session_id": seat}))
     second = ok(client.post(join, headers=b_portal, json={"client_id": b["id"], "session_id": seat}))
     assert (first["position"], second["position"]) == (1, 2)
+    assert first["location_id"] == str(f.location)  # the portal shows offer deadlines in this location's zone
     early = client.post(f"{join}/{first['id']}/claim", headers=a_portal, json={})
     assert (early.status_code, early.json()["code"]) == (409, "invalid-state-transition")
 

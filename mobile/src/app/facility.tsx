@@ -32,7 +32,7 @@ export default function Facility() {
           )}
         </Surface>
       ))}
-      <Small>Theme: {theme.brand.source === 'tenant' ? 'from the facility' : theme.brand.source === 'cached' ? 'saved from the facility' : theme.brand.source === 'demo' ? 'demo colours for this sample facility (facility theme API not available yet)' : 'bundled (facility theme API not available yet)'}.</Small>
+      <Small>Theme: {theme.brand.source === 'tenant' ? 'from the facility' : theme.brand.source === 'cached' ? 'saved from the facility' : theme.brand.source === 'demo' ? 'demo colours for this sample facility' : 'bundled (the facility colours could not be loaded)'}.</Small>
       <Button label="Switch facility" variant="secondary" onPress={() => router.push('/facilities')} />
     </Screen>
   );

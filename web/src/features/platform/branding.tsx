@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useParams } from 'react-router-dom'
 import { api, type Schemas } from '../../api/client'
 import { Button } from '../../components/Button'
 import { FileUpload } from '../../components/FileUpload'
@@ -8,8 +9,11 @@ import { useToast } from '../../components/Toast'
 import { useAuth } from '../../lib/auth'
 import { useAllLocations } from './queries'
 
-export const useBranding = () =>
-  useQuery({ queryKey: ['branding'], queryFn: () => api.get('/api/v1/public/branding'), staleTime: 5 * 60_000, retry: false })
+/** On the public /f/:slug pages the key carries the slug, so one facility's branding never shows on another's. */
+export const useBranding = () => {
+  const { slug } = useParams()
+  return useQuery({ queryKey: slug ? ['branding', slug] : ['branding'], queryFn: () => api.get('/api/v1/public/branding'), staleTime: 5 * 60_000, retry: false })
+}
 
 /** The tenant's (or a location's) logo, else the product mark. Decorative: the account name always sits beside it. */
 export function TenantLogo({ locationId, className = 'h-8 w-8' }: { locationId?: string | null; className?: string }) {

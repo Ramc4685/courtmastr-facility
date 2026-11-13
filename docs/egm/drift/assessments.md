@@ -1,1 +1,22 @@
 ## backend/app/modules/assessments/README.md
+
+Re-checked against HEAD after Phase 11 (diff `aa20e1b..HEAD`). The earlier item that share links are missed by merge and erasure is fixed: `subject.py` now repoints, erases and lists `progress_share_link`. The README still says only "entries" (line 29, line 45).
+
+- [stale-not-built] **"mobile screens" under Not built is stale (README line 52).** The mobile Progress screen reads `GET /portal/assessment-bests` (`mobile/src/app/progress.tsx:17-21`; `mobile/src/adapters/api.ts:177`), and `mobile/README.md:46` lists it. Delete "mobile screens" from line 52.
+- [contract] **Phase 11 share-link routes are not in the API contract (README lines 56-63).** `docs/api/openapi-people.yaml` has no `/portal/progress-share-links`, `.../{id}/revoke` or `/public/progress-shares/lookup`. The only FIT-05 operation is `shareAssessmentResult` (line 5822). The routes are `assessments/router.py:136-165`, and the README does not say they go beyond the spec. Also add them to the naming note (README line 46-47).
+- [undocumented] **Merge and erasure line is out of date (README lines 29, 45).** It says merge moves "every entry" and erasure deletes "entries". Both now also cover `progress_share_link` (`assessments/subject.py:14, 32, 38`). Erasure deletes the links first (line 32), and export does not include them (`subject.py:19-28`).
+- [undocumented] **Share-link details missing from README lines 58-63.** `PortalShareLinkCreate` takes `client_id` (guardians, default the signed-in client) (`schemas.py:173`; `service.py:395`). Create, list and revoke answer 404 while sharing is off, through `_portal_client`. Revoke is idempotent (`service.py:408-418`). The lookup response carries `expires_at` (`schemas.py:203`). Create, list and the `url` field are not described. The `url` is built from `app.web_base_url` (`service.py:402`).
+- [undocumented] **Audit key `assessments.share_link.manage` has no registered permission (`service.py:368`).** It is a plain audit string, so staff cannot view or revoke a client's links. The README says "audit never" for the hash but not that staff have no access path.
+- [undocumented] **`assessments.assessment.share` (a `C` key) is registered but unused (README lines 24-26).** It is in `permissions.py:17` and missing from the Interfaces list. Nothing uses it, because `shareAssessmentResult` is not built.
+- [contract] **Delete needs a second gate (README line 25).** `delete_result` loads the entry through `_result(..., READ)` first, which needs `assessment.read` on the client's reach (`service.py:246`). Only then does it check the `L` key (`service.py:247-250`).
+- [undocumented] **"A result needs a location" is only an API rule (README lines 37-38).** `location_id` is required in the create schema (`schemas.py:109`), but the column is nullable (`models.py:76`; `schemas.py:102` for output). `delete_result` keeps a null-location branch that needs the tenant-wide delete key (`service.py:247-248`).
+- [undocumented] **Data-subject export is not documented (README line 29).** `subject.py:19-28, 39` registers an export of `recorded_at`, staff `note` and values.
+- [wording] **History filters (README lines 15-16).** "Filters: field ids, category, time window" is stated for both reads. Only the series takes field ids and category (`router.py:107-118`). The list allows only `client_id` and `recorded_at` (`service.py:196`).
+- [undocumented] **Web screens are not mentioned.** `web/src/features/assessments/{AssessmentSetupPage,ClientAssessmentsTab,PortalProgress}.tsx` and `web/src/features/portal/{ProgressPage,PublicProgressPage}.tsx` have no pointer in the README.
+- [undocumented] **Public lookup returns only the latest 50 results, through an internal `ListQuery` (`service.py:430`).** The README does say "latest 50". It does not say that `ProgressShareLink` rows hold `created_by_identity_id` (`models.py:135`) or that the table's migration is `1521_portal_booking_and_buying.py`, not an assessments migration.
+
+## Backlog entries
+
+- assessments: add progress-share-link operations to `docs/api/openapi-people.yaml` (or state in README that they are outside the spec).
+- assessments: README refresh: remove "mobile screens" from Not built (line 52), cover share links in the merge and erasure line, add the `share` key and the delete second gate, and add a web screens pointer.
+- assessments: decide whether staff need a permission key to view or revoke client share links (`assessments.share_link.manage` is audit-only).

@@ -11,6 +11,7 @@ import type {
   PortalAdapter,
   PortalInvoice,
   SessionListing,
+  WalletPass,
 } from './types';
 
 const HOUR = 3_600_000;
@@ -45,8 +46,9 @@ type State = {
   invoicesPaid: Set<string>;
   inboxRead: Map<string, string>;
   seq: number;
+  walletPass: WalletPass | null;
 };
-const state: State = { enrollments: new Map(), invoicesPaid: new Set(), inboxRead: new Map(), seq: 1 };
+const state: State = { enrollments: new Map(), invoicesPaid: new Set(), inboxRead: new Map(), seq: 1, walletPass: null };
 
 /** Test hook: start from a clean demo world. */
 export function resetDemo() {
@@ -83,6 +85,8 @@ function sessions(fromMs: number, toMs: number, clientId: string): SessionListin
       out.push({
         session_id: sessionId,
         name: c.name,
+        location_id: 'demo-loc',
+        time_zone: null,
         starts_at: new Date(startsAt).toISOString(),
         ends_at: new Date(startsAt + c.minutes * 60_000).toISOString(),
         resource_name: c.resource,
@@ -107,8 +111,8 @@ export const demoAdapter: PortalAdapter = {
   isDemo: true,
   searchDirectory: (q) => {
     const all = [
-      { tenant_id: 'courtside-demo', name: 'Courtside Demo Club', city: 'Chicago', icon_url: null, host: 'courtside-demo' },
-      { tenant_id: 'riverside-athletic', name: 'Riverside Athletic Center', city: 'Boulder', icon_url: null, host: 'riverside-athletic' },
+      { slug: 'courtside-demo', name: 'Courtside Demo Club', city: 'Chicago', icon_url: null },
+      { slug: 'riverside-athletic', name: 'Riverside Athletic Center', city: 'Boulder', icon_url: null },
     ];
     const needle = q.trim().toLowerCase();
     return delay(all.filter((e) => !needle || `${e.name} ${e.city}`.toLowerCase().includes(needle)));
@@ -174,7 +178,7 @@ export const demoAdapter: PortalAdapter = {
     const iso = (offsetDays: number) => new Date(Date.now() + offsetDays * DAY).toISOString().slice(0, 10);
     const make = (id: string, number: number, offset: number, total: number, description: string): PortalInvoice => {
       const paid = state.invoicesPaid.has(id) || offset < -20;
-      return { id, number, bill_to_client_id: clientId, invoice_on: iso(offset), due_on: iso(offset + 14), is_autopay: false, status: paid ? 'paid' : 'open', total_minor: total, balance_minor: paid ? 0 : total, is_past_due: !paid && offset + 14 < 0, charges: [{ id: `${id}-c1`, description, total_minor: total }] };
+      return { id, number, bill_to_client_id: clientId, invoice_on: iso(offset), due_on: iso(offset + 14), is_autopay: false, status: paid ? 'paid' : 'open', currency: 'USD', total_minor: total, balance_minor: paid ? 0 : total, is_past_due: !paid && offset + 14 < 0, charges: [{ id: `${id}-c1`, description, total_minor: total }] };
     };
     return delay([make(`demo-inv-${clientId}-2`, 1042, -3, 4500, 'Court rental, 90 min'), make(`demo-inv-${clientId}-1`, 1017, -40, 8900, 'Family Plus, October')]);
   },
@@ -197,4 +201,33 @@ export const demoAdapter: PortalAdapter = {
     return delay({ ...item, read_at: readAt });
   },
   registerDevice: (registration) => delay({ ...registration, id: 'demo-device-1' }),
+  authenticatePayment: () => delay(undefined),
+  confirmPayment: ({ paymentId, invoiceIds }) =>
+    delay({ id: paymentId, receipt_number: 5000 + state.seq, amount_minor: 0, currency: 'USD', status: 'succeeded' as const, invoice_ids: invoiceIds, next_action: null }),
+  checkoutProvider: () => delay('fake' as const),
+  listOffers: () =>
+    delay([
+      { kind: 'membership' as const, id: 'demo-mp-1', name: 'Adult monthly', price_minor: 8900, currency: 'USD', detail: 'every month' },
+      { kind: 'package' as const, id: 'demo-pp-1', name: '10-Visit Court Pass', price_minor: 12000, currency: 'USD', detail: '10 sessions' },
+    ]),
+  buy: ({ offer, methodToken }) =>
+    methodToken === 'tok_card_ok' ? delay({ id: `demo-sale-${state.seq++}`, name: offer.name, payment_status: 'succeeded' }) : Promise.reject(new Error('The card was declined.')),
+  listWalletPasses: () => delay(state.walletPass ? [state.walletPass] : []),
+  issueWalletPass: ({ clientId, deviceLabel }) => {
+    state.walletPass = { credential_id: `demo-wallet-${state.seq++}`, client_id: clientId, device_label: deviceLabel, issued_at: new Date().toISOString() };
+    return delay({ ...state.walletPass, format: 'fake-pass+json', media_type: 'application/json', content: '{}', is_signed: false });
+  },
+  revokeWalletPass: () => {
+    state.walletPass = null;
+    return delay(undefined);
+  },
+  // shortcut: the C2 content screens have no demo data; they show their empty states in demo mode.
+  listAppContents: () => delay([]),
+  listLocationContacts: () => delay([]),
+  requestTrial: () => delay(undefined),
+  sendFeedback: () => delay(undefined),
+  listFavorites: () => delay([]),
+  removeFavorite: () => delay(undefined),
+  listFavoriteSchedule: () => delay([]),
+  recordUsage: () => delay(undefined),
 };

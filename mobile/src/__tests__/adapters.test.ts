@@ -4,7 +4,6 @@ import * as SecureStore from 'expo-secure-store';
 import { portal } from '../adapters';
 import { apiAdapter } from '../adapters/api';
 import { demoAdapter, resetDemo } from '../adapters/demo';
-import { NotAvailable } from '../adapters/types';
 import { resetClients } from '../api/client';
 import { signInWithPassword } from '../lib/auth';
 import { loadSession } from '../lib/session';
@@ -176,11 +175,77 @@ describe('api adapter', () => {
     expect(calls[0]!.url).toBe('http://localhost:8150/api/v1/portal/assessment-bests?client_id=c1');
   });
 
-  it('reports what the portal has no endpoint for as not available, without calling the server', async () => {
-    const calls = mockFetch([]);
-    await expect(apiAdapter.searchDirectory('court')).rejects.toBeInstanceOf(NotAvailable);
-    await expect(apiAdapter.getAppConfig()).rejects.toBeInstanceOf(NotAvailable);
+  it('searches the shared directory anonymously and reads the public app config', async () => {
+    let calls = mockFetch([]);
+    expect(await apiAdapter.searchDirectory('c')).toEqual([]); // under two letters the server is not asked
     expect(calls).toHaveLength(0);
+    calls = mockFetch([() => json({ data: [{ slug: 'court', name: 'Court Club' }] })]);
+    expect(await apiAdapter.searchDirectory(' court ')).toEqual([
+      { slug: 'court', name: 'Court Club', city: null, icon_url: null },
+    ]);
+    expect(calls[0]!.url).toContain('/api/v1/public/app-directory?q=court&limit=20');
+    expect(calls[0]!.headers.authorization).toBeUndefined();
+    calls = mockFetch([() => json({ app_name: 'Court', theme: {}, features: {}, schedule: {}, portal: { currency: 'CAD' } })]);
+    expect(await apiAdapter.getAppConfig()).toMatchObject({ app_name: 'Court', icon_url: null, home_screen: null, currency: 'CAD' });
+    expect(calls[0]!.url).toContain('/api/v1/public/app-config');
+  });
+
+  it('calls the member app content, contact, trial, feedback, favourite and usage routes', async () => {
+    const base = 'http://localhost:8150/api/v1';
+    let calls = mockFetch([() => json(page([{ id: 'n1', kind: 'news' }]))]);
+    expect(await apiAdapter.listAppContents('l1')).toEqual([{ id: 'n1', kind: 'news' }]);
+    expect(calls[0]!.url).toBe(`${base}/portal/app-contents?location_id=l1&limit=200`);
+
+    calls = mockFetch([() => json({ data: [{ id: 'k1', kind: 'department', name: 'Front desk', phone: '+1 555', email: null, role: null }] })]);
+    expect(await apiAdapter.listLocationContacts('l1')).toMatchObject([{ name: 'Front desk' }]);
+    expect(calls[0]!.url).toBe(`${base}/public/location-contacts?location_id=l1`);
+
+    calls = mockFetch([() => new Response(null, { status: 202 })]);
+    const trial = { name: 'Pat', email: 'pat@example.com', phone: null, interest: 'Tennis', message: null, location_id: 'l1' };
+    await apiAdapter.requestTrial(trial);
+    expect(calls[0]).toMatchObject({ method: 'POST', url: `${base}/public/trial-requests`, body: trial });
+
+    calls = mockFetch([() => json({ id: 'fb1' }, 201)]);
+    await apiAdapter.sendFeedback({ clientId: 'c1', message: 'Great courts', rating: 5 });
+    expect(calls[0]).toMatchObject({ method: 'POST', url: `${base}/portal/feedback`, body: { client_id: 'c1', message: 'Great courts', rating: 5 } });
+
+    calls = mockFetch([() => json({ data: [{ id: 'f1', kind: 'program_group', target_id: 'g1' }] })]);
+    expect(await apiAdapter.listFavorites('c1')).toMatchObject([{ id: 'f1' }]);
+    expect(calls[0]!.url).toBe(`${base}/portal/favorites?client_id=c1`);
+
+    calls = mockFetch([() => new Response(null, { status: 204 })]);
+    await apiAdapter.removeFavorite('f1');
+    expect(calls[0]).toMatchObject({ method: 'DELETE', url: `${base}/portal/favorites/f1` });
+
+    calls = mockFetch([() => json({ data: [{ session_id: 's1', title: 'Drills' }] })]);
+    expect(await apiAdapter.listFavoriteSchedule({ clientId: 'c1', from: '2026-11-13T00:00:00Z', to: '2026-11-27T00:00:00Z' })).toMatchObject([{ session_id: 's1' }]);
+    const url = new URL(calls[0]!.url);
+    expect([url.pathname, url.searchParams.get('client_id'), url.searchParams.get('from'), url.searchParams.get('to')]).toEqual([
+      '/api/v1/portal/favorites/schedule', 'c1', '2026-11-13T00:00:00Z', '2026-11-27T00:00:00Z',
+    ]);
+
+    calls = mockFetch([() => new Response(null, { status: 204 })]);
+    await apiAdapter.recordUsage([{ kind: 'screen', name: 'screen.news', count: 2 }]);
+    expect(calls[0]).toMatchObject({ method: 'POST', url: `${base}/portal/app-usage`, body: { items: [{ kind: 'screen', name: 'screen.news', count: 2 }] } });
+  });
+
+  it('reads the card processor without creating a setup intent', async () => {
+    const calls = mockFetch([() => json({ provider: 'fake', publishable_key: null, account_ref: null })]);
+    expect(await apiAdapter.checkoutProvider()).toBe('fake');
+    expect(calls[0]).toMatchObject({ method: 'GET', url: 'http://localhost:8150/api/v1/portal/payment-methods/processor' });
+  });
+
+  it('lists offers for the acting client, packages scoped by the server to what that client may buy', async () => {
+    const packagePlans = page([{ id: 'pp1', name: 'Ten visits', fee_minor: 12000, session_count: 10, is_purchasable: true }, { id: 'pp2', name: 'Hidden', is_purchasable: false }]);
+    const membershipPlans = page([{ id: 'mp1', name: 'Monthly', term_fee_minor: 8900, billing_interval_count: 1, billing_interval_unit: 'month' }]);
+    const answer = (c: Call) => json(c.url.includes('/portal/package-plans') ? packagePlans : membershipPlans);
+    const calls = mockFetch([answer, answer]);
+    expect(await apiAdapter.listOffers('c1')).toEqual([
+      { kind: 'membership', id: 'mp1', name: 'Monthly', price_minor: 8900, currency: null, detail: 'every month' },
+      { kind: 'package', id: 'pp1', name: 'Ten visits', price_minor: 12000, currency: null, detail: '10 sessions' },
+    ]);
+    const packages = new URL(calls.find((c) => c.url.includes('/portal/package-plans'))!.url);
+    expect(packages.searchParams.get('client_id')).toBe('c1');
   });
 
   it('surfaces problem+json from a missing endpoint as an ApiError', async () => {

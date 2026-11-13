@@ -2,13 +2,23 @@ import { api, unwrap } from '../api/client';
 import { ApiError } from '../api/errors';
 import { clearSession, saveGrant } from './session';
 
+type Grant = Parameters<typeof saveGrant>[1];
+
+/** A sign-in may answer with an MFA challenge (Phase 8). The app has no MFA screen yet, so it says so. */
+function grantOrRefuse(result: Grant | { mfa_token: string }): Grant {
+  if ('mfa_token' in result) {
+    throw new ApiError({ status: 403, code: 'mfa-required', detail: 'This account uses two-step sign-in. Sign in on the web portal for now.' });
+  }
+  return result;
+}
+
 export async function signInWithPassword(slug: string, email: string, password: string) {
   const grant = await unwrap(
     api().POST('/api/v1/auth/sign-in', {
       body: { email: email.trim(), password, audience: 'client', client_kind: 'mobile' },
     }),
   );
-  return saveGrant(slug, grant);
+  return saveGrant(slug, grantOrRefuse(grant));
 }
 
 /** Always resolves the same way whether or not the email exists (no account enumeration server-side). */
@@ -35,7 +45,7 @@ export function extractLinkToken(input: string): string | null {
 
 export async function consumeMagicLink(slug: string, token: string) {
   const grant = await unwrap(api().POST('/api/v1/auth/magic-links/consume', { body: { token, client_kind: 'mobile' } }));
-  return saveGrant(slug, grant);
+  return saveGrant(slug, grantOrRefuse(grant));
 }
 
 /** Revoke server-side when reachable; the local session is removed either way. */

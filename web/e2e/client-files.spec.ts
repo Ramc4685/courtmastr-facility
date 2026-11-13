@@ -1,16 +1,11 @@
-import AxeBuilder from '@axe-core/playwright'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
+import { scan } from './a11y'
 
 // Client photo (CLI-12) and note attachments (CLI-09) on seeded Morgan Member (M-1001, card DEMO-CARD-0001).
 // The test removes what it adds, so the demo data is left as it was.
 const OWNER = { email: 'owner@courtside-demo.example.com', password: 'courtside-demo-2026' }
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAE0lEQVR4nGM8oaHBAANMcBZeDgA4VAEgH8AvGgAAAABJRU5ErkJggg==', 'base64')
 const PDF = Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n')
-
-async function scan(page: Page, label: string) {
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 test('staff add, show and remove a client photo and a note attachment', async ({ page }) => {
   test.setTimeout(120_000)

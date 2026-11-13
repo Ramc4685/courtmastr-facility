@@ -5,6 +5,7 @@ rate_limit:
   buckets:                            # every e2e spec signs in as the same demo admin from localhost
     sign-in:          {limit: 200, window_sec: 60,  closed: true}
     sign-in-identity: {limit: 200, window_sec: 900, closed: true}
+    guest-checkout-create: {limit: 200, window_sec: 900, closed: true}  # facility-entry.spec opens 3 guest baskets a run
 payments:
   stripe:
     test_onboarding: api              # Stripe test accounts go active on Connect, no hosted form; refused outside dev and test

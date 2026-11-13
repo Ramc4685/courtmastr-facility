@@ -281,6 +281,7 @@ staff-as-staff impersonation (destroys attribution, which is the whole point of 
 | `rentals.rental_plan.share` | L | | | Y | Y | - | - | - | - | - | RNT-10, FAM-06 |
 | `rentals.rental_plan.remove` | L | D | | Y | Y | - | - | - | - | - | RNT-11 |
 | `rentals.locker_rental.manage` | L | | | Y | Y | Y | - | - | - | - | RNT-17, RNT-18 |
+| `rentals.portal_setting.manage` | L | | | Y | Y | - | - | - | - | - | SSP-04 |
 | `rentals.public_listing.publish` | L | | | Y | Y | - | - | Y | - | - | RNT-13 |
 
 ### 6.5 clients
@@ -535,6 +536,10 @@ allow-list (STF-06, PLT-07).
 | `engagement.message.send_direct` | C | | own | Y | Y | Y | own | Y | - | - | MKT-10 |
 | `engagement.inbox.reply` | L | | | Y | Y | Y | - | - | - | - | MKT-23 |
 | `engagement.app_content.manage` | L | | | Y | Y | - | - | - | - | - | PLT-13 ("manage location in app"), APP-04..APP-14, SSP-13..SSP-16 |
+| `engagement.location_contact.manage` | L | | | Y | Y | - | - | - | - | - | APP-08, APP-09 (Phase 11 C2: published department and service contacts) |
+| `engagement.app_inquiry.read` | L | | | Y | Y | - | - | - | - | - | APP-10, APP-12 (Phase 11 C2: the trial request and feedback inbox) |
+| `engagement.app_inquiry.manage` | L | | | Y | Y | - | - | - | - | - | APP-10, APP-12 (status changes in that inbox) |
+| `engagement.app_usage.read` | T | | | Y | Y | - | - | - | - | - | APP-17 (Phase 11 C2: anonymous daily screen and action counts; tenant-wide, no location) |
 | `engagement.portal_settings.manage` | L | | | Y | Y | - | - | - | - | - | SSP-01, SSP-02, SSP-07, SSP-10; programs' session booking policies (CLS-09), also open to `programs.registration_config.manage` |
 | `engagement.notification_rule.manage` | L | | | Y | Y | - | - | - | - | - | MKT-13, MKT-14, STF-12, PAY-07, PAY-08 |
 | `engagement.automation.manage` | L | B | | Y | Y | - | - | - | - | - | MKT-20 |

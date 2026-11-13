@@ -396,10 +396,8 @@ def test_staff_alerts_follow_the_route(client, tenant, owner, site, mailbox):
 def test_portal_settings_public_config_and_videos(client, tenant, owner, site):
     first = ok(client.get(f"{API}/locations/{site}/portal-settings", headers=owner))
     assert first["slug"] == "main" and not first["is_enabled"]
-    put = {"is_enabled": True, "is_public": True, "welcome_text": "Hi", "terms_text": "Rules v1"}
-    saved = ok(client.put(f"{API}/locations/{site}/portal-settings", headers=owner, json=put))
-    bumped = ok(client.put(f"{API}/locations/{site}/portal-settings", headers=owner, json={"terms_text": "Rules v2"}))
-    assert bumped["terms_version"] == (saved["terms_version"] or 1) + 1
+    put = {"is_enabled": True, "is_public": True, "welcome_text": "Hi"}
+    ok(client.put(f"{API}/locations/{site}/portal-settings", headers=owner, json=put))
     public = ok(client.get(f"{API}/public/portal-config", headers={"X-Tenant-Slug": tenant.slug}))
     assert [loc["welcome_text"] for loc in public["locations"]] == ["Hi"]
     insecure = {"location_id": site, "title": "X", "url": "http://evil.example.com/v"}

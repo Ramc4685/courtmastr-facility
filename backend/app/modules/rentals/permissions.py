@@ -22,5 +22,6 @@ register(
     _p("rental_plan.share", "Share rental plans", "", _MG),
     _p("rental_plan.remove", "Remove and refund rental plans", "D", _MG),
     _p("locker_rental.manage", "Rent and clear lockers", "", _FD),
+    _p("portal_setting.manage", "Set online rental defaults for a location", "", _MG),
     _p("public_listing.publish", "Publish rentals on the public schedule", "", {**_MG, "league_admin": "all"}),
 )

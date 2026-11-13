@@ -1,11 +1,12 @@
 """engagement consent tables (docs/architecture/data-model-programs.md sections 3.2 and 3.2a). Thin slice shipped
 with build module 4 for CLI-16; build module 13 adds the rest of engagement around them."""
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, Index, Text, UniqueConstraint, func, text
+from sqlalchemy import BigInteger, CheckConstraint, Index, SmallInteger, Text, UniqueConstraint, func, text
 from sqlalchemy.dialects.postgresql import ARRAY, CITEXT, INET
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -535,6 +536,10 @@ class PortalSettings(TenantOwned, Timestamps, Base):
         UniqueConstraint("tenant_id", "location_id", name="uq_portal_settings_location"),
         Index("uq_portal_settings_slug", "tenant_id", text("lower(slug)"), unique=True),
         CheckConstraint("slug ~ '^[a-z0-9][a-z0-9-]{1,62}$'", name="slug"),
+        CheckConstraint("jsonb_typeof(menu) = 'array'", name="menu"),
+        CheckConstraint("jsonb_typeof(social_links) = 'object'", name="social_links"),
+        CheckConstraint("jsonb_typeof(group_redirect_urls) = 'object'", name="group_redirect_urls"),
+        CheckConstraint("redirect_url IS NULL OR redirect_url LIKE 'https://%'", name="redirect_url"),
     )
 
     location_id: Mapped[UUID]
@@ -546,6 +551,46 @@ class PortalSettings(TenantOwned, Timestamps, Base):
     terms_version: Mapped[int] = mapped_column(server_default=text("1"), info={"audit": "value"})
     allows_online_rentals: Mapped[bool] = mapped_column(server_default=text("true"), info={"audit": "value"})
     allows_online_purchases: Mapped[bool] = mapped_column(server_default=text("true"), info={"audit": "value"})
+    # Phase 11 chip A: public sign-up (SSP-05, off by default), menu (SSP-13), redirects (SSP-07), social (SSP-15)
+    allows_self_signup: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
+    menu: Mapped[list] = mapped_column(JsonDict, server_default=text("'[]'"))  # [{key, label, is_visible}], in order
+    social_links: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))  # {network: https url}
+    redirect_url: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    group_redirect_urls: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))  # {group id: url}
+    redirect_domains: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
+
+
+class PortalSignupStatus(StrEnum):
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    SUPERSEDED = "superseded"
+
+
+class PortalSignup(TenantOwned, Timestamps, Base):
+    """A public self-registration waiting for its email to be verified (SSP-05). The token is emailed in the URL
+    fragment and only its hash is kept; single use, 24 hours. Confirming creates the client and the portal login."""
+
+    __tablename__ = "portal_signup"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location"),
+        *tfk("client_id", "client"),
+        enum_check("status", PortalSignupStatus),
+        UniqueConstraint("tenant_id", "token_hash", name="uq_portal_signup_token_hash"),
+        Index("ix_portal_signup_email", "tenant_id", "email"),
+    )
+
+    location_id: Mapped[UUID]
+    email: Mapped[str] = mapped_column(CITEXT, info={"audit": "flag"})
+    first_name: Mapped[str] = mapped_column(info={"audit": "flag"})
+    last_name: Mapped[str] = mapped_column(info={"audit": "flag"})
+    phone_mobile: Mapped[str | None] = mapped_column(info={"audit": "flag"})
+    birth_on: Mapped[date | None] = mapped_column(info={"audit": "flag"})
+    token_hash: Mapped[str]
+    expires_at: Mapped[datetime]
+    status: Mapped[str] = enum_column(server_default=text("'pending'"))
+    confirmed_at: Mapped[datetime | None]
+    client_id: Mapped[UUID | None]
+    ip: Mapped[Any | None] = mapped_column(INET, info={"audit": "flag"})
 
 
 class Video(TenantOwned, Timestamps, Base):
@@ -560,3 +605,198 @@ class Video(TenantOwned, Timestamps, Base):
     url: Mapped[str]
     is_published: Mapped[bool] = mapped_column(server_default=text("true"), info={"audit": "value"})
     sort_order: Mapped[int] = mapped_column(server_default=text("0"))
+
+
+class AppMode(StrEnum):
+    SHARED = "shared"
+    BRANDED = "branded"
+
+
+class CardNumberMode(StrEnum):
+    AUTO_GENERATE = "auto_generate"
+    MANUAL_ENTRY = "manual_entry"
+
+
+class AppConfig(TenantOwned, Timestamps, Base):
+    """The tenant's member-app configuration (APP-01, APP-02, APP-04, APP-05, APP-18): one row per tenant.
+    `home_screen` and `schedule` are validated by `domain.app_config` before they are stored."""
+
+    __tablename__ = "app_config"
+    __table_args__ = tenant_args(
+        UniqueConstraint("tenant_id", name="uq_app_config_tenant"),
+        enum_check("mode", AppMode),
+        enum_check("card_number_mode", CardNumberMode),
+    )
+
+    mode: Mapped[str] = enum_column(server_default=text("'shared'"))
+    is_enabled: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
+    app_name: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    is_listed_in_directory: Mapped[bool] = mapped_column(server_default=text("false"), info={"audit": "value"})
+    directory_name: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    card_number_mode: Mapped[str] = enum_column(server_default=text("'auto_generate'"))
+    features: Mapped[dict] = mapped_column(server_default=text("'{}'"))
+    home_screen: Mapped[dict | None]
+    schedule: Mapped[dict] = mapped_column(server_default=text("'{}'"))
+
+
+# --- Phase 11 C2: member app content (APP-07, APP-08, APP-09, APP-10, APP-12, APP-14) ---------------------------
+
+
+class AppContentKind(StrEnum):
+    NEWS = "news"
+    INFO_PAGE = "info_page"
+    ANNOUNCEMENT = "announcement"
+    PROMOTION = "promotion"
+    GALLERY = "gallery"
+
+
+class AppContent(TenantOwned, Timestamps, Base):
+    """A news story, info page, announcement, promotion or gallery image in the member app (APP-07, APP-14).
+    Plain text with links, never HTML. `location_id` null: shown at every location."""
+
+    __tablename__ = "app_content"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location"),
+        *tfk("image_file_id", "stored_file"),
+        enum_check("kind", AppContentKind),
+        CheckConstraint("char_length(title) BETWEEN 1 AND 120", name="title"),
+        CheckConstraint("char_length(body_text) <= 10000", name="body_text"),
+        CheckConstraint("link_url IS NULL OR link_url LIKE 'https://%'", name="link_url"),
+        CheckConstraint("expires_at IS NULL OR expires_at > publish_at", name="window"),
+        Index("ix_app_content_publish", "tenant_id", "publish_at", "id"),
+    )
+
+    location_id: Mapped[UUID | None]
+    kind: Mapped[str] = enum_column()
+    title: Mapped[str]
+    body_text: Mapped[str] = mapped_column(server_default=text("''"))
+    link_url: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    image_file_id: Mapped[UUID | None]
+    publish_at: Mapped[datetime] = mapped_column(info={"audit": "value"})
+    expires_at: Mapped[datetime | None] = mapped_column(info={"audit": "value"})
+    sort_order: Mapped[int] = mapped_column(server_default=text("0"))
+    version: Mapped[int] = mapped_column(server_default=text("1"))
+
+    @property
+    def has_image(self) -> bool:
+        return self.image_file_id is not None
+
+
+class LocationContactKind(StrEnum):
+    DEPARTMENT = "department"
+    SERVICE = "service"
+
+
+class LocationContact(TenantOwned, Timestamps, Base):
+    """A department phone line (APP-08) or a service contact (APP-09) at one location. Business contacts staff
+    choose to publish: the public app shows them."""
+
+    __tablename__ = "location_contact"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location"),
+        enum_check("kind", LocationContactKind),
+        CheckConstraint("char_length(name) BETWEEN 1 AND 80", name="name"),
+        CheckConstraint("role IS NULL OR char_length(role) <= 80", name="role"),
+        CheckConstraint("phone IS NULL OR char_length(phone) <= 40", name="phone"),
+        CheckConstraint("phone IS NOT NULL OR email IS NOT NULL", name="reachable"),
+    )
+
+    location_id: Mapped[UUID]
+    kind: Mapped[str] = enum_column()
+    name: Mapped[str]
+    role: Mapped[str | None]
+    phone: Mapped[str | None]
+    email: Mapped[str | None] = mapped_column(CITEXT)
+    sort_order: Mapped[int] = mapped_column(server_default=text("0"))
+
+
+class AppInquiryKind(StrEnum):
+    TRIAL = "trial"
+    FEEDBACK = "feedback"
+
+
+class AppInquiryStatus(StrEnum):
+    NEW = "new"
+    IN_PROGRESS = "in_progress"
+    CLOSED = "closed"
+    CONVERTED = "converted"
+
+
+class AppInquiry(TenantOwned, Timestamps, Base):
+    """The staff inbox for "Try us" trial pass requests (APP-12, anonymous, no client) and in-app feedback
+    (APP-10, from a signed-in client). Contact fields and the message are PII: audited as flags only."""
+
+    __tablename__ = "app_inquiry"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", index=False),
+        *tfk("client_id", "client"),
+        *tfk("handled_by_staff_user_id", "staff_user"),
+        enum_check("kind", AppInquiryKind),
+        enum_check("status", AppInquiryStatus),
+        CheckConstraint("char_length(message) <= 2000", name="message"),
+        CheckConstraint("interest IS NULL OR char_length(interest) <= 120", name="interest"),
+        CheckConstraint("rating IS NULL OR (kind = 'feedback' AND rating BETWEEN 1 AND 5)", name="rating"),
+        CheckConstraint("kind = 'feedback' OR contact_email IS NOT NULL", name="contact_email"),
+        CheckConstraint("kind = 'feedback' OR client_id IS NULL", name="client"),
+        Index("ix_app_inquiry_inbox", "tenant_id", "location_id", "status", "id"),
+    )
+
+    location_id: Mapped[UUID]
+    kind: Mapped[str] = enum_column()
+    client_id: Mapped[UUID | None]
+    contact_name: Mapped[str] = mapped_column(info={"audit": "flag"})
+    contact_email: Mapped[str | None] = mapped_column(CITEXT, info={"audit": "flag"})
+    contact_phone: Mapped[str | None] = mapped_column(info={"audit": "flag"})
+    interest: Mapped[str | None] = mapped_column(info={"audit": "flag"})
+    message: Mapped[str] = mapped_column(server_default=text("''"), info={"audit": "flag"})
+    rating: Mapped[int | None] = mapped_column(SmallInteger, info={"audit": "value"})
+    status: Mapped[str] = enum_column(server_default=text("'new'"))
+    handled_at: Mapped[datetime | None]
+    handled_by_staff_user_id: Mapped[UUID | None]
+
+
+# --- Phase 11 C2 part 2: favourites (APP-13) and anonymous app usage counts (APP-17) -----------------------------
+
+
+class FavoriteKind(StrEnum):
+    RESERVATION_TYPE = "reservation_type"
+    PROGRAM_GROUP = "program_group"
+
+
+class ClientFavorite(TenantOwned, Timestamps, Base):
+    """A reservation type or program group a client marked as a favourite (APP-13); feeds the personal schedule.
+    `target_id` points into scheduling or programs, so it is checked on write rather than by a foreign key."""
+
+    __tablename__ = "client_favorite"
+    __table_args__ = tenant_args(
+        *tfk("client_id", "client", index=False),
+        enum_check("kind", FavoriteKind),
+        UniqueConstraint("tenant_id", "client_id", "kind", "target_id", name="uq_client_favorite_target"),
+    )
+
+    client_id: Mapped[UUID]
+    kind: Mapped[str] = enum_column()
+    target_id: Mapped[UUID]
+
+
+class UsageKind(StrEnum):
+    SCREEN = "screen"
+    ACTION = "action"
+
+
+class AppUsageDay(TenantOwned, Timestamps, Base):
+    """Daily screen and action counts from the member app (APP-17), in UTC days. Anonymous on purpose: no client,
+    no location, nothing about who sent them."""
+
+    __tablename__ = "app_usage_day"
+    __table_args__ = tenant_args(
+        enum_check("kind", UsageKind),
+        CheckConstraint("name ~ '^[a-z0-9_.-]{1,60}$'", name="name"),
+        CheckConstraint("count >= 0", name="count"),
+        UniqueConstraint("tenant_id", "day", "kind", "name", name="uq_app_usage_day_key"),
+    )
+
+    day: Mapped[date]
+    kind: Mapped[str] = enum_column()
+    name: Mapped[str]
+    count: Mapped[int] = mapped_column(BigInteger)

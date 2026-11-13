@@ -89,3 +89,16 @@ validates it.
   signed; send it to the client.
 - Portal routes return `PortalClientDocumentOut` and `PortalDocumentAcceptanceOut` (no witness, signer client,
   source, binding, deletion or stored-file ids).
+
+## Recorded terms acknowledgment (Phase 11 chip A: SSP-14)
+
+- The bound `portal_terms` text has a version id: the first 32 hex of sha256(binding id, title, body). It changes
+  whenever the text does, so no counter is kept. `GET /public/portal-terms` returns it.
+- `record_terms_acceptance` is the one internal function every portal sale calls before
+  `secure_online_checkout` (memberships, packages, programs portal and guest, rentals). With no binding it records
+  nothing; a missing or stale version is 409 `terms-changed` carrying the current `terms_version_id`; otherwise one
+  `terms_acceptance` row (client, binding, version, sale kind, subject, identity, time, IP) and one audit entry.
+  An erasure keeps the rows (the legal record) and clears their IP. The binding is the only portal terms source:
+  engagement's old `portal_settings.terms_text` is no longer served.
+- It is registered into `clients.terms` at import, because packages and rentals may not import documents
+  (import-linter); callers use `clients.terms.acknowledge`.

@@ -54,6 +54,7 @@ Tests:
 | CLS-06 Waitlist | P0 | partial | session panel waitlist | `SessionPanel.test.tsx` | Add (auto-promote), promote, remove. A full session points staff to the waitlist. The offer and accept flow has no screen (API partial). |
 | CLS-07 Public class listing | P2 | not built | | | |
 | CLS-08 Virtual sessions | P1 | not built | | | The `virtual_room` kind can be created and booked. |
+| SSP-12 Portal calendar view | P0 | done | portal Sessions screen: week and month views over `listPortalSessionListings`, times in the location's zone; list view kept | `web/src/features/portal/booking.test.tsx`; `web/e2e/portal-booking.spec.ts` | Keyboard navigable. Phase 11 B. |
 | CLS-09 Client self-booking | P0 | not built | | | Portal/mobile. |
 | CLS-10 Program registration | P0 | not built | | | Module 6. |
 

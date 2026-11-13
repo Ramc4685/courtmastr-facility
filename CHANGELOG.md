@@ -27,8 +27,22 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Online sessions: moving a session moves its Zoom meeting, and cancelling it deletes the meeting.
 - Secrets shown once (padlock combinations, API keys, webhook signing secrets, kiosk pairing codes, payment onboarding links) are no longer kept with retried requests; repeating such a request returns an error instead of the secret.
 - A payer locked out of the portal for a past-due balance can no longer buy a rental plan or pay for an event form registration there.
+- Portal redirect addresses with a backslash, a port, sign-in details or an unusual host name are refused.
+- Member app: the facility search no longer works while its request limiter is unavailable, and neither the search nor the app start-up answer reveals internal account ids; the app start-up answer is given only once the member app is switched on.
+- Member app feedback is limited to 10 messages an hour per member and only goes to the member's home location or one whose portal is public.
+- Unconfirmed portal sign-ups are deleted a week after their link expires, trial requests 180 days after they arrive (or 90 days after they are closed), and erasing a client clears the IP address on their recorded terms acceptances.
+- Guest program checkout keeps a guest's details on the basket until payment and creates their client records only once the card is charged; abandoned or expired baskets leave nothing behind. Guests are limited to 5 baskets per 15 minutes per network and per email address, with at most 4 participants each, and welcome automations no longer email a guest's unverified address.
 
 ### Added
+- Member app: staff design the home screen (tiles, order, captions and styling) with a live preview, and the app takes its colours from the account.
+- Member app: members find a facility by name, switch between locations, and see each session in that location's time zone.
+- Member app: members buy packages and memberships and pay invoices with a new card.
+- Member app: staff choose whether sessions show spots left and full sessions, and how many days ahead.
+- Member app: staff can publish news, info pages, announcements, promotions and gallery images, with an optional picture and a publish window, for one location or all of them.
+- Member app: staff can list department phone lines and service contacts per location, shown in the app and on the public page while the portal is open.
+- Member app: visitors can ask for a trial pass and members can send feedback; both land in a new staff inbox.
+- Member app: members can mark favourite activities and programs and see a personal schedule of their upcoming sessions.
+- Member app: the app reports anonymous daily screen and action counts that admins and managers can read for up to 90 days.
 - Sessions have a direct registration link staff can copy and turn off; anyone with the link can book the session from the member portal, even when it is not listed online. The link is shown once; links already sent keep working until staff make a new one or turn it off.
 - Bookings can be shared with the organiser's related clients, each with their own attendance; two reservations can be linked into one repeating series.
 - Post-billed packages: set per-session rate tiers, open a package with nothing charged up front, and close a period to bill each client for the sessions they used; a session credited back after billing is taken off at the next close, and packages a close could not bill are listed with a retry.
@@ -43,6 +57,17 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Leagues: publish a program as a league or tournament; captains manage their roster in the portal ("My teams"); split a team fee across players.
 - Lockers: set up locker rooms (create lockers in bulk), priced locker terms and padlocks, then rent, renew and clear lockers from the Lockers board. Padlock combinations are stored encrypted and shown only to staff allowed to reveal them; every reveal is logged.
 - Rental plans can renew automatically and charge the saved card, be sold to members only, and be shared with related clients; members can buy a rental plan and stop its renewal in the portal.
+- Public facility page at /f/your-address with locations, programs, social links and sign-in.
+- People can create their own portal account online after confirming their email (a portal setting, off by default).
+- Guest checkout: pay for a program by card without an account (a program setting, off by default).
+- Portal menu: hide or rename portal tabs per location; add social links and an after-registration page.
+- Portal colours from the account settings, used only where they stay readable.
+- Online purchases record the terms and conditions the buyer agreed to, and ask again when the text changed.
+- Online rentals: per-location settings switch them on or off and set a lead time, a longest booking and how far ahead clients can book.
+- The portal pays for rentals, memberships and packages with a card already on file, as well as a new one.
+- Portal sessions show a week and month calendar in the location's time zone, next to the list, and can buy a package and book in one go.
+- Program registration can take a deposit and charge the rest on a date or in instalments, collected by autopay.
+- Clients can see their progress on a portal page and share it through a link they can revoke.
 - Reports: export to Excel or PDF as well as CSV, print the results, filter by category, type, trainer or staff, chart revenue against the goal, and email saved reports on a schedule; the home page shows at-a-glance tiles.
 - Reports: receivables by instalment due date, unapplied payments, income and balances, underpaid items, accrued and unused session value, package pipeline and sales, and membership revenue, deferred revenue, actions, attrition, expiry and referrals.
 - Reports: low-usage check-ins, check-in summary, client activity items, contacts and demographics with export, referral sources, trial conversions, retention, non-training clients, group rosters and waitlists, campaign history, POS returns, inventory and re-order, equipment, rental plan sales, and POS sales by coupon with buying price and margin.
@@ -79,14 +104,24 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Registration defaults per location that new programs start with.
 
 ### Changed
+- Portal terms are now edited in one place, "Portal terms" on the portal page, and apply to every location; the old per-location terms text is no longer shown anywhere.
+- Online rentals are switched on in Rental setup only; the "Allow online rentals" box is gone from portal settings, and the rental online-booking tab shows whether the member portal is on.
+- A declined online rental payment now returns the shared `payment-failed` error code.
 - Breaking for API clients: `PATCH /tenant` no longer accepts `currency`, and a request that still sends it gets a 422. The currency is set when the account is created and shows read-only in tenant settings.
 - Sign-in is harder to abuse: per-address and per-account rate limits, escalating lockouts, a common-password check, and a sign-in token that expires with the page.
 - Staff can only sign in from the networks the owner lists, when a list is set; this now applies to owners and admins too.
 - Staff are signed out after 30 minutes without activity (the owner can set 15 to 60) and after 12 hours in any case.
 - Sending a campaign to every client needs its own permission.
+- Cancelling guests' held places while deleting or archiving a program needs the online registration permission as well.
 
 ### Fixed
+- The public sign-up page keeps its heading and page title when online sign-up is off.
+- Links inside sentences on the Portal and videos and Rental setup screens are underlined, not told apart by colour alone.
+- Member app: invoice amounts show in the invoice's own currency even in demo mode or with the member app switched off, and Pay stays off until an amount is shown. The web portal no longer starts a card setup just to learn which processor is connected.
+- Program payment plans: a balance date that has already passed is charged at checkout, and a confirmed checkout still shows what is due later.
+- Guest checkout shows the full price a guest pays instead of the members' deposit plan.
 - Portal: Join online now shows on every booking with an online meeting until the session ends, including sessions that have started or are not listed.
+- Portal: a member registered in a program or one of its groups can join that program's online sessions.
 - Member calendar feeds mark each session with its last-changed time, so calendar apps pick up edits.
 - Portal: Stop my calendar feed shows only when you have a feed.
 - Reports: receivables and open invoices no longer fail as "too large" on a tenant with many settled invoices; expiring memberships at one location are no longer hidden by a renewal at another; package session value no longer loses a cent to rounding (100.00 over three sessions reports 100.00).

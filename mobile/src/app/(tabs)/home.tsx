@@ -1,22 +1,14 @@
-import { router, type Href } from 'expo-router';
+import { router } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 
 import { portal } from '../../adapters';
 import { useApp } from '../../lib/app-state';
 import { clientName, useHousehold } from '../../lib/household';
-import { useBookings, useInbox, useZone } from '../../lib/hooks';
+import { useAppConfig, useBookings, useInbox, useZone } from '../../lib/hooks';
+import { resolveTiles } from '../../lib/tiles';
 import { formatDateTime } from '../../ui/format';
 import { Body, DemoBanner, Heading, Loading, Screen, Small, Surface, Title } from '../../ui/kit';
 import { ProfileSwitcher } from '../../ui/ProfileSwitcher';
-
-const TILES: { label: string; href: Href }[] = [
-  { label: 'Book a class', href: '/schedule' },
-  { label: 'My card', href: '/card' },
-  { label: 'Memberships', href: '/memberships' },
-  { label: 'Invoices', href: '/invoices' },
-  { label: 'Notifications', href: '/inbox' },
-  { label: 'Facility info', href: '/facility' },
-];
 
 export default function Home() {
   const { tenant, principal, theme: t } = useApp();
@@ -24,6 +16,8 @@ export default function Home() {
   const bookings = useBookings();
   const inbox = useInbox();
   const zone = useZone();
+  const { tiles, design } = resolveTiles(useAppConfig().data);
+  const radius = design.corners === 'square' ? t.radius.sm : t.radius.lg;
   const next = bookings.data?.[0];
   const unread = inbox.data?.filter((i) => !i.read_at).length ?? 0;
 
@@ -47,16 +41,16 @@ export default function Home() {
         {unread > 0 && <Small muted={false}>{unread} unread notification{unread > 1 ? 's' : ''}</Small>}
       </Surface>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: t.space(3) }}>
-        {TILES.map((tile) => (
+        {tiles.map((tile) => (
           <Pressable
-            key={tile.label}
+            key={tile.key}
             accessibilityRole="button"
-            accessibilityLabel={tile.label}
+            accessibilityLabel={tile.caption}
             onPress={() => router.push(tile.href)}
             style={({ pressed }) => ({
-              width: '47%',
-              minHeight: 72,
-              borderRadius: t.radius.lg,
+              width: design.columns === 1 || tile.large ? '100%' : '47%',
+              minHeight: tile.large ? 96 : 72,
+              borderRadius: radius,
               backgroundColor: t.colors.surface,
               borderWidth: 1,
               borderColor: t.colors.border,
@@ -66,7 +60,7 @@ export default function Home() {
             })}
           >
             <View style={{ width: 24, height: 4, borderRadius: 2, backgroundColor: t.colors.accent, marginBottom: t.space(2) }} />
-            <Text style={{ color: t.colors.text, fontWeight: '600', fontSize: t.font.body }}>{tile.label}</Text>
+            <Text style={{ color: t.colors.text, fontWeight: '600', fontSize: t.font.body }}>{tile.caption}</Text>
           </Pressable>
         ))}
       </View>

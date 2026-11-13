@@ -6718,6 +6718,7 @@ components:
         due_on: {type: string, format: date}
         is_autopay: {type: boolean}
         status: {type: string, enum: [open, payment_pending, partially_paid, paid, voided]}
+        currency: {type: string, description: 'ISO 4217; the club currency the amounts are in'}
         total_minor: {type: integer, format: int64}
         balance_minor: {type: integer, format: int64}
         is_past_due: {type: boolean}

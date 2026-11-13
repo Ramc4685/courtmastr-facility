@@ -2,19 +2,23 @@
 2026-11-13 (question 6): no third-party analytics; any such connection is removed.
 
 Revision ID: 1951
-Revises: 1705
+Revises: 1562
 """
 
 from alembic import op
 
 revision = "1951"
-down_revision = "1705"
+down_revision = "1562"
 
 _KEPT = "'quickbooks_online', 'accounting_file', 'zoom'"
 
 
 def upgrade() -> None:
+    # The owner is subject to forced RLS like everyone else; lift it for this one delete (as 1705 does), or the
+    # delete sees no rows and the new CHECK fails on them.
+    op.execute("ALTER TABLE external_connection NO FORCE ROW LEVEL SECURITY")
     op.execute("DELETE FROM external_connection WHERE provider = 'google_analytics'")
+    op.execute("ALTER TABLE external_connection FORCE ROW LEVEL SECURITY")
     op.drop_constraint("provider", "external_connection", type_="check")
     op.create_check_constraint("provider", "external_connection", f"provider IN ({_KEPT})")
 

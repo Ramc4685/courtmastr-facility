@@ -74,7 +74,8 @@ def on_waitlist_promoted(session, payload: dict) -> None:
 
 @handles("clients.client.created")
 def on_client_created(session, payload: dict) -> None:
-    if payload.get("source") == "import":  # a CSV import is not a new client walking in: no welcome (Phase 8 I1)
+    # a CSV import is not a new client walking in (Phase 8 I1), and a guest checkout's address was never verified
+    if payload.get("source") in ("import", "guest"):
         return
     service.on_trigger(session, "clients.client.created", payload)
 

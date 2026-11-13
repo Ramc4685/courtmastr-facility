@@ -1,20 +1,31 @@
 """engagement HTTP surface (slice): communication preferences, staff and portal (openapi-programs.yaml)."""
 
-from typing import Annotated
+from datetime import date
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
+from pydantic import AwareDatetime
 from sqlalchemy.orm import Session
 
 from app.core.api import TxRoute, camel_id
 from app.core.auth import system_principal, tokens
-from app.core.auth.deps import Ctx, current_ctx, public_session, request_session, require
-from app.core.errors import NotFound
+from app.core.auth.deps import (
+    Ctx,
+    current_ctx,
+    pre_session_csrf,
+    public_session,
+    request_session,
+    require,
+    session_cookie,
+)
+from app.core.errors import NotFound, Unauthenticated
 from app.core.idempotency import idempotency
 from app.core.pagination import ListQuery, list_query
-from app.core.ratelimit import rate_limit
+from app.core.ratelimit import hit, rate_limit
+from app.modules import platform
+from app.modules.engagement import content, member, service, signup
 from app.modules.engagement import schemas as s
-from app.modules.engagement import service
 
 router = APIRouter(
     route_class=TxRoute, tags=["engagement"], generate_unique_id_function=camel_id, dependencies=[Depends(idempotency)]
@@ -31,6 +42,10 @@ Automations = Annotated[Ctx, Depends(require("engagement.automation.manage"))]
 PortalAdmin = Annotated[Ctx, Depends(require("engagement.portal_settings.manage"))]
 Content = Annotated[Ctx, Depends(require("engagement.app_content.manage"))]
 SuppressionAdmin = Annotated[Ctx, Depends(require("engagement.suppression.manage"))]
+Contacts = Annotated[Ctx, Depends(require("engagement.location_contact.manage"))]
+InboxRead = Annotated[Ctx, Depends(require("engagement.app_inquiry.read"))]
+InboxManage = Annotated[Ctx, Depends(require("engagement.app_inquiry.manage"))]
+UsageRead = Annotated[Ctx, Depends(require("engagement.app_usage.read"))]
 _link_limit = [Depends(rate_limit("consume"))]
 
 
@@ -361,7 +376,8 @@ def get_portal_settings(location_id: UUID, ctx: PortalAdmin):
 
 @router.put("/locations/{location_id}/portal-settings", response_model=s.PortalSettingsOut)
 def put_portal_settings(location_id: UUID, body: s.PortalSettingsUpdate, ctx: PortalAdmin):
-    """Changing the terms text raises terms_version. Errors: portal-slug-taken."""
+    """Portal terms are the documents portal_terms binding, not a field here. Errors: portal-slug-taken,
+    redirect-not-allowed."""
     return service.put_portal_settings(ctx.session, ctx.principal, location_id, body.model_dump(exclude_unset=True))
 
 
@@ -436,6 +452,21 @@ def list_portal_videos(query: Lists, ctx: Portal):
     return service.list_portal_videos(ctx.session, ctx.principal, query)
 
 
+# --- member app configuration (APP-01, APP-02, APP-04, APP-05, APP-18) ----------------------------------------
+
+
+@router.get("/app-config", response_model=s.AppConfigOut)
+def get_app_config(ctx: Content):
+    """The tenant's member-app configuration (defaults until saved) and the tile catalogue."""
+    return service.get_app_config(ctx.session, ctx.principal)
+
+
+@router.put("/app-config", response_model=s.AppConfigOut)
+def put_app_config(body: s.AppConfigReplace, ctx: Content):
+    """Replace it; needs the key at every location. Errors: invalid-app-config (with the pointer)."""
+    return service.put_app_config(ctx.session, ctx.principal, body.model_dump())
+
+
 @router.get("/portal/videos/{video_id}", response_model=s.PortalVideo)
 def get_portal_video(video_id: UUID, ctx: Portal):
     """One published video; 404 when it is unpublished or not this tenant's."""
@@ -479,3 +510,230 @@ def put_public_communication_preferences(body: s.PublicPreferencesReplace, reque
 def get_public_portal_config(session: Annotated[Session, Depends(public_session)]):
     """Enabled, public locations and their landing text. Tenant from the host or X-Tenant-Slug."""
     return service.public_portal_config(session)
+
+
+# --- public self-registration (SSP-05) ------------------------------------------------------------------------
+
+
+@public.post(
+    "/public/portal-signups", status_code=202,
+    dependencies=[Depends(rate_limit("magic-link")), Depends(pre_session_csrf)],
+)  # fmt: skip
+def create_portal_signup(
+    body: s.PortalSignupIn, response: Response, session: Annotated[Session, Depends(public_session)]
+):
+    """Email a verification link to finish signing up. 202 whether or not the address is known. Errors:
+    signup-disabled (the location does not take online sign-ups), field-required, rate-limited."""
+    hit("link-address", f"client:{body.email}", response, tenant=session.info["tenant_id"])
+    session.info["actor"] = system_principal("portal sign-up")
+    signup.request_signup(session, body.model_dump())
+
+
+@public.post(
+    "/public/portal-signups/confirm", response_model=s.PortalSignupSession, response_model_exclude_none=True,
+    responses={202: {"model": s.PortalSignupSession}},
+    dependencies=[Depends(rate_limit("consume")), Depends(pre_session_csrf)],
+)  # fmt: skip
+def confirm_portal_signup(body: s.PortalSignupConfirmIn, request: Request, response: Response):
+    """Create the client and the portal login and sign in. Errors: token-invalid, token-expired."""
+    tenant_id = tokens.tenant_of(body.token, signup.TOKEN_PREFIX)
+    if tenant_id is None:
+        raise Unauthenticated("This link is not valid or was already used.", code="token-invalid")
+    session = request_session(request, tenant_id)
+    session.info["actor"] = system_principal("portal sign-up")
+    result = signup.confirm_signup(session, token=body.token, client_kind=body.client_kind)
+    if isinstance(result, platform.auth.Challenge):
+        response.status_code = 202
+        return {"status": "mfa_required", "mfa_token": result.token, "expires_at": result.expires_at}
+    if result.auth_session.kind == "mobile":
+        return {"status": "signed_in", "access_token": result.access_token, "refresh_token": result.refresh_token}
+    response.set_cookie(session_cookie(), f"{result.access_token}.{result.csrf_token}", **platform.auth.cookie_flags())
+    return {"status": "signed_in", "csrf_token": result.csrf_token}
+
+
+@public.get("/public/app-config", response_model=s.PublicAppConfig, dependencies=[Depends(rate_limit("app-config"))])
+def get_public_app_config(session: Annotated[Session, Depends(public_session)]):
+    """App bootstrap after picking a facility: theme, features, home layout, schedule flags, portal config.
+    404 unless the tenant's member app is on (listing in the directory is not needed: the slug is enough)."""
+    return service.public_app_config(session)
+
+
+@public.get(
+    "/public/app-directory", response_model=s.AppDirectoryPage, dependencies=[Depends(rate_limit("app-directory"))]
+)
+def search_app_directory(
+    q: Annotated[str, Query(min_length=2, max_length=60)], limit: Annotated[int, Query(ge=1, le=20)] = 10
+):
+    """Shared app: facilities whose app is on and listed and whose portal is on and public, by name prefix.
+    The only cross-tenant read; returns the listing fields and nothing else."""
+    return {"data": service.search_app_directory(q, limit)}
+
+
+# --- Phase 11 C2: member app content (APP-07, APP-14), location contacts (APP-08, APP-09), inbox (APP-10, APP-12)
+
+
+@router.get("/app-contents", response_model=s.Page[s.AppContentOut])
+def list_app_contents(query: Lists, ctx: Content):
+    """Filters: kind, location_id. Sort: publish_at (default newest first), sort_order."""
+    return content.list_contents(ctx.session, ctx.principal, query)
+
+
+@router.post("/app-contents", response_model=s.AppContentOut, status_code=201)
+def create_app_content(body: s.AppContentCreate, ctx: Content):
+    """No location: shown everywhere, and needs the key at every location. Errors: html-not-allowed,
+    invalid-window."""
+    return content.create_content(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.patch("/app-contents/{app_content_id}", response_model=s.AppContentOut)
+def update_app_content(app_content_id: UUID, body: s.AppContentUpdate, ctx: Content):
+    """Errors: version-conflict, html-not-allowed, invalid-window."""
+    return content.update_content(ctx.session, ctx.principal, app_content_id, body.model_dump(exclude_unset=True))
+
+
+@router.put("/app-contents/{app_content_id}/image", response_model=s.AppContentOut)
+async def set_app_content_image(app_content_id: UUID, request: Request, ctx: Content):
+    """JPEG or PNG bytes up to 900 KB, re-encoded and scanned. Errors: file-type-mismatch, file-too-large."""
+    data = await request.body()
+    content_type = request.headers.get("content-type", "application/octet-stream").split(";")[0].strip()
+    return content.set_image(ctx.session, ctx.principal, app_content_id, data, content_type)
+
+
+@router.delete("/app-contents/{app_content_id}/image", status_code=204)
+def remove_app_content_image(app_content_id: UUID, ctx: Content):
+    content.remove_image(ctx.session, ctx.principal, app_content_id)
+
+
+@router.delete("/app-contents/{app_content_id}", status_code=204)
+def delete_app_content(app_content_id: UUID, ctx: Content):
+    content.delete_content(ctx.session, ctx.principal, app_content_id)
+
+
+@router.get("/portal/app-contents", response_model=s.Page[s.PortalAppContent])
+def list_portal_app_contents(query: Lists, ctx: Portal, location_id: UUID | None = None):
+    """Published, unexpired items: tenant-wide ones plus the given location's. Filter: kind."""
+    return content.list_portal_contents(ctx.session, ctx.principal, query, location_id)
+
+
+@router.get("/portal/app-contents/{app_content_id}/image", response_class=Response)
+def get_portal_app_content_image(app_content_id: UUID, ctx: Portal):
+    row, data = content.portal_image(ctx.session, ctx.principal, app_content_id)
+    return Response(data, media_type=row.content_type,
+                    headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, max-age=300"})  # fmt: skip
+
+
+@router.get("/location-contacts", response_model=s.Page[s.LocationContactOut])
+def list_location_contacts(query: Lists, ctx: Contacts):
+    """Filters: location_id, kind."""
+    return content.list_contacts(ctx.session, ctx.principal, query)
+
+
+@router.post("/location-contacts", response_model=s.LocationContactOut, status_code=201)
+def create_location_contact(body: s.LocationContactCreate, ctx: Contacts):
+    """Published to the app and the public page. Errors: contact-unreachable (neither phone nor email)."""
+    return content.create_contact(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.get("/location-contacts/{location_contact_id}", response_model=s.LocationContactOut)
+def get_location_contact(location_contact_id: UUID, ctx: Contacts):
+    return content.get_contact(ctx.session, ctx.principal, location_contact_id)
+
+
+@router.patch("/location-contacts/{location_contact_id}", response_model=s.LocationContactOut)
+def update_location_contact(location_contact_id: UUID, body: s.LocationContactUpdate, ctx: Contacts):
+    """Errors: contact-unreachable."""
+    data = body.model_dump(exclude_unset=True)
+    return content.update_contact(ctx.session, ctx.principal, location_contact_id, data)
+
+
+@router.delete("/location-contacts/{location_contact_id}", status_code=204)
+def delete_location_contact(location_contact_id: UUID, ctx: Contacts):
+    content.delete_contact(ctx.session, ctx.principal, location_contact_id)
+
+
+@router.get("/app-inquiries", response_model=s.Page[s.AppInquiryOut])
+def list_app_inquiries(query: Lists, ctx: InboxRead):
+    """Trial requests and app feedback. Filters: kind, status, location_id. Newest first."""
+    return content.list_inquiries(ctx.session, ctx.principal, query)
+
+
+@router.patch("/app-inquiries/{app_inquiry_id}", response_model=s.AppInquiryOut)
+def update_app_inquiry(app_inquiry_id: UUID, body: s.AppInquiryUpdate, ctx: InboxManage):
+    """Move it through new, in_progress, closed or converted; records who handled it and when."""
+    return content.update_inquiry(ctx.session, ctx.principal, app_inquiry_id, body.model_dump())
+
+
+@router.post("/portal/feedback", response_model=s.PortalFeedbackOut, status_code=201)
+def send_portal_feedback(body: s.PortalFeedbackIn, ctx: Portal):
+    """For the signed-in client or one it may act for (else 404). Location: the client's home (the default) or one
+    whose portal is on and public. Errors: validation-failed, rate-limited (per signed-in identity)."""
+    hit("portal-feedback", f"identity:{ctx.principal.identity_id}", tenant=ctx.session.info["tenant_id"])
+    return content.send_feedback(ctx.session, ctx.principal, body.model_dump())
+
+
+@public.get(
+    "/public/location-contacts", response_model=s.PublicLocationContacts,
+    dependencies=[Depends(rate_limit("app-config"))],
+)  # fmt: skip
+def list_public_location_contacts(location_id: UUID, session: Annotated[Session, Depends(public_session)]):
+    """The location's published contacts while its portal is on and public; otherwise an empty list."""
+    return {"data": content.public_contacts(session, location_id)}
+
+
+@public.post(
+    "/public/trial-requests", status_code=202, response_class=Response,
+    dependencies=[Depends(rate_limit("trial-request")), Depends(pre_session_csrf)],
+)  # fmt: skip
+def create_public_trial_request(
+    body: s.PublicTrialRequestIn, response: Response, session: Annotated[Session, Depends(public_session)]
+):
+    """ "Try us": 202 with no body, the same answer whether or not it was stored. Stored only for a location whose
+    portal is on and public; no client is created. Errors: rate-limited."""
+    hit("trial-request", f"email:{body.email}", response, tenant=session.info["tenant_id"])
+    session.info["actor"] = system_principal("trial request")
+    content.request_trial(session, body.model_dump())
+    return Response(status_code=202, headers=dict(response.headers))
+
+
+# --- Phase 11 C2 part 2: favourites and a personal schedule (APP-13), anonymous app usage counts (APP-17) --------
+
+
+@router.get("/portal/favorites", response_model=s.PortalFavorites)
+def list_portal_favorites(client_id: UUID, ctx: Portal):
+    """For the signed-in client or one it may act for (else 404)."""
+    return {"data": member.list_favorites(ctx.session, ctx.principal, client_id)}
+
+
+@router.post("/portal/favorites", response_model=s.PortalFavorite, status_code=201)
+def create_portal_favorite(body: s.PortalFavoriteIn, ctx: Portal):
+    """Idempotent: a repeat returns the existing favourite. Errors: unknown-target."""
+    return member.add_favorite(ctx.session, ctx.principal, body.model_dump())
+
+
+@router.delete("/portal/favorites/{client_favorite_id}", status_code=204)
+def delete_portal_favorite(client_favorite_id: UUID, ctx: Portal):
+    member.remove_favorite(ctx.session, ctx.principal, client_favorite_id)
+
+
+@router.get("/portal/favorites/schedule", response_model=s.PortalFavoriteSchedule)
+def get_portal_favorite_schedule(
+    client_id: UUID, ctx: Portal, from_: AwareDatetime = Query(alias="from"), to: AwareDatetime = Query()
+):
+    """Upcoming sessions of the favourite program groups and reservation types, at most 31 days. Errors:
+    invalid-range."""
+    return {"data": member.favorite_schedule(ctx.session, ctx.principal, client_id, from_, to)}
+
+
+@router.post("/portal/app-usage", status_code=204, dependencies=[Depends(rate_limit("app-usage"))])
+def record_portal_app_usage(body: s.PortalAppUsageIn, ctx: Portal):
+    """Up to 50 counts added to today's (UTC) totals; nothing about the sender is stored."""
+    member.record_usage(ctx.session, ctx.principal, body.model_dump()["items"])
+
+
+@router.get("/app-usage", response_model=s.AppUsageDays)
+def list_app_usage(
+    ctx: UsageRead, from_: date = Query(alias="from"), to: date = Query(),
+    kind: Literal["screen", "action"] | None = None,
+):  # fmt: skip
+    """Daily screen and action counts, `from` to `to` inclusive (UTC days), at most 90 days. Errors: invalid-range."""
+    return {"data": member.list_usage(ctx.session, ctx.principal, from_, to, kind)}

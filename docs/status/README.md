@@ -18,10 +18,10 @@ isolation and audit, and has a staff screen. **Partial** names what is missing. 
 | **All** | 204 | 109 | 56 | 39 |
 Module 1 (platform core) is done, with OIDC, MFA and step-up since Phase 8; its Wave 7 rows and the Phase 8
 cross-cutting items are in "Module 1 and Wave 7" below (`backend/app/modules/platform/README.md`).
-Module 14 (engagement) is built to P0 (5 done, 9 partial: `14-engagement.md`). Modules 16 and 17 are partial (`16-integrations.md`, `17-mobile.md`).
+Module 14 (engagement) is built to P0 (8 done, 7 partial, plus SSP-07, 13, 15 done: `14-engagement.md`). Modules 16 and 17 are partial (`16-integrations.md`, `17-mobile.md`).
 Modules 12 (staff time and pay), 13 (assessments) and 15 (reporting) are built to P0 (`12-staff.md`, `13-assessments.md`,
 `15-reporting.md`). Modules 10 and 11 (check-in,
-leagues) and the rest of module 6 are reported by their own lanes or not started. The three P0 features not built are CLS-02, CLS-09, CLS-10
+leagues) and the rest of module 6 are reported by their own lanes or not started. The three P0 features CLS-02, CLS-09, CLS-10 are now built
 (module 6 and the portal); CLI-12 (client photo) is partial since phase 10.
 
 ## Checks on `main`
@@ -115,7 +115,7 @@ Lane detail: `03-rentals.md`.
 | RNT-03 Staff-booked rental, single or recurring, one or many resources | P0 | done |  |
 | RNT-04 Extend a rental and bill selected occurrences | P1 | done |  |
 | RNT-05 Online rental policy per rental type | P0 | done |  |
-| RNT-06 Client online rental search and booking | P0 | partial | Backend complete, including hold expiry and the paid-invoice handler. Portal Bookings screen: search by type, date and length, hold, pay by new card (fake processor, or Stripe Elements in Stripe test mode), abandon, cancel. Confirm takes a new card token only, not a stored method. |
+| RNT-06 Client online rental search and booking | P0 | done | Portal Bookings screen: search by type, date and length, hold, pay the deposit with a saved card or a new one (fake processor, or Stripe Elements in Stripe test mode), abandon, cancel; confirm goes through `secure_online_checkout`. Per-location online defaults (SSP-04): on or off, lead time, longest booking, horizon (phase 11 B). |
 | RNT-07 Buffer times on rentals | P1 | done |  |
 | RNT-08 Remove a rental or recurring rental | P0 | done |  |
 | RNT-09 Rental plans | P1 | done | Append-only ledger, full-coverage debit under lock, credit back on cancel; auto-renew and autopay through billing (hourly day-roll), members-only sales and member price (reads `memberships.is_member`), portal purchase through `secure_online_checkout`. |
@@ -160,7 +160,7 @@ Lane detail: `04-clients-households.md`.
 | CLI-18 Emergency contacts | P0 | done |  |
 | CLI-19 Cross-location shared client record | P0 | done |  |
 | CLI-20 Staff-facing client alerts and notes | P1 | done | Derived alerts on the profile from `GET /clients/{id}/system-alerts` (memberships context, the layer that may read billing and documents): balance due, membership expiring within 14 days or expired, missing required waiver. Each alert needs the owning context's read key. |
-| CLI-21 Client API surface | P1 | partial | **Not built**: public API keys and scopes (integrations module). `createClientExport` (CSV) is also not built. |
+| CLI-21 Client API surface | P1 | done | API keys and scopes built in phase 15 (integrations module). `createClientExport` (CSV) is also not built. |
 | FAM-01 Typed client-to-client relationships | P0 | done |  |
 | FAM-02 Self-service relationship management | P0 | done |  |
 | FAM-03 Act on behalf of a related person | P0 | done |  |
@@ -188,7 +188,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | MEM-06 Simple (record-only) membership | P2 | done |  |
 | MEM-07 Staff sale of a membership contract | P0 | done |  |
 | MEM-08 Contract document acceptance at sale | P1 | done |  |
-| MEM-09 Online membership sales | P1 | partial | Portal Memberships screen quotes and buys with a new card (fake processor, or Stripe Elements in Stripe test mode). No stored-method option: the buy endpoint takes a token only. |
+| MEM-09 Online membership sales | P1 | done | Portal Memberships screen quotes and buys with a saved card or a new one (fake processor, or Stripe Elements in Stripe test mode) (phase 11 B). |
 | MEM-10 Contract list, status views and edit | P0 | done |  |
 | MEM-11 Contract renewal | P0 | done |  |
 | MEM-12 Freeze a contract | P0 | done |  |
@@ -201,7 +201,7 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | MEM-19 Membership number and member card | P0 | partial | Printable member card with a Code 128 barcode in the browser (phase 10 chip C); no QR on the printed card, the card shows the client photo when the template has a photo slot, no RFID. |
 | MEM-20 Visit limits and visit counting | P0 | done | An admitted check-in records one visit (idempotent on the check-in id); used-up memberships deny at the door with an override. Details dialog lists recent visits and adjusts the count with a reason. |
 | MEM-21 Revenue and lifecycle reports | P1 | not built |  |
-| MEM-22 Membership data in the public API | P1 | partial | No API keys or scopes. |
+| MEM-22 Membership data in the public API | P1 | done | API keys and scopes built in phase 15. |
 | MEM-23 Onboarding checklist | P2 | partial | Phase 8: the account setup checklist (ONB-01) has one membership step ("Create your first membership or program"); no membership-specific checklist. The Phase 8 plan filed MEM-23 under the CSV import (I1), which imports memberships; see "Module 1 and Wave 7". |
 | PKG-01 Package plan definition | P0 | done |  |
 | PKG-02 Free and complimentary plans | P1 | done |  |
@@ -211,14 +211,14 @@ Lane detail: `05-memberships-packages.md`, `05-memberships-packages-web.md`.
 | PKG-06 Package sharing | P1 | done |  |
 | PKG-07 Staff sale of a package | P0 | partial | No ad-hoc package, per-sale pricing, coupons or account-credit pre-apply. |
 | PKG-08 Sale through point of sale | P1 | done | Integration: sold as a POS cart line (POS-19), `sales_channel = pos`. Priced one-off plans only; no discounts on the line; removed from the client profile, not returned at the till. |
-| PKG-09 Online package sales | P1 | partial | Portal Packages screen buys with a new card (fake processor, or Stripe Elements in Stripe test mode); history and auto-renew opt-out. |
+| PKG-09 Online package sales | P1 | done | Portal Packages screen buys with a saved card or a new one (fake processor, or Stripe Elements in Stripe test mode); history and auto-renew opt-out; the Sessions screen buys a covering package and books in one flow (SSP-08, phase 11 B). |
 | PKG-10 Member-only plans | P1 | done |  |
 | PKG-11 Post-billed packages | P2 | done | Phase 14 C2; tiered rates. |
 | PKG-12 Session registration, roster and attendance | P0 | done | Staff register a client into a session and pick the package that pays; the credit follows attendance marks and cancellation. Phase 10 chip E: "Book across sessions" pays with a package, a speed-register mode registers on pick with the first usable package, and "Sell a package" sells inline then preselects it. |
 | PKG-13 Remove a package and reverse or refund | P1 | done | Reversing the charge after sessions were used is a manager override (`packages.package.remove_override`, reason required, audited; question 16). |
 | PKG-14 Client ledger and balance views | P0 | done |  |
 | PKG-15 Sales and usage reports | P1 | not built |  |
-| PKG-16 Package data in the public and self-service APIs | P1 | partial | No API keys or cart. |
+| PKG-16 Package data in the public and self-service APIs | P1 | done | API keys and scopes built in phase 15. |
 
 ## Module 6: Programs and registration (session slice only)
 
@@ -233,15 +233,15 @@ Lane detail: `02-resources-scheduling.md`, `02-resources-scheduling-web.md`.
 | Feature | Priority | Status | What is missing, or where it changed at integration |
 |---|---|---|---|
 | CLS-01 Register into a session | P0 | partial | Staff register free or against a package (integration). No fees, no portal. |
-| CLS-02 Multi-enrolment | P0 | not built | No API. |
+| CLS-02 Multi-enrolment | P0 | done | See 06-programs.md. |
 | CLS-03 Roster and attendance | P0 | partial | Roster, attendance marks (only changed marks are sent), remove. Moving a client to another session and notes are not built. |
 | CLS-04 Capacity change | P0 | partial | Works for one session. Bulk change across sessions has no screen, though the API takes a list. |
 | CLS-05 Free booking | P0 | done | Integration: with the flag off a package of the session's type is required, or the free-book override permission. |
 | CLS-06 Waitlist | P0 | partial | Add (auto-promote), promote, remove. A full session points staff to the waitlist. The offer and accept flow has no screen (API partial). |
 | CLS-07 Public class listing | P2 | done | Phase 14 B2: `/public/league-site/classes` on the league site (`11-leagues.md`). |
 | CLS-08 Virtual sessions | P1 | not built | The `virtual_room` kind can be created and booked. |
-| CLS-09 Client self-booking | P0 | not built | Portal/mobile. |
-| CLS-10 Program registration | P0 | not built | Module 6. |
+| CLS-09 Client self-booking | P0 | done | See 06-programs.md. |
+| CLS-10 Program registration | P0 | done | See 06-programs.md. |
 
 Phase 14 chip A (event forms and group tools). Detail: `06-programs.md`; rules and assumptions: the programs README.
 
@@ -306,8 +306,8 @@ Lane detail: `08-billing-payments.md`, `08-billing-payments-web.md`.
 | BIL-07 Billing reversal | P0 | done |  |
 | BIL-08 Invoice void and item void | P0 | done |  |
 | BIL-09 Billing audit history | P0 | done |  |
-| BIL-10 Invoice delivery (email, print, PDF) | P0 | partial | Before this change the email linked to a page that did not exist. `/pay` reads the token from the fragment and clears it. No PDF. |
-| BIL-11 Billing statements | P1 | partial | No statement batches or PDF (backend gap). |
+| BIL-10 Invoice delivery (email, print, PDF) | P0 | done | Before this change the email linked to a page that did not exist. `/pay` reads the token from the fragment and clears it. PDF built in Phase 9. |
+| BIL-11 Billing statements | P1 | done | Statement batches and PDFs built in Phase 9. |
 | BIL-12 Taxes | P0 | done |  |
 | BIL-13 Revenue categories | P0 | done |  |
 | BIL-14 Pre-defined items | P0 | done | Catalogue, sell and cancel from client billing; hourly renewal job. No portal purchase. |
@@ -319,11 +319,11 @@ Lane detail: `08-billing-payments.md`, `08-billing-payments-web.md`.
 | BIL-20 Collections tagging and reports | P1 | done | Tags, client profile, report (Phase 9 chip D). |
 | BIL-21 Client account credit | P0 | partial | Backend gaps carry over. |
 | BIL-22 Billing reminders and past-due enforcement | P0 | done | Daily job scheduled; portal lockout enforced server-side; Notices screen. Email only. |
-| BIL-23 Invoice API endpoints | P1 | partial | The public API v1 belongs to `integrations`. |
+| BIL-23 Invoice API endpoints | P1 | done | Built in phase 15 (integrations module). |
 | BIL-24 Outsourced billing and collections | P2 | not built | Not planned. |
 | PAY-01 Take payment and allocate | P0 | done |  |
 | PAY-02 Payment method configuration | P0 | done |  |
-| PAY-03 Client payment ledger and receipts | P0 | partial | No PDF (backend gap). |
+| PAY-03 Client payment ledger and receipts | P0 | partial | Receipt PDFs built in Phase 9. Per-permission masking of card brand and last four not built. |
 | PAY-04 Void payment | P0 | done |  |
 | PAY-05 Refunds | P0 | partial | Only unapplied money can be refunded; the dialog defaults to that amount. Backend gaps carry over. |
 | PAY-06 Stored payment methods | P0 | partial | Methods are added through the provider-agnostic `PaymentMethodField`: scripted test methods for the fake processor. With Stripe, cards go through Stripe Elements (`StripeCardField`); bank accounts through Stripe are not built (Financial Connections). |
@@ -392,11 +392,19 @@ Wave 6, IMP-03 is Wave 4: not covered here.
 
 | Feature | Priority | Status | What is missing, or where it changed | Note |
 |---|---|---|---|---|
+| PLT-01 Tenant account and multi-location organization | P0 | done | Route `/locations`. | Module 1, pre-Phase 8. VERIFIED in code. |
+| PLT-02 Staff user accounts | P0 | done | Route `/staff-users`. | Module 1, pre-Phase 8. VERIFIED in code. |
+| PLT-03 Staff password administration | P0 | done | Route `/auth/password-resets`. | Module 1, pre-Phase 8. VERIFIED in code. |
+| PLT-04 Roles and permission catalogue | P0 | done | Route `/roles`. | Module 1, pre-Phase 8. VERIFIED in code. |
+| PLT-05 Role assignment and per-user permission overrides | P0 | done | Route `override` under staff users. | Module 1, pre-Phase 8. VERIFIED in code. |
+| PLT-17 Account activity report (staff audit trail) | P1 | done | Route `/audit-events`. | Module 1, pre-Phase 8. VERIFIED in code. |
+| REL-03 New-UI shell, responsive navigation and Classic-to-New transition | P2 | done | Web shell `AppFrame.tsx` sidebar. | Module 1, pre-Phase 8. VERIFIED in code. |
+| REL-05 Permission and data-exposure hardening shipped as fixes | P0 | done | Security suite `tests/test_security.py`. | Module 1, pre-Phase 8. VERIFIED in code. |
 | PLT-06 Email-campaign permission levels | P1 | done | New key `engagement.campaign.send_all` for any all-clients audience, checked when scheduled and again at send time; the other levels are the existing campaign keys. | t2-privacy |
 | PLT-07 IP restriction for staff access | P1 | done | Tenant-wide CIDR allow-list at staff sign-in and every staff request, `403 ip-not-allowed`; no role bypasses it (S4); break-glass `app.cli clear-ip-allowlist`. Not per user or per location; API keys ignore it. | s1-signin, s4-followups |
 | PLT-08 Location branding assets (logos) | P1 | partial | Account and per-location logos (public prefix, anonymous `GET /public/branding`), staff sidebar and portal header. Not built: logos in emails, invoices and receipts; resized renditions. | t2-privacy |
 | PLT-09 Feature-flag mechanism | P2 | done | `tenant_entitlement` rows with `source = flag`; a flag that is off wins over the plan. | t1-plans |
-| PLT-10 Per-user UI preferences | P2 | parked | Moved to Phase 11 with the portal theming (owner decision 7). | plan |
+| PLT-10 Per-user UI preferences | P2 | parked | No owner. Earlier notes said Phase 11, but phase-11.md never took it (owner decision 7). | plan |
 | PLT-13 Branded-app portal users | P1 | partial | `branded_app` add-on gates member sign-in on the mobile client and counts app users (`app_users` limit). Not built: a staff-side app permission (manage or notify-only). | t1-plans |
 | PLT-14 Plans, metered limits, add-ons | P1 | partial | Plans, limits (locations, clients, app users), add-ons `api_access` and `branded_app`, `Me.entitlements`, Plan and usage screen, operator routes. Plan names and numbers are placeholders; staff seats not metered (S4); no tenant subscription billing, operator screen or resources limit. | t1-plans |
 | PLT-15 Cloud delivery and availability | P0 | partial | Container images, Caddy proxy with the security headers, whole-stack Compose and smoke test, backup and restore drill, monitoring and 99.9% SLO doc, deploy workflow skeleton. Nothing deployed: the host is not chosen. | o1-ops |
@@ -411,7 +419,7 @@ Wave 6, IMP-03 is Wave 4: not covered here.
 | ONB-05 Customer-success services | P2 | parked | Not software (owner decision 7). | plan |
 | REL-01 Published release notes | P1 | done | `CHANGELOG.md`. | o1-ops |
 | REL-02 Performance and resilience | P1 | done | Load test, budget gate (`make perf-check`), profiler; four findings left open; figures are upper bounds from a shared machine. | o2-perf |
-| REL-04 Locale and time-zone corrections | P1 | parked | Handed to Phase 9 chip B, which owns billing (statements and the AR cut still use UTC days). | plan |
+| REL-04 Locale and time-zone corrections | P1 | done | Built in Phase 9 chip B; billing/documents.py uses location_today. | plan |
 
 Cross-cutting items:
 
@@ -545,7 +553,7 @@ Phase 8 (from the chip notes; owner in brackets):
   as one `ReportSpec` in `reporting/registry.py`. MEM-21, PKG-15, BIL-19 and the POS screens are still
   per-module endpoints; moving them into the registry is follow-up work.
 - **Integrations (16):** reuse `provider_account_lookup` and `inbound_webhook_event`
-  (`app/core/inbound_webhooks.py`); API keys and scopes are not built (CLI-21, MEM-22, PKG-16, BIL-23).
+  (`app/core/inbound_webhooks.py`); API keys and scopes are built in phase 15 (CLI-21, MEM-22, PKG-16, BIL-23).
 - **Mobile (17):** the staff API is complete in `backend/openapi.json`; tokens must not be kept in browser
   storage (web rule), and client-facing endpoints live under `/portal/` and `/public/`.
 

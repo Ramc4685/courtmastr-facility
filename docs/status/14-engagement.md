@@ -6,7 +6,7 @@ Tests: `backend/app/modules/engagement/tests/` (`test_messaging.py`, `test_rules
 4), the generated isolation, RLS, location-scope and security suites, `web/src/features/engagement/engagement.test.tsx`
 and `web/e2e/engagement.spec.ts` (axe).
 
-Counts: P0 14 owned here (11 MKT, 3 SSP): 5 done, 9 partial. P1: MKT-20 done; MKT-04, 06, 11, 12, 17, 18 not built.
+Counts: P0 21 owned here (11 MKT, 10 SSP): 14 done, 7 partial. P1: MKT-20 done; MKT-04, 06, 11, 12, 17, 18 not built.
 The other SSP rows belong to the selling modules and the portal screens (see `README.md` in this directory).
 
 | Feature | Priority | Status | Where | Notes |
@@ -23,8 +23,18 @@ The other SSP rows belong to the selling modules and the portal screens (see `RE
 | MKT-14 Staff alert routing | P0 | partial | `/notification-routes`; alerts on waitlist promotion and declined payments | No daily summary job. |
 | MKT-16 Push broadcast | P0 | partial | `channel=push` campaigns, 180-character check, `/portal/devices`, portal inbox with read state and recall; the inbox and badge show the acting-for member's items only (`?client_id=`), never a household merge | No push provider: device sends are logged `channel_unavailable`; the inbox carries the announcement. |
 | MKT-20 Triggered sequences | P1 | done | `/automation-rules` (trigger, delay, template, exit event) | Fixed trigger catalogue (`service.TRIGGERS`); delay 0 sends in the handler's transaction. |
-| SSP-01 Portal enablement and landing | P0 | partial | `/locations/{id}/portal-settings`, `GET /public/portal-config` | Tenant from host or `X-Tenant-Slug`. No slug routing in the web app. |
-| SSP-14 Portal design and legal text | P0 | partial | welcome text in portal settings; terms via documents `portal_terms` bindings | No theming; no recorded terms acknowledgment at checkout. |
+| SSP-01 Portal enablement and landing | P0 | done | `/locations/{id}/portal-settings`, `GET /public/portal-config` (`tenant_slug`); web `/f/:slug` landing (locations, welcome, programs, sign-in, sign-up) | Tenant from host or `X-Tenant-Slug`; a signed-in call whose slug names another tenant is 404 `tenant-not-found` (`current_ctx`). |
+| SSP-05 Public self-registration | P0 | done | `POST /public/portal-signups`, `POST /public/portal-signups/confirm`; `portal_signup`; web `/f/:slug/signup` and `/signup/confirm` | Off by default per location (`allows_self_signup`). Same 202 for known and unknown addresses; token in the URL fragment, hash kept, single use, 24 h. Always a new client (staff merge duplicates). The form collects name, email, mobile only: a portal field policy that requires more refuses the sign-up. |
+| SSP-07 Post-registration redirects | P2 | done | portal settings `redirect_url`, `group_redirect_urls`, `redirect_domains` | https only, no userinfo or port, host must be the tenant's own domain or an allow-listed one; re-checked on every public read. Group redirects have no staff screen yet (API only). |
+| SSP-02 Session booking defaults (location level) | P0 | done | `/session-booking-policies` | VERIFIED in code |
+| SSP-03 Per-reservation-type self-service overrides | P0 | done | `/session-booking-policies` | VERIFIED in code |
+| SSP-06 Invitations, account status and access recovery | P0 | done | `/auth/invitations` | VERIFIED in code |
+| SSP-10 Customer profile self-management, stored payment method and relationships | P0 | done | `/portal/payment-methods` | VERIFIED in code |
+| SSP-17 Publish a group (program) for online registration | P0 | done | `/program-groups/{program_group_id}/publish` | VERIFIED in code |
+| SSP-20 Account self-service: balances, invoices, documents | P0 | done | `/portal/invoices` | VERIFIED in code |
+| SSP-13 Portal menu configuration | P1 | done | portal settings `menu` [{key, label, is_visible}]; portal nav applies it | Home and Profile cannot be hidden; order editing is API only (the staff screen keeps the built-in order). |
+| SSP-15 Social links | P2 | done | portal settings `social_links` (facebook, instagram, x, youtube, tiktok, linkedin; https) | Shown in the landing and portal footers. |
+| SSP-14 Portal design and legal text | P0 | done | tenant `brand_primary_color` / `brand_accent_color` in `GET /public/branding`; `terms_acceptance`; `terms_version_id` on every portal sale | Colours apply only where they pass WCAG AA (primary 4.5:1 with white, accent 3:1), never in dark mode. Each portal sale (memberships, packages, programs, rentals, guest) records the terms version shown or answers 409 `terms-changed`. The documents `portal_terms` binding is the only terms source: a `portal_settings.terms_text` saved before Phase 11 is no longer served and is not migrated into a binding (nothing is deployed, so no data migration). |
 | SSP-16 Video library | P0 | done | `/videos` CRUD, `GET /portal/videos` | Allow-listed providers (YouTube, Vimeo) only. |
 
 Gap B8 (waitlist promotion notice): programs sends it through the notification port, which now routes through

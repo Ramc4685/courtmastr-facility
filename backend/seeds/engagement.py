@@ -46,7 +46,7 @@ def seed(session: Session) -> None:
     ).model_dump())  # fmt: skip
     service.put_portal_settings(session, actor, location.id, {
         "is_enabled": True, "is_public": True, "welcome_text": "Book courts, join programs and manage your membership.",
-        "allows_online_rentals": True, "allows_online_purchases": True,
+        "allows_online_purchases": True,
     })  # fmt: skip
     service.create_video(session, actor, s.VideoCreate(
         location_id=location.id, title="Five-minute warm-up", is_published=True,

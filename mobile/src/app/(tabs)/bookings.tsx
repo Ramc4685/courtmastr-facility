@@ -1,4 +1,4 @@
-import { Alert } from 'react-native';
+import { Alert, Share } from 'react-native';
 
 import { portal } from '../../adapters';
 import { useBookingActions } from '../../lib/booking';
@@ -34,6 +34,12 @@ export default function MyBookings() {
               {formatDateTime(session.starts_at, zone)}
               {session.resource_name ? ` · ${session.resource_name}` : ''}
             </Small>
+            <Button
+              compact
+              variant="secondary"
+              label="Share"
+              onPress={() => void Share.share({ title: session.name, message: `${session.name}\n${formatDateTime(session.starts_at, zone)}` })}
+            />
             <Button
               compact
               variant="danger"

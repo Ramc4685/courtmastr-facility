@@ -324,3 +324,15 @@ def test_production_refuses_plaintext_postgres_and_redis(
 def test_dev_and_test_keep_plain_local_postgres_and_redis():
     settings = get_settings()
     assert settings.db.sslmode is None and "sslmode" not in settings.db_url("app")
+
+def test_signed_in_slug_naming_another_tenant_is_not_found(client, tenant, owner):
+    """SSP-01: /f/:slug sends X-Tenant-Slug; a slug that is not the session's tenant reads as unknown, the same
+    body whether that tenant exists or not."""
+    from conftest import make_tenant
+
+    assert client.get(f"{API}/me", headers=owner | {"X-Tenant-Slug": tenant.slug}).status_code == 200
+    foreign = client.get(f"{API}/me", headers=owner | {"X-Tenant-Slug": make_tenant().slug})
+    unknown = client.get(f"{API}/me", headers=owner | {"X-Tenant-Slug": "no-such-tenant-x"})
+    assert foreign.status_code == unknown.status_code == 404
+    strip = lambda r: {k: v for k, v in r.json().items() if k != "trace_id"}  # noqa: E731
+    assert strip(foreign) == strip(unknown) and foreign.json()["code"] == "tenant-not-found"

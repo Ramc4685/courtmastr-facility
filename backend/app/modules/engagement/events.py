@@ -26,3 +26,28 @@ class ConsentChanged(Event):
     type: Literal["engagement.consent.changed"] = "engagement.consent.changed"
     client_id: UUID
     source: str
+
+
+class PortalSignupConfirmed(Event):
+    """SSP-05: a public sign-up verified its email; a new client and portal login exist."""
+
+    aggregate_type: ClassVar[str] = "portal_signup"
+    type: Literal["engagement.portal_signup.confirmed"] = "engagement.portal_signup.confirmed"
+    client_id: UUID
+    location_id: UUID
+
+
+class AppConfigUpdated(Event):
+    aggregate_type: ClassVar[str] = "app_config"
+    type: Literal["engagement.app_config.updated"] = "engagement.app_config.updated"
+    app_config_id: UUID
+
+
+class AppInquiryReceived(Event):
+    """APP-10, APP-12: a trial pass request or in-app feedback reached the staff inbox."""
+
+    aggregate_type: ClassVar[str] = "app_inquiry"
+    type: Literal["engagement.app_inquiry.received"] = "engagement.app_inquiry.received"
+    app_inquiry_id: UUID
+    location_id: UUID
+    kind: str

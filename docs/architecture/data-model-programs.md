@@ -1940,7 +1940,6 @@ always read together.
 | welcome_message_html | text | yes | | sanitised |
 | is_welcome_message_hidden | boolean | no | false | |
 | payment_terms_template_id | uuid | yes | | → document_template; versioned terms; acceptance is a `document_acceptance` taken at checkout |
-| analytics_measurement_id | text | yes | | injected into public pages (INT-13) |
 
 - Default `customer_editable`: `{profile_picture,basic_info,contact_info,payment_method}`.
 - Unique: `uq_portal_settings_location (tenant_id, location_id)`; `uq_portal_settings_slug (tenant_id,

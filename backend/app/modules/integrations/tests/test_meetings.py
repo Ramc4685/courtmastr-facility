@@ -329,3 +329,52 @@ def test_a_cancelled_place_cannot_join(client, tenant, owner):
     ok(client.post(f"{API}/enrollments/{place['id']}/cancel", headers=owner, json={}), 200)
     refused = _join(client, member, place["id"])
     assert (refused.status_code, refused.json()["code"]) == (409, "invalid-state-transition")
+
+
+def test_a_group_registration_joins_the_sessions_of_its_group_and_its_ancestors(client, tenant, owner):
+    """A group registration (no session_id on the place) takes a seat in every session linked to its group or an
+    ancestor (CLS-10), so it lists and joins their meetings; a stranger, a sibling group's registration and a
+    cancelled registration do not."""
+    from app.modules.programs.tests.test_groups import program, register
+
+    f = facility(client, owner)
+    soon = clock.now().replace(second=0, microsecond=0) + timedelta(minutes=5)
+    camp = program(client, owner, f, kind="camp")
+    week, sibling = (
+        ok(client.post(f"{API}/program-groups", headers=owner, json={"parent_id": camp["id"], "name": name}))
+        for name in ("Wk 1", "Wk 2")
+    )
+    on_week, on_camp = _session(client, owner, f, soon), _session(client, owner, f, soon + timedelta(hours=3))
+    for seat, url in ((on_week, "https://m.example/week"), (on_camp, "https://m.example/camp")):
+        ok(client.put(_meeting(seat), headers=owner, json={"provider": "manual", "join_url": url}), 200)
+    link = f"{API}/program-groups/{week['id']}/sessions"
+    ok(client.post(link, headers=owner, json={"session_ids": [on_week]}), 200)
+    person, member = _member(client, tenant, owner)
+    neighbour, next_door = _member(client, tenant, owner)
+    _, stranger = _member(client, tenant, owner)
+    place = ok(register(client, owner, week["id"], person))
+    other = ok(register(client, owner, sibling["id"], neighbour))
+
+    path = f"{API}/portal/enrollment-meetings"
+    assert ok(client.get(path, headers=member), 200) == [{"enrollment_id": place["id"], "session_id": on_week}]
+    assert ok(client.get(path, headers=next_door), 200) == []  # a sibling's session is not theirs
+    assert ok(_join(client, member, place["id"]), 200)["join_url"] == "https://m.example/week"
+    assert _join(client, next_door, other["id"]).status_code == 404
+    assert _join(client, stranger, place["id"]).status_code == 404
+
+    # a session linked to the parent reaches every week's registration
+    ok(client.post(f"{API}/program-groups/{camp['id']}/sessions", headers=owner, json={"session_ids": [on_camp]}), 200)
+    mine = sorted(ok(client.get(path, headers=member), 200), key=lambda row: row["session_id"] == on_camp)
+    assert mine == [{"enrollment_id": place["id"], "session_id": s} for s in (on_week, on_camp)]
+    assert ok(client.get(path, headers=next_door), 200) == [{"enrollment_id": other["id"], "session_id": on_camp}]
+    email = ok(client.get(f"{API}/clients/{neighbour}", headers=owner), 200)["primary_email"]
+    with clock.freeze(soon + timedelta(hours=3, minutes=-5)):  # sign in again: a token from now would have expired
+        later = login(client, tenant, email, audience="client")
+        assert ok(_join(client, later, other["id"]), 200)["join_url"] == "https://m.example/camp"
+
+    gone, quitter = _member(client, tenant, owner)
+    left = ok(register(client, owner, week["id"], gone))
+    ok(client.post(f"{API}/enrollments/{left['id']}/cancel", headers=owner, json={}), 200)
+    assert ok(client.get(path, headers=quitter), 200) == []
+    refused = _join(client, quitter, left["id"])
+    assert (refused.status_code, refused.json()["code"]) == (409, "invalid-state-transition")

@@ -181,6 +181,7 @@ def test_program_default_and_custom_text_terms(client, owner, location_id, tenan
         )
     )
     terms = ok(client.get(f"{API}/public/portal-terms", headers={"X-Tenant-Slug": tenant.slug}))
+    assert terms.pop("terms_version_id")  # SSP-14: what the buyer saw, sent back with each portal sale
     assert terms == {"title": "Terms and conditions", "body_html": "<p>Play fair.</p>"}
     tpl = template(client, owner)
     ok(

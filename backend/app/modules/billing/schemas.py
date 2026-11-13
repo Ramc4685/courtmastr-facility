@@ -782,6 +782,10 @@ class BrowserKeys(Out):
     account_ref: str | None = None
 
 
+class PortalProcessor(BrowserKeys):
+    provider: Literal["stripe", "fake"] | None  # None: no processor connected, the app cannot take cards
+
+
 class SetupIntentOut(BrowserKeys):
     provider: str
     client_secret: str
@@ -983,6 +987,7 @@ class PortalInvoiceOut(Out):
     invoice_on: date
     due_on: date
     status: Literal["open", "payment_pending", "partially_paid", "paid", "voided"]
+    currency: str
     total_minor: int
     balance_minor: int
     is_autopay: bool

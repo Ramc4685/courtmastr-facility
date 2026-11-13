@@ -28,6 +28,7 @@ from app.modules.programs.models import (
     ProgramFee,
     ProgramGroup,
     ProgramSession,
+    RegistrationCheckout,
     RegistrationConfig,
     RegistrationDefault,
     WaitlistEntry,
@@ -166,12 +167,17 @@ def _live_count(session: Db, group_ids: list[UUID]) -> int:
 # --- places -------------------------------------------------------------------------------------------------
 
 
-def _take_place(session: Db, group: ProgramGroup) -> None:
-    """One place in the node, its ancestors and every session linked along the chain, or 409 capacity-full."""
-    chain = _chain(session, group, lock=True)
+def _check_active(chain: list[ProgramGroup]) -> None:
     for node in chain:
         if node.status != "active" or node.deleted_at is not None:
             raise Conflict("This program is not open for registration.", code="program-not-active")
+
+
+def _take_place(session: Db, group: ProgramGroup) -> None:
+    """One place in the node, its ancestors and every session linked along the chain, or 409 capacity-full."""
+    chain = _chain(session, group, lock=True)
+    _check_active(chain)
+    for node in chain:
         if node.capacity is not None and node.enrolled_count >= node.capacity:
             raise Conflict(f"{node.name} is full.", code="capacity-full", program_group_id=str(node.id))
     for node in chain:
@@ -188,6 +194,101 @@ def _release_place(session: Db, group: ProgramGroup) -> None:
     for session_id in _linked_sessions(session, [node.id for node in chain]):
         scheduling.service.release_seat(session, session_id)
     session.flush()
+
+
+def hold_place(session: Db, group: ProgramGroup) -> None:
+    """Internal: a place held with no roster row yet (a guest basket, before any client exists), or 409."""
+    _take_place(session, group)
+
+
+def release_place(session: Db, group: ProgramGroup) -> None:
+    """Internal: give back a place `hold_place` took."""
+    _release_place(session, group)
+
+
+def check_held_place(session: Db, group: ProgramGroup) -> None:
+    """Internal: a place `hold_place` took may still be paid for: the chain is active and not deleted (409
+    program-not-active) and online registration has not closed since (409 registration-closed). Capacity is not
+    checked again: the place is already counted. Locks the chain against a concurrent delete or archive."""
+    _check_active(_chain(session, group, lock=True))
+    if registration_state(session, group, config_for(session, group.id)) in ("closed", "not_yet_open"):
+        raise Conflict("Registration for this program is not open.", code="registration-closed")
+
+
+def lock_chains(session: Db, nodes: list[ProgramGroup], *, also: list[UUID] | None = None) -> None:
+    """Internal: lock every node of several chains FOR UPDATE in one global order, depth then id, with the nodes
+    `also` names (a subtree being deleted or archived). A single `_chain` lock (root first) is a sub-order of it,
+    so two baskets naming the same programs in opposite order, or sharing an ancestor, cannot deadlock on group
+    rows. Every path that releases or takes several places locks this way first."""
+    ids = {node.id for group in nodes for node in _chain(session, group)} | set(also or [])
+    session.execute(
+        select(ProgramGroup.id).where(ProgramGroup.id.in_(ids)).order_by(ProgramGroup.depth, ProgramGroup.id)
+        .with_for_update()
+    )  # fmt: skip
+
+
+def _held_items(checkout: RegistrationCheckout) -> list[dict]:
+    return (checkout.guest_details or {}).get("items", [])
+
+
+def _lock_for_removal(
+    session: Db, principal: Principal, group_id: UUID, key: str, cancel_guest_holds: bool
+) -> tuple[ProgramGroup, list[UUID], list[UUID]]:  # fmt: skip
+    """Delete and archive: the node, its ancestors and its subtree, and with `cancel_guest_holds` the chains of
+    every place the guest baskets to cancel hold, all locked up front in `lock_chains` order. Cancelling a
+    guest's basket is its own gate (CONFIG: managers, not the front desk), checked on top of `key`. Returns the
+    node re-read under the lock, its subtree ids (the node first) and the baskets to cancel."""
+    row = load(session, principal, group_id, key)
+    if cancel_guest_holds:
+        authorize(principal, CONFIG, location_id=row.location_id)
+    ids = [row.id, *_subtree_ids(session, row.id)]
+    wanted = {str(i) for i in ids}
+    baskets = [
+        checkout for checkout in session.scalars(
+            select(RegistrationCheckout).where(
+                RegistrationCheckout.location_id == row.location_id, RegistrationCheckout.channel == "guest",
+                RegistrationCheckout.status == "open",
+            )
+        )
+        if any(item["program_group_id"] in wanted for item in _held_items(checkout))
+    ] if cancel_guest_holds else []  # fmt: skip
+    held = [session.get(ProgramGroup, UUID(item["program_group_id"])) for b in baskets for item in _held_items(b)]
+    lock_chains(session, [row, *held], also=ids)
+    return _row(session, group_id, lock=True), ids, [basket.id for basket in baskets]
+
+
+def _cancel_guest_holds(session: Db, ids: list[UUID], baskets: list[UUID], reason: str) -> None:
+    """Staff's explicit choice (`cancel_guest_holds`): abandon the open guest baskets `_lock_for_removal` found
+    holding a place in `ids`, the whole basket, as the guest's own abandon does (places released, details
+    cleared). No queue is promoted into `ids` (it is being deleted or archived). A basket locked by a confirm in
+    flight, or opened since, is skipped, so `_refuse_guest_holds` still refuses it."""
+    wanted = {str(i) for i in ids}
+    for checkout in session.scalars(
+        select(RegistrationCheckout).where(RegistrationCheckout.id.in_(baskets), RegistrationCheckout.status == "open")
+        .with_for_update(skip_locked=True).execution_options(populate_existing=True)
+    ):  # fmt: skip
+        for item in _held_items(checkout):
+            release_place(session, session.get(ProgramGroup, UUID(item["program_group_id"])))
+            if item["program_group_id"] not in wanted:
+                promote_queue(session, UUID(item["program_group_id"]))
+        checkout.status, checkout.guest_details = "abandoned", None
+        audit.record(session, "programs.registration_checkout.cancel", checkout, location_id=checkout.location_id,
+                     changes={"status": ["open", "abandoned"], "reason": reason})  # fmt: skip
+    session.flush()
+
+
+def _refuse_guest_holds(session: Db, group: ProgramGroup, ids: list[UUID]) -> None:
+    """A guest's held place has no roster row, so `_live_count` misses it: refuse while an unexpired guest
+    basket holds a place in any of `ids` (it is released when the basket is abandoned or expires)."""
+    wanted = {str(i) for i in ids}
+    for details in session.scalars(
+        select(RegistrationCheckout.guest_details).where(
+            RegistrationCheckout.location_id == group.location_id, RegistrationCheckout.channel == "guest",
+            RegistrationCheckout.status == "open", RegistrationCheckout.expires_at > clock.now(),
+        )
+    ):  # fmt: skip
+        if any(item["program_group_id"] in wanted for item in (details or {}).get("items", [])):
+            raise Conflict("A guest is paying for a place; try again in a few minutes.", code="has-guest-holds")
 
 
 def has_space(session: Db, group: ProgramGroup) -> bool:
@@ -320,12 +421,21 @@ def get_tree(session: Db, principal: Principal, group_id: UUID) -> dict:
     return views[root.id]
 
 
-def _set_status(session: Db, principal: Principal, group_id: UUID, to: str, allowed: tuple[str, ...]) -> ProgramGroup:
-    row = load(session, principal, group_id, MANAGE, lock=True)
+def _set_status(
+    session: Db, principal: Principal, group_id: UUID, to: str, allowed: tuple[str, ...], *,
+    cancel_guest_holds: bool = False,
+) -> ProgramGroup:  # fmt: skip
+    if to == "archived":
+        row, ids, baskets = _lock_for_removal(session, principal, group_id, MANAGE, cancel_guest_holds)
+    else:
+        row = load(session, principal, group_id, MANAGE, lock=True)
     if row.status == to:
         return row
     if row.status not in allowed:
         raise Conflict(f"A {row.status} program cannot become {to}.", code="invalid-transition")
+    if to == "archived":
+        _cancel_guest_holds(session, ids, baskets, "program_archived")
+        _refuse_guest_holds(session, row, ids)
     was, row.status = row.status, to
     row.completed_at = None if to == "active" else row.completed_at or clock.now()
     audit.record(session, MANAGE, row, location_id=row.location_id, changes={"status": [was, to]})
@@ -340,20 +450,26 @@ def complete_group(session: Db, principal: Principal, group_id: UUID) -> Program
     return _set_status(session, principal, group_id, "completed", ("active",))
 
 
-def archive_group(session: Db, principal: Principal, group_id: UUID) -> ProgramGroup:
-    return _set_status(session, principal, group_id, "archived", ("active", "completed"))
+def archive_group(
+    session: Db, principal: Principal, group_id: UUID, *, cancel_guest_holds: bool = False
+) -> ProgramGroup:
+    return _set_status(
+        session, principal, group_id, "archived", ("active", "completed"), cancel_guest_holds=cancel_guest_holds
+    )
 
 
 def reopen_group(session: Db, principal: Principal, group_id: UUID) -> ProgramGroup:
     return _set_status(session, principal, group_id, "active", ("completed", "archived"))
 
 
-def delete_group(session: Db, principal: Principal, group_id: UUID) -> None:
-    """Soft delete of a node and its subtree (REG-05). Refused while anyone is registered in it."""
-    row = load(session, principal, group_id, DELETE, lock=True)
-    ids = [row.id, *_subtree_ids(session, row.id)]
+def delete_group(session: Db, principal: Principal, group_id: UUID, *, cancel_guest_holds: bool = False) -> None:
+    """Soft delete of a node and its subtree (REG-05). Refused while anyone is registered in it, and while a guest
+    basket holds a place in it unless `cancel_guest_holds` (the baskets are then abandoned first)."""
+    row, ids, baskets = _lock_for_removal(session, principal, group_id, DELETE, cancel_guest_holds)
     if _live_count(session, ids):
         raise Conflict("Cancel or move the registrations first.", code="has-registrations")
+    _cancel_guest_holds(session, ids, baskets, "program_deleted")
+    _refuse_guest_holds(session, row, ids)
     now = clock.now()
     for node in session.scalars(select(ProgramGroup).where(ProgramGroup.id.in_(ids))):
         node.deleted_at, node.deleted_by_staff_user_id = now, principal.staff_user_id
@@ -363,7 +479,7 @@ def delete_group(session: Db, principal: Principal, group_id: UUID) -> None:
         )
     ):
         entry.status, entry.removed_reason = "expired", "program_deleted"
-    if row.parent_id:
+    if row.parent_id:  # locked with the chain above, so parent after child keeps the one order
         _row(session, row.parent_id, lock=True).child_count -= 1
     audit.record(session, DELETE, row, location_id=row.location_id, changes={"deleted": [False, True]})
     session.flush()
@@ -587,7 +703,8 @@ def chosen_fees(
 
 _CONFIG_FIELDS = (
     "is_enabled", "opens_on", "closes_on", "payment_requirement", "displays_openings", "online_description",
-    "closed_message", "confirmation_message", "public_slug", "portal_publish_name",
+    "closed_message", "confirmation_message", "public_slug", "portal_publish_name", "allows_guest_checkout",
+    "payment_plan", "balance_due_on", "instalment_count", "instalment_unit",
 )  # fmt: skip
 _CONFIG_HIDDEN = ("id", "tenant_id", "created_at", "updated_at")
 _DEFAULTED = (
@@ -612,7 +729,8 @@ def _config_view(group: ProgramGroup, config: RegistrationConfig | None) -> dict
             "program_group_id": group.id, "is_enabled": False, "opens_on": None, "closes_on": None,
             "payment_requirement": "immediate_card_payment", "displays_openings": False, "online_description": None,
             "closed_message": None, "confirmation_message": None, "public_slug": None, "is_portal_visible": False,
-            "portal_publish_name": None, "portal_published_at": None,
+            "portal_publish_name": None, "portal_published_at": None, "allows_guest_checkout": False,
+            "payment_plan": "pay_in_full", "balance_due_on": None, "instalment_count": None, "instalment_unit": None,
         }  # fmt: skip
     return {c.key: getattr(config, c.key) for c in RegistrationConfig.__table__.columns if c.key not in _CONFIG_HIDDEN}
 
@@ -644,13 +762,35 @@ def put_config(session: Db, principal: Principal, group_id: UUID, data: dict) ->
         session.add(config)
     for key in _CONFIG_FIELDS:
         if key in data and not (
-            key in ("public_slug", "payment_requirement", "is_enabled", "displays_openings") and data[key] is None
+            key in ("public_slug", "payment_requirement", "is_enabled", "displays_openings", "payment_plan")
+            and data[key] is None
         ):
             setattr(config, key, data[key])
+    _check_plan(config)
     changes = audit.diff(config)
     session.flush()  # uq_registration_config_public_slug
     audit.record(session, CONFIG, config, location_id=group.location_id, changes=changes)
     return _config_view(group, config)
+
+
+def _check_plan(config: RegistrationConfig) -> None:
+    """REG-10 payment plans (decision Q5): a deposit plan needs a balance date, an instalment plan a count and an
+    interval too, and both are pay-now programs (the card that pays the deposit stays on file for autopay)."""
+    plan = config.payment_plan or "pay_in_full"
+    if plan == "pay_in_full":
+        config.balance_due_on = config.instalment_count = config.instalment_unit = None
+        return
+    if config.payment_requirement not in (None, "immediate_card_payment"):
+        raise ValidationFailed("A payment plan needs immediate card payment.", pointer="/payment_plan",
+                               code="payment-plan-invalid")  # fmt: skip
+    if config.balance_due_on is None:
+        raise ValidationFailed("Give the date the balance falls due.", pointer="/balance_due_on",
+                               code="payment-plan-invalid")  # fmt: skip
+    if plan == "deposit":
+        config.instalment_count = config.instalment_unit = None
+    elif config.instalment_count is None or config.instalment_unit is None:
+        raise ValidationFailed("Give the number of instalments and how often.", pointer="/instalment_count",
+                               code="payment-plan-invalid")  # fmt: skip
 
 
 def set_published(session: Db, principal: Principal, group_id: UUID, visible: bool) -> dict:
@@ -697,16 +837,25 @@ def registration_state(session: Db, group: ProgramGroup, config: RegistrationCon
     return "open"
 
 
-def _public_view(session: Db, group: ProgramGroup, config: RegistrationConfig, *, children: bool) -> dict:
+def _public_view(
+    session: Db, group: ProgramGroup, config: RegistrationConfig, *, children: bool, guest: bool = False
+) -> dict:
+    """`guest`: the price a guest pays (always in full, REG-12), so no payment plan figures."""
+    plan = "pay_in_full" if guest else config.payment_plan
+    planned = plan != "pay_in_full"
     view = {
         "id": group.id, "location_id": group.location_id, "name": config.portal_publish_name or group.name,
         "description": config.online_description, "starts_on": group.starts_on, "ends_on": group.ends_on,
         "spots_left": spots_left(session, group) if config.displays_openings else None,
         "registration_state": registration_state(session, group, config),
         "payment_requirement": config.payment_requirement, "confirmation_message": config.confirmation_message,
-        "closed_message": config.closed_message,
+        "closed_message": config.closed_message, "allows_guest_checkout": config.allows_guest_checkout,
+        "payment_plan": plan, "balance_due_on": config.balance_due_on if planned else None,
+        "instalment_count": config.instalment_count if planned else None,
+        "instalment_unit": config.instalment_unit if planned else None,
         "fees": [
-            {"id": f.id, "fee_kind": f.fee_kind, "description": f.description, "amount_minor": f.amount_minor}
+            {"id": f.id, "fee_kind": f.fee_kind, "description": f.description, "amount_minor": f.amount_minor,
+             "deposit_minor": f.deposit_minor if planned else None}
             for f in active_fees(session, group, online=True)
         ],
         "children": [],
@@ -719,7 +868,7 @@ def _public_view(session: Db, group: ProgramGroup, config: RegistrationConfig, *
         ):
             child_config = config_for(session, child.id)
             if child_config is not None and child_config.is_enabled:
-                view["children"].append(_public_view(session, child, child_config, children=False))
+                view["children"].append(_public_view(session, child, child_config, children=False, guest=guest))
     return view
 
 
@@ -742,11 +891,11 @@ def public_list(session: Db, location_id: UUID | None = None) -> list[dict]:
     return [_public_view(session, group, config, children=False) for group, config in session.execute(stmt)]
 
 
-def public_get(session: Db, group_id: UUID) -> dict:
+def public_get(session: Db, group_id: UUID, *, guest: bool = False) -> dict:
     found = session.execute(_published().where(ProgramGroup.id == group_id)).first()
     if found is None:
         raise NotFound()
-    return _public_view(session, found[0], found[1], children=True)
+    return _public_view(session, found[0], found[1], children=True, guest=guest)
 
 
 def published_group(session: Db, group_id: UUID) -> tuple[ProgramGroup, RegistrationConfig]:
@@ -768,11 +917,13 @@ def published_group(session: Db, group_id: UUID) -> tuple[ProgramGroup, Registra
 def enroll(
     session: Db, group: ProgramGroup, client_id: UUID, *, channel: str, fees: list[ProgramFee],
     payer_client_id: UUID | None = None, status: str = "enrolled", checkout_id: UUID | None = None,
-    hold_minutes: int = 15, comment: str | None = None,
+    hold_minutes: int = 15, comment: str | None = None, place_held: bool = False,
 ) -> Enrollment:  # fmt: skip
     """Internal: take the place (409 capacity-full, program-not-active), then the roster row (409
-    already-enrolled). A `pending` row is a checkout hold; charges are raised by `bill`."""
-    _take_place(session, group)
+    already-enrolled). A `pending` row is a checkout hold; charges are raised by `bill`. `place_held`: the
+    caller already holds the place (`hold_place`)."""
+    if not place_held:
+        _take_place(session, group)
     fee, now = (fees[0] if fees else None), clock.now()
     row = Enrollment(
         location_id=group.location_id, client_id=client_id, target_kind="group", program_group_id=group.id,
@@ -821,11 +972,13 @@ def bill(session: Db, row: Enrollment, fees: list[ProgramFee]) -> list[UUID]:
     return ids
 
 
-def invoice(session: Db, charge_ids: list[UUID], payer_client_id: UUID | None, origin: str = "staff"):
+def invoice(
+    session: Db, charge_ids: list[UUID], payer_client_id: UUID | None, origin: str = "staff", is_autopay: bool = False
+):
     if not charge_ids:
         return None
     return billing.service.create_invoice_for_charges(
-        session, charge_ids, bill_to_client_id=payer_client_id, origin=origin
+        session, charge_ids, bill_to_client_id=payer_client_id, origin=origin, is_autopay=is_autopay
     )
 
 

@@ -109,3 +109,10 @@ of the `own` reach predicate (waits for scheduling).
 - `send_client_task_reminders` runs hourly (`scheduler.EVERY_HOUR`). Each due task is reminded once (`reminder_sent_at`, rows locked with `SKIP LOCKED` so overlapping runs never double-send), when its due date is reached on the client's home-location day.
 - `possible_duplicates(session, principal, data)` backs the register's quick-create. It matches on the same last name plus any of: first name, birth date (only for a caller holding `clients.client.read_sensitive`, within its reach), email (a portal record only through a verified address), or mobile number with a similar first name. It stays inside the caller's reach and skips merged and erased records.
 - Derived alerts (balance, membership expiry, waiver) are not here: this context is layer 1 and cannot read billing or documents. They live in memberships; see its README.
+
+## Self-service clients and terms (Phase 11 chip A)
+
+- `create_self_service(session, data, created_via=portal|registration, verified_email=False)` creates a client for
+  public sign-up and guest checkout. It never matches an existing client by email; duplicates go through merge.
+- `clients.terms` holds the recorder documents registers (`register`) and the sale paths call (`acknowledge`):
+  a registry, because packages and rentals may not import documents.

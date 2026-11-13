@@ -132,6 +132,143 @@ unchanged by this module: `/portal/clients`, `/portal/membership-contracts`, `/p
 ## Not built
 
 The HTML builder and image library (MKT-04, MKT-06), CSV export of campaign history, the daily staff summary
-(MKT-14), SMS (MKT-15), targeted push (MKT-17), portal theming and terms acknowledgment at checkout (SSP-14),
-and slug routing in the web app (SSP-01). Replying to client messages (`engagement.inbox.reply` is registered, but no
+(MKT-14), SMS (MKT-15), targeted push (MKT-17). Replying to client messages (`engagement.inbox.reply` is registered, but no
 route uses it). SMS (MKT-15) also has its `engagement.sms_campaign.send` key registered with no caller.
+
+## Portal entry and accounts (Phase 11 chip A: SSP-01, 05, 07, 13, 15)
+
+- **Sign-up (`signup.py`, `portal_signup`).** Per location, off by default. `POST /public/portal-signups` answers
+  202 whatever the address: unknown gets a verification link (`fhp_` token in the URL fragment, only its hash kept,
+  single use, 24 hours); an address with an active login gets a sign-in link; any other identity state gets nothing.
+  A new request supersedes older pending ones. Confirming creates a new client (never matched by email; staff merge
+  duplicates), an active verified client login linked to it, publishes `PortalSignupConfirmed` and signs in
+  (cookie for the web, tokens for mobile, or the MFA challenge). Rate limits: `magic-link` and `link-address`
+  buckets on request, `consume` on confirm; both carry the login-CSRF check.
+- **Assumption: field policy.** The form collects name, email and mobile only, so a location whose portal field
+  policy requires more (address, birth date) refuses the sign-up with the policy's 422; staff relax the policy or
+  invite instead. Recorded, not guessed.
+- **Menu, social links, redirects** live on `portal_settings` (programs may not import engagement, so the per-group
+  redirect map is here too, keyed by program group id). Redirects are https only, no userinfo, explicit port or
+  backslash, the host must be a plain DNS name, and it must be one of the tenant's own hosts
+  (`platform.service.tenant_hosts`, exact) or an allow-listed domain or its subdomain (matched on a label boundary);
+  they are re-checked on every public read, so removing a domain disables a stored URL at once.
+- **Terms have one source: the documents `portal_terms` binding** (`GET /public/portal-terms`, recorded per sale by
+  `clients.terms`). `portal_settings.terms_text` and `terms_version` predate Phase 11; the columns stay but the
+  staff settings no longer take or return them and the public portal config no longer serves them, so a terms text
+  that is not the binding can never be shown without an acknowledgment being recorded. A `terms_text` stored there
+  before is not moved into a binding: it simply stops being served. Nothing is deployed, so there is no data
+  migration; a tenant that had one re-enters it as the binding's text. The staff portal page edits
+  the binding's plain text (tenant-wide, not per location). Web and mobile read terms only through `useTermsGate`.
+- **Online rentals have one switch: rentals' `rental_portal_setting.is_online_enabled`.**
+  `portal_settings.allows_online_rentals` predates Phase 11 but nothing enforced or read it; the column stays and the
+  API no longer takes or serves it. Members can book rentals online at a location when its portal is on and that
+  rentals switch is on; the rentals online-booking screen shows the portal state and links here.
+- **Sign-up retention.** An unconfirmed sign-up (pending or superseded) is purged a week after its link expires
+  (`engagement_portal_signup` in `platform.retention`); a confirmed one is linked to its client and goes with an
+  erasure.
+- **Slug.** `GET /public/portal-config` carries `tenant_slug`; the web `/f/:slug` pages send it as `X-Tenant-Slug`.
+
+## Phase 11 C1: member app core (APP-01, 02, 04, 05, 16, 18, 19; CHK-13 partial)
+
+Code in `domain/app_config.py` (pure rules: tile types, layout, schedule flags, feature switches), `service.py` and
+`router.py`. The config is one JSON document per tenant.
+
+| Route | Gate | Notes |
+|---|---|---|
+| `GET /app-config`, `PUT /app-config` | staff; `PUT` needs the key at every location | the home layout, tile catalogue, schedule flags and feature switches; a bad value is `invalid-app-config` with the pointer |
+| `GET /public/app-config` | anonymous, `app-config` bucket | the live theme, home layout and switches the app reads (APP-02, APP-05); 404 unless the member app is on |
+| `GET /public/app-directory?q=&limit=` | anonymous, `app-directory` bucket (fails closed) | facility search by name for the app's facility screen (APP-01); only tenants whose portal is enabled and publicly listed; returns slug, name, logo and city, never the tenant id |
+
+Rules and assumptions:
+
+- **Tiles.** Eleven types (`TILE_TYPES`): the six original tiles and news, contacts, favorites, feedback and try_us,
+  which C2 added. Home layouts may use all eleven. At most 12 tiles, captions up to 40 characters.
+- **Schedule flags (APP-18).** `shows_spots_left`, `shows_full_sessions` and `days_ahead` are applied server side
+  inside `listPortalSessionListings`. The app has no policy of its own.
+- **Feature switches.** `booking`, `purchases`, `membership_card` and `wallet_pass` are stored in the same document.
+- **Purchases.** In-app buying uses the existing portal sale routes, so every sale still ends in
+  `secure_online_checkout` and records the terms version shown (SSP-14).
+- **The slug is the capability.** `GET /public/app-config` answers for any active tenant whose member app is on,
+  listed in the directory or not: someone given the facility code can open it. A tenant whose app is off is 404.
+  Neither public answer carries the tenant id; the app knows a facility by its slug.
+- **Directory limiter fails closed.** The `app-directory` bucket is `closed: true`: with Redis down the one
+  cross-tenant read answers 503 `rate-limit-unavailable` rather than serving unmetered.
+- **Location filter (APP-16).** `listPortalSessionListings` takes `location_id`; each session's times come in its own
+  location's zone.
+- **Wallet passes (CHK-13, partial).** See the access module README. The adapter is fake, so the pass is unsigned.
+
+## Phase 11 C2: member app content (APP-07 to APP-14)
+
+Code in `content.py`; tables `app_content`, `location_contact`, `app_inquiry` (migration 1561).
+
+| Route | Gate | Notes |
+|---|---|---|
+| `GET/POST /app-contents`, `PATCH/DELETE /app-contents/{id}` | `engagement.app_content.manage` | kinds news, info_page, announcement, promotion, gallery; filters kind, location_id; sort publish_at, sort_order |
+| `PUT/DELETE /app-contents/{id}/image` | same | JPEG or PNG up to 900 KB through `platform.files` (re-encoded, scanned) |
+| `GET /portal/app-contents`, `GET /portal/app-contents/{id}/image` | client | published and unexpired now; tenant-wide items plus `location_id`'s; filter kind |
+| `GET/POST /location-contacts`, `GET/PATCH/DELETE /location-contacts/{id}` | `engagement.location_contact.manage` | kind department (APP-08) or service (APP-09) |
+| `GET /public/location-contacts?location_id=` | anonymous, `app-config` bucket | empty unless the location's portal is enabled and public |
+| `POST /public/trial-requests` | anonymous, `trial-request` bucket per IP and per address, login-CSRF | APP-12 "Try us" |
+| `POST /portal/feedback` | client (self or someone it may act for, else 404), `portal-feedback` bucket per identity | APP-10; 201 with the id only; the location must be the client's home or one whose portal is on and public, else 422 |
+| `GET /app-inquiries`, `PATCH /app-inquiries/{id}` | `engagement.app_inquiry.read` / `.manage` | the staff inbox; filters kind, status, location_id; status new, in_progress, closed, converted |
+
+Rules and assumptions:
+
+- **Plain text only.** Title and body refuse anything that starts an HTML tag (`<` then a letter, `/` or `!`):
+  `html-not-allowed`. Links are https only. The app renders text and links, never markup.
+- **Tenant-wide items.** `location_id` null shows an item at every location. Like tenant-wide automation rules, a
+  limited admin sees them in the list but needs the key at every location to create or change one (403).
+- **Optimistic concurrency.** `PATCH /app-contents/{id}` takes an optional `version`; a stale one is
+  `version-conflict`.
+- **Contacts are public by design.** They are business contacts (a department line, a physio's booking address)
+  that staff choose to publish; each needs a phone or an email (`contact-unreachable`). They are not client data.
+- **Trial requests create no client.** The answer is 202 with an empty body whether or not anything was stored;
+  a row is stored only when the location's portal is enabled and public. Staff follow up from the inbox and create
+  the client themselves when the visitor comes in.
+- **Feedback goes to the staff inbox, not a client inbox.** It carries the client id and name, the message and an
+  optional 1-5 rating. Every inquiry publishes `engagement.app_inquiry.received`.
+- **PII.** Contact fields and the message are audited as flags only. A client merge re-points feedback; an erasure
+  keeps the row (counts and rating) and blanks the name, contact fields and message (`subject.py`).
+- **Trial request retention.** A trial request never links a client, so no erasure reaches it. It is purged 180
+  days after it arrived, or 90 days after staff closed or converted it, whichever comes first
+  (`engagement_trial_inquiry` in `platform.retention`, one batch a run).
+- **Staff screen:** built, `web/src/features/engagement/MemberContentPage.tsx` (content, location contacts, the inquiry
+  inbox and usage counts). The parent `/engagement` route still requires `engagement.campaign.read`, so the page needs
+  that key as well as the content keys. **Not built:** email alerts to staff when an inquiry arrives (a subscriber of the event can add
+  them), and copying content to other locations (APP-16).
+
+## Phase 11 C2 part 2: favourites (APP-13) and app usage counts (APP-17)
+
+Code in `member.py`; tables `client_favorite`, `app_usage_day` (migration 1562).
+
+| Route | Gate | Notes |
+|---|---|---|
+| `GET /portal/favorites?client_id=` | client (self or someone it may act for, else 404) | oldest first |
+| `POST /portal/favorites` | same | kind `reservation_type` or `program_group`; 201 and idempotent (a repeat returns the same row); `unknown-target` |
+| `DELETE /portal/favorites/{id}` | same | 204 |
+| `GET /portal/favorites/schedule?client_id=&from=&to=` | same | RFC 3339 instants, `to - from` at most 31 days, else `invalid-range` |
+| `POST /portal/app-usage` | any signed-in client, `app-usage` bucket per IP | 1-50 items `{kind: screen\|action, name: ^[a-z0-9_.-]{1,60}$, count: 1-100}`; 204 |
+| `GET /app-usage?from=&to=&kind=` | `engagement.app_usage.read` (T: admin, manager) | dates inclusive, at most 90 days, else `invalid-range` |
+
+Rules and assumptions:
+
+- **Targets.** A favourite's `target_id` points into scheduling (reservation type) or programs (program group), so
+  there is no foreign key: the write checks the target exists in the tenant (an active reservation type, a program
+  group that is not deleted). Both checks and the session-to-group map go through programs' public functions
+  (`program_group_exists`, `reservation_type_exists`, `group_of_sessions`); engagement may call programs but not
+  scheduling, so programs passes the reservation type check on to `scheduling.service.reservation_type_exists`.
+  A favourite whose target is later deactivated stays and simply matches nothing.
+- **Personal schedule.** It is the portal session listing (`programs.selfservice.list_listings`, with its policy
+  visibility, cutoffs and bookable verdicts) narrowed to sessions linked to a favourite program group (directly,
+  not through child nodes) or of a favourite reservation type; each row carries `program_group_id` when it came
+  from a group. Slot offers (bookable appointment windows) are not included: the only functions that list them sit
+  in scheduling, which engagement may not import.
+- **Usage counts are anonymous on purpose.** No client, identity, location or device is stored, and the upserts
+  are not audited (they are counters, not changes to anyone's data). Days are UTC days, not the location's local
+  date, because there is no location to take a zone from. Repeated keys in one batch are summed before the upsert.
+- **Retention.** `platform.retention.register_purge("engagement_app_usage_day")` deletes rows older than 90 days,
+  one batch a run. Favourites go with the client: a merge re-points them (dropping ones the survivor already has),
+  an erasure deletes them (`subject.py`).
+- **Not built:** instructor favourites (listings carry no instructor, so there is nothing to match), favourite
+  locations, slot offers in the schedule, and installs, opens or push-open funnels (APP-17 counts only
+  what the app sends). APP-13 stays partial.

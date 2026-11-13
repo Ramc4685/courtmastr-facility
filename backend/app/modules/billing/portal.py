@@ -76,11 +76,15 @@ def list_invoices(session: Session, principal: Principal, query: ListQuery) -> d
     )
     if str(query.filters.pop("is_payable", "")).lower() == "true":
         stmt = stmt.where(Invoice.status.in_(_PAYABLE), Invoice.balance_minor > 0)
-    return paginate(
+    page = paginate(
         session, stmt, query, id_column=Invoice.id,
         sort_fields={"due_on": Invoice.due_on, "number": Invoice.number}, default_sort="due_on",
         filter_fields={"status": Invoice.status, "bill_to_client_id": Invoice.bill_to_client_id},
     )  # fmt: skip
+    currency = platform.service.get_tenant(session).currency
+    columns = [column.key for column in Invoice.__table__.columns]
+    page["data"] = [{key: getattr(row, key) for key in columns} | {"currency": currency} for row in page["data"]]
+    return page
 
 
 def _invoice(session: Session, principal: Principal, invoice_id: UUID, *, lock: bool = False) -> Invoice:
@@ -227,6 +231,12 @@ def billing_summary(session: Session, principal: Principal, client_id: UUID | No
 
 def list_methods(session: Session, principal: Principal) -> list[PaymentMethod]:
     return methods.methods_of(session, _client(session, principal, None))
+
+
+def processor(session: Session, principal: Principal) -> dict:
+    """Read-only: which processor takes new cards, so the app need not create a setup intent to find out."""
+    _clients(session, principal)
+    return documents.browser_processor(session)
 
 
 def create_setup(session: Session, principal: Principal, kinds: tuple[str, ...]) -> dict:

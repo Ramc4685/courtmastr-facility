@@ -1,5 +1,6 @@
-"""fh_platform (BYPASSRLS) access. Only tenant resolution, provisioning and the outbox relay may use it;
-modules never import this (ADR 0001 section 2)."""
+"""fh_platform (BYPASSRLS) access. Only tenant resolution, provisioning, the outbox relay and the shared-app
+directory read (`search_app_directory`, called by engagement) may use it; modules import nothing else from here
+(ADR 0001 section 2)."""
 
 import time
 from dataclasses import dataclass
@@ -74,3 +75,38 @@ def unprovision_tenant(tenant_id: UUID) -> None:
     with platform_engine().begin() as conn:
         conn.execute(text("DELETE FROM tenant_domain WHERE tenant_id = :id"), {"id": tenant_id})
         conn.execute(text("DELETE FROM tenant WHERE id = :id"), {"id": tenant_id})
+
+
+@dataclass(frozen=True)
+class DirectoryRow:
+    tenant_id: UUID
+    slug: str
+    name: str
+    city: str | None
+    logo_object_key: str | None
+
+
+def search_app_directory(prefix: str, limit: int) -> list[DirectoryRow]:
+    """The shared app's facility search (APP-01): the one cross-tenant read. Only tenants that are active, whose
+    app config is on and listed, and that have an enabled public portal location; the name or one of its words
+    starts with `prefix`. Listing fields only. shortcut: first page only (limit <= 20), no cursor."""
+    prefix, limit = prefix.strip(), max(1, min(limit, 20))
+    if len(prefix) < 2:  # no listing of every facility through a one-letter query
+        return []
+    escaped = prefix.lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    sql = """
+        SELECT t.id, t.slug, coalesce(c.directory_name, t.name) AS name,
+          (SELECT l.city FROM portal_settings p JOIN location l ON l.tenant_id = p.tenant_id AND l.id = p.location_id
+            WHERE p.tenant_id = t.id AND p.is_enabled AND p.is_public ORDER BY l.city NULLS LAST LIMIT 1) AS city,
+          (SELECT f.object_key FROM logo g JOIN stored_file f ON f.tenant_id = g.tenant_id AND f.id = g.file_id
+            WHERE g.tenant_id = t.id AND g.location_id IS NULL) AS logo_object_key
+        FROM tenant t JOIN app_config c ON c.tenant_id = t.id
+        WHERE t.status = 'active' AND c.is_enabled AND c.is_listed_in_directory
+          AND EXISTS (SELECT 1 FROM portal_settings p WHERE p.tenant_id = t.id AND p.is_enabled AND p.is_public)
+          AND (lower(coalesce(c.directory_name, t.name)) LIKE :starts ESCAPE '\\'
+               OR lower(coalesce(c.directory_name, t.name)) LIKE :word ESCAPE '\\')
+        ORDER BY name, t.id LIMIT :limit
+    """
+    params = {"starts": f"{escaped}%", "word": f"% {escaped}%", "limit": limit}
+    with platform_engine().connect() as conn:
+        return [DirectoryRow(r.id, r.slug, r.name, r.city, r.logo_object_key) for r in conn.execute(text(sql), params)]

@@ -139,7 +139,7 @@ function PayDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => void
   const failed = payment?.status === 'failed'
   const challenge = result?.client_secret && payment?.status === 'requires_action' ? result.client_secret : null
   const done = result && !failed && !challenge
-  const p = provider.data?.provider === 'fake' || provider.data?.provider === 'stripe' ? provider.data.provider : null
+  const p = provider.data?.provider ?? null
 
   return (
     <Dialog

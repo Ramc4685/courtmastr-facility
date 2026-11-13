@@ -8,13 +8,24 @@ import { ErrorState, LoadingState } from '../../components/States'
 import { useToast } from '../../components/Toast'
 import { timeZoneOptions } from '../../lib/format'
 import { BrandingCard } from './branding'
+import { brandVars } from '../../lib/brandTheme'
+
+/** Says up front when the portal will fall back to its own colour because this one fails WCAG AA contrast. */
+function colourHint(value: string, kind: 'primary' | 'accent'): string {
+  if (!value) return 'Blank uses the product colour. Format #RRGGBB.'
+  const vars = kind === 'primary' ? brandVars(value, null) : brandVars(null, value)
+  return Object.keys(vars).length ? 'Passes contrast checks.' : 'Too light for readable contrast: the portal will use the product colour instead.'
+}
 
 function SettingsForm({ tenant }: { tenant: Schemas['TenantOut'] }) {
   const qc = useQueryClient()
   const toast = useToast()
-  const [form, setForm] = useState({ name: tenant.name, default_time_zone: tenant.default_time_zone, locale: tenant.locale })
+  const [form, setForm] = useState({
+    name: tenant.name, default_time_zone: tenant.default_time_zone, locale: tenant.locale,
+    brand_primary_color: tenant.brand_primary_color ?? '', brand_accent_color: tenant.brand_accent_color ?? '',
+  })
   const save = useMutation({
-    mutationFn: () => api.patch('/api/v1/tenant', { body: form }),
+    mutationFn: () => api.patch('/api/v1/tenant', { body: { ...form, brand_primary_color: form.brand_primary_color || null, brand_accent_color: form.brand_accent_color || null } }),
     onSuccess: (t) => {
       qc.setQueryData(['tenant'], t)
       void qc.invalidateQueries({ queryKey: ['session'] })
@@ -45,6 +56,8 @@ function SettingsForm({ tenant }: { tenant: Schemas['TenantOut'] }) {
         />
         <Input label="Currency" value={tenant.currency} disabled hint="Set when the account was created; every amount is stored in it." />
         <Input label="Locale" hint="Formats dates and numbers, e.g. en-US" value={form.locale} error={errors.locale} onChange={(e) => setForm({ ...form, locale: e.target.value })} />
+        <Input label="Portal main colour" placeholder="#0b6850" hint={colourHint(form.brand_primary_color, 'primary')} value={form.brand_primary_color} error={errors.brand_primary_color} onChange={(e) => setForm({ ...form, brand_primary_color: e.target.value.trim() })} />
+        <Input label="Portal highlight colour" placeholder="#ea580c" hint={colourHint(form.brand_accent_color, 'accent')} value={form.brand_accent_color} error={errors.brand_accent_color} onChange={(e) => setForm({ ...form, brand_accent_color: e.target.value.trim() })} />
         <Input label="Account address" value={`${tenant.slug}`} disabled hint="Your sign-in address; contact support to change it." />
         <div className="sm:col-span-2">
           <Button type="submit" loading={save.isPending}>

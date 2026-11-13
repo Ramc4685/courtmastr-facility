@@ -8,6 +8,7 @@ verified (double opt-in, CLI-02). The send gate other contexts call is `is_subsc
 
 import re
 from datetime import datetime, timedelta
+from urllib.parse import urlsplit
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -17,15 +18,18 @@ from sqlalchemy.orm import Session
 
 from app.core import audit, clock, events
 from app.core.auth import Principal, authorize, authorize_tenant_wide, scope_query, system_principal, tokens
+from app.core.db import platform as platform_db
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.pagination import ListQuery, paginate
 from app.core.settings import get_settings
-from app.modules import memberships, platform, scheduling
+from app.modules import memberships, platform, programs, scheduling
 from app.modules.clients import households, merge
 from app.modules.clients import service as clients
+from app.modules.engagement.domain import app_config as app_rules
 from app.modules.engagement.domain import rules
-from app.modules.engagement.events import CampaignSent, ConsentChanged, MessageBounced
+from app.modules.engagement.events import AppConfigUpdated, CampaignSent, ConsentChanged, MessageBounced
 from app.modules.engagement.models import (
+    AppConfig,
     AutomationRule,
     Campaign,
     CommunicationPreference,
@@ -1712,8 +1716,13 @@ def _settings_for(session: Session, location_id: UUID) -> PortalSettings:
             slug=_slug(platform.service.location_name(session, location_id)),
             is_enabled=False,
             is_public=False,
-            allows_online_rentals=True,
             allows_online_purchases=True,
+            allows_self_signup=False,
+            menu=[],
+            social_links={},
+            redirect_url=None,
+            group_redirect_urls={},
+            redirect_domains=[],
         )  # off until staff switch it on
         taken = set(session.scalars(select(PortalSettings.slug)))
         base, n = row.slug, 2
@@ -1728,14 +1737,60 @@ def get_portal_settings(session: Session, principal: Principal, location_id: UUI
     return _settings_for(session, location_id)
 
 
+_NOT_NULL = ("is_enabled", "is_public", "slug", "allows_online_purchases", "allows_self_signup", "menu",
+             "social_links", "group_redirect_urls", "redirect_domains")  # fmt: skip
+
+
+_HOST = re.compile(r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]")
+
+
+def redirect_allowed(session: Session, url: str | None, domains: list[str]) -> bool:
+    """SSP-07: https only, no credentials, port or backslash tricks, and the host is one of the tenant's own hosts
+    or one of the location's allow-listed domains (or a subdomain of one, matched on a label boundary)."""
+    if not url or "\\" in url:  # browsers read a backslash as a slash, so the host they visit is not ours
+        return False
+    try:
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+        explicit_port = parts.port is not None
+    except ValueError:
+        return False
+    if parts.scheme != "https" or not _HOST.fullmatch(host) or "@" in parts.netloc or explicit_port:
+        return False
+    if host in platform.service.tenant_hosts(session):
+        return True
+    return any(host == d or host.endswith(f".{d}") for d in domains)
+
+
+def _check_redirects(session: Session, row: PortalSettings) -> None:
+    domains = row.redirect_domains or []
+    if row.redirect_url and not redirect_allowed(session, row.redirect_url, domains):
+        raise ValidationFailed("Use an https address on one of your own or allow-listed domains.",
+                               pointer="/redirect_url", code="redirect-not-allowed")  # fmt: skip
+    for group_id, url in (row.group_redirect_urls or {}).items():
+        if not redirect_allowed(session, url, domains):
+            raise ValidationFailed("Use an https address on one of your own or allow-listed domains.",
+                                   pointer=f"/group_redirect_urls/{group_id}", code="redirect-not-allowed")  # fmt: skip
+
+
+def _check_menu(items: list[dict]) -> None:
+    keys = [item["key"] for item in items]
+    if len(keys) != len(set(keys)):
+        raise ValidationFailed("Each portal section appears once.", pointer="/menu")
+
+
 def put_portal_settings(session: Session, principal: Principal, location_id: UUID, data: dict) -> PortalSettings:
     platform.service.get_location(session, principal, location_id)
     authorize(principal, _PORTAL, location_id=location_id)
     row = _settings_for(session, location_id)
-    if data.get("terms_text") is not None and data["terms_text"] != row.terms_text and row.id is not None:
-        row.terms_version = (row.terms_version or 1) + 1
+    data = {k: v for k, v in data.items() if v is not None or k not in _NOT_NULL}
+    if "menu" in data:
+        _check_menu(data["menu"])
+    if "group_redirect_urls" in data:
+        data["group_redirect_urls"] = {str(k): v for k, v in data["group_redirect_urls"].items()}
     for field, value in data.items():
         setattr(row, field, value)
+    _check_redirects(session, row)
     if row.id is None:
         session.add(row)
     taken = session.scalar(select(PortalSettings.id).where(func.lower(PortalSettings.slug) == row.slug.lower(),
@@ -1750,10 +1805,19 @@ def put_portal_settings(session: Session, principal: Principal, location_id: UUI
 def public_portal_config(session: Session) -> dict:
     """What an anonymous visitor may see: enabled, public locations and their landing content."""
     rows = session.scalars(select(PortalSettings).where(PortalSettings.is_enabled, PortalSettings.is_public))
-    return {"facility_name": _facility(session), "locations": [
+
+    def allowed(row: PortalSettings, url: str | None) -> bool:
+        return redirect_allowed(session, url, row.redirect_domains or [])
+
+    tenant = platform.service.get_tenant(session)
+    return {"facility_name": _facility(session), "tenant_slug": tenant.slug, "currency": tenant.currency,
+            "locations": [
         {"location_id": r.location_id, "name": platform.service.location_name(session, r.location_id), "slug": r.slug,
-         "welcome_text": r.welcome_text, "terms_text": r.terms_text, "terms_version": r.terms_version or 1,
-         "allows_online_rentals": r.allows_online_rentals, "allows_online_purchases": r.allows_online_purchases}
+         "time_zone": platform.service.location_time_zone(session, r.location_id),
+         "welcome_text": r.welcome_text, "allows_online_purchases": r.allows_online_purchases,
+         "allows_self_signup": r.allows_self_signup, "menu": r.menu or [], "social_links": r.social_links or {},
+         "redirect_url": r.redirect_url if allowed(r, r.redirect_url) else None,
+         "group_redirect_urls": {k: v for k, v in (r.group_redirect_urls or {}).items() if allowed(r, v)}}
         for r in rows
     ]}  # fmt: skip
 
@@ -1822,3 +1886,104 @@ def get_portal_video(session: Session, principal: Principal, video_id: UUID) -> 
     if row is None:
         raise NotFound()
     return row
+
+
+# --- member app configuration (APP-01, APP-02, APP-04, APP-05, APP-18) ----------------------------------------
+# One row per tenant; until staff save it the defaults below apply. It governs every location, so writes need the
+# content key at every location (authorize_tenant_wide).
+
+_APP_DEFAULTS = {
+    "mode": "shared", "is_enabled": False, "app_name": None, "is_listed_in_directory": False, "directory_name": None,
+    "card_number_mode": "auto_generate", "features": app_rules.clean_features({}), "home_screen": None,
+    "schedule": dict(app_rules.DEFAULT_SCHEDULE),
+}  # fmt: skip
+
+
+def _app_config(session: Session) -> AppConfig:
+    return session.scalar(select(AppConfig)) or AppConfig(**{k: (dict(v) if isinstance(v, dict) else v)
+                                                              for k, v in _APP_DEFAULTS.items()})  # fmt: skip
+
+
+def app_config_view(row: AppConfig) -> dict:
+    return {key: getattr(row, key) for key in _APP_DEFAULTS} | {
+        "features": {**_APP_DEFAULTS["features"], **(row.features or {})},
+        "schedule": {**app_rules.DEFAULT_SCHEDULE, **(row.schedule or {})},
+        "tile_types": list(app_rules.TILE_TYPES),
+        "updated_at": row.updated_at,
+    }
+
+
+def get_app_config(session: Session, principal: Principal) -> dict:
+    authorize(principal, _CONTENT)
+    return app_config_view(_app_config(session))
+
+
+def put_app_config(session: Session, principal: Principal, data: dict) -> dict:
+    """Replace the configuration (PUT: an omitted field returns to its default)."""
+    authorize_tenant_wide(principal, _CONTENT)
+    try:
+        cleaned = {
+            "home_screen": app_rules.clean_home_screen(data.get("home_screen")),
+            "schedule": app_rules.clean_schedule(data.get("schedule") or {}),
+            "features": app_rules.clean_features(data.get("features") or {}),
+        }
+    except app_rules.Invalid as error:
+        raise ValidationFailed(str(error), pointer=error.pointer, code="invalid-app-config") from None
+    row = _app_config(session)
+    for key, default in _APP_DEFAULTS.items():
+        value = cleaned[key] if key in cleaned else data.get(key, default)
+        if key in ("app_name", "directory_name") and isinstance(value, str):
+            value = value.strip() or None
+        setattr(row, key, value)
+    if row.id is None:
+        session.add(row)
+    session.flush()
+    audit.record(session, _CONTENT, row, changes=audit.diff(row))
+    events.publish(session, AppConfigUpdated(app_config_id=row.id), row.id)
+    return app_config_view(row)
+
+
+def public_app_config(session: Session) -> dict:
+    """Bootstrap payload for the app after it picks a facility: theme, features, home layout, portal config.
+    Anonymous (tenant from the host or X-Tenant-Slug). The slug is the capability, so a tenant need not be listed
+    in the directory, but its member app must be on: otherwise 404. Colours are the tenant brand colours (one
+    source for the portal and the app)."""
+    row = _app_config(session)
+    if not row.is_enabled:
+        raise NotFound()
+    tenant = platform.service.get_tenant(session)
+    brand = platform.branding.branding(session)
+    return {
+        "app_name": row.app_name or tenant.name,
+        "theme": {"primary": brand.get("primary_color"), "accent": brand.get("accent_color")},
+        "icon_url": brand["tenant_logo_url"],
+        "features": {**_APP_DEFAULTS["features"], **(row.features or {})},
+        "home_screen": row.home_screen,
+        "schedule": {**app_rules.DEFAULT_SCHEDULE, **(row.schedule or {})},
+        "portal": public_portal_config(session),
+    }
+
+
+def present_schedule(session: Session, listings: list[dict]) -> list[dict]:
+    """APP-18: the tenant's schedule flags on the portal session listing (programs calls this, registered below).
+    They only narrow what each session booking policy already allows."""
+    row = session.scalar(select(AppConfig))
+    if row is None or not row.schedule:
+        return listings
+    schedule = {**app_rules.DEFAULT_SCHEDULE, **row.schedule}
+    days = schedule["days_ahead"]
+    horizon = clock.now() + timedelta(days=days) if days else None
+    shown = (app_rules.present_listing(item, schedule, horizon) for item in listings)
+    return [item for item in shown if item is not None]
+
+
+def search_app_directory(prefix: str, limit: int) -> list[dict]:
+    """Anonymous, rate limited by the router. The cross-tenant read lives in core.db.platform (listing fields only)."""
+    return [  # listing fields only: never the tenant id
+        {"slug": r.slug, "name": r.name, "city": r.city,
+         "icon_url": platform.branding.public_url_for_key(r.logo_object_key) if r.logo_object_key else None}
+        for r in platform_db.search_app_directory(prefix.strip(), limit)
+    ]  # fmt: skip
+
+
+programs.selfservice.register_listing_presenter(present_schedule)

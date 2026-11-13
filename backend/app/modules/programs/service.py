@@ -22,7 +22,7 @@ from app.core.pagination import ListQuery, paginate
 from app.modules import clients, packages, platform, scheduling
 from app.modules.programs import events as ev
 from app.modules.programs import groups
-from app.modules.programs.models import Attendance, Enrollment, WaitlistEntry
+from app.modules.programs.models import Attendance, Enrollment, ProgramGroup, ProgramSession, WaitlistEntry
 from app.ports import notifications
 
 READ = "scheduling.booking.read"
@@ -675,3 +675,22 @@ def mark_attended_by_check_in(
         )
         marked.append((row.id, row.session_id))
     return marked
+
+
+# --- internal reads for engagement's favourites (APP-13) -------------------------------------------------------
+# engagement may call programs but not scheduling, so the reservation type check is passed through here.
+
+
+def program_group_exists(session: Db, program_group_id: UUID) -> bool:
+    found = select(ProgramGroup.id).where(ProgramGroup.id == program_group_id, ProgramGroup.deleted_at.is_(None))
+    return session.scalar(found) is not None
+
+
+def reservation_type_exists(session: Db, reservation_type_id: UUID) -> bool:
+    return scheduling.service.reservation_type_exists(session, reservation_type_id)
+
+
+def group_of_sessions(session: Db, program_group_ids: set[UUID]) -> dict[UUID, UUID]:
+    """Session id to program group id, for the sessions linked to these groups."""
+    link = select(ProgramSession.session_id, ProgramSession.program_group_id)
+    return dict(session.execute(link.where(ProgramSession.program_group_id.in_(program_group_ids))).tuples().all())

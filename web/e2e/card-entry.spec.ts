@@ -1,5 +1,7 @@
-import AxeBuilder from '@axe-core/playwright'
 import { expect as baseExpect, test, type Page } from '@playwright/test'
+import { scanAfter } from './a11y'
+
+const scan = scanAfter(/Loading|Checking|Preparing|…$/, 30_000)
 
 // PAY-11 and PAY-18 on the fake processor: a card that needs 3-D Secure at the desk, and a member paying
 // part of an invoice in the portal through the bank check. Seeded data: docs/dev/demo-accounts.md.
@@ -7,12 +9,6 @@ const expect = baseExpect.configure({ timeout: 30_000 })
 const PASSWORD = 'courtside-demo-2026'
 const ADMIN = 'admin@courtside-demo.example.com'
 const MEMBER = 'member@courtside-demo.example.com'
-
-async function scan(page: Page, label: string) {
-  await expect(page.getByRole('status').filter({ hasText: /Loading|Checking|Preparing|…$/ })).toHaveCount(0)
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 /** Staff bill Morgan Member one item and open its invoice; returns the invoice number. */
 async function billMorgan(page: Page, description: string, price: string) {

@@ -90,6 +90,13 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [x] [undocumented] README:4 names only migration `0201_clients_households`. Client tables also come from `backend/migrations/versions/0002_kernel_clients_billing.py` and `backend/migrations/versions/1091_clients_photo_and_note_attachments.py`. Docs batch.
 - [x] [undocumented] README:8 lists the tables in `models.py` but leaves out `referral_category` (`backend/app/modules/clients/models.py:312`) and `client_location_settings` (`models.py:392`). It also says photo storage is excluded, yet `client_note_attachment` (`models.py:618`) is defined in `models.py`. Docs batch.
 - [x] [undocumented] The README names only the `clients.client.created`, `ClientUpdated` and `NoteAttachmentChanged` events. `backend/app/modules/clients/events.py:23,29,38` also defines `ClientDisabled`, `ClientMerged` and `RelationshipChanged`. Docs batch.
+- [ ] [stale-not-built] README:48 lists CSV export (`createClientExport`) as not built; a client export exists as the `client_export` report in reporting (`backend/app/modules/reporting/reports/clients.py:170-176,448-454`), and `docs/api/openapi-people.yaml:1969` still lists the operation.
+- [ ] [stale-not-built] README:49-50 says the `own` booking clause "waits for scheduling"; scheduling is built and the clause is still absent (`backend/app/modules/clients/service.py:79-85`, docstring at `:81` also stale).
+- [ ] [undocumented] README:7-15 file table omits `terms.py` (`backend/app/modules/clients/terms.py:1-28`).
+- [ ] [undocumented] README:44 documents `source: "import"` only; `ClientCreated.source` also allows `"guest"` (`backend/app/modules/clients/events.py:14-16`, `service.py:800`).
+- [ ] [undocumented] README:35 omits the activation hook and the PLT-14 usage counter registered with platform (`backend/app/modules/clients/__init__.py:16-19`).
+- [ ] [contract] `terms.acknowledge` relies on `assert _recorder is not None` (`backend/app/modules/clients/terms.py:26`); stripped under `python -O`, and nothing guarantees `documents` is imported (`documents/service.py:1278`).
+- [ ] [wording] README:115 `created_via=portal|registration` is unvalidated; any other value acts as `registration` (`backend/app/modules/clients/service.py:1182,1187`).
 
 ### documents (8) — [evidence](drift/documents.md)
 
@@ -102,8 +109,19 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [x] [undocumented] `permissions.py` registers `documents.document.bulk_request` (`backend/app/modules/documents/permissions.py:19`) for the unbuilt DOC-07. The README names only `documents.document.void`, and doesn't note that this key exists unused. Docs batch.
 - [x] [wording] Line 66 says `app/scheduler.py` enqueues `sweep_documents` hourly, which is true (`backend/app/scheduler.py:22`). The actor's own docstring still says "Nothing schedules it yet (no scheduler in the kernel)" (`backend/app/modules/documents/service.py:1259-1261`), so code and README disagree. Here the code comment is the stale side. Docs batch.
 
-### engagement (10) — [evidence](drift/engagement.md)
+### engagement (13) — [evidence](drift/engagement.md)
 
+- [ ] [wording] README:9 says 15 tables; code has 21 (models.py:573-791 adds portal_signup, app_config, app_content, location_contact, app_inquiry, client_favorite, app_usage_day). File table (7-16) omits signup.py, content.py, member.py, domain/app_config.py, events.py, permissions.py, schemas.py and the two new web pages (App.tsx:206-207); subject.py now has five handler pairs (subject.py:110-124) plus `"engagement"` in service.py:340
+- [x] [contract] `getPortalVideo` is served on main (router `GET /portal/videos/{video_id}`); was: in openapi-programs.yaml:5446 with no route; service.get_portal_video (service.py:1882) is never called; not under Not built
+- [ ] [contract] `/public/portal-signups` and `/confirm` (router.py:511,525) are in no docs/api yaml
+- [ ] [wording] "Endpoints the mobile app depends on" names nonexistent `mobile/src/api/api.ts` (adapter is `mobile/src/adapters/api.ts`); app calls only inbox list/read and devices POST from the list (api.ts:253-256), and many routes it omits (app-config, app-directory, app-contents, contacts, trial-requests, feedback, favorites, app-usage, wallet, payments)
+- [ ] [undocumented] events campaign.sent, message.bounced, consent.changed, portal_signup.confirmed, app_config.updated (events.py:9-40) not in README
+- [ ] [undocumented] cross-context hooks: programs.selfservice.register_listing_presenter (service.py:1989), platform.branding.public_url_for_key (service.py:1984), core.db.platform.search_app_directory cross-tenant read (service.py:1985)
+- [ ] [undocumented] inbox items expire after INBOX_DAYS = 30 (service.py:355,953,1463,1252)
+- [ ] [undocumented] permission keys sms_campaign.send and inbox.reply registered, unused (permissions.py:19,23)
+- [ ] [undocumented] built-in segments read-only, SYSTEM_TEMPLATES catalogue, POST /segments/preview (router.py:126), suppression-permanent and invalid-state-transition errors
+- [ ] [undocumented] audit action engagement.app_inquiry.receive (content.py:32,259) is not a registered permission
+- [x] [contract] (fixed in 2a48ee1: the area opens for the member app keys) web `engagement/app` and `engagement/app-content` sit under a route needing engagement.campaign.read (App.tsx:196), so a role with only the Phase 11 keys cannot reach them
 - [x] [contract] The mobile-adapter path at line 112 is wrong. The README names `mobile/src/api/api.ts`, but that file does not exist. The adapter is `mobile/src/adapters/api.ts`; `mobile/src/api/` holds only `schema.d.ts`. Docs batch.
 - [x] [wording] Line 104's heading, "Endpoints the mobile app depends on (keep stable)", overstates what the app uses. The mobile adapter calls only `GET /portal/inbox` (without `client_id`), `POST /portal/inbox/{id}/read` and `POST /portal/devices` (`mobile/src/adapters/api.ts:178-182`). No code in `mobile/src` (excluding the generated `schema.d.ts`) calls `/portal/inbox/unread-count`, `DELETE /portal/devices/{id}`, `/portal/videos`, `/public/portal-config` or `/portal/clients/{client_id}/communication-preferences`. Docs batch.
 - [x] [wording] Lines 112-114 list the other portal routes the mobile adapter maps, and the list is incomplete. The adapter also calls `/portal/session-listings` (`mobile/src/adapters/api.ts:37`), `/portal/enrollments` and `/portal/enrollments/{id}/cancel` (`api.ts:90,126,133`), `/portal/app-cards` (`api.ts:118`) and `/portal/assessment-bests` (`api.ts:177`). Docs batch.
@@ -115,7 +133,7 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [x] [undocumented] Built-in segments are read-only: an edit gets `409 segment-read-only` (`service.py:687-688`; `BUILTIN_SEGMENTS`/`ensure_builtin_segments` at `service.py:732-748`). The README also omits the system-template catalogue `SYSTEM_TEMPLATES`/`system_template` (`service.py:581-602`) and the `POST /segments/preview` route (`router.py:111`). The Rules section (lines 51-53) refers to "system templates" without saying where they come from. Docs batch.
 - [x] [undocumented] Releasing an address that has turned permanent is refused with `409 suppression-permanent`, and releasing one twice gets `409 invalid-state-transition` (`service.py:1118-1128`). Line 56 says only that suppression becomes permanent "after a release". Docs batch.
 
-### imports (7) — [evidence](drift/imports.md)
+### imports (7 closed, 8 open) — [evidence](drift/imports.md)
 
 - [x] [contract] README lines 36-50 describe the routes `PUT /import-jobs/{id}/source`, `POST /import-jobs/{id}/dry-runs`, `POST /import-jobs/{id}/commits` and `GET /import-jobs/{id}/error-report`. The router implements exactly those (backend/app/modules/imports/router.py:63-96), but the API contract docs/api/openapi-core.yaml does not. It declares `POST /import-jobs/{import_job_id}/commit` (singular, operationId `commitImportJob`, openapi-core.yaml:1559), `GET /import-jobs/{import_job_id}/rows` (`listImportJobRows`, :1544) and `POST /import-jobs/{import_job_id}/cancel` (`cancelImportJob`, :1574), and has no source, dry-runs or error-report paths. The router's operation ids (camel_id: `createImportJobCommit`, `uploadImportJobSource`, ...) therefore do not match the contract's operationIds. Fixed in 96dbe58.
 - [x] [contract] README line 172 lists "cancelling a running job" as deferred, which matches the code (no cancel route in router.py; `service.py` has no cancel function). The API contract still publishes `cancelImportJob` (docs/api/openapi-core.yaml:1574) as if it were built. Fixed in 96dbe58.
@@ -124,8 +142,16 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [x] [undocumented] Upload validation is not in the README: accepted content types `text/csv`, `application/csv`, `text/plain`, `application/vnd.ms-excel` (service.py:51, 174-175), and error codes `file-empty`, `file-too-large`, `file-type-mismatch`, `file-not-utf8`, `file-not-csv`, `file-no-header`, `file-duplicate-header`, `file-too-many-rows`, `file-infected` (router.py:65-67). Also missing: an upload after the check has started is 409 (service.py:168-169), and a dry run on a `new` job is 409 "Upload a file first" (service.py:199-200). Docs batch.
 - [x] [undocumented] A row that hits a database IntegrityError is `failed`/`invalid` with code `already-exists` (service.py:321-325). README line 58-59 describes only refusals and `unexpected`. Docs batch.
 - [x] [wording] README line 113 says the commit hits `entitlements.enforce_limit` "inside `clients._create`". The function is `clients.service._create` (backend/app/modules/clients/service.py:756, call at :769). Docs batch.
+- [ ] [wording] README lines 10-11 call the import-linter contracts an allow-list; pyproject.toml:392-399 is a `forbidden` list of other contexts, so a new context is not blocked until added by name.
+- [ ] [wording] README lines 180-181 attribute the POS price bound (999,999,999.99) to the catalogue; it is the import's own nine-digit money pattern (csvio.py:20); the catalogue allows 10**12 minor units (pos/schemas.py:15).
+- [ ] [undocumented] Money cells of every type are capped at nine integer digits (csvio.py:20); README line 146 omits it.
+- [ ] [undocumented] Household rules for client rows (heads first, exactly one head per `household_ref`, code `household`) are not described (service.py:285-305, 372-383; kinds.py:172-174).
+- [ ] [undocumented] Free-text cells are screened for card numbers and refused with `CARD_DATA` (service.py:352-357).
+- [ ] [undocumented] `GET /import-jobs/{id}` (router.py:59-61) and the job view fields `processed_row_count`, `source_file_name`, `has_error_report`, `stop_reason` (service.py:92-104) are not in the Flow section.
+- [ ] [undocumented] Error report is absent (404 "This import has no error report.", service.py:255-258) when no row has a problem or warning; README implies it always exists.
+- [ ] [undocumented] Routes carry the `idempotency` dependency, CSV downloads set `nosniff` and `no-store` (router.py:17, 35-40), dry-run and commit answer 202 (router.py:75, 85), and create refuses non-staff principals and unknown locations (service.py:148-155).
 
-### integrations (see drift/integrations.md; re-checked 2026-11-13 on claude/hardening-pass, INT-13 closed) — [evidence](drift/integrations.md)
+### integrations (59 open, 33 closed) — [evidence](drift/integrations.md)
 
 INT-07 QuickBooks (2026-11-13, refreshed for the uncommitted queued-sync, request-id, finished-day, simulated-poster, row-lock and connection-reuse changes; the public-schedule items re-read after `feeds.public_schedule` moved to `programs.selfservice.public_seats`):
 
@@ -168,7 +194,7 @@ INT-09 virtual sessions (new 2026-11-13):
 - [x] [undocumented] A repeat `PUT` on a changed connection or with a new host failed or ignored the host. Fixed: the old meeting is deleted at Zoom and a new one made (`meetings.put_meeting`; README lines 106-109).
 - [x] [undocumented] Disconnecting Zoom left its meetings `scheduled` and joinable. Fixed: they are deleted at Zoom (best effort) and marked `failed` (`meetings.on_disconnect`; README lines 109-110).
 - [x] [undocumented] `PUT` on a cancelled or past session was accepted. Fixed: `409 invalid-state-transition` (`backend/app/modules/integrations/meetings.py`; README lines 108-109).
-- [ ] [undocumented] `host_start_url_ciphertext` is stored but no route returns it (`backend/app/modules/integrations/meetings.py:101-107, 166`).
+- [x] [undocumented] `host_start_url_ciphertext` is stored but no route returns it (`backend/app/modules/integrations/meetings.py:101-107, 166`). Fixed: README line 128 says it is stored and not yet returned.
 - [ ] [undocumented] Zoom has no feature flag or plan check, and bad credentials return `422 provider-unavailable` on create, not the yaml's `provider-not-available` (`backend/app/modules/integrations/service.py:653-656`, `meetings.py:53`).
 - [ ] [wording] `service.video_meetings` says "the simulated adapter in v1" and only tests use it (`backend/app/modules/integrations/service.py:933-934`). The adapter directory text is fixed (`service.py:895-897`).
 - [x] [wording] Three docstrings point to `docs/status/phase15-api.md`, which does not exist (`backend/app/adapters/video.py:3`, `backend/app/adapters/accounting.py:139`, `backend/app/modules/integrations/quickbooks.py:6`).
@@ -176,13 +202,13 @@ INT-09 virtual sessions (new 2026-11-13):
 
 Contract coverage and wiring:
 
-- [ ] [wording] README line 17 says `jobs.py` has "an unscheduled sweep", but lines 143-144 say `sweep_webhook_deliveries` runs every minute. The scheduler enqueues it (`backend/app/scheduler.py:20`); the actor docstring is stale too (`backend/app/modules/integrations/jobs.py:21-22`).
+- [x] [wording] README line 17 says `jobs.py` has "an unscheduled sweep", but lines 143-144 say `sweep_webhook_deliveries` runs every minute. The scheduler enqueues it (`backend/app/scheduler.py:20`); the actor docstring is stale too (`backend/app/modules/integrations/jobs.py:21-22`). Fixed: README lines 17 and 155 now say every minute; `jobs.py:21-23` is fixed.
 - [ ] [contract] README line 18 claims all integrations-tag endpoints, all `require()`-gated. The contract has 41 ops after main's sync (`runAccountingExport`, `listIntegrationAdapters`, `listAdapterCommands` added); 39 are served. Not served: nested `listAccountingExports` and `receiveZoomEvents` (openapi-programs.yaml:6884, 7220). The router still serves 3 ops with no contract entry: `GET /accounting-exports`, `/api-reference`, `/public/analytics-config` (`backend/app/modules/integrations/router.py:230, 250, 390`).
 - [x] [undocumented] The README "Not built" line named none of the unserved ops. Closed for `/webhooks/zoom` and the video routes (README lines 156-162); the nested `listAccountingExports` is still unnamed (see the item above).
 - [ ] [wording] README line 18 says `inbound` "holds the provider webhooks". It holds the QuickBooks receiver and two public GETs; the OAuth callback is on `router`; there is no Zoom receiver (`backend/app/modules/integrations/router.py:215, 339, 375`).
 - [ ] [undocumented] `auth.authenticate` refuses a key for a suspended tenant and throttles `last_used_at` to one write a minute (`backend/app/modules/integrations/auth.py:89-98`); the README mentions neither.
 - [ ] [wording] README lines 55-56: `webhook_allow_localhost` is refused only outside dev *and test* (`backend/app/core/settings.py:283-284`).
-- [ ] [undocumented] `permissions.py` and `events.py` are not in the file table. The README names only `calendar_feed.revoke_any`, not the other five keys (`backend/app/modules/integrations/permissions.py:14-18`), the `+` flag on `api_key.manage`, the `reason` and `webhook = false` of the disabled event (`events.py:9-15`), or the audit actions `integrations.connection.authorize`, `.update`, `integrations.sync_mapping.replace`, `integrations.video_meeting.put`, `.delete`.
+- [x] [undocumented] `permissions.py` and `events.py` are not in the file table. The README names only `calendar_feed.revoke_any`, not the other five keys (`backend/app/modules/integrations/permissions.py:14-18`), the `+` flag on `api_key.manage`, the `reason` and `webhook = false` of the disabled event (`events.py:9-15`), or the audit actions `integrations.connection.authorize`, `.update`, `integrations.sync_mapping.replace`, `integrations.video_meeting.put`, `.delete`. Fixed: README lines 18-19 now list both, the six keys, the `+` flag and the disabled event; the audit actions are still unnamed (new item below).
 - [x] [wording] README said `_ledger_rows` reads `ledger_entry` directly until module 8 adds a journal read. Fixed by main's EGM pass: it calls `billing.service.ledger_day_totals` (`backend/app/modules/integrations/service.py:731-733`, `backend/app/modules/billing/service.py:1627`; README line 142).
 - [x] [stale-not-built] "plan entitlement gating" (old README line 75): closed, the README no longer lists it, and keys do require `api_access` (`backend/app/modules/integrations/auth.py:91`).
 
@@ -207,7 +233,7 @@ Calendar feeds and public schedule:
 INT-13 analytics on registration pages (new 2026-11-13):
 
 - [x] [contract] `GET /public/analytics-config` is not in the yaml (`backend/app/modules/integrations/router.py:390-398`, generated spec only); the yaml provider enum lacks `google_analytics` (openapi-programs.yaml:9206); ADR 0012:281 says "no server component". Fixed 2026-11-13: INT-13 removed by owner decision (migration 1951); the route, setting and provider are gone.
-- [ ] [contract] `docs/architecture/data-model-programs.md:1943` still lists `analytics_measurement_id` on `portal_settings`; INT-13 is dropped and the column does not exist. Remove the row.
+- [x] [contract] `docs/architecture/data-model-programs.md:1943` still lists `analytics_measurement_id` on `portal_settings`; INT-13 is dropped and the column does not exist. Remove the row. Fixed: no `analytics_measurement_id` remains in data-model-programs.md.
 - [x] [contract] ADR 0012:281 says consent only where GDPR mode is on (PLT-16); the code asks everyone, never reads GDPR mode, and has no way to withdraw the choice (`web/src/features/integrations/AnalyticsConsent.tsx:11, 65`).
 - [x] [contract] security-baseline.md:33 and :667 forbid third-party analytics scripts in the SPA; the portal loads gtag from googletagmanager.com after consent (`AnalyticsConsent.tsx:12, 48`). Update the baseline or the feature.
 - [x] [missing] The tag is blocked in the deployed stack: CSP is `script-src 'self'; connect-src 'self'` (`infra/proxy/Caddyfile:51`). The README says so (lines 119-122).
@@ -230,6 +256,16 @@ Re-check 2026-11-13 (`claude/hardening-pass`, new items only):
 - [ ] [wording] README:9 `models.py` row omits `video_meeting` (`models.py:269-273`).
 - [ ] [wording] README:60-61 says `webhook_allow_localhost` is "dev only"; startup refuses it outside dev and test (`backend/app/core/settings.py:309-310`).
 - [ ] [missing] `public_schedule_setting` and `video_meeting` ids are not in the `populate()` return (`backend/conftest.py:1316`) or `test_isolation.py:498`.
+- [ ] [contract] 22 engagement operations in `docs/api/openapi-programs.yaml` (lines 5648 to 5993, e.g. `scheduleCampaign`, portal content) declare no `security`, so the contract never says a key may call them although their permission is in `service.KEY_PERMISSIONS` (2026-11-13).
+- [ ] [undocumented] Bulk-send (`B`) scopes `engagement.campaign.send` and `engagement.push.send` go on a key without `confirm_sensitive_scopes`; only `$` and `P` need it (`service.py:56`). Decide whether `B` should join the confirmed set.
+- [ ] [undocumented] Migration 1705 was edited in place to keep the seven engagement keys; a database that ran the earlier 1705 keeps the stripped scopes. Nothing is deployed, so no new revision was added.
+
+Re-check 2026-11-13 pass 2 (`claude/hardening-pass`, new items only):
+
+- [ ] [undocumented] Audit actions still not named in the README: `integrations.connection.authorize`, `.update`, `integrations.sync.reset`, `integrations.sync_mapping.replace`, `integrations.video_meeting.put`, `.delete` (`backend/app/modules/integrations/quickbooks.py:386`, `meetings.py`).
+- [ ] [wording] README:12 says `domain/webhooks.py` holds the SSRF address classes; they are in `backend/app/core/networks.py:64` (`blocked_reason`, used at `transport.py:49`).
+- [ ] [stale-not-built] `docs/status/README.md:98` says cross-site embedding is not enabled at the proxy (`infra/proxy/Caddyfile:56` now allows `/schedule/public/*`); `docs/status/02-resources-scheduling.md:47` says the settings screen is not built (`web/src/features/integrations/PublicSchedulePanel.tsx`); `backend/app/modules/scheduling/README.md:122-124` says `scheduling.public_schedule.manage` has no route (`router.py:432, 438`).
+
 
 ### leagues (5) — [evidence](drift/leagues.md)
 
@@ -372,6 +408,16 @@ Re-check 2026-11-13 (`claude/hardening-pass`, new items only):
 
 ### staff (10) — [evidence](drift/staff.md)
 
+- [ ] [wording] Line 9 says `models.py` holds "the twelve tables of section 4 plus `bonus_rule`", which makes thirteen. Section 4 of `docs/architecture/data-model-money.md` already lists `bonus_rule` (data-model-money.md section 4, `#### bonus_rule (STF-04)`), and `models.py` defines exactly twelve tables, `bonus_rule` among them (`backend/app/modules/staff/models.py:93,122,160,185,215,228,247,266,299,325,358,390`). The models docstring that line 9 points to for "deviations" names only the network allow-list and the missing `client_id` (`models.py:1-6`). It says nothing about `bonus_rule`.
+- [ ] [wording] Line 36 says "The run has three sections", but the list that follows has four bullets: Sessions, Commissions, Bonuses, Hourly (lines 38-54). The code computes three `includes` groups (`sessions`, `commissions`, `hourly`), and bonuses ride on `sessions` (`models.py:335`; `service.py:1283-1291,1376-1378`).
+- [ ] [undocumented] Only `staff.shift.published` is documented (line 126). The context also publishes `staff.trainer.created` when a payee gets a calendar column (`events.py:9-15`; `service.py:173-177`), `staff.time_entry.closed` on clock-out (`events.py:18-23`; `service.py:588-592`), and `staff.payroll_run.finalized` on finalize (`events.py:26-29`; `service.py:1131`).
+- [ ] [undocumented] A finalized run can be voided: `void_run` accepts both `calculated` and `finalized` (`service.py:1135-1142`). Lines 34-35 describe the run as "calculated until it is finalized (frozen) or voided", which reads as if those are two alternative exits from `calculated`. Lines 111 and 128 depend on voiding a finalized run, but the README never states that it is allowed.
+- [ ] [undocumented] `GET /my-shifts` (`router.py:249-251`) is gated only by a signed-in staff login (`require()` with no key, `router.py:22`). `GET /time-entries/current` (`router.py:195`) is also missing from the README. The README documents other routes individually (lines 22-26) but neither of these.
+- [ ] [undocumented] Clock-in has preconditions and error codes the time-clock paragraph (lines 28-32) does not mention. Clock-in needs an hourly rate in force today for the chosen job, else a 422 on `/job_classification_id` (`service.py:545-549`). A punch outside the allowed networks is `403 network-not-allowed` (`service.py:550-551,578-579`). A second punch is `409 already-clocked-in` (`service.py:552-553`), and clocking out while not clocked in is `409 not-clocked-in` (`service.py:574-575,581-582`). The README names only `time-entry-overlap`.
+- [ ] [undocumented] Bonus rules pay nothing unless the payee has at least one pay-rate row or one session-completion rule. `_session_pay` returns early when `rates` and `rules` are both empty (`service.py:1313-1314`), before the bonus loop at `service.py:1376-1378`. Lines 50-53 present bonuses as paid whenever "sessions" is in `includes`, without this condition.
+- [ ] [undocumented] Taking the last trainer off a session that has no other resource is refused with `409 session-needs-resource` (`service.py:1016-1017`). The instructor-assignment paragraph (lines 22-26) mentions only `booking-conflict`.
+- [ ] [wording] Lines 68-69 ("`resource_id` adopts an existing trainer resource; otherwise one is created in `resource_group_id`...") sit inside the `own-sessions-only` bullet (lines 66-67) but describe trainer-payee creation (`service.py:152-162`; `resources/service.py:376-391`). They belong with the line 60 bullet.
+- [ ] [wording] Lines 16-20 list the cross-context reads that payroll uses. The list leaves out `memberships.eligibility` (`service.py:1356`), which line 98 says is used for membership-type pay. It also leaves out the write-side calls `platform.service.set_linked_resource` (`service.py:156,198`), `resources.service.trainer_group` and `resources.service.create_resource` (`service.py:158-162`).
 - [x] [wording] Line 9 says `models.py` holds "the twelve tables of section 4 plus `bonus_rule`", which makes thirteen. Section 4 of `docs/architecture/data-model-money.md` already lists `bonus_rule` (data-model-money.md section 4, `#### bonus_rule (STF-04)`), and `models.py` defines exactly twelve tables, `bonus_rule` among them (`backend/app/modules/staff/models.py:93,122,160,185,215,228,247,266,299,325,358,390`). The models docstring that line 9 points to for "deviations" names only the network allow-list and the missing `client_id` (`models.py:1-6`). It says nothing about `bonus_rule`. Docs batch.
 - [x] [wording] Line 36 says "The run has three sections", but the list that follows has four bullets: Sessions, Commissions, Bonuses, Hourly (lines 38-54). The code computes three `includes` groups (`sessions`, `commissions`, `hourly`), and bonuses ride on `sessions` (`models.py:335`; `service.py:1283-1291,1376-1378`). Docs batch.
 - [x] [undocumented] Only `staff.shift.published` is documented (line 126). The context also publishes `staff.trainer.created` when a payee gets a calendar column (`events.py:9-15`; `service.py:173-177`), `staff.time_entry.closed` on clock-out (`events.py:18-23`; `service.py:588-592`), and `staff.payroll_run.finalized` on finalize (`events.py:26-29`; `service.py:1131`). Docs batch.
@@ -386,6 +432,22 @@ Re-check 2026-11-13 (`claude/hardening-pass`, new items only):
 ## Added on this branch (drift refresh 2026-11-12)
 Found by re-running the drift reports against this branch's code. Merge these into the module checklists above when the branch lands.
 
+### access (+3) — [evidence](drift/access.md)
+
+- [ ] [stale-not-built] README:153 wallet pass "deferred" but built: /portal/wallet-passes (router.py:302-314), service.py:545-593, scan acceptance service.py:98-111,799; unsigned (is_signed)
+- [ ] [contract] /portal/wallet-passes routes not in contract; getWalletPass (:4717) still deferred, no route
+- [ ] [undocumented] handlers.py clients.client.disabled subscriber revokes wallet passes; README names no consumed event
+
+### platform (+3) — [evidence](drift/platform.md)
+
+- [ ] [undocumented] privacy.register_subject_handler (privacy.py:84) not in README:373-377
+- [ ] [wording] README:21-22 privacy "calls clients.service for erasure"; it only lazily imports clients.get (privacy.py:89-92), erasure via HANDLERS (privacy.py:176)
+- [ ] [missing] branding.public_url_for_key (branding.py:31) called by engagement/service.py:1924; branding not in README:21 "service, auth, staff only"
+
+### programs (+2) — [evidence](drift/programs.md)
+
+- [ ] [undocumented] selfservice.register_listing_presenter (selfservice.py:34-41,192-193; engagement/service.py:1929) not in README:14 or Rules
+- [ ] [undocumented] portal listing rows carry time_zone (schemas.py:516, selfservice.py:183-184)
 ### platform (+2) — [evidence](drift/platform.md)
 
 - [ ] [undocumented] service.location_todays (service.py:335) not in README:9 service row (README:326 names only earliest_today)
@@ -427,3 +489,4 @@ New items only; the ten engagement items above are already ticked. Counts: contr
 - [ ] [wording] README:43-45 basis `express_written` or `express_verbal`; plain `express` is accepted and default (`schemas.py:42`)
 - [ ] [wording] README:11,20 "one send path"; duplicate-skip row and inbox writes bypass `_deliver` (`service.py:943-966,1451-1458`)
 - [ ] [wording] `router.py:422-423` docstring says a token moves to the new login; code revokes and re-adds (`service.py:1296-1303`)
+- [ ] [wording] README:235-237 says the parent `/engagement` route still needs `engagement.campaign.read`; `App.tsx:229` now accepts the member app keys (fixed in 2a48ee1), so the README is the stale side. Also README:9 "15 tables" is 22 in code (`models.py`), not 21 as the first entry says

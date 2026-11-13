@@ -1,5 +1,5 @@
-import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
+import { scan } from './a11y'
 
 // Phase 14 B2: the public league site, its staff screens, the TV board and moderated classifieds. Seeded demo
 // accounts (docs/dev/demo-accounts.md). The member withdraws the post at the end so reruns stay under the limit.
@@ -7,11 +7,6 @@ const PASSWORD = 'courtside-demo-2026'
 const ADMIN = 'admin@courtside-demo.example.com' // the site is tenant-wide: every location needed
 const LEAGUE_ADMIN = 'league-admin@courtside-demo.example.com' // moderates at Downtown only
 const MEMBER = 'member@courtside-demo.example.com'
-
-async function scan(page: Page, label: string) {
-  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
-  expect(axe.violations.map((v) => `${label} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
-}
 
 async function signIn(page: Page, path: string, email: string) {
   await page.goto(path)
