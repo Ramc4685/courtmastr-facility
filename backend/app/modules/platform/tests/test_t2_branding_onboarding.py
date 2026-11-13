@@ -58,7 +58,10 @@ def test_logos_upload_replace_remove_and_serve_publicly(client, tenant, owner):
     location_id = _location(client, owner)
     shown = ok(client.put(f"{API}/locations/{location_id}/logo", headers=_image(owner), content=png_bytes()))
     assert [row["location_id"] for row in shown["locations"]] == [location_id]
-    assert ok(client.get(f"{API}/public/branding", headers=public)) == shown | {"primary_color": None, "accent_color": None}
+    assert ok(client.get(f"{API}/public/branding", headers=public)) == shown | {
+        "primary_color": None,
+        "accent_color": None,
+    }
 
     gone = ok(client.delete(f"{API}/branding/logo", headers=owner))
     assert gone["tenant_logo_url"] is None and client.get(_path(second["tenant_logo_url"])).status_code == 404
