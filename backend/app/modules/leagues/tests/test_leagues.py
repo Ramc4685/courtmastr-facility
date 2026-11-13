@@ -11,22 +11,11 @@ import pytest
 from app.core.auth import Principal, system_principal
 from app.core.db.session import tenant_session
 from app.core.errors import NotFound, PermissionDenied
-from app.modules import billing
 from app.modules.leagues import service
-from app.modules.scheduling.tests.helpers import API, at, book, facility, ok
+from app.modules.scheduling.tests.helpers import API, at, book, drain, facility, ok
 from conftest import add_staff, login, new_client
 
 WINDOW = {"weekday": 3, "starts_at": "18:00", "ends_at": "22:00"}  # Wednesdays, location-local
-
-
-@pytest.fixture
-def f(client, owner, tenant):
-    f = facility(client, owner)
-    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
-        f.category = str(billing.service.create_revenue_category(session, code="LGE", label="Leagues").id)
-    f.sport = ok(client.post(f"{API}/sports", headers=owner, json={"name": "Futsal", "default_game_length_min": 60}))
-    f.person = new_client(client, owner, f.location)["id"]
-    return f
 
 
 def post(client, headers, path, body, status=201):
@@ -57,9 +46,16 @@ def run_body(f, competition_ids, **extra) -> dict:
     } | extra  # fmt: skip
 
 
+def generate(client, owner, run_id) -> dict:
+    """Start the generator job (LGE-08), run it to the end, and return the run."""
+    assert post(client, owner, f"/schedule-runs/{run_id}/generate", {}, 200)["state"] == "generating"
+    drain()
+    return get(client, owner, f"/schedule-runs/{run_id}")
+
+
 def scheduled(client, owner, f, competition_id) -> list[dict]:
     run = post(client, owner, "/schedule-runs", run_body(f, [competition_id]))
-    post(client, owner, f"/schedule-runs/{run['id']}/generate", {}, 200)
+    generate(client, owner, run["id"])
     post(client, owner, f"/schedule-runs/{run['id']}/commit", {}, 200)
     return get(client, owner, f"/schedule-runs/{run['id']}/games?status=scheduled")["data"]
 
@@ -167,14 +163,11 @@ def test_roster_places(client, owner, tenant, f):
 
 def test_schedule_generator_books_courts_and_reports_clashes(client, owner, f):
     comp = league(client, owner, f, teams=4)
-    fold = client.post(
-        f"{API}/schedule-runs", headers=owner, json=run_body(f, [comp["id"]], bye_mode="fold_last_round")
-    )
-    assert fold.status_code == 422 and fold.json()["code"] == "not-supported"
     run = post(client, owner, "/schedule-runs", run_body(f, [comp["id"]], blackout_dates=["2031-05-07"]))
     assert client.post(f"{API}/schedule-runs/{run['id']}/commit", headers=owner, json={}).status_code == 409
-    preview = post(client, owner, f"/schedule-runs/{run['id']}/generate", {}, 200)
+    preview = generate(client, owner, run["id"])
     assert preview["state"] == "previewed" and preview["stats"]["games"] == 6
+    assert preview["progress"] == {"done": 1, "total": 1}
     games = get(client, owner, f"/schedule-runs/{run['id']}/games")["data"]
     assert {g["status"] for g in games} == {"proposed"} and all(g["booking_id"] is None for g in games)
     assert all(not g["starts_at"].startswith("2031-05-07") for g in games)  # the blackout date is skipped
@@ -223,7 +216,11 @@ def test_results_standings_and_their_keys(client, owner, tenant, f):
     comp = league(client, owner, f, teams=3)
     games = scheduled(client, owner, f, comp["id"])
     first = games[0]
-    keeper = staff(client, tenant, "scorekeeper", f)
+    keeper_email, keeper_id = add_staff(tenant, "scorekeeper", location_ids=[f.location])
+    keeper = login(client, tenant, keeper_email)
+    assert client.put(f"{API}/games/{first['id']}/result", headers=keeper, json=score(1, 0)).status_code == 404
+    ok(client.put(f"{API}/competitions/{comp['id']}/staff", headers=owner,
+                  json={"staff": [{"staff_user_id": str(keeper_id)}]}), 200)  # fmt: skip  # LGE-26: now assigned
     manager = staff(client, tenant, "manager", f)
     no_sport = client.put(f"{API}/games/{first['id']}/result", headers=keeper,
                           json={"home": {"score": 1, "sportsmanship": 4}, "away": {"score": 0}})  # fmt: skip
@@ -293,9 +290,6 @@ def test_single_elimination_bracket(client, owner, f):
     comp = league(client, owner, f, kind="tournament", format="single_elimination", teams=3)
     seeds = [t["id"] for t in comp["teams"]]
     ok(client.put(f"{API}/competitions/{comp['id']}/seeding", headers=owner, json={"competition_team_ids": seeds}), 200)
-    double = client.post(f"{API}/competitions/{comp['id']}/brackets", headers=owner,
-                         json={"bracket_type": "double_elimination", "seed_source": "seeds"})  # fmt: skip
-    assert double.status_code == 422 and double.json()["code"] == "not-supported"
     bracket = post(client, owner, f"/competitions/{comp['id']}/brackets",
                    {"bracket_type": "single_elimination", "seed_source": "seeds"})  # fmt: skip
     assert bracket["size"] == 4
@@ -412,7 +406,7 @@ def test_maintenance_paths(client, owner, f):
     assert ok(client.get(f"{API}/games/{game['id']}/officials", headers=owner), 200) == []
     run = post(client, owner, "/schedule-runs", run_body(f, [cid]))
     assert patch(f"/schedule-runs/{run['id']}", {"rounds": 6, "wizard_step": 3})["rounds"] == 6
-    post(client, owner, f"/schedule-runs/{run['id']}/generate", {}, 200)
+    generate(client, owner, run["id"])
     assert get(client, owner, f"/schedule-runs?location_id={f.location}")["data"][0]["id"] == run["id"]
     assert (
         get(client, owner, f"/schedule-runs/{run['id']}")["stats"]["games"] == 6

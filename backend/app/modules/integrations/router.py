@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends
 
 from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, require
-from app.core.idempotency import idempotency
+from app.core.idempotency import idempotency, secret_response
 from app.core.pagination import ListQuery, list_query
 from app.modules.integrations import schemas as s
 from app.modules.integrations import service
@@ -34,6 +34,7 @@ def list_api_keys(query: Lists, ctx: Ctx = Depends(require(KEYS))):
 
 
 @router.post("/api-keys", response_model=s.ApiKeyCreated, status_code=201)
+@secret_response
 def create_api_key(body: s.ApiKeyCreate, ctx: Ctx = Depends(require(KEYS))):
     """The secret is in this response only. Scopes must be ones you hold and that may be given to a key.
     Errors: scope-not-grantable, scope-exceeds-creator, confirmation-required, staff-session-required."""
@@ -42,6 +43,7 @@ def create_api_key(body: s.ApiKeyCreate, ctx: Ctx = Depends(require(KEYS))):
 
 
 @router.post("/api-keys/{api_key_id}/rotate", response_model=s.ApiKeyCreated)
+@secret_response
 def rotate_api_key(api_key_id: UUID, body: s.ApiKeyRotate, ctx: Ctx = Depends(require(KEYS))):
     """New secret now; the old one keeps working for `grace_minutes` (default 24 hours)."""
     row, secret = service.rotate_api_key(ctx.session, ctx.principal, api_key_id, body.model_dump())
@@ -67,6 +69,7 @@ def list_webhook_endpoints(query: Lists, ctx: Ctx = Depends(require(HOOKS))):
 
 
 @router.post("/webhook-endpoints", response_model=s.WebhookEndpointSecretOut, status_code=201)
+@secret_response
 def create_webhook_endpoint(body: s.WebhookEndpointCreate, ctx: Ctx = Depends(require(HOOKS))):
     """The signing secret is in this response only. Errors: url-not-allowed (private, loopback, link-local or
     metadata address, or not https), event-permission-denied, endpoint-limit-reached."""
@@ -94,6 +97,7 @@ def delete_webhook_endpoint(webhook_endpoint_id: UUID, ctx: Ctx = Depends(requir
 
 
 @router.post("/webhook-endpoints/{webhook_endpoint_id}/rotate-secret", response_model=s.WebhookEndpointSecretOut)
+@secret_response
 def rotate_webhook_secret(webhook_endpoint_id: UUID, ctx: Ctx = Depends(require(HOOKS))):
     """New signing secret, in this response only; the previous one also signs for 24 hours."""
     row, secret = service.rotate_webhook_secret(ctx.session, ctx.principal, webhook_endpoint_id)

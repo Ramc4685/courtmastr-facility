@@ -1,10 +1,10 @@
-"""resources tables (docs/architecture/data-model-core.md section 3). Lockers (3, RES-07..09) are not built."""
+"""resources tables (docs/architecture/data-model-core.md section 3), lockers and padlocks included (RES-07..09)."""
 
-from datetime import date
+from datetime import date, datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, Index, SmallInteger, UniqueConstraint, text
+from sqlalchemy import BigInteger, CheckConstraint, Index, SmallInteger, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -113,4 +113,110 @@ class AvailabilityWindow(TenantOwned, Timestamps, Base):
     start_time: Mapped[str] = mapped_column(WallTime)
     end_time: Mapped[str] = mapped_column(WallTime)
     note: Mapped[str | None]
+    is_active: Mapped[bool] = mapped_column(server_default=text("true"))
+
+
+class LockerDesignation(StrEnum):
+    MALE = "male"
+    FEMALE = "female"
+    ALL_GENDER = "all_gender"
+    UNSPECIFIED = "unspecified"
+
+
+class LockerStatus(StrEnum):
+    ACTIVE = "active"
+    OUT_OF_SERVICE = "out_of_service"
+    RETIRED = "retired"
+
+
+class PadlockStatus(StrEnum):
+    ACTIVE = "active"
+    DISABLED = "disabled"
+
+
+class LockerRoom(TenantOwned, Timestamps, Base):
+    """A group of lockers (RES-07). A room with lease history is deactivated, not deleted."""
+
+    __tablename__ = "locker_room"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location"),
+        enum_check("designation", LockerDesignation),
+        CheckConstraint("btrim(name) <> ''", name="name"),
+        Index(
+            "uq_locker_room_name", "tenant_id", "location_id", "name", unique=True, postgresql_where=text("is_active")
+        ),
+    )
+
+    location_id: Mapped[UUID]
+    name: Mapped[str] = mapped_column(info={"audit": "value"})
+    designation: Mapped[str] = enum_column(server_default=text("'unspecified'"))
+    sort_order: Mapped[int] = mapped_column(server_default=text("0"))
+    is_active: Mapped[bool] = mapped_column(server_default=text("true"))
+
+
+class Padlock(TenantOwned, Timestamps, Base):
+    """A physical lock (RES-09). The combination is AES-GCM sealed (`core.crypto`) and never audited."""
+
+    __tablename__ = "padlock"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location"),
+        enum_check("status", PadlockStatus),
+        CheckConstraint("btrim(number) <> ''", name="number"),
+        Index(
+            "uq_padlock_number", "tenant_id", "location_id", "number", unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+        ),
+    )  # fmt: skip
+
+    location_id: Mapped[UUID]
+    number: Mapped[str] = mapped_column(info={"audit": "value"})
+    combination_encrypted: Mapped[str] = mapped_column(info={"audit": "never"})
+    status: Mapped[str] = enum_column(server_default=text("'active'"))
+    deleted_at: Mapped[datetime | None]
+
+
+class Locker(TenantOwned, Timestamps, Base):
+    """One rentable locker (RES-07). Available, rented or expired is derived from rentals' leases, not stored."""
+
+    __tablename__ = "locker"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location"),
+        *tfk("locker_room_id", "locker_room", index=False),
+        *tfk("padlock_id", "padlock", index=False),
+        enum_check("status", LockerStatus),
+        CheckConstraint("number > 0", name="number"),
+        UniqueConstraint("tenant_id", "locker_room_id", "number", name="uq_locker_number"),
+        Index(
+            "uq_locker_padlock", "tenant_id", "padlock_id", unique=True, postgresql_where=text("padlock_id IS NOT NULL")
+        ),
+    )
+
+    location_id: Mapped[UUID]
+    locker_room_id: Mapped[UUID]
+    number: Mapped[int] = mapped_column(info={"audit": "value"})
+    size_label: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    status: Mapped[str] = enum_column(server_default=text("'active'"))
+    padlock_id: Mapped[UUID | None]
+
+
+class LockerTerm(TenantOwned, Timestamps, Base):
+    """A named lease period with its price (RES-08), next to the built-in day, week, month and year terms."""
+
+    __tablename__ = "locker_term"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location"),
+        CheckConstraint("ends_on >= starts_on", name="dates"),
+        CheckConstraint("price_minor >= 0", name="price"),
+        CheckConstraint("btrim(name) <> ''", name="name"),
+        Index(
+            "uq_locker_term_name", "tenant_id", "location_id", "name", unique=True, postgresql_where=text("is_active")
+        ),
+    )
+
+    location_id: Mapped[UUID]
+    name: Mapped[str] = mapped_column(info={"audit": "value"})
+    starts_on: Mapped[date]
+    ends_on: Mapped[date]
+    price_minor: Mapped[int] = mapped_column(BigInteger, server_default=text("0"), info={"audit": "value"})
+    sort_order: Mapped[int] = mapped_column(server_default=text("0"))
     is_active: Mapped[bool] = mapped_column(server_default=text("true"))

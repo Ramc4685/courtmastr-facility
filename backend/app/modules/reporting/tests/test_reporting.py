@@ -125,7 +125,7 @@ def test_views_match_their_column_contract_and_run_as_the_invoker(tenant):
 
 def test_catalogue_lists_only_what_the_caller_may_run(client, tenant, owner):
     everything = ok(client.get(f"{API}/report-definitions", headers=owner))["data"]
-    assert len(everything) == 10 and all(d["params_schema"]["properties"] for d in everything)
+    assert len(everything) == 14 and all(d["params_schema"]["properties"] for d in everything)
     financial = ok(client.get(f"{API}/report-definitions?category=financial", headers=owner))["data"]
     assert {d["key"] for d in financial} == {"revenue_summary", "deposits", "invoices", "open_invoices"}
     desk = login(client, tenant, add_staff(tenant, "front_desk", all_locations=True)[0])
@@ -366,6 +366,8 @@ def test_every_report_has_rows_against_a_fully_populated_tenant(client, tenant):
     for definition in ok(client.get(f"{API}/report-definitions", headers=world.headers))["data"]:
         if definition["key"].startswith("attendance"):
             params = {"from_on": "2030-01-01", "to_on": "2030-12-31"}
+        elif definition["key"] == "league_game_cards":  # populate()'s league plays in 2031
+            params = {"from_on": "2031-04-01", "to_on": "2031-04-30"}
         else:
             params = around_today if "period" in definition["params_schema"]["properties"] else {}
         done = ran(client, world.headers, definition["key"], **params)

@@ -6,9 +6,9 @@ section 3. Calls `platform` only.
 
 | File | What |
 |---|---|
-| `models.py` | `resource_group`, `resource`, `resource_link`, `availability_window` |
+| `models.py` | `resource_group`, `resource`, `resource_link`, `availability_window`; lockers: `locker_room`, `locker`, `locker_term`, `padlock` (Phase 14 C1) |
 | `service.py` | staff commands (both gates, audit, events) and the internal interface scheduling uses: `get_many`, `in_location`, `descendants`, `ancestors`, `linked_ids`, `windows_for`, `get_window`, `HOOKS` |
-| `router.py` | 14 operations of `openapi-core.yaml` tag `resources` |
+| `router.py` | 14 operations of `openapi-core.yaml` tag `resources`, plus 14 locker and padlock operations |
 
 ## Rules worth knowing
 
@@ -18,6 +18,16 @@ section 3. Calls `platform` only.
   (`tree_changed`) and the future-bookings guard (`archiving`). `resources.resource.tree_changed` is still
   published for other consumers.
 - A sub-venue defaults to `counts_toward_plan = false` (a split court is one metered resource).
+- **Lockers (RES-07, RES-08).** Rooms hold numbered lockers created in bulk (`from_number..to_number`, at most
+  500 at a time; numbers already in the room are skipped and counted). Leases live in rentals, an upper layer,
+  so `listLockers` merges the lease state through `HOOKS["locker_states"]` and taking a rented locker out of
+  service runs `HOOKS["locker_retiring"]` (rentals refuses with `locker-leased`). Terms are named, priced date
+  ranges at a location.
+- **Padlocks (RES-09).** The combination is encrypted with `core.crypto.encrypt` (per-tenant key), never
+  returned by a list or a read, and revealed only by `POST /padlocks/{id}/reveal` under
+  `resources.padlock.reveal_combination` (front desk has it). Every reveal and every change writes an audit
+  event that records that it happened, never the value. A padlock must sit at its locker's location. Delete is
+  soft: the padlock leaves its locker, and the number becomes free again.
 
 ## Assumptions and deviations
 
@@ -34,5 +44,6 @@ section 3. Calls `platform` only.
 
 ## Not built
 
-Locker rooms, lockers, locker terms (RES-07, RES-08) and padlocks (RES-09); plan-limit metering of
-`counts_toward_plan` (PLT-14); the league venue mapping (RES-06, leagues).
+Plan-limit metering of `counts_toward_plan` (PLT-14); the league venue mapping (RES-06, leagues). Lockers:
+no `lockers` plan-entitlement gate (the feature key is not in `platform.entitlements.FEATURES`; Phase 8 owns
+it), no hard purge of deleted padlocks, no locker map view (the board is a table).

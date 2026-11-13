@@ -9,7 +9,7 @@ from uuid import UUID
 from sqlalchemy import BigInteger, CheckConstraint, Index, SmallInteger, UniqueConstraint, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.db import Base, TenantOwned, Timestamps, enum_check, enum_column, tenant_args, tfk
+from app.core.db import Base, JsonDict, TenantOwned, Timestamps, enum_check, enum_column, tenant_args, tfk
 
 
 class EnrollmentStatus(StrEnum):
@@ -316,6 +316,9 @@ class ProgramGroup(TenantOwned, Timestamps, Base):
         *tfk("parent_id", "program_group"),
         *tfk("revenue_category_id", "revenue_category"),
         *tfk("deleted_by_staff_user_id", "staff_user"),
+        *tfk("season_classifier_id", "program_classifier"),
+        *tfk("sport_classifier_id", "program_classifier"),
+        *tfk("age_division_classifier_id", "program_classifier"),
         enum_check("kind", GroupKind),
         enum_check("status", GroupStatus),
         enum_check("waitlist_mode", GroupWaitlistMode),
@@ -359,6 +362,9 @@ class ProgramGroup(TenantOwned, Timestamps, Base):
     waitlist_mode: Mapped[str | None] = enum_column()
     deleted_at: Mapped[datetime | None]
     deleted_by_staff_user_id: Mapped[UUID | None]
+    season_classifier_id: Mapped[UUID | None]
+    sport_classifier_id: Mapped[UUID | None]
+    age_division_classifier_id: Mapped[UUID | None]
 
 
 class ProgramSession(TenantOwned, Timestamps, Base):
@@ -494,3 +500,263 @@ class SessionBookingPolicy(TenantOwned, Timestamps, Base):
     allows_self_cancel: Mapped[bool | None]
     cancel_notice_minutes: Mapped[int | None]
     waitlist_mode: Mapped[str | None] = enum_column()
+
+
+# --- Phase 14 chip A: group tools (REG-03, REG-04, REG-06, REG-11) and event forms (REG-15 to REG-24) -----------
+
+
+class ClassifierKind(StrEnum):
+    SEASON = "season"
+    SPORT = "sport"
+    AGE_DIVISION = "age_division"
+
+
+class ProgramClassifier(TenantOwned, Timestamps, Base):
+    """Tenant pick-lists that classify groups (REG-03): one table with a kind instead of three lookups."""
+
+    __tablename__ = "program_classifier"
+    __table_args__ = tenant_args(
+        enum_check("kind", ClassifierKind),
+        Index("uq_program_classifier_kind_title", "tenant_id", "kind", text("lower(title)"), unique=True),
+    )
+
+    kind: Mapped[str] = enum_column()
+    title: Mapped[str]
+    sort_order: Mapped[int] = mapped_column(server_default=text("0"))
+    is_active: Mapped[bool] = mapped_column(server_default=text("true"))
+
+
+class ProgramSavedView(TenantOwned, Timestamps, Base):
+    """A staff user's named group search (REG-04): the list's allow-listed filters and sort, as query params."""
+
+    __tablename__ = "program_saved_view"
+    __table_args__ = tenant_args(
+        *tfk("staff_user_id", "staff_user", index=False),
+        Index("uq_program_saved_view_name", "tenant_id", "staff_user_id", text("lower(name)"), unique=True),
+    )
+
+    staff_user_id: Mapped[UUID]
+    name: Mapped[str]
+    filters: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))
+    sort: Mapped[str | None]
+
+
+class PageKey(StrEnum):
+    PROGRAM_LIST = "program_list"
+    MEMBER_GRID = "member_grid"
+
+
+class ProgramPageSetting(TenantOwned, Timestamps, Base):
+    """Per staff user page personalisation and member-grid columns (REG-06)."""
+
+    __tablename__ = "program_page_setting"
+    __table_args__ = tenant_args(
+        *tfk("staff_user_id", "staff_user", index=False),
+        enum_check("page_key", PageKey),
+        UniqueConstraint("tenant_id", "staff_user_id", "page_key", name="uq_program_page_setting_page"),
+    )
+
+    staff_user_id: Mapped[UUID]
+    page_key: Mapped[str] = enum_column()
+    settings: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))
+
+
+class RegistrationDefault(TenantOwned, Timestamps, Base):
+    """Location-wide online-registration defaults that new groups copy (REG-11)."""
+
+    __tablename__ = "registration_default"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", index=False),
+        enum_check("payment_requirement", PaymentRequirement),
+        enum_check("waitlist_mode", GroupWaitlistMode),
+        UniqueConstraint("tenant_id", "location_id", name="uq_registration_default_location"),
+    )
+
+    location_id: Mapped[UUID]
+    payment_requirement: Mapped[str] = enum_column(server_default=text("'immediate_card_payment'"))
+    displays_openings: Mapped[bool] = mapped_column(server_default=text("false"))
+    waitlist_mode: Mapped[str] = enum_column(server_default=text("'manual'"))
+    online_description: Mapped[str | None]
+    confirmation_message: Mapped[str | None]
+    closed_message: Mapped[str | None]
+
+
+class FormStatus(StrEnum):
+    DRAFT = "draft"
+    OPEN = "open"
+    CLOSED = "closed"
+
+
+class FormVersionState(StrEnum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    SUPERSEDED = "superseded"
+
+
+class SubmissionStatus(StrEnum):
+    CONFIRMED = "confirmed"
+    WAITLISTED = "waitlisted"
+    CANCELLED = "cancelled"
+
+
+class SubmissionChannel(StrEnum):
+    PORTAL = "portal"
+    PUBLIC_LINK = "public_link"
+
+
+class EventForm(TenantOwned, Timestamps, Base):
+    """An event registration form (REG-15): settings, branding (REG-19), the window (REG-20), capacity with an
+    optional wait list and coupons (REG-24). Questions live in `form_version`; the open state is evaluated at
+    request time, so no job flips the status."""
+
+    __tablename__ = "form"
+    __table_args__ = tenant_args(
+        *tfk("location_id", "location", index=False),
+        *tfk("copied_from_form_id", "form"),
+        *tfk("revenue_category_id", "revenue_category"),
+        *tfk("header_file_id", "stored_file"),
+        enum_check("status", FormStatus),
+        CheckConstraint("capacity IS NULL OR submitted_count <= capacity", name="capacity"),
+        CheckConstraint("submitted_count >= 0", name="count"),
+        CheckConstraint("auto_close_at IS NULL OR opens_at IS NULL OR auto_close_at > opens_at", name="window"),
+        CheckConstraint("event_ends_on IS NULL OR event_starts_on IS NULL OR event_ends_on >= event_starts_on", name="span"),
+        Index("ix_form_list", "tenant_id", "location_id", "status", "id"),
+    )  # fmt: skip
+
+    location_id: Mapped[UUID]
+    name: Mapped[str]
+    event_name: Mapped[str | None]
+    event_text: Mapped[str | None]
+    event_starts_on: Mapped[date | None]
+    event_ends_on: Mapped[date | None]
+    status: Mapped[str] = enum_column(server_default=text("'draft'"))
+    opens_at: Mapped[datetime | None]
+    auto_close_at: Mapped[datetime | None]
+    closed_message: Mapped[str | None]
+    confirmation_message: Mapped[str | None]
+    is_template: Mapped[bool] = mapped_column(server_default=text("false"))
+    copied_from_form_id: Mapped[UUID | None]
+    revenue_category_id: Mapped[UUID | None]
+    allows_coupons: Mapped[bool] = mapped_column(server_default=text("false"))
+    has_waitlist: Mapped[bool] = mapped_column(server_default=text("false"))
+    capacity: Mapped[int | None]
+    submitted_count: Mapped[int] = mapped_column(server_default=text("0"))
+    header_file_id: Mapped[UUID | None]
+    theme: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))
+
+
+class FormVersion(TenantOwned, Timestamps, Base):
+    """A snapshot of a form's questions and information topics (REG-16, REG-18). One draft at a time; a
+    published or superseded version never changes except its state, so answers keep their question text."""
+
+    __tablename__ = "form_version"
+    __table_args__ = tenant_args(
+        *tfk("form_id", "form", ondelete="CASCADE", index=False),
+        *tfk("published_by_staff_user_id", "staff_user"),
+        enum_check("state", FormVersionState),
+        UniqueConstraint("tenant_id", "form_id", "version_no", name="uq_form_version_form_no"),
+        Index("uq_form_version_one_draft", "tenant_id", "form_id", unique=True, postgresql_where=text("state = 'draft'")),
+        Index("uq_form_version_one_published", "tenant_id", "form_id", unique=True,
+              postgresql_where=text("state = 'published'")),
+    )  # fmt: skip
+
+    form_id: Mapped[UUID]
+    version_no: Mapped[int]
+    state: Mapped[str] = enum_column(server_default=text("'draft'"))
+    schema: Mapped[dict] = mapped_column(JsonDict, server_default=text("'{}'"))
+    published_at: Mapped[datetime | None]
+    published_by_staff_user_id: Mapped[UUID | None]
+
+
+class FormInventory(TenantOwned, Timestamps, Base):
+    """Stock cap on a purchasable option (REG-17), outside the versions so counts survive republishing.
+    `item_key` is a quantity question's key or `<question_key>.<choice_key>`."""
+
+    __tablename__ = "form_inventory"
+    __table_args__ = tenant_args(
+        *tfk("form_id", "form", ondelete="CASCADE", index=False),
+        UniqueConstraint("tenant_id", "form_id", "item_key", name="uq_form_inventory_form_item"),
+        CheckConstraint("limit_count >= 0", name="limit"),
+        CheckConstraint("sold_count BETWEEN 0 AND limit_count", name="sold"),
+    )
+
+    form_id: Mapped[UUID]
+    item_key: Mapped[str] = mapped_column(info={"audit": "value"})
+    is_enabled: Mapped[bool] = mapped_column(server_default=text("true"))
+    limit_count: Mapped[int]
+    sold_count: Mapped[int] = mapped_column(server_default=text("0"))
+    sold_out_memo: Mapped[str | None]
+    shows_count_publicly: Mapped[bool] = mapped_column(server_default=text("false"))
+
+
+class FormSubmission(TenantOwned, Timestamps, Base):
+    """One registrant's answers to one published version (REG-21, REG-23). A free form takes an anonymous
+    submission (no client; the contact fields are PII, flag-only in audit); a paid form needs a portal sign-in."""
+
+    __tablename__ = "form_submission"
+    __table_args__ = tenant_args(
+        *tfk("form_id", "form", index=False),
+        *tfk("form_version_id", "form_version"),
+        *tfk("location_id", "location"),
+        *tfk("account_client_id", "client"),
+        *tfk("registrant_client_id", "client"),
+        *tfk("invoice_id", "invoice"),
+        *tfk("last_edited_by_staff_user_id", "staff_user"),
+        enum_check("status", SubmissionStatus),
+        enum_check("channel", SubmissionChannel),
+        UniqueConstraint("tenant_id", "confirmation_no", name="uq_form_submission_confirmation_no"),
+        CheckConstraint("(status = 'cancelled') = (cancelled_at IS NOT NULL)", name="cancel"),
+        CheckConstraint("total_minor >= 0", name="total"),
+        Index("ix_form_submission_form", "tenant_id", "form_id", "status", "id"),
+        # One live anonymous registration per address per form: the public link cannot drain places in bulk.
+        # Erased rows share one placeholder address (forms.ERASED_EMAIL), so they are left out of the index.
+        Index("uq_form_submission_public_email", "tenant_id", "form_id", text("lower(contact_email)"), unique=True,
+              postgresql_where=text("status <> 'cancelled' AND channel = 'public_link' "
+                                    "AND contact_email <> 'erased@invalid.example'")),
+    )  # fmt: skip
+
+    form_id: Mapped[UUID]
+    form_version_id: Mapped[UUID]
+    location_id: Mapped[UUID]
+    confirmation_no: Mapped[int] = mapped_column(info={"audit": "value"})
+    account_client_id: Mapped[UUID | None]
+    registrant_client_id: Mapped[UUID | None]
+    identity_id: Mapped[UUID | None]
+    contact_name: Mapped[str]
+    contact_email: Mapped[str]
+    contact_phone: Mapped[str | None]
+    status: Mapped[str] = enum_column()
+    channel: Mapped[str] = enum_column()
+    total_minor: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
+    invoice_id: Mapped[UUID | None]
+    submitted_at: Mapped[datetime]
+    cancelled_at: Mapped[datetime | None]
+    last_edited_at: Mapped[datetime | None]
+    last_edited_by_staff_user_id: Mapped[UUID | None]
+
+
+class FormAnswer(TenantOwned, Timestamps, Base):
+    """One answered item, one row per chosen option of a multi-select. Rows, not JSON: the summaries count,
+    group and sum them (REG-22)."""
+
+    __tablename__ = "form_answer"
+    __table_args__ = tenant_args(
+        *tfk("form_submission_id", "form_submission", ondelete="CASCADE"),
+        *tfk("form_id", "form", index=False),
+        *tfk("charge_id", "charge"),
+        CheckConstraint("quantity IS NULL OR quantity > 0", name="quantity"),
+        CheckConstraint("amount_minor >= 0", name="amount"),
+        Index("ix_form_answer_summary", "tenant_id", "form_id", "item_key", "choice_key"),
+    )
+
+    form_submission_id: Mapped[UUID]
+    form_id: Mapped[UUID]
+    item_key: Mapped[str] = mapped_column(info={"audit": "value"})
+    choice_key: Mapped[str | None] = mapped_column(info={"audit": "value"})
+    question_type: Mapped[str] = enum_column()
+    text_value: Mapped[str | None]
+    quantity: Mapped[int | None]
+    unit_price_minor: Mapped[int | None] = mapped_column(BigInteger)
+    amount_minor: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
+    charge_id: Mapped[UUID | None]
+    stock_taken: Mapped[bool] = mapped_column(server_default=text("false"))  # returned on cancel only when taken

@@ -73,6 +73,13 @@ day" flat rate; 25% deposit online; 24-hour cut-off with a 50% late-cancel fee. 
 Tuesday 19:00 rental on Court 3 (four weeks, billed on one invoice), Riley Reyes has an unbilled Thursday
 rental in the queue, and Jordan Okafor bought the **10-hour court pack** and used two hours of it on Friday.
 
+## Demo lockers (phase 14)
+
+At Downtown, the **Main locker room** has lockers 1 to 20 and a priced term **Season <year>** ($60). Jordan
+Okafor rents locker 1 for the season with padlock **PL-01** (combination 12-24-36, revealed only to staff
+allowed to see it); Riley Reyes rents locker 2 by the week. The 10-hour court pack is sold online, renews
+automatically and can be shared with related clients.
+
 ## Demo check-in (build module 10)
 
 At Downtown: barcode `DEMO-CARD-0001` belongs to Morgan Member (scan or type it on Check-in), two earlier
@@ -87,3 +94,7 @@ teams: Morgan Member captains **Downtown Strikers**, whose $300 team fee is bill
 Wednesdays 18:00-22:00 on Court 3, and its 15 games are booked on the calendar. The first game has a 4-2 result,
 so the standings are filled in. Rita Referee is the futsal official. The public schedule and standings are at
 `/api/v1/public/competitions` (send `X-Tenant-Slug: courtside-demo`) and on the web at `/leagues/public`.
+Sam Scorekeeper (`scorekeeper@courtside-demo.example.com`) is assigned to the league, so `/leagues/scores` lists
+its games; futsal has a "Scoring" stat table (G, A, and PTS = G + A). Morgan manages the Strikers roster in the
+portal at `/portal/teams`. Lanes seeded before Phase 14 lack the assignment and the stat table (the seed skips an
+existing league); assign Sam in the league's Staff tab.

@@ -125,7 +125,9 @@ class SeasonOut(Out):
 # --- competitions -----------------------------------------------------------------------------------------------
 
 _KIND = Literal["league", "tournament"]
-_FORMAT = Literal["round_robin", "pool_play", "single_elimination", "double_elimination", "three_games_guaranteed"]
+_FORMAT = Literal[
+    "round_robin", "pool_play", "single_elimination", "double_elimination", "three_games_guaranteed", "ladder"
+]
 
 
 class _CompetitionFields(_ScoringIn):
@@ -146,6 +148,7 @@ class _CompetitionFields(_ScoringIn):
     color: Color | None = None
     team_fee_minor: Annotated[int, Field(ge=0, le=100_000_000)] | None = None
     revenue_category_id: UUID | None = None
+    ladder_challenge_range: Annotated[int, Field(ge=1, le=20)] | None = None
 
 
 class CompetitionCreate(_CompetitionFields):
@@ -189,6 +192,8 @@ class CompetitionOut(_ScoringOut):
     color: str | None
     team_fee_minor: int | None
     revenue_category_id: UUID | None
+    ladder_challenge_range: int | None = None
+    program_group_id: UUID | None = None
     created_at: datetime
 
 
@@ -363,13 +368,14 @@ class TimeWindow(In):
     weekday: Annotated[int, Field(ge=1, le=7)]
     starts_at: Wall
     ends_at: Wall
-    resource_id: UUID
+    resource_id: UUID | None = None  # a court, or
+    venue_id: UUID | None = None  # a league venue holding all its courts (RES-06)
 
 
 class ScheduleRunCreate(In):
     location_id: UUID
     competition_ids: Annotated[list[UUID], Field(min_length=1, max_length=20)]
-    resource_ids: Annotated[list[UUID], Field(min_length=1, max_length=50)]
+    resource_ids: Annotated[list[UUID], Field(max_length=50)] = []
     time_slots: Annotated[list[TimeWindow], Field(min_length=1, max_length=200)]
     starts_on: date
     ends_on: date
@@ -410,6 +416,7 @@ class ScheduleRunOut(Out):
     bye_mode: str
     removes_previous_games: bool
     stats: dict | None
+    progress: dict
     committed_at: datetime | None
 
 
@@ -426,6 +433,7 @@ class GameCreate(In):
     home_label: Label | None = None
     away_label: Label | None = None
     resource_id: UUID | None = None
+    venue_id: UUID | None = None
     starts_at: datetime | None = None
     length_min: Annotated[int, Field(gt=0, le=600)] | None = None
     game_type: Literal["regular", "post_season"] = "regular"
@@ -445,13 +453,15 @@ class GameUpdate(In):
 
 
 class GameReschedule(In):
-    resource_id: UUID
+    resource_id: UUID | None = None
+    venue_id: UUID | None = None
     starts_at: datetime
     length_min: Annotated[int, Field(gt=0, le=600)] | None = None
 
 
 class GamePostpone(In):
     resource_id: UUID | None = None
+    venue_id: UUID | None = None
     starts_at: datetime | None = None
 
 
@@ -469,6 +479,10 @@ class GameOut(Out):
     away_label: str | None
     booking_id: UUID | None
     resource_id: UUID | None
+    venue_id: UUID | None = None
+    competition_name: str | None = None
+    sport_id: UUID | None = None
+    ladder_swapped: bool = False
     starts_at: datetime | None
     ends_at: datetime | None
     length_min: int
@@ -576,16 +590,19 @@ class GameOfficialOut(Out):
 class BracketGenerate(In):
     name: Name = "Playoffs"
     bracket_type: Literal["single_elimination", "double_elimination", "three_games_guaranteed"]
-    seed_source: Literal["seeds", "standings", "manual"]
+    seed_source: Literal["seeds", "standings", "manual", "pools"]
     competition_team_ids: Annotated[list[UUID], Field(max_length=128)] | None = None
     division_id: UUID | None = None
     has_third_place_game: bool = False
+    has_reset_game: bool = False  # double elimination: a second grand final if the losers champion wins the first
+    advance_per_pool: Annotated[int, Field(ge=1, le=16)] | None = None  # seed_source pools: top N of each division
 
 
 class BracketSlotUpdate(In):
     home_team_id: UUID | None = None
     away_team_id: UUID | None = None
     resource_id: UUID | None = None
+    venue_id: UUID | None = None
     starts_at: datetime | None = None
 
 
@@ -616,8 +633,233 @@ class BracketOut(Out):
     bracket_type: str
     size: int
     has_third_place_game: bool
+    has_reset_game: bool
     status: str
     slots: list[BracketSlotOut]
+
+
+# --- venues, preferences, staff, ladder (RES-06, LGE-10, LGE-26, LGE-28) ----------------------------------------
+
+Ids = Annotated[list[UUID], Field(min_length=1, max_length=20)]
+
+
+class VenueCreate(In):
+    location_id: UUID
+    name: Name
+    description: Text | None = None
+    resource_ids: Ids
+    is_active: bool = True
+
+
+class VenueUpdate(In):
+    name: Name | None = None
+    description: Text | None = None
+    resource_ids: Ids | None = None
+    is_active: bool | None = None
+
+
+class VenueOut(Out):
+    id: UUID
+    location_id: UUID
+    name: str
+    description: str | None
+    resource_ids: list[UUID]
+    is_active: bool
+
+
+class TeamPreferenceIn(In):
+    kind: Literal["date", "weekday", "time", "resource"]
+    value: Annotated[str, Field(min_length=1, max_length=40)]  # YYYY-MM-DD, 1-7, HH:MM-HH:MM, court or venue id
+    wants: bool = False  # True: prefers it; False: cannot play then
+    is_priority: bool = False
+
+
+class TeamPreferencesPut(In):
+    preferences: Annotated[list[TeamPreferenceIn], Field(max_length=50)]
+
+
+class TeamPreferenceOut(Out):
+    id: UUID
+    competition_team_id: UUID
+    kind: str
+    value: str
+    wants: bool
+    is_priority: bool
+
+
+class StaffMemberIn(In):
+    staff_user_id: UUID
+    role: Literal["league_admin", "scorekeeper"] = "scorekeeper"
+
+
+class CompetitionStaffPut(In):
+    staff: Annotated[list[StaffMemberIn], Field(max_length=50)]
+
+
+class CompetitionStaffOut(Out):
+    id: UUID
+    competition_id: UUID
+    staff_user_id: UUID
+    role: str
+
+
+class StaffCandidateOut(Out):
+    id: UUID
+    name: str
+
+
+class LadderPut(In):
+    competition_team_ids: Annotated[list[UUID], Field(max_length=200)]
+
+
+class LadderRungOut(Out):
+    competition_team_id: UUID
+    position: int
+    team_name: str | None
+
+
+class LadderChallengeCreate(In):
+    challenger_id: UUID
+    defender_id: UUID
+    resource_id: UUID | None = None
+    venue_id: UUID | None = None
+    starts_at: datetime | None = None
+    notes: Text | None = None
+
+
+# --- stats (LGE-07) ---------------------------------------------------------------------------------------------
+
+Code = Annotated[str, Field(pattern=r"^[A-Za-z][A-Za-z0-9_]{0,19}$")]
+Formula = Annotated[str, Field(min_length=1, max_length=200)]
+
+
+class StatTableWrite(In):
+    name: Name
+    sort_order: Annotated[int, Field(ge=0, le=1000)] = 0
+
+
+class StatTableUpdate(In):
+    name: Name | None = None
+    sort_order: Annotated[int, Field(ge=0, le=1000)] | None = None
+
+
+class StatDefinitionCreate(In):
+    code: Code
+    name: Name
+    kind: Literal["entry", "formula"] = "entry"
+    formula: Formula | None = None
+    decimal_places: Annotated[int, Field(ge=0, le=4)] = 0
+    sort_order: Annotated[int, Field(ge=0, le=1000)] = 0
+
+
+class StatDefinitionUpdate(In):
+    code: Code | None = None
+    name: Name | None = None
+    formula: Formula | None = None
+    decimal_places: Annotated[int, Field(ge=0, le=4)] | None = None
+    sort_order: Annotated[int, Field(ge=0, le=1000)] | None = None
+
+
+class StatDefinitionOut(Out):
+    id: UUID
+    stat_table_id: UUID
+    sport_id: UUID
+    code: str
+    name: str
+    kind: str
+    formula: str | None
+    decimal_places: int
+    sort_order: int
+
+
+class StatTableOut(Out):
+    id: UUID
+    sport_id: UUID
+    name: str
+    sort_order: int
+    stats: list[StatDefinitionOut]
+
+
+class PlayerStatIn(In):
+    roster_entry_id: UUID
+    stat_definition_id: UUID
+    value: Annotated[Decimal, Field(ge=0, le=99_999_999, max_digits=10, decimal_places=2)]
+
+
+class PlayerStatsPut(In):
+    stats: Annotated[list[PlayerStatIn], Field(max_length=2000)]
+
+
+class PlayerStatOut(Out):
+    id: UUID
+    game_id: UUID
+    roster_entry_id: UUID
+    stat_definition_id: UUID
+    value: Decimal
+
+
+class PlayerTotalsOut(Out):
+    roster_entry_id: UUID
+    competition_team_id: UUID
+    player_name: str
+    stats: dict[str, Decimal | None]
+
+
+# --- team fee split, publish from a program group (REG-26, REG-14) ----------------------------------------------
+
+
+class FeeShareIn(In):
+    roster_entry_id: UUID
+    amount_minor: Annotated[int, Field(gt=0, le=100_000_000)]
+
+
+class TeamFeeSplit(In):
+    shares: Annotated[list[FeeShareIn], Field(min_length=1, max_length=50)]
+    bill_to_client_id: UUID | None = None  # pays whatever the shares leave
+
+
+class TeamFeeShareOut(Out):
+    id: UUID
+    competition_team_id: UUID
+    roster_entry_id: UUID | None
+    client_id: UUID
+    amount_minor: int
+    charge_id: UUID | None
+
+
+class ProgramGroupPublish(In):
+    program_group_id: UUID
+    kind: _KIND
+    format: _FORMAT = "round_robin"
+    name: Name | None = None
+    sport_id: UUID
+    starts_on: date
+    ends_on: date | None = None
+    include_players: bool = True
+
+
+# --- captain portal (REG-26): portal-only shapes ----------------------------------------------------------------
+
+
+class PortalLeagueTeamOut(Out):
+    competition_team_id: UUID
+    team_name: str
+    competition_name: str
+    starts_on: date
+
+
+class PortalRosterEntryCreate(In):
+    client_id: UUID | None = None
+    first_name: Name | None = None
+    last_name: Name | None = None
+    jersey_number: Annotated[str, Field(max_length=10)] | None = None
+
+
+class PortalRosterEntryOut(Out):
+    id: UUID
+    name: str
+    role: str
+    jersey_number: str | None
 
 
 # --- public (anonymous) -----------------------------------------------------------------------------------------

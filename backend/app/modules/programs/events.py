@@ -65,3 +65,22 @@ class GroupCompleted(Event):
     type: Literal["programs.group.completed"] = "programs.group.completed"
     program_group_id: UUID
     location_id: UUID
+
+
+class EnrollmentMoved(Event):
+    aggregate_type: ClassVar[str] = "enrollment"
+    type: Literal["programs.enrollment.moved"] = "programs.enrollment.moved"
+    enrollment_id: UUID
+    from_program_group_id: UUID
+    program_group_id: UUID
+    client_id: UUID
+    location_id: UUID
+
+
+class FormSubmitted(Event):
+    aggregate_type: ClassVar[str] = "form_submission"
+    type: Literal["programs.form.submitted"] = "programs.form.submitted"
+    form_submission_id: UUID
+    form_id: UUID
+    location_id: UUID
+    status: str

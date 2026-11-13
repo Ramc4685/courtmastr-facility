@@ -11,6 +11,7 @@ async function scan(page: Page, label: string) {
 }
 
 test('staff open the programs screens and every one passes axe', async ({ page }) => {
+  test.setTimeout(120_000) // eleven axe scans on a shared machine
   await page.goto('/programs')
   await page.getByRole('textbox', { name: 'Email' }).fill(ADMIN.email)
   await page.getByRole('textbox', { name: 'Password' }).fill(ADMIN.password)

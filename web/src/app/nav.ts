@@ -4,7 +4,7 @@ export type NavItem = { label: string; to?: string; permission?: string | string
 export type IconName = 'home' | 'pin' | 'users' | 'shield' | 'list' | 'gear' | 'calendar' | 'ticket' | 'person' | 'card' | 'clipboard' | 'pen' | 'cash' | 'cart' | 'door' | 'trophy' | 'clock' | 'mail' | 'pulse' | 'chart' | 'plug' | 'phone'
 
 // Any report family key opens the report centre; listed here so nav.ts stays free of feature imports.
-const REPORT_KEYS = ['reporting.financial.run', 'reporting.membership.run', 'reporting.attendance.run', 'reporting.pos.run', 'reporting.time_clock.run']
+const REPORT_KEYS = ['reporting.financial.run', 'reporting.membership.run', 'reporting.attendance.run', 'reporting.pos.run', 'reporting.time_clock.run', 'reporting.league.run', 'reporting.client.run']
 
 export const PLATFORM_NAV: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: 'home' },
@@ -29,11 +29,17 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Scheduling setup', to: '/scheduling/setup', icon: 'list' },
   { label: 'Rentals', to: '/rentals', permission: 'scheduling.booking.read', icon: 'ticket' },
   { label: 'Rental setup', to: '/rentals/setup', icon: 'list' },
+  { label: 'Lockers', to: '/lockers', permission: ['rentals.locker_rental.manage', 'resources.locker.manage', 'resources.padlock.reveal_combination'], icon: 'door' },
   { label: 'Programs & registration', to: '/programs', permission: 'programs.registration.read', icon: 'clipboard' },
   { label: 'Booking policies', to: '/programs/booking-policies', permission: 'programs.registration_config.manage', icon: 'gear' },
+  { label: 'Event forms', to: '/programs/forms', permission: 'programs.form.manage', icon: 'clipboard' },
+  { label: 'Program setup', to: '/programs/setup', permission: 'programs.program.manage', icon: 'gear' },
   { label: 'Check-in', to: '/check-in', permission: 'access.checkin.create', icon: 'door' },
   { label: 'Who is in', to: '/check-in/occupancy', permission: 'access.checkin.read', icon: 'list' },
   { label: 'Leagues & tournaments', to: '/leagues', permission: 'leagues.competition.manage', icon: 'trophy' },
+  { label: 'League venues', to: '/leagues/venues', permission: 'leagues.competition.manage', icon: 'pin' },
+  { label: 'Player stats', to: '/leagues/stats', permission: 'leagues.competition.manage', icon: 'list' },
+  { label: 'Scores', to: '/leagues/scores', permission: 'leagues.result.enter', icon: 'trophy' },
   { label: 'Staff time & pay', to: '/staff-time', permission: 'staff.time_entry.punch', icon: 'clock' },
   { label: 'Assessment setup', to: '/assessments/setup', permission: 'assessments.definition.manage', icon: 'pulse' },
   { label: 'Reports', to: '/reports', permission: REPORT_KEYS, icon: 'chart' },

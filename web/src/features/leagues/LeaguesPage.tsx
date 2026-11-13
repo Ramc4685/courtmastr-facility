@@ -1,5 +1,5 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState, type ReactNode } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api, fieldErrors, type Schemas } from '../../api/client'
 import { Badge } from '../../components/Badge'
@@ -15,37 +15,13 @@ import { useAuth } from '../../lib/auth'
 import { formatDate, formatDateTime, formatMoney, toMinor } from '../../lib/format'
 import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { useRevenueCategories } from '../rentals/queries'
-import { useResources } from '../resources/queries'
 import { LocationSelect, useWorkingLocation } from '../scheduling/location'
+import { BlankCardButton, FeeSplitDialog, PlayerStatsDialog, LadderTab, PlayerStatsTab, PreferencesDialog, PublishGroupDialog, StaffTab, usePlaces } from './depth'
 import { label, STATUS_TONE, useBrackets, useCompetition, useEntries, useGames, useSports, useStandings, type Competition, type Entry, type Game } from './queries'
+import { Alert, CardButton, List, matchup, ScoreDialog } from './shared'
 
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const MANAGE = 'leagues.competition.manage'
-
-function Alert({ error }: { error: Error | null }) {
-  if (!error || Object.keys(fieldErrors(error)).length) return null
-  return <p role="alert" className="text-danger sm:col-span-2">{error.message}</p>
-}
-
-/** A plain table for lists the API returns whole (team entries, standings, a competition's games). */
-function List<T>({ caption, rows, columns, rowKey, empty }: { caption: string; rows: T[]; columns: { header: string; cell: (r: T) => ReactNode }[]; rowKey: (r: T) => string; empty: string }) {
-  if (rows.length === 0) return <EmptyState title={empty} />
-  return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-surface shadow-card">
-      <table className="w-full text-left text-sm">
-        <caption className="sr-only">{caption}</caption>
-        <thead className="bg-surface-2 text-xs uppercase tracking-wide text-muted">
-          <tr>{columns.map((c) => <th key={c.header} scope="col" className="px-4 py-2.5 font-semibold">{c.header}</th>)}</tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {rows.map((r) => (
-            <tr key={rowKey(r)}>{columns.map((c) => <td key={c.header} className="px-4 py-2.5">{c.cell(r)}</td>)}</tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
 
 // ---------------------------------------------------------------- the list
 
@@ -95,7 +71,10 @@ function NewCompetitionDialog({ locationId, onClose }: { locationId: string; onC
         <Input label="Name" value={f.name} required autoFocus error={e.name} onChange={(ev) => set({ name: ev.target.value })} />
         <Select label="Kind" value={f.kind} onChange={(ev) => set({ kind: ev.target.value, format: ev.target.value === 'league' ? 'round_robin' : 'single_elimination' })} options={[{ value: 'league', label: 'League' }, { value: 'tournament', label: 'Tournament' }]} />
         {f.kind === 'tournament' && (
-          <Select label="Format" value={f.format} error={e.format} onChange={(ev) => set({ format: ev.target.value })} options={[{ value: 'single_elimination', label: 'Single elimination' }, { value: 'round_robin', label: 'Round robin' }, { value: 'pool_play', label: 'Pool play' }]} />
+          <Select label="Format" value={f.format} error={e.format} onChange={(ev) => set({ format: ev.target.value })} options={[{ value: 'single_elimination', label: 'Single elimination' }, { value: 'double_elimination', label: 'Double elimination' }, { value: 'three_games_guaranteed', label: 'Three games guaranteed' }, { value: 'round_robin', label: 'Round robin' }, { value: 'pool_play', label: 'Pool play' }]} />
+        )}
+        {f.kind === 'league' && (
+          <Select label="Format" value={f.format} onChange={(ev) => set({ format: ev.target.value })} options={[{ value: 'round_robin', label: 'Round robin' }, { value: 'ladder', label: 'Ladder (challenges)' }]} />
         )}
         {sportOptions.length > 0 ? (
           <Select label="Sport" value={f.sport_id} placeholder="Choose a sport" required error={e.sport_id} onChange={(ev) => set({ sport_id: ev.target.value })} options={sportOptions} />
@@ -120,6 +99,7 @@ export function LeaguesPage() {
   const { location } = useWorkingLocation()
   const sports = useSports()
   const [creating, setCreating] = useState(false)
+  const [publishing, setPublishing] = useState(false)
   const paging = useKeysetQuery<Competition>(['competitions', location?.id], (cursor) =>
     api.get('/api/v1/competitions', { query: { location_id: location?.id, cursor, limit: 50 } }),
   )
@@ -132,6 +112,7 @@ export function LeaguesPage() {
         actions={
           <>
             <LocationSelect />
+            {can(MANAGE) && location && <Button variant="secondary" onClick={() => setPublishing(true)}>From a program</Button>}
             {can(MANAGE) && location && <Button onClick={() => setCreating(true)}>New competition</Button>}
           </>
         }
@@ -150,6 +131,7 @@ export function LeaguesPage() {
         ]}
       />
       {creating && location && <NewCompetitionDialog locationId={location.id} onClose={() => setCreating(false)} />}
+      {publishing && location && <PublishGroupDialog locationId={location.id} onClose={() => setPublishing(false)} />}
     </>
   )
 }
@@ -164,6 +146,8 @@ function TeamsTab({ competition }: { competition: Competition }) {
   const [name, setName] = useState('')
   const [payer, setPayer] = useState<ClientSummary | null>(null)
   const [billing, setBilling] = useState<Entry | null>(null)
+  const [prefs, setPrefs] = useState<Entry | null>(null)
+  const [splitting, setSplitting] = useState<Entry | null>(null)
   const refresh = () => void qc.invalidateQueries({ queryKey: ['competition', competition.id] })
   const add = useMutation({
     mutationFn: () => api.post('/api/v1/competitions/{competition_id}/teams', { path: { competition_id: competition.id }, body: { team: { name }, bill_to_client_id: payer?.id ?? null } }),
@@ -201,11 +185,19 @@ function TeamsTab({ competition }: { competition: Competition }) {
           { header: 'Fee', cell: (t) => <Badge tone={t.fee_status === 'billed' ? 'success' : t.fee_status === 'unbilled' ? 'warning' : 'neutral'}>{label(t.fee_status)}</Badge> },
           {
             header: 'Actions',
-            cell: (t) => t.fee_status === 'unbilled' && can('leagues.team.manage') ? <Button size="sm" variant="secondary" aria-label={`Bill the fee for ${t.name}`} onClick={() => setBilling(t)}>Bill fee</Button> : null,
+            cell: (t) => (
+              <div className="flex flex-wrap gap-2">
+                {t.fee_status === 'unbilled' && can('leagues.team.manage') && <Button size="sm" variant="secondary" aria-label={`Bill the fee for ${t.name}`} onClick={() => setBilling(t)}>Bill fee</Button>}
+                {t.fee_status === 'unbilled' && can('leagues.team.manage') && <Button size="sm" variant="secondary" aria-label={`Split the fee for ${t.name}`} onClick={() => setSplitting(t)}>Split fee</Button>}
+                {can('leagues.schedule.generate') && <Button size="sm" variant="secondary" aria-label={`Scheduling preferences of ${t.name}`} onClick={() => setPrefs(t)}>Preferences</Button>}
+              </div>
+            ),
           },
         ]}
       />
       {billing && <BillDialog entry={billing} onDone={() => { setBilling(null); refresh() }} />}
+      {prefs && <PreferencesDialog entry={prefs} competition={competition} onClose={() => setPrefs(null)} />}
+      {splitting && <FeeSplitDialog entry={splitting} competition={competition} onClose={() => setSplitting(null)} />}
     </div>
   )
 }
@@ -238,28 +230,47 @@ function BillDialog({ entry, onDone }: { entry: Entry; onDone: () => void }) {
   )
 }
 
+type SlotWindow = { place: string; weekday: string; starts_at: string; ends_at: string }
+const NEW_WINDOW: SlotWindow = { place: '', weekday: '3', starts_at: '18:00', ends_at: '22:00' }
+const BYE_MODES = [
+  { value: 'hidden', label: 'Byes are not shown' },
+  { value: 'occupy_slot', label: 'A bye takes a slot' },
+  { value: 'fold_last_round', label: 'Fold the last round into the byes' },
+  { value: 'rotate_extra_game', label: 'The team with the bye plays an extra game' },
+]
+
 function GenerateDialog({ competition, onClose }: { competition: Competition; onClose: () => void }) {
   const qc = useQueryClient()
   const toast = useToast()
-  const courts = useResources(competition.location_id)
-  const [f, setF] = useState({ resource_id: '', weekday: '3', starts_at: '18:00', ends_at: '22:00', starts_on: competition.starts_on, ends_on: competition.ends_on ?? '' })
-  const [run, setRun] = useState<Schemas['ScheduleRunOut'] | null>(null)
+  const places = usePlaces(competition.location_id)
+  const [windows, setWindows] = useState<SlotWindow[]>([NEW_WINDOW])
+  const [f, setF] = useState({ bye_mode: 'hidden', starts_on: competition.starts_on, ends_on: competition.ends_on ?? '' })
+  const [runId, setRunId] = useState<string | null>(null)
   const set = (patch: Partial<typeof f>) => setF({ ...f, ...patch })
+  const edit = (i: number, patch: Partial<SlotWindow>) => setWindows(windows.map((w, j) => (j === i ? { ...w, ...patch } : w)))
+  // The generator is a background job (LGE-08): poll the run until it leaves 'generating'.
+  const run = useQuery({
+    queryKey: ['schedule-run', runId],
+    enabled: !!runId,
+    queryFn: () => api.get('/api/v1/schedule-runs/{schedule_run_id}', { path: { schedule_run_id: runId ?? '' } }),
+    refetchInterval: (q) => (q.state.data?.state === 'generating' ? 1000 : false),
+  })
   const preview = useMutation({
     mutationFn: async () => {
+      const slot = (w: SlotWindow) => ({ weekday: Number(w.weekday), starts_at: w.starts_at, ends_at: w.ends_at, [w.place.startsWith('v:') ? 'venue_id' : 'resource_id']: w.place.slice(2) })
       const created = await api.post('/api/v1/schedule-runs', {
         body: {
-          location_id: competition.location_id, competition_ids: [competition.id], resource_ids: [f.resource_id], starts_on: f.starts_on, ends_on: f.ends_on,
-          time_slots: [{ weekday: Number(f.weekday), starts_at: f.starts_at, ends_at: f.ends_at, resource_id: f.resource_id }],
-          blackout_dates: [], bye_mode: 'hidden', removes_previous_games: false,
+          location_id: competition.location_id, competition_ids: [competition.id], starts_on: f.starts_on, ends_on: f.ends_on,
+          resource_ids: [...new Set(windows.filter((w) => w.place.startsWith('r:')).map((w) => w.place.slice(2)))],
+          time_slots: windows.map(slot), blackout_dates: [], bye_mode: f.bye_mode as 'hidden', removes_previous_games: false,
         },
       })
       return api.post('/api/v1/schedule-runs/{schedule_run_id}/generate', { path: { schedule_run_id: created.id } })
     },
-    onSuccess: setRun,
+    onSuccess: (started) => setRunId(started.id),
   })
   const commit = useMutation({
-    mutationFn: () => api.post('/api/v1/schedule-runs/{schedule_run_id}/commit', { path: { schedule_run_id: run?.id ?? '' } }),
+    mutationFn: () => api.post('/api/v1/schedule-runs/{schedule_run_id}/commit', { path: { schedule_run_id: runId ?? '' } }),
     onSuccess: (done) => {
       void qc.invalidateQueries({ queryKey: ['competition', competition.id] })
       const stats = done.stats as { booked?: number; unschedulable_on_commit?: number } | null
@@ -268,36 +279,51 @@ function GenerateDialog({ competition, onClose }: { competition: Competition; on
     },
   })
   const e = fieldErrors(preview.error)
-  const stats = run?.stats as { games?: number; byes?: number; unschedulable?: number } | null
+  const state = run.data?.state
+  const stats = run.data?.stats as { games?: number; byes?: number; unschedulable?: number; predicted_completion_on?: string } | null
+  const progress = run.data?.progress as { done?: number; total?: number } | null
   return (
     <Dialog
       open
       size="lg"
       onClose={onClose}
       title="Generate the schedule"
-      description="Every team meets every other once. Games fill the weekly window on the court in round order; committing books the court."
+      description="Every team meets every other once. Games fill the weekly windows in round order, honouring team preferences; committing books the courts."
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          {run ? (
+          {state === 'previewed' ? (
             <Button onClick={() => commit.mutate()} loading={commit.isPending}>Book the games</Button>
           ) : (
-            <Button type="submit" form="schedule-form" loading={preview.isPending}>Preview</Button>
+            <Button type="submit" form="schedule-form" loading={preview.isPending || state === 'generating'}>Preview</Button>
           )}
         </>
       }
     >
-      <form id="schedule-form" className="grid gap-4 sm:grid-cols-2" noValidate onSubmit={(ev) => { ev.preventDefault(); preview.mutate() }}>
+      <form id="schedule-form" className="grid gap-4 sm:grid-cols-2" noValidate onSubmit={(ev) => { ev.preventDefault(); setRunId(null); preview.mutate() }}>
         <Alert error={preview.error ?? commit.error} />
-        <Select label="Court" value={f.resource_id} placeholder="Choose a court" required error={e.resource_ids} onChange={(ev) => set({ resource_id: ev.target.value })} options={(courts.data?.data ?? []).filter((r) => r.kind === 'venue').map((r) => ({ value: r.id, label: r.name }))} />
-        <Select label="Day of the week" value={f.weekday} onChange={(ev) => set({ weekday: ev.target.value })} options={WEEKDAYS.map((d, i) => ({ value: String(i + 1), label: d }))} />
-        <Input label="From" type="time" value={f.starts_at} error={e['time_slots/0/starts_at']} onChange={(ev) => set({ starts_at: ev.target.value })} />
-        <Input label="Until" type="time" value={f.ends_at} error={e['time_slots/0/ends_at']} onChange={(ev) => set({ ends_at: ev.target.value })} />
+        <fieldset className="space-y-3 sm:col-span-2">
+          <legend className="mb-1 text-sm font-medium">Weekly windows</legend>
+          {windows.map((w, i) => (
+            <div key={i} className="grid gap-3 rounded border border-border p-3 sm:grid-cols-5 sm:items-end">
+              <Select label={`Window ${i + 1} court or venue`} value={w.place} placeholder="Choose a court" required error={e[`time_slots/${i}/resource_id`] ?? e[`time_slots/${i}/venue_id`]} onChange={(ev) => edit(i, { place: ev.target.value })} options={places} />
+              <Select label={`Window ${i + 1} day`} value={w.weekday} onChange={(ev) => edit(i, { weekday: ev.target.value })} options={WEEKDAYS.map((d, n) => ({ value: String(n + 1), label: d }))} />
+              <Input label={`Window ${i + 1} from`} type="time" value={w.starts_at} error={e[`time_slots/${i}/starts_at`]} onChange={(ev) => edit(i, { starts_at: ev.target.value })} />
+              <Input label={`Window ${i + 1} until`} type="time" value={w.ends_at} error={e[`time_slots/${i}/ends_at`]} onChange={(ev) => edit(i, { ends_at: ev.target.value })} />
+              <Button variant="secondary" aria-label={`Remove window ${i + 1}`} disabled={windows.length === 1} onClick={() => setWindows(windows.filter((_, j) => j !== i))}>Remove</Button>
+            </div>
+          ))}
+          <Button variant="secondary" onClick={() => setWindows([...windows, { ...(windows.at(-1) ?? NEW_WINDOW), place: '' }])}>Add a window</Button>
+        </fieldset>
+        <Select label="Odd number of teams" value={f.bye_mode} onChange={(ev) => set({ bye_mode: ev.target.value })} options={BYE_MODES} />
+        <span />
         <Input label="First date" type="date" value={f.starts_on} error={e.starts_on} onChange={(ev) => set({ starts_on: ev.target.value })} />
         <Input label="Last date" type="date" value={f.ends_on} required error={e.ends_on} onChange={(ev) => set({ ends_on: ev.target.value })} />
-        {run && (
+        {state === 'generating' && <p role="status" className="sm:col-span-2">Generating: {progress?.done ?? 0} of {progress?.total ?? 1} competitions done.</p>}
+        {state === 'failed' && <p role="alert" className="text-danger sm:col-span-2">The generator failed; check the windows and preview again.</p>}
+        {state === 'previewed' && (
           <p role="status" className="sm:col-span-2">
-            {stats?.games ?? 0} games proposed{stats?.unschedulable ? `, ${stats.unschedulable} without a free slot` : ''}.
+            {stats?.games ?? 0} games proposed{stats?.unschedulable ? `, ${stats.unschedulable} without a free slot` : ''}{stats?.predicted_completion_on ? `; the last game is on ${formatDate(stats.predicted_completion_on)}` : ''}.
           </p>
         )}
       </form>
@@ -305,55 +331,25 @@ function GenerateDialog({ competition, onClose }: { competition: Competition; on
   )
 }
 
-const side = (score: string) => ({ score: Number(score), participation: 'full' as const, went_to_overtime: false, bonus_points: 0 })
-
-function ScoreDialog({ game, onClose }: { game: Game; onClose: () => void }) {
-  const qc = useQueryClient()
-  const toast = useToast()
-  const [home, setHome] = useState(game.home_score === null || game.home_score === undefined ? '' : String(game.home_score))
-  const [away, setAway] = useState(game.away_score === null || game.away_score === undefined ? '' : String(game.away_score))
-  const save = useMutation({
-    mutationFn: () => api.put('/api/v1/games/{game_id}/result', { path: { game_id: game.id }, body: { home: side(home), away: side(away) } }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['competition', game.competition_id] })
-      toast('success', 'Result saved; the standings are updated.')
-      onClose()
-    },
-  })
-  return (
-    <Dialog
-      open
-      onClose={onClose}
-      title={`Score: ${game.home_name ?? game.home_label} vs ${game.away_name ?? game.away_label}`}
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button type="submit" form="score-form" loading={save.isPending}>Save result</Button>
-        </>
-      }
-    >
-      <form id="score-form" className="grid grid-cols-2 gap-4" noValidate onSubmit={(ev) => { ev.preventDefault(); save.mutate() }}>
-        <Alert error={save.error} />
-        <Input label={`${game.home_name ?? 'Home'} score`} type="number" min={0} value={home} required onChange={(ev) => setHome(ev.target.value)} />
-        <Input label={`${game.away_name ?? 'Away'} score`} type="number" min={0} value={away} required onChange={(ev) => setAway(ev.target.value)} />
-      </form>
-    </Dialog>
-  )
-}
+const GENERATED = ['round_robin', 'pool_play']
 
 function ScheduleTab({ competition }: { competition: Competition }) {
   const { can } = useAuth()
   const games = useGames(competition.id)
   const [generating, setGenerating] = useState(false)
   const [scoring, setScoring] = useState<Game | null>(null)
+  const [stats, setStats] = useState<Game | null>(null)
   if (games.isPending) return <LoadingState />
   if (games.isError) return <ErrorState error={games.error} onRetry={() => games.refetch()} />
   const rows = [...games.data.data].filter((g) => !g.is_bye).sort((a, b) => (a.starts_at ?? '~').localeCompare(b.starts_at ?? '~'))
   return (
     <div className="space-y-4">
-      {can('leagues.schedule.generate') && competition.format !== 'single_elimination' && (
-        <Button onClick={() => setGenerating(true)} disabled={competition.status !== 'active'}>Generate schedule</Button>
-      )}
+      <div className="flex flex-wrap gap-3">
+        {can('leagues.schedule.generate') && GENERATED.includes(competition.format) && (
+          <Button onClick={() => setGenerating(true)} disabled={competition.status !== 'active'}>Generate schedule</Button>
+        )}
+        {can('leagues.game_card.print') && <BlankCardButton competition={competition} />}
+      </div>
       <List<Game>
         caption="Games"
         rows={rows}
@@ -361,19 +357,24 @@ function ScheduleTab({ competition }: { competition: Competition }) {
         empty="No games yet"
         columns={[
           { header: 'When', cell: (g) => formatDateTime(g.starts_at) },
-          { header: 'Game', cell: (g) => `${g.home_name ?? g.home_label ?? 'TBD'} vs ${g.away_name ?? g.away_label ?? 'TBD'}` },
+          { header: 'Game', cell: matchup },
           { header: 'Score', cell: (g) => (g.status === 'played' ? `${g.home_score} - ${g.away_score}` : '—') },
           { header: 'Status', cell: (g) => <Badge tone={STATUS_TONE[g.status]}>{label(g.status)}</Badge> },
           {
             header: 'Actions',
-            cell: (g) => (['scheduled', 'played'].includes(g.status) && g.home_team_id && g.away_team_id && can('leagues.result.enter') ? (
-              <Button size="sm" variant="secondary" aria-label={`Enter the score of ${g.home_name} vs ${g.away_name}`} onClick={() => setScoring(g)}>Score</Button>
+            cell: (g) => (['scheduled', 'played'].includes(g.status) && g.home_team_id && g.away_team_id ? (
+              <div className="flex flex-wrap gap-2">
+                {can('leagues.result.enter') && <Button size="sm" variant="secondary" aria-label={`Enter the score of ${g.home_name} vs ${g.away_name}`} onClick={() => setScoring(g)}>Score</Button>}
+                {can('leagues.result.enter') && <Button size="sm" variant="secondary" aria-label={`Enter player stats of ${matchup(g)}`} onClick={() => setStats(g)}>Stats</Button>}
+                {can('leagues.game_card.print') && <CardButton game={g} />}
+              </div>
             ) : null),
           },
         ]}
       />
       {generating && <GenerateDialog competition={competition} onClose={() => setGenerating(false)} />}
       {scoring && <ScoreDialog game={scoring} onClose={() => setScoring(null)} />}
+      {stats && <PlayerStatsDialog game={stats} onClose={() => setStats(null)} />}
     </div>
   )
 }
@@ -409,8 +410,17 @@ function BracketTab({ competition }: { competition: Competition }) {
   const brackets = useBrackets(competition.id)
   const entries = useEntries(competition.id)
   const refresh = () => void qc.invalidateQueries({ queryKey: ['competition', competition.id] })
+  const bracketFormat = ['double_elimination', 'three_games_guaranteed'].includes(competition.format) ? competition.format : 'single_elimination'
+  const seeded = competition.format === 'pool_play' ? 'pools' : competition.format === 'round_robin' ? 'standings' : 'seeds'
+  const [draw, setDraw] = useState({ bracket_type: bracketFormat, seed_source: seeded, has_reset_game: true, advance_per_pool: '2' })
   const generate = useMutation({
-    mutationFn: () => api.post('/api/v1/competitions/{competition_id}/brackets', { path: { competition_id: competition.id }, body: { name: 'Playoffs', has_third_place_game: false, bracket_type: 'single_elimination', seed_source: competition.format === 'single_elimination' ? 'seeds' : 'standings' } }),
+    mutationFn: () => api.post('/api/v1/competitions/{competition_id}/brackets', {
+      path: { competition_id: competition.id },
+      body: {
+        name: 'Playoffs', has_third_place_game: false, bracket_type: draw.bracket_type as 'single_elimination', seed_source: draw.seed_source as 'seeds',
+        has_reset_game: draw.bracket_type === 'double_elimination' && draw.has_reset_game, advance_per_pool: draw.seed_source === 'pools' ? Number(draw.advance_per_pool) : null,
+      },
+    }),
     onSuccess: () => { refresh(); toast('success', 'Bracket drawn.') },
   })
   const publish = useMutation({
@@ -423,12 +433,22 @@ function BracketTab({ competition }: { competition: Competition }) {
   const bracket = brackets.data[0]
   if (!bracket) {
     return (
-      <EmptyState title="No bracket yet" action={can('leagues.schedule.generate') ? <Button onClick={() => generate.mutate()} loading={generate.isPending}>Draw a bracket</Button> : undefined}>
-        {generate.error ? <span role="alert" className="text-danger">{generate.error.message}</span> : 'Single elimination, seeded; the top seeds get the byes.'}
-      </EmptyState>
+      can('leagues.schedule.generate') ? (
+        <Card title="Draw a bracket">
+          <div className="grid gap-4 sm:grid-cols-2 sm:items-end">
+            <Select label="Bracket" value={draw.bracket_type} onChange={(ev) => setDraw({ ...draw, bracket_type: ev.target.value })} options={[{ value: 'single_elimination', label: 'Single elimination' }, { value: 'double_elimination', label: 'Double elimination' }, { value: 'three_games_guaranteed', label: 'Three games guaranteed (8 teams)' }]} />
+            <Select label="Seed from" value={draw.seed_source} onChange={(ev) => setDraw({ ...draw, seed_source: ev.target.value })} options={[{ value: 'seeds', label: 'Team seeds' }, { value: 'standings', label: 'Standings' }, { value: 'pools', label: 'Pool standings (crossover)' }]} />
+            {draw.bracket_type === 'double_elimination' && <Checkbox label="Play a reset game if the losers' side wins the final" checked={draw.has_reset_game} onChange={(ev) => setDraw({ ...draw, has_reset_game: ev.target.checked })} />}
+            {draw.seed_source === 'pools' && <Input label="Teams advancing per pool" type="number" min={1} value={draw.advance_per_pool} onChange={(ev) => setDraw({ ...draw, advance_per_pool: ev.target.value })} />}
+            <Alert error={generate.error} />
+            <div><Button onClick={() => generate.mutate()} loading={generate.isPending}>Draw a bracket</Button></div>
+          </div>
+        </Card>
+      ) : <EmptyState title="No bracket yet" />
     )
   }
-  const rounds = [...new Set(bracket.slots.map((s) => s.round_name))]
+  const roundTitle = (s: Schemas['BracketSlotOut']) => (s.side === 'winners' ? s.round_name : `${label(s.side)}: ${s.round_name}`)
+  const rounds = [...new Set(bracket.slots.map(roundTitle))]
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
@@ -439,7 +459,7 @@ function BracketTab({ competition }: { competition: Competition }) {
         {rounds.map((round) => (
           <Card key={round} title={round}>
             <ul className="space-y-2">
-              {bracket.slots.filter((s) => s.round_name === round).map((s) => (
+              {bracket.slots.filter((s) => roundTitle(s) === round).map((s) => (
                 <li key={s.id} className="rounded border border-border px-3 py-2 text-sm">
                   {s.is_bye ? `${name(s.home_team_id)} (bye)` : `${name(s.home_team_id)} vs ${name(s.away_team_id)}`}
                   {s.winner_competition_team_id && <span className="block text-xs text-muted">Winner: {name(s.winner_competition_team_id)}</span>}
@@ -482,6 +502,9 @@ export function LeaguePage() {
           { id: 'schedule', label: 'Schedule & results', content: <ScheduleTab competition={c} /> },
           { id: 'standings', label: 'Standings', content: <StandingsTab competitionId={c.id} /> },
           { id: 'bracket', label: 'Bracket', content: <BracketTab competition={c} /> },
+          ...(c.format === 'ladder' ? [{ id: 'ladder', label: 'Ladder', content: <LadderTab competition={c} /> }] : []),
+          { id: 'player-stats', label: 'Player stats', content: <PlayerStatsTab competition={c} /> },
+          ...(can(MANAGE) ? [{ id: 'staff', label: 'Staff', content: <StaffTab competition={c} /> }] : []),
         ]}
       />
     </>

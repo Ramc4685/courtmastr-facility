@@ -25,6 +25,7 @@ EVERY_HOUR = (
     "send_client_task_reminders",
     "send_low_stock_digest",
     "renew_catalog_item_sales",  # billing pre-defined items (BIL-14)
+    "run_rental_plan_day",  # rentals: plan activation, expiry and auto-renew (RNT-09)
     "retry_provider_events",  # billing: webhooks stored but never processed (PAY-11)
     "send_billing_digest",  # billing: staff daily digest of failed and due autopay (PAY-08)
     "suspend_past_due_memberships",  # memberships: non-payment suspension and lift (MEM-14)

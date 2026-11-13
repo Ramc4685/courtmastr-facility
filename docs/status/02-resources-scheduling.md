@@ -21,10 +21,10 @@ Feature IDs and priorities are from `docs/discovery/parity-matrix.md`. Tests are
 | RES-03 Venues (bookable resources) and sub-venues | P0 | done (API) | `GET/POST /resources`, `GET/PATCH /resources/{id}`, `/archive`, `/restore` | `resources/tests/test_resources.py`, `test_conflicts.py::test_tree_rules_*`, `test_adding_and_moving_*` | Kinds: venue, trainer, virtual_room. Tree depth 3. Same-location is a service rule, not a three-column FK. Name sort is not numeric-aware. Plan-limit metering (PLT-14) is not enforced. |
 | RES-04 Schedule groups | P0 | done (API) | `GET/POST /resource-groups`, `PATCH /resource-groups/{id}`; `/calendar?resource_group_id=` | `test_resources.py::test_groups` | A location is not seeded with a default group at creation; the first group is created by staff or the seed. |
 | RES-05 Linked multi-resource reservations (trainer plus venues) | P0 | done (API) | `PUT /resources/{id}/links` (standing links); `resources[]` on `POST /bookings`; reschedule and cancel act on the whole booking | `test_conflicts.py::test_conflict_table[linked *]`, `test_standing_links_*`, `test_linked_booking_moves_and_cancels_as_a_unit`, `test_fifteen_hundred_*` | One booking, N holds, atomic. 1,500 linked occurrences commit through the worker in about 12 s locally. |
-| RES-06 League venues and facility-resource mapping | P1 | partial | engine only: `scheduling.service.create_booking(kind="game", source=...)` puts league games under the same constraint | conflict tests (kind-agnostic) | The venue-to-resource mapping and league screens belong to leagues (module 11): not built. |
-| RES-07 Locker rooms and bulk locker creation | P1 | not built | | | Tables `locker_room`, `locker` and their 6 operations are not built. |
-| RES-08 Locker terms | P1 | not built | | | `locker_term` and its 3 operations are not built. |
-| RES-09 Padlock inventory | P2 | not built | | | Permission keys are registered; nothing else. |
+| RES-06 League venues and facility-resource mapping | P1 | done | `/league-venues` (leagues module, phase 14 B1); games still book through `scheduling.service.create_booking(kind="game")` | `leagues/tests/test_depth.py`, conflict tests | A generator window on a venue books all its courts; see `11-leagues.md`. |
+| RES-07 Locker rooms and bulk locker creation | P1 | done | `GET/POST /locker-rooms`, `PATCH /locker-rooms/{id}`, `POST /locker-rooms/{id}/lockers/bulk`, `GET /lockers`, `PATCH /lockers/{id}`; `/lockers` screen | `resources/tests/test_lockers.py`; e2e `lockers.spec.ts` | Lease state merged from rentals through `HOOKS`; a rented locker cannot leave service. |
+| RES-08 Locker terms | P1 | done | `GET/POST /locker-terms`, `PATCH /locker-terms/{id}`; Setup tab | `test_rooms_bulk_lockers_and_terms`; e2e | Named, priced date ranges; renewal into a new term is rentals' `renew`. |
+| RES-09 Padlock inventory | P2 | done | `GET/POST /padlocks`, `PATCH/DELETE /padlocks/{id}`, `POST /padlocks/{id}/reveal` | `test_padlock_combination_is_encrypted_revealed_and_audited`; e2e reveal | Combination encrypted per tenant, revealed only under `resources.padlock.reveal_combination`, every reveal audited without the value. |
 | SCH-01 Schedule calendar views and navigation | P0 | done (API) | `GET /calendar` (one range query; day, week, month and resource views; window up to 42 days), `GET /bookings`, `GET /bookings/{id}` | `test_calendar.py::test_calendar_is_one_tile_*` | No `client_name`, `is_unpaid` or `include_cancelled` in the calendar. No screen. |
 | SCH-02 Reservation types (activity-type master data) | P0 | done (API) | `GET/POST /reservation-types`, `GET/PATCH /reservation-types/{id}` | `test_settings_types_and_categories` | Defaults are copied at creation and never re-read. Archive instead of delete. `revenue_category_id` is validated by its foreign key only. |
 | SCH-03 Reservation-type online-booking options | P0 | done (API) | per-type defaults `is_self_bookable_default`, `default_allows_free_booking`; per-session `PATCH /sessions/{id}` | `test_settings_types_and_categories`, `test_sessions_capacity_and_seats` | The policy row is programs' `session_booking_policy` (location default plus type override). |
@@ -67,8 +67,8 @@ Feature IDs and priorities are from `docs/discovery/parity-matrix.md`. Tests are
 | Priority | done (API) | partial | not built |
 |---|---|---|---|
 | P0 (16) | 16 | 0 | 0 |
-| P1 (12) | 5 | 1 (RES-06) | 6 (RES-07, RES-08, SCH-16, SCH-17, SCH-19, SCH-20) |
-| P2 (2) | 0 | 0 | 2 (RES-09, SCH-21) |
+| P1 (12) | 8 | 0 | 4 (SCH-16, SCH-17, SCH-19, SCH-20) |
+| P2 (2) | 1 | 0 | 1 (SCH-21) |
 
 ## Definition of done, item by item
 

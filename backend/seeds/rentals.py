@@ -8,12 +8,12 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.modules import platform, rentals
+from app.modules import platform, rentals, resources
 from app.modules.billing.models import RevenueCategory, Tax
 from app.modules.clients.models import Client
 from app.modules.platform.models import Location
 from app.modules.rentals.models import RentalType
-from app.modules.resources.models import Resource
+from app.modules.resources.models import Locker, Resource
 from app.modules.scheduling.domain.recurrence import localize
 
 
@@ -53,7 +53,8 @@ def seed(session: Session) -> None:
     plan = service.create_plan(session, actor, {
         "location_id": location.id, "name": "10-hour court pack", "rental_type_id": rtype["id"], "model": "per_hour",
         "quantity": Decimal("10"), "price_minor": 35000, "revenue_category_id": category.id, "validity_days": 180,
-        "client_description": "Ten court hours to use within six months.",
+        "client_description": "Ten court hours to use within six months.", "is_sold_online": True, "is_shareable": True,
+        "is_auto_renew": True,
     })  # fmt: skip
 
     zone = ZoneInfo(location.time_zone)
@@ -74,3 +75,23 @@ def seed(session: Session) -> None:
     rental("Reyes", "Court 3", monday + timedelta(days=3), "18:00", 90, {"decision": "unbilled"})
     purchase = service.sell_plan(session, actor, {"rental_plan_id": plan.id, "client_id": people["Okafor"]})
     rental("Okafor", "Court 2", monday + timedelta(days=4), "07:00", 120, {"decision": "plan", "rental_plan_purchase_id": purchase["id"]})  # fmt: skip
+    _lockers(session, actor, location, today, people)
+
+
+def _lockers(session: Session, actor, location: Location, today: date, people: dict) -> None:
+    """RES-07..09, RNT-17: a locker room of 20, a priced season, a padlock and two leases (one lapsing soon)."""
+    lockers = resources.service
+    room = lockers.create_locker_room(session, actor, {"location_id": location.id, "name": "Main locker room", "designation": "all_gender"})  # fmt: skip
+    lockers.bulk_create_lockers(session, actor, room.id, {"from_number": 1, "to_number": 20, "size_label": "Half"})
+    board = dict(session.execute(select(Locker.number, Locker.id).where(Locker.locker_room_id == room.id)).all())
+    season = lockers.create_locker_term(session, actor, {
+        "location_id": location.id, "name": f"Season {today.year}", "starts_on": today.replace(month=1, day=1),
+        "ends_on": today.replace(month=12, day=31), "price_minor": 6000,
+    })  # fmt: skip
+    padlock = lockers.create_padlock(session, actor, {"location_id": location.id, "number": "PL-01", "combination": "12-24-36"})  # fmt: skip
+    lockers.update_locker(session, actor, board[1], {"padlock_id": padlock.id})
+    service = rentals.service
+    service.create_locker_lease(session, actor, {"locker_id": board[1], "client_id": people["Okafor"], "term_kind": "term", "locker_term_id": season.id})  # fmt: skip
+    service.create_locker_lease(
+        session, actor, {"locker_id": board[2], "client_id": people["Reyes"], "term_kind": "week"}
+    )

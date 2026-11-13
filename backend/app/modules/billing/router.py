@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, current_ctx, public_session, require
 from app.core.errors import NotFound
-from app.core.idempotency import KEY_PATTERN, idempotency
+from app.core.idempotency import KEY_PATTERN, idempotency, secret_response
 from app.core.pagination import ListQuery, list_query, paginate
 from app.core.ratelimit import rate_limit
 from app.modules.billing import (
@@ -789,6 +789,7 @@ def connect_provider_account(body: s.ProviderConnect, ctx: Ctx = Depends(require
 
 
 @router.post("/provider-accounts/{provider_account_id}/onboarding-links", response_model=s.OnboardingLink)
+@secret_response
 def create_onboarding_link(provider_account_id: UUID, ctx: Ctx = Depends(require("billing.provider.manage"))):
     return {"url": methods.create_onboarding_link(ctx.session, ctx.principal, provider_account_id)}
 

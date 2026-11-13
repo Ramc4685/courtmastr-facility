@@ -6,7 +6,18 @@ under `Unreleased` in the same change that makes the behaviour visible.
 
 ## [Unreleased]
 
+### Security
+- Secrets shown once (padlock combinations, API keys, webhook signing secrets, kiosk pairing codes, payment onboarding links) are no longer kept with retried requests; repeating such a request returns an error instead of the secret.
+- A payer locked out of the portal for a past-due balance can no longer buy a rental plan or pay for an event form registration there.
+
 ### Added
+- Leagues: the schedule generator runs in the background over several weekly windows, with all four bye modes and live progress.
+- Leagues: double elimination with a reset game, three games guaranteed, and pool-to-bracket crossover.
+- Leagues: league venues, per-team scheduling preferences, ladders, player stat tables with formula stats, and game card PDFs.
+- Leagues: per-competition league staff and a scorekeeper screen that shows only the scorekeeper's games.
+- Leagues: publish a program as a league or tournament; captains manage their roster in the portal ("My teams"); split a team fee across players.
+- Lockers: set up locker rooms (create lockers in bulk), priced locker terms and padlocks, then rent, renew and clear lockers from the Lockers board. Padlock combinations are stored encrypted and shown only to staff allowed to reveal them; every reveal is logged.
+- Rental plans can renew automatically and charge the saved card, be sold to members only, and be shared with related clients; members can buy a rental plan and stop its renewal in the portal.
 - Collections: tag clients in collections, keep notes on their billing page, and see a collections report with what each owes.
 - The portal refuses online buying and booking while an account is past due, when the billing setting is on; paying unlocks it.
 - Billing notices and expiring-cards screens, and a staff daily digest of failed and upcoming autopay.
@@ -31,6 +42,12 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Help & support: send a request, with a screenshot, to the support team and follow your requests.
 - Container images, a reverse proxy with security headers, and backup and restore scripts for self-hosting.
 - Settings > Import data: bring clients and households, memberships, opening balances and products over from a CSV file, with a check that imports nothing, a problem report and progress. Imports send no welcome messages, and in GDPR mode marketing consent is kept only with the date and source of consent.
+- Event forms: build a sign-up page for an event with its own questions, prices, stock limits, sign-up window, capacity and wait list; anyone can sign up for a free event without an account, and priced events take payment in the member portal.
+- Event form registrations: look up, edit, cancel (with refunds of live charges), promote from the wait list, export to CSV and see summaries by registration, revenue, demographics and answers.
+- Programs can be filed under seasons, sports and age divisions, filtered by them, and saved as personal views with your own choice of columns.
+- Program tools: copy a program, create a repeating series from it, export its members to CSV, and move registrations to another program in one step.
+- Event forms accept one live sign-up per email address without an account, limit how often anyone can sign up, and remove the contact details of anonymous sign-ups a year after the event.
+- Registration defaults per location that new programs start with.
 
 ### Changed
 - Sign-in is harder to abuse: per-address and per-account rate limits, escalating lockouts, a common-password check, and a sign-in token that expires with the page.

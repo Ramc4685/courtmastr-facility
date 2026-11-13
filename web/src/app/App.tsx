@@ -24,6 +24,7 @@ import { UnsubscribePage } from '../features/engagement/UnsubscribePage'
 import { PublicSignPage } from '../features/documents/PublicSignPage'
 import { TemplateEditorPage } from '../features/documents/TemplateEditorPage'
 import { TemplatesPage } from '../features/documents/TemplatesPage'
+import { ScoresPage, StatsPage, VenuesPage } from '../features/leagues/depth'
 import { LeaguePage, LeaguesPage } from '../features/leagues/LeaguesPage'
 import { PublicLeaguesPage } from '../features/leagues/PublicLeaguesPage'
 import { MembershipsPage } from '../features/memberships/MembershipsPage'
@@ -46,10 +47,15 @@ import { AccountSecurityPage } from '../features/platform/AccountSecurityPage'
 import { TenantSettingsPage } from '../features/platform/TenantSettingsPage'
 import { RentalSetupPage } from '../features/rentals/RentalSetupPage'
 import { RentalsPage } from '../features/rentals/RentalsPage'
+import { LockersPage } from '../features/lockers/LockersPage'
 import { BasketPage } from '../features/programs/BasketPage'
 import { BookingPolicyPage } from '../features/programs/BookingPolicyPage'
 import { ProgramPage } from '../features/programs/ProgramPage'
 import { ProgramsPage } from '../features/programs/ProgramsPage'
+import { FormPage } from '../features/programs/FormPage'
+import { FormsPage } from '../features/programs/FormsPage'
+import { ProgramSetupPage } from '../features/programs/groupTools'
+import { PublicFormPage } from '../features/programs/PublicFormPage'
 import { ResourcesPage } from '../features/resources/ResourcesPage'
 import { CalendarPage } from '../features/scheduling/CalendarPage'
 import { SetupPage } from '../features/scheduling/SetupPage'
@@ -118,6 +124,7 @@ export function AppRoutes() {
       <Route path="/sign" element={<PublicSignPage />} />
       <Route path="/unsubscribe" element={<UnsubscribePage />} />
       <Route path="/leagues/public" element={<PublicLeaguesPage />} />
+      <Route path="/forms/:id" element={<PublicFormPage />} />
       <Route path="/leagues/public/:id" element={<PublicLeaguesPage />} />
       <Route path="/portal/*" element={<RequireClient><PortalApp /></RequireClient>} />
       <Route path="/kiosk" element={<KioskPage />} />
@@ -203,9 +210,13 @@ export function AppRoutes() {
         <Route path="scheduling/setup" element={<SetupPage />} />
         <Route path="rentals" element={<RequirePermission permission="scheduling.booking.read"><RentalsPage /></RequirePermission>} />
         <Route path="rentals/setup" element={<RentalSetupPage />} />
+        <Route path="lockers" element={<RequirePermission permission={['rentals.locker_rental.manage', 'resources.locker.manage', 'resources.padlock.reveal_combination']}><LockersPage /></RequirePermission>} />
         <Route path="programs" element={<RequirePermission permission="programs.registration.read"><ProgramsPage /></RequirePermission>} />
         <Route path="programs/register" element={<RequirePermission permission="programs.registration.create"><BasketPage /></RequirePermission>} />
         <Route path="programs/booking-policies" element={<RequirePermission permission="programs.registration_config.manage"><BookingPolicyPage /></RequirePermission>} />
+        <Route path="programs/forms" element={<RequirePermission permission="programs.form.manage"><FormsPage /></RequirePermission>} />
+        <Route path="programs/forms/:id" element={<RequirePermission permission="programs.form.manage"><FormPage /></RequirePermission>} />
+        <Route path="programs/setup" element={<RequirePermission permission="programs.program.manage"><ProgramSetupPage /></RequirePermission>} />
         <Route path="programs/:id" element={<RequirePermission permission="programs.registration.read"><ProgramPage /></RequirePermission>} />
         <Route path="check-in" element={<RequirePermission permission="access.checkin.create"><CheckInPage /></RequirePermission>} />
         <Route path="check-in/history" element={<RequirePermission permission="access.checkin.read"><CheckInHistoryPage /></RequirePermission>} />
@@ -215,6 +226,9 @@ export function AppRoutes() {
         <Route path="check-in/desk-setup" element={<DeskSetupPage />} />
         <Route path="check-in/card/:id" element={<RequirePermission permission="access.credential.assign"><MemberCardPage /></RequirePermission>} />
         <Route path="leagues" element={<RequirePermission permission="leagues.competition.manage"><LeaguesPage /></RequirePermission>} />
+        <Route path="leagues/venues" element={<RequirePermission permission="leagues.competition.manage"><VenuesPage /></RequirePermission>} />
+        <Route path="leagues/stats" element={<RequirePermission permission="leagues.competition.manage"><StatsPage /></RequirePermission>} />
+        <Route path="leagues/scores" element={<RequirePermission permission="leagues.result.enter"><ScoresPage /></RequirePermission>} />
         <Route path="leagues/:id" element={<RequirePermission permission="leagues.competition.manage"><LeaguePage /></RequirePermission>} />
         {import.meta.env.DEV && (
           <Route path="dev/client-picker" element={<RequirePermission permission="clients.client.read"><ClientPickerDemo /></RequirePermission>} />

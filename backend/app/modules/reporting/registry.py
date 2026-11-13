@@ -515,10 +515,87 @@ def _time_clock(session: Session, p: TimeClockParams, scope: Scope) -> dict:
     return {"rows": rows, "totals": totals, "details": details}
 
 
+# --- league game cards (RPT-36, Phase 14 chip B1) ------------------------------------------------------------
+
+
+class LeagueCardParams(RangeParams):
+    sport_ids: list[UUID] | None = None
+
+
+def _league_game_cards(session: Session, p: LeagueCardParams, scope: Scope) -> dict:
+    g = v.league_game.c
+    where = [g.game_on.between(p.from_on, p.to_on)]
+    if p.sport_ids:
+        where.append(g.sport_id.in_(p.sport_ids))
+    rows = [dict(r._mapping) | {"group_key": _key(r.game_id)} for r in session.execute(_loc(
+        select(g.game_id, g.game_on, g.game_time, g.sport_name, g.competition_name, g.round_label, g.venue_name,
+               g.home_name, g.away_name, g.status)
+        .where(*where).order_by(g.game_on, g.game_time, g.venue_name, g.game_id), v.league_game, scope,
+    ))]  # fmt: skip
+    return {"rows": rows, "totals": {"game_count": len(rows)}, "details": None}
+
+
+class LeagueTeamParams(Params):
+    competition_ids: list[UUID] | None = None
+
+
+def _league_manual_cards(session: Session, p: LeagueTeamParams, scope: Scope) -> dict:
+    t = v.league_team.c
+    where = [t.competition_id.in_(p.competition_ids)] if p.competition_ids else []
+    rows = [dict(r._mapping) | {"group_key": _key(r.competition_team_id)} for r in session.execute(_loc(
+        select(t.competition_team_id, t.competition_name, t.sport_name, t.team_name)
+        .where(*where).order_by(t.competition_name, t.team_name, t.competition_team_id), v.league_team, scope,
+    ))]  # fmt: skip
+    return {"rows": rows, "totals": {"team_count": len(rows)}, "details": None}
+
+
+# --- lockers (RPT-35) ----------------------------------------------------------------------------------------
+
+
+class LockerParams(Params):
+    locker_room_ids: list[UUID] | None = None
+
+
+class ExpiringLockerParams(LockerParams):
+    within_days: int = Field(14, ge=0, le=365, description="Leases ending within this many days, plus lapsed ones")
+
+
+_LOCKER_COLS = (
+    Col("locker_room_name", "Locker room"), Col("number", "Locker", "number"), Col("size_label", "Size"),
+    Col("client_name", "Client"), Col("term_kind", "Term"), Col("starts_on", "From", "date"),
+    Col("ends_on", "Until", "date"), Col("state", "State"), Col("fee_minor", "Fee", "money"),
+)  # fmt: skip
+
+
+def _lockers(session: Session, p: LockerParams, scope: Scope, *where) -> dict:
+    k = v.locker.c
+    where = [k.state.in_(("rented", "expired")), *where]
+    if p.locker_room_ids:
+        where.append(k.locker_room_id.in_(p.locker_room_ids))
+    rows = [dict(r._mapping) | {"group_key": _key(r.locker_id)} for r in session.execute(_loc(
+        select(k.locker_id, k.locker_room_name, k.number, k.size_label, k.client_name, k.term_kind, k.starts_on,
+               k.ends_on, k.state, k.fee_minor).where(*where).order_by(k.locker_room_name, k.number, k.locker_id),
+        v.locker, scope,
+    ))]  # fmt: skip
+    totals = {"locker_count": len(rows), "expired_count": sum(r["state"] == "expired" for r in rows)}
+    return {"rows": rows, "totals": totals, "details": []}
+
+
+def _lockers_assigned(session: Session, p: LockerParams, scope: Scope) -> dict:
+    return _lockers(session, p, scope)
+
+
+def _lockers_expiring(session: Session, p: ExpiringLockerParams, scope: Scope) -> dict:
+    k = v.locker.c
+    return _lockers(session, p, scope, k.ends_on <= k.today_on + p.within_days)
+
+
 # --- the registry --------------------------------------------------------------------------------------------
 
 FINANCIAL, MEMBERSHIP, ATTENDANCE = "reporting.financial.run", "reporting.membership.run", "reporting.attendance.run"
 POS, TIME_CLOCK = "reporting.pos.run", "reporting.time_clock.run"
+LEAGUE = "reporting.league.run"
+CLIENT = "reporting.client.run"
 
 _SPECS = (
     ReportSpec(
@@ -798,6 +875,74 @@ _SPECS = (
             Col("is_edited", "Edited", "bool"),
         ),
         ("RPT-37",),
+    ),  # fmt: skip
+    ReportSpec(
+        "league_game_cards",
+        "Game cards by sport",
+        "Scheduled league games in the period by sport, in start order, ready to print as game cards (one card "
+        "per game from the leagues screen).",
+        "leagues",
+        LEAGUE,
+        "game_date",
+        LeagueCardParams,
+        (
+            Col("game_on", "Date", "date"),
+            Col("game_time", "Time"),
+            Col("sport_name", "Sport"),
+            Col("competition_name", "Competition"),
+            Col("round_label", "Round"),
+            Col("venue_name", "Court"),
+            Col("home_name", "Home"),
+            Col("away_name", "Away"),
+        ),
+        (Col("game_count", "Games", "count"),),
+        _league_game_cards,
+        None,
+        ("RPT-36", "LGE-16"),
+    ),  # fmt: skip
+    ReportSpec(
+        "league_manual_game_cards",
+        "Manual game cards",
+        "Active teams of each competition, for writing up game cards by hand (pickup and makeup games).",
+        "leagues",
+        LEAGUE,
+        "none",
+        LeagueTeamParams,
+        (Col("competition_name", "Competition"), Col("sport_name", "Sport"), Col("team_name", "Team")),
+        (Col("team_count", "Teams", "count"),),
+        _league_manual_cards,
+        None,
+        ("RPT-36", "LGE-16"),
+    ),  # fmt: skip
+    ReportSpec(
+        "assigned_lockers",
+        "Assigned lockers",
+        "Every locker with an uncleared lease: who has it, the term and when it ends. Lapsed leases stay listed "
+        "(as expired) until staff clear them.",
+        "lockers",
+        CLIENT,
+        "none",
+        LockerParams,
+        _LOCKER_COLS,
+        (Col("locker_count", "Lockers", "count"), Col("expired_count", "Expired", "count")),
+        _lockers_assigned,
+        None,
+        ("RPT-35",),
+    ),  # fmt: skip
+    ReportSpec(
+        "expiring_lockers",
+        "Expiring lockers",
+        "Uncleared locker leases that end within the chosen number of days, in each location's today, and those "
+        "already lapsed.",
+        "lockers",
+        CLIENT,
+        "none",
+        ExpiringLockerParams,
+        _LOCKER_COLS,
+        (Col("locker_count", "Lockers", "count"), Col("expired_count", "Expired", "count")),
+        _lockers_expiring,
+        None,
+        ("RPT-35",),
     ),  # fmt: skip
 )
 REGISTRY: dict[str, ReportSpec] = {spec.key: spec for spec in _SPECS}

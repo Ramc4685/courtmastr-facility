@@ -1,10 +1,12 @@
 """The chunked export (core.jobs.chunked_actor's worked example): one chunk per message, progress on the job row,
 and a crash mid-chunk loses nothing that committed."""
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 import pytest
 
+from app.core import clock
 from app.core.db.session import tenant_session
 from app.modules.reporting import service
 from app.modules.reporting.domain import csv_file
@@ -19,7 +21,14 @@ def _job(tenant, job_id) -> ExportJob:
         return job
 
 
-@pytest.mark.usefixtures("world")  # the charges the revenue report reads
+@pytest.fixture
+def noon():
+    """Midday in Chicago: near midnight the New York location's sale is dated tomorrow and leaves last_30_days."""
+    with clock.freeze(datetime(2026, 11, 10, 18, 0, tzinfo=UTC)):
+        yield
+
+
+@pytest.mark.usefixtures("noon", "world")  # frozen first, then the charges the revenue report reads
 def test_an_export_resumes_from_its_row_after_a_crash_and_matches_a_one_shot_render(client, tenant, owner, monkeypatch):
     monkeypatch.setattr(service, "EXPORT_CHUNK_ROWS", 1)  # summary row plus two detail rows: three chunks
     done = ran(client, owner, "revenue_summary", period="last_30_days")

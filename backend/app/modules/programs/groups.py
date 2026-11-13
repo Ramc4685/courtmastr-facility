@@ -24,10 +24,12 @@ from app.modules import billing, clients, platform, scheduling
 from app.modules.programs import events as ev
 from app.modules.programs.models import (
     Enrollment,
+    ProgramClassifier,
     ProgramFee,
     ProgramGroup,
     ProgramSession,
     RegistrationConfig,
+    RegistrationDefault,
     WaitlistEntry,
 )
 from app.ports import notifications
@@ -59,6 +61,14 @@ notifications.register_template(
 _GROUP_FIELDS = (
     "kind", "name", "description", "child_label", "revenue_category_id", "capacity", "max_children", "price_minor",
     "contact_name", "contact_email", "starts_on", "ends_on", "auto_archive_on", "waitlist_mode",
+    "season_classifier_id", "sport_classifier_id", "age_division_classifier_id",
+)  # fmt: skip
+_CLASSIFIER_FIELDS = {"season_classifier_id": "season", "sport_classifier_id": "sport",
+                      "age_division_classifier_id": "age_division"}  # fmt: skip
+# REG-04: what the group search, its saved views and the list page may filter on (each also takes [op] suffixes)
+LIST_FILTERS = (
+    "location_id", "status", "kind", "parent_id", "season_classifier_id", "sport_classifier_id",
+    "age_division_classifier_id", "starts_on", "ends_on", "waitlist_mode", "deleted",
 )  # fmt: skip
 
 
@@ -197,10 +207,25 @@ def _check_span(data: dict) -> None:
         raise ValidationFailed("The end date is before the start date.", pointer="/ends_on")
 
 
+def _check_classifiers(session: Db, data: dict) -> None:
+    """A classifier id must name a classifier of the column's kind (REG-03); an unknown id is a 422."""
+    for field, kind in _CLASSIFIER_FIELDS.items():
+        if data.get(field) is not None:
+            found = session.get(ProgramClassifier, data[field])
+            if found is None or found.kind != kind:
+                raise ValidationFailed(f"Choose a {kind.replace('_', ' ')} classifier.", pointer=f"/{field}")
+
+
+def registration_default(session: Db, location_id: UUID) -> RegistrationDefault | None:
+    """The location's online-registration defaults (REG-11), or None when nobody has set them."""
+    return session.scalar(select(RegistrationDefault).where(RegistrationDefault.location_id == location_id))
+
+
 def create_group(session: Db, principal: Principal, data: dict) -> ProgramGroup:
     """A program, or a subgroup under `parent_id` (REG-01, REG-02). A subgroup lives at its parent's location
     and copies the parent's revenue category when it names none."""
     _check_span(data)
+    _check_classifiers(session, data)
     values = {k: data.get(k) for k in _GROUP_FIELDS if data.get(k) is not None}
     if data.get("parent_id"):
         parent = load(session, principal, data["parent_id"], MANAGE, lock=True)
@@ -216,6 +241,8 @@ def create_group(session: Db, principal: Principal, data: dict) -> ProgramGroup:
             raise ValidationFailed("Choose a location.", pointer="/location_id")
         authorize(principal, MANAGE, location_id=data["location_id"])
         values |= {"location_id": data["location_id"], "depth": 0}
+        if "waitlist_mode" not in values and (default := registration_default(session, data["location_id"])):
+            values["waitlist_mode"] = default.waitlist_mode
     row = ProgramGroup(**values)
     session.add(row)
     session.flush()  # ck_program_group_children on the parent, uq_program_group_sibling_name
@@ -226,6 +253,7 @@ def create_group(session: Db, principal: Principal, data: dict) -> ProgramGroup:
 def update_group(session: Db, principal: Principal, group_id: UUID, data: dict) -> ProgramGroup:
     row = load(session, principal, group_id, MANAGE, lock=True)
     _check_span({"starts_on": row.starts_on, "ends_on": row.ends_on} | data)
+    _check_classifiers(session, data)
     if data.get("capacity") is not None and data["capacity"] < row.enrolled_count:
         raise Conflict("Capacity cannot go below the number registered.", code="capacity-below-enrolled")
     if data.get("max_children") is not None and data["max_children"] < row.child_count:
@@ -270,8 +298,13 @@ def list_groups(session: Db, principal: Principal, query: ListQuery) -> dict:
     page = paginate(
         session, scope_query(stmt, principal, g.location_id), query, id_column=g.id,
         sort_fields={"name": g.name, "starts_on": g.starts_on, "created_at": g.created_at}, default_sort="name",
-        filter_fields={"location_id": g.location_id, "status": g.status, "kind": g.kind, "parent_id": g.parent_id},
-        search=(g.name,),
+        filter_fields={
+            "location_id": g.location_id, "status": g.status, "kind": g.kind, "parent_id": g.parent_id,
+            "season_classifier_id": g.season_classifier_id, "sport_classifier_id": g.sport_classifier_id,
+            "age_division_classifier_id": g.age_division_classifier_id, "starts_on": g.starts_on, "ends_on": g.ends_on,
+            "waitlist_mode": g.waitlist_mode,
+        },
+        search=(g.name, g.description),
     )  # fmt: skip
     return page | {"data": [group_view(session, row) for row in page["data"]]}
 
@@ -557,6 +590,13 @@ _CONFIG_FIELDS = (
     "closed_message", "confirmation_message", "public_slug", "portal_publish_name",
 )  # fmt: skip
 _CONFIG_HIDDEN = ("id", "tenant_id", "created_at", "updated_at")
+_DEFAULTED = (
+    "payment_requirement",
+    "displays_openings",
+    "online_description",
+    "confirmation_message",
+    "closed_message",
+)
 _SLUG = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$")
 
 
@@ -598,6 +638,9 @@ def put_config(session: Db, principal: Principal, group_id: UUID, data: dict) ->
         config = RegistrationConfig(
             program_group_id=group.id, public_slug=data.get("public_slug") or _default_slug(group)
         )
+        if default := registration_default(session, group.location_id):  # REG-11: a new config copies them
+            for key in _DEFAULTED:
+                setattr(config, key, getattr(default, key))
         session.add(config)
     for key in _CONFIG_FIELDS:
         if key in data and not (
@@ -630,11 +673,12 @@ def set_published(session: Db, principal: Principal, group_id: UUID, visible: bo
 
 
 def waitlist_mode(session: Db, group: ProgramGroup) -> str:
-    """The node's own setting, else the nearest ancestor's, else manual (REG-11 location defaults not built)."""
+    """The node's own setting, else the nearest ancestor's, else the location default (REG-11), else manual."""
     for node in reversed(_chain(session, group)):
         if node.waitlist_mode:
             return node.waitlist_mode
-    return "manual"
+    default = registration_default(session, group.location_id)
+    return default.waitlist_mode if default is not None else "manual"
 
 
 def registration_state(session: Db, group: ProgramGroup, config: RegistrationConfig | None) -> str:

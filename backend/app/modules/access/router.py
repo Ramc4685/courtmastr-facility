@@ -15,7 +15,7 @@ from app.core.api import TxRoute, camel_id
 from app.core.auth import Principal, tokens
 from app.core.auth.deps import Ctx, _host_tenant, current_ctx, public_session, request_session, require
 from app.core.errors import DomainError, NotFound, Unauthenticated
-from app.core.idempotency import KEY_PATTERN, Replay, begin, idempotency
+from app.core.idempotency import KEY_PATTERN, Replay, begin, idempotency, secret_response
 from app.core.pagination import ListQuery, list_query
 from app.core.ratelimit import _redis, rate_limit
 from app.core.settings import get_settings
@@ -123,12 +123,14 @@ def list_kiosk_devices(query: Lists, ctx: Launch):
 
 
 @router.post("/kiosk-devices", response_model=s.KioskPairingCode, status_code=201)
+@secret_response
 def create_kiosk_device(body: s.KioskDeviceCreate, ctx: Manage):
     """Register a kiosk device; the pairing code is shown once."""
     return service.create_kiosk_device(ctx.session, ctx.principal, body.model_dump())
 
 
 @router.post("/kiosk-devices/{kiosk_device_id}/pairing-codes", response_model=s.KioskPairingCode, status_code=201)
+@secret_response
 def create_kiosk_pairing_code(kiosk_device_id: UUID, ctx: Launch):
     """Launch kiosk mode on a registered device (CHK-05)."""
     return service.create_kiosk_pairing_code(ctx.session, ctx.principal, kiosk_device_id)

@@ -19,4 +19,6 @@ Counts: P0 6 done, 4 partial.
 | RPT-21 Attendance and attendance overview | P0 | done | `attendance`, `attendance_overview` | coach own-reach test, every-report test | Status, reservation type, trainer and start-time filters; coaches see only their own sessions. |
 | RPT-30 POS sales | P0 | partial | `pos_sales` | every-report test | By category, employee, register, product, brand or supplier, with order details. **Not built**: coupon grouping, buying price and margin. |
 | RPT-32 Daily register | P0 | done | `daily_register` | every-report test | Per register: sales, discounts, tenders, drawer counts and variance. |
+| RPT-35 Locker reports | P1 | done | `assigned_lockers`, `expiring_lockers` | every-report test | Uncleared leases; expiring within N days in each location's today, plus lapsed ones. |
+| RPT-36 Game cards | P1 | done | `league_game_cards`, `league_manual_game_cards` | every-report test | Scheduled games by sport, and active teams per competition for hand-written cards. |
 | RPT-37 Time clock | P0 | done | `time_clock` | every-report test | Clocked minutes per person with entries as details; payroll rounding is module 12's. |

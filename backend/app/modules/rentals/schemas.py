@@ -469,6 +469,8 @@ class _PlanFields(In):
     fixed_expires_on: date | None = None
     default_invoice_routing: Literal["new_single", "new_per_line", "cart"] | None = None
     is_shareable: bool | None = None
+    is_auto_renew: bool | None = None
+    is_autopay_default: bool | None = None
 
 
 class RentalPlanCreate(_PlanFields):
@@ -506,6 +508,8 @@ class RentalPlanOut(Out):
     fixed_expires_on: date | None
     default_invoice_routing: str
     is_shareable: bool
+    is_auto_renew: bool
+    is_autopay_default: bool
     status: str
 
 
@@ -514,6 +518,8 @@ class PlanSale(In):
     client_id: UUID
     quantity_total: Annotated[Decimal, Field(gt=0, le=100000, decimal_places=2)] | None = None
     invoice_routing: Literal["new_single", "cart"] | None = None
+    is_auto_renew: bool | None = None  # default: the plan's
+    is_autopay: bool | None = None  # default: the plan's is_autopay_default
 
 
 class PurchaseOut(Out):
@@ -532,6 +538,10 @@ class PurchaseOut(Out):
     expires_on: date | None
     cancelled_at: datetime | None
     cancel_mode: str | None
+    is_auto_renew: bool
+    is_autopay: bool
+    renewed_from_purchase_id: UUID | None
+    shared_with_client_ids: list[UUID] = []
     invoice_id: UUID | None = None
 
 
@@ -549,3 +559,107 @@ class RentalPlanLedgerEntryOut(Out):
 class PurchaseCancel(In):
     cancel_mode: Literal["reverse_billing", "keep_billing"]
     reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+
+
+class PurchaseUpdate(In):
+    is_auto_renew: bool | None = None
+    is_autopay: bool | None = None
+
+
+class RentalPlanShares(In):
+    client_ids: Annotated[list[UUID], Field(max_length=20)]
+
+
+# --- portal plans (RNT-09, RNT-10): portal-only shapes, no charge, staff or other clients' ids --------------
+
+
+class PortalRentalPlanOut(Out):
+    id: UUID
+    location_id: UUID
+    name: str
+    rental_type_id: UUID
+    model: str
+    quantity: Decimal | None
+    is_unlimited: bool
+    price_minor: int  # what this client pays (the member price for a member)
+    client_description: str | None
+    is_members_only: bool
+    validity_days: int | None
+    is_auto_renew: bool
+    is_purchasable: bool
+
+
+class PortalRentalPlanPurchaseOut(Out):
+    id: UUID
+    location_id: UUID
+    rental_plan_id: UUID
+    rental_plan_name: str | None
+    status: str
+    model: str
+    quantity_total: Decimal | None
+    balance: Decimal | None
+    starts_on: date
+    expires_on: date | None
+    is_auto_renew: bool
+    is_owner: bool  # false: shared with the acting client
+    payment_status: str | None = None
+
+
+class PortalRentalPlanBuy(In):
+    rental_plan_id: UUID
+    client_id: UUID | None = None  # who the plan is for; default: the signed-in client
+    method_token: Annotated[str, StringConstraints(max_length=200)] | None = None
+    payment_method_id: UUID | None = None
+
+
+# --- locker leases (RNT-17, RNT-18) ------------------------------------------------------------------------
+
+LeaseTermKind = Literal["day", "week", "month", "year", "term", "custom"]
+
+
+class _LeaseTerm(In):
+    term_kind: LeaseTermKind
+    locker_term_id: UUID | None = None
+    starts_on: date | None = None  # default: today (renewal: the day after the current lease ends)
+    ends_on: date | None = None  # custom only
+    fee_minor: Money | None = None  # default: the term's price; another amount needs rentals.booking.override_rate
+    invoice_routing: Literal["new_single", "cart"] = "new_single"
+
+
+class LockerLeaseCreate(_LeaseTerm):
+    locker_id: UUID
+    client_id: UUID
+
+
+class LockerLeaseRenew(_LeaseTerm):
+    pass
+
+
+class LockerLeaseClearExpired(In):
+    location_id: UUID
+    locker_room_id: UUID | None = None
+
+
+class LockerLeaseClearResult(Out):
+    cleared_count: int
+
+
+class LockerLeaseOut(Out):
+    id: UUID
+    location_id: UUID
+    locker_id: UUID
+    locker_number: int | None = None
+    locker_room_name: str | None = None
+    client_id: UUID
+    client_name: str | None
+    term_kind: str
+    locker_term_id: UUID | None
+    starts_on: date
+    ends_on: date
+    fee_minor: int
+    charge_state: str
+    charge_id: UUID | None
+    renewed_from_lease_id: UUID | None
+    cleared_at: datetime | None
+    clear_source: str | None
+    state: Literal["rented", "expired", "cleared"]

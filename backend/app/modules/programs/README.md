@@ -66,8 +66,90 @@ Tables follow `docs/architecture/data-model-programs.md`. The migration is `0611
 - A portal session waitlist entry that is auto-promoted is not re-checked against the booking policy at
   promotion time. Joining and claiming check it.
 
+## Group tools and event forms (Phase 14 chip A)
+
+Group tools live in `tools.py` and event forms in `forms.py`; both use the two gates, one audit row per
+aggregate and keyset lists like the rest of the module.
+
+- **Group tools:** classifiers (REG-03) are tenant-wide (`authorize_tenant_wide`), and a classifier that
+  programs use can only be deactivated (`in-use`). The program list filters on the three classifier columns
+  (REG-04). Saved views and page settings (REG-04, REG-06) belong to the staff user who made them, so another
+  user's id is 404. A move (REG-08) is one command with a savepoint per registration and a per-row outcome;
+  it re-prices nothing already billed. A location's registration defaults (REG-11) are copied into a group's
+  online settings when the group first gets them. Copy, generate and export (REG-13) are in the next list.
+- **Event forms (REG-15 to REG-24):** a form has versioned question sets (draft, then publish), stock caps
+  per choice or quantity question, a window in location wall time, capacity and an optional wait list.
+  Submissions take a confirmation number from `next_number("form_confirmation")` and email a confirmation.
+  Priced answers post one charge each through `billing.service` on one invoice; portal sales end in
+  `secure_online_checkout`, and coupons go through the billing coupon engine.
+
+Assumptions (chip A):
+- **Who may submit:** anyone may submit a free form without an account, and no client is created; staff can
+  link one later. A priced form needs portal sign-in (`sign-in-required`). Client sign-in always lands on the
+  portal home, so the public page's "Sign in and register" link only reaches the form for a member who is
+  already signed in (handover to the auth owner: honour `next` for `/portal` paths).
+- **Wait list:** it is a `waitlisted` submission status with staff promote, not a `waitlist_entry` row.
+- **Window and capacity:** the window is entered in the location's wall time. Capacity counts confirmed
+  submissions.
+- **Header image:** a JPEG or PNG of 900 KB or less, uploaded through `platform.files`. It is served
+  publicly only once the form is published.
+- **Questions:** topics are plain text. There are no members-only choices, and forms are addressed by id
+  (no vanity slug).
+- **Staff edits (REG-21):** an edit covers contact details, the client link and text answers only. Choices
+  and quantities are not re-priced; cancel and resubmit instead.
+- **Cancel:** it reverses only charges that are still live. A coupon re-prices a charge into reversal lines,
+  so those lines are skipped.
+- **Coach reach:** a coach's `own` reach on form answers finds nothing; forms have no coach link yet.
+- **Generate (REG-13):** it creates a series of sibling programs from a template, one per interval (the
+  plan), not child nodes under it (the parity row). At most 52 at once, and copies of trees over 50 nodes are
+  refused (`tree-too-large`).
+- **CSV exports:** they are synchronous `POST` downloads on a router without idempotency replay, because a
+  replayed CSV body cannot be stored as JSON. A cell that starts with `=`, `+`, `-` or `@` gets an apostrophe
+  prefix against formula injection.
+- **Summaries (REG-22):** the form is loaded before the summary key is checked, so an unknown key on a form
+  you can see is 422, and a form you cannot see is 404. Counts and sums are grouped in SQL. The demographic
+  summary still reads each distinct registrant once, because clients has no batch reader.
+- **Anonymous abuse limits:** the submit POST has its own closed bucket, `public-form-submit` (20 per 15
+  minutes per IP, so a family on a venue's Wi-Fi is not stopped after the fifth sign-up), and a second bucket keyed on the lowercased contact address, `public-form-email` (5 per
+  hour). The form GET and header image use `public-form` (60 per minute). Each form holds one live anonymous
+  registration per address (`already-registered`), enforced by the partial unique index
+  `uq_form_submission_public_email`. Portal registrations are exempt, because a parent may register several
+  children.
+- **Confirmation mail:** an anonymous confirmation greets "there", never the typed name. A portal
+  registration takes the signed-in identity's email and the registrant's name from their record; the
+  submitted contact fields are ignored.
+- **Stock:** each answer records `stock_taken`, and cancelling returns only that stock. A cap that is added or
+  switched back on recounts the confirmed answers it covers. A cap the published version still sells is
+  never dropped by an inventory update, even while the draft no longer has the question.
+- **Publish:** only a draft form opens on publish. A closed form stays closed when a new version is
+  published.
+- **Data subject requests and retention:** a client's export lists each registration with its answers
+  (item, label and text). Anonymous `public_link` registrations have no client, so no request reaches them.
+  Instead they are anonymised (contact details and typed answers) 365 days after the event, or after the
+  submission when the form has no event date (`purge_anonymous`, registered with
+  `platform.retention.register_purge`). Matching them by email at erasure time is not possible, because the
+  clients handler wipes the email before programs runs. The 365 days is a module constant
+  (`ANONYMOUS_RETENTION_DAYS`) until the core settings get a key for it.
+- **Export:** a form with more than 10,000 registrations is refused with `export-too-large` rather than cut
+  short; use a report.
+
 ## Not built
 
-Virtual meeting links (CLS-08), group classifiers, search and copy tools (REG-03, 04, 13), moving members
-between groups (REG-08), account-wide registration defaults (REG-11), event forms (REG-15 to 24), and
-captain rosters (REG-26).
+Virtual meeting links (CLS-08) and captain rosters (REG-26). From chip A: bulk resend of confirmations,
+a portal list of open forms (members reach a form by its link), and saved cards at form checkout (a new card
+only).
+
+**Known gap:** an anonymous public-form registration is not confirmed by the address owner. Anyone can
+register someone else's email (squatting a one-per-email place), and the duplicate-email reply tells a visitor
+that an address is already registered. Owner decision 2026-11-12: double opt-in, planned as a follow-up (not
+the generic-reply workaround); tracked as a P1 deferred item under Phase 14 in `docs/planning/phase-features.md`.
+The same follow-up removes the `already-registered` reply as an address oracle (anyone can test whether an
+address is signed up).
+
+**Known gaps in the abuse limits** (deferred rows under Phase 14 in `docs/planning/phase-features.md`):
+- Address variants (plus-tags, dots, a trailing dot) count as different addresses: `core/ratelimit.py` and
+  `uq_form_submission_public_email` only lowercase, so they bypass the per-address limit and the index.
+- The per-address bucket is per address, not per form, so a third party can burn an address's hourly allowance
+  by submitting it to five forms.
+- Erased rows share `forms.ERASED_EMAIL` and are left out of `uq_form_submission_public_email`; the index
+  predicate repeats that literal, and a test checks the two agree.

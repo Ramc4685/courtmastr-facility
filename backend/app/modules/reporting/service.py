@@ -71,7 +71,7 @@ def definition_view(spec: ReportSpec) -> dict:
 
 
 def list_definitions(principal: Principal, *, category: str | None = None, q: str | None = None) -> dict:
-    """The catalogue the caller may run: ten reports, so one page (no cursor)."""
+    """The catalogue the caller may run: fourteen reports, so one page (no cursor)."""
     found = [
         definition_view(spec) for spec in REGISTRY.values()
         if _holds(principal, spec.permission) and (category is None or spec.category == category)

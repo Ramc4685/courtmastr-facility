@@ -12,7 +12,7 @@ location-scoped `leagues.competition.manage`: reads need the key, writes `author
 """
 
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -38,11 +38,13 @@ from app.modules.leagues.models import (
     Bracket,
     BracketSlot,
     Competition,
+    CompetitionStaff,
     CompetitionTeam,
     Division,
     Game,
     GameOfficial,
     GameResult,
+    LadderPosition,
     Official,
     RosterEntry,
     ScheduleRun,
@@ -50,6 +52,8 @@ from app.modules.leagues.models import (
     Sport,
     Standing,
     Team,
+    TeamPreference,
+    Venue,
 )
 
 MANAGE = "leagues.competition.manage"
@@ -62,6 +66,8 @@ RESULTS = "leagues.result.enter"
 AMEND = "leagues.result.amend_final"
 ADJUST = "leagues.standings.adjust"
 OFFICIALS = "leagues.official.manage"
+CARDS = "leagues.game_card.print"
+NO_TIME = datetime(9999, 12, 31, tzinfo=UTC)  # sorts games with no start time last in keyset paging
 
 CONSTRAINT_CODES.update({
     "ex_game_official_overlap": "official-conflict",
@@ -73,6 +79,12 @@ CONSTRAINT_CODES.update({
     "uq_competition_team_seed": "seed-taken",
     "uq_roster_entry_team_client": "already-on-roster",
     "uq_official_staff_user": "already-exists",
+    "uq_venue_name": "already-exists",
+    "uq_stat_table_name": "already-exists",
+    "uq_stat_definition_code": "already-exists",
+    "uq_competition_staff_user": "already-assigned",
+    "uq_ladder_position_team": "already-on-ladder",
+    "uq_team_fee_share_client": "already-shared",
 })  # fmt: skip
 
 _SCORING = (
@@ -305,8 +317,8 @@ def _check_refs(session: Db, principal: Principal, data: dict) -> None:
 
 
 def _check_shape(row: Competition) -> None:
-    if row.kind == "league" and row.format != "round_robin":
-        raise ValidationFailed("A league is always a round robin.", pointer="/format")
+    if row.kind == "league" and row.format not in ("round_robin", "ladder"):
+        raise ValidationFailed("A league is a round robin or a ladder.", pointer="/format")
     if row.ends_on is not None and row.ends_on < row.starts_on:
         raise ValidationFailed("The end date is before the start date.", pointer="/ends_on")
 
@@ -343,9 +355,10 @@ def create_competition(session: Db, principal: Principal, data: dict) -> Competi
     session.add(row)
     session.flush()
     session.add(Division(competition_id=row.id, name="Main"))
-    audit.record(
-        session, MANAGE, row, location_id=location_id, changes={"name": [None, row.name], "kind": [None, row.kind]}
-    )
+    changes = {"name": [None, row.name], "kind": [None, row.kind]}
+    if row.program_group_id:
+        changes["program_group_id"] = [None, str(row.program_group_id)]
+    audit.record(session, MANAGE, row, location_id=location_id, changes=changes)
     session.flush()
     return row
 
@@ -540,7 +553,14 @@ def _enter(
 
 
 def _bill(
-    session: Db, principal: Principal, competition: Competition, entry: CompetitionTeam, team: Team, client_id: UUID
+    session: Db,
+    principal: Principal,
+    competition: Competition,
+    entry: CompetitionTeam,
+    team: Team,
+    client_id: UUID,
+    *,
+    amount_minor: int | None = None,
 ) -> UUID:
     """Charge the team fee to the payer and invoice it. The charge is idempotent by source, so the fee is owed
     once per entry however the command is retried. The payer is in the caller's reach and is the captain, a
@@ -563,7 +583,8 @@ def _bill(
     team_name = entry.display_name or team.name
     charge = billing.service.post_charge(
         session, client_id=client_id, location_id=competition.location_id,
-        description=f"{competition.name}: team fee ({team_name})", unit_price_minor=competition.team_fee_minor,
+        description=f"{competition.name}: team fee ({team_name})",
+        unit_price_minor=competition.team_fee_minor if amount_minor is None else amount_minor,
         source_context="leagues", source_type="competition_team", source_id=entry.id,
         revenue_category_id=competition.revenue_category_id,
     )  # fmt: skip
@@ -916,13 +937,23 @@ def _names(session: Db, ids) -> dict[UUID, str]:
 def game_views(session: Db, games: list[Game]) -> list[dict]:
     names = _names(session, [g.home_team_id for g in games] + [g.away_team_id for g in games])
     scores: dict[UUID, dict] = defaultdict(dict)
+    titles: dict = {}
     if games:
         for row in session.scalars(select(GameResult).where(GameResult.game_id.in_([g.id for g in games]))):
             scores[row.game_id][row.side] = row.score
+        ids = {g.competition_id for g in games}
+        titles = {
+            i: (n, sp)
+            for i, n, sp in session.execute(
+                select(Competition.id, Competition.name, Competition.sport_id).where(Competition.id.in_(ids))
+            )
+        }
     return [
         _columns(g) | {
             "home_name": names.get(g.home_team_id), "away_name": names.get(g.away_team_id),
             "home_score": scores[g.id].get("home"), "away_score": scores[g.id].get("away"),
+            "competition_name": titles.get(g.competition_id, (None, None))[0],
+            "sport_id": titles.get(g.competition_id, (None, None))[1],
         }
         for g in games
     ]  # fmt: skip
@@ -935,23 +966,31 @@ def _title(session: Db, game: Game) -> str:
     return f"{home} vs {away}"
 
 
-def _place(session: Db, game: Game, resource_id: UUID, starts_at: datetime, length_min: int | None = None) -> None:
-    """Give a game its court and time through scheduling: a new booking, or the existing one moved. A clash is
-    scheduling's 409 booking-conflict (the exclusion constraint decides); officials' ranges follow the game."""
+def _place(
+    session: Db,
+    game: Game,
+    resource_id: UUID | None,
+    starts_at: datetime,
+    length_min: int | None = None,
+    venue: Venue | None = None,
+) -> None:
+    """Give a game its court and time through scheduling: a new booking, or the existing one moved. A game at a
+    league venue holds every facility resource the venue maps to (RES-06). A clash is scheduling's 409
+    booking-conflict (the exclusion constraint decides); officials' ranges follow the game."""
     length = length_min or game.length_min
     ends_at = starts_at + timedelta(minutes=length)
+    held = list(venue.resource_ids) if venue is not None else [resource_id]
     if game.booking_id is not None:
         booking = scheduling.service.get_booking(session, game.booking_id)
-        scheduling.service.reschedule_booking(
-            session, booking, starts_at=starts_at, ends_at=ends_at, resource_ids=[resource_id]
-        )
+        scheduling.service.reschedule_booking(session, booking, starts_at=starts_at, ends_at=ends_at, resource_ids=held)
     else:
         booking = scheduling.service.create_booking(
             session, location_id=game.location_id, kind="game", starts_at=starts_at, ends_at=ends_at,
-            resource_ids=[resource_id], title=_title(session, game), source=(*_SOURCE, game.id), created_via="staff",
+            resource_ids=held, title=_title(session, game), source=(*_SOURCE, game.id), created_via="staff",
         )  # fmt: skip
         game.booking_id = booking.id
-    game.resource_id, game.starts_at, game.ends_at, game.length_min = resource_id, starts_at, ends_at, length
+    game.venue_id = venue.id if venue is not None else None
+    game.resource_id, game.starts_at, game.ends_at, game.length_min = held[0], starts_at, ends_at, length
     game.status = "played" if game.status == "played" else "scheduled"
     game.conflict_note = None
     game.version += 1
@@ -990,9 +1029,27 @@ def _check_sides(session: Db, competition: Competition, home_id: UUID | None, aw
 
 
 def _court_and_time(data: dict) -> bool:
-    if (data.get("resource_id") is None) != (data.get("starts_at") is None):
-        raise ValidationFailed("Give a court and a start time together.", pointer="/starts_at")
-    return data.get("resource_id") is not None
+    where = data.get("resource_id") is not None or data.get("venue_id") is not None
+    if data.get("resource_id") is not None and data.get("venue_id") is not None:
+        raise ValidationFailed("Give a court or a venue, not both.", pointer="/venue_id")
+    if where != (data.get("starts_at") is not None):
+        raise ValidationFailed("Give a court or venue and a start time together.", pointer="/starts_at")
+    return where
+
+
+def _venue(session: Db, location_id: UUID, venue_id: UUID | None, pointer: str = "/venue_id") -> Venue | None:
+    """A venue from a request body: active and at the game's or run's location, else 422."""
+    if venue_id is None:
+        return None
+    row = session.get(Venue, venue_id)
+    if row is None or row.location_id != location_id or not row.is_active:
+        raise ValidationFailed("Unknown venue at this location.", pointer=pointer)
+    return row
+
+
+def _place_from(session: Db, game: Game, data: dict, length_min: int | None = None) -> None:
+    venue = _venue(session, game.location_id, data.get("venue_id"))
+    _place(session, game, data.get("resource_id"), data["starts_at"], length_min, venue)
 
 
 def _game_reader(principal: Principal) -> str:
@@ -1000,12 +1057,33 @@ def _game_reader(principal: Principal) -> str:
     return GAMES if principal.has(GAMES) else RESULTS
 
 
+def assigned_competitions(principal: Principal):
+    """LGE-26, PLT-11: a scorekeeper-only caller (the result key without the game key) reaches only the
+    competitions they are assigned to. None means no narrowing; otherwise a SELECT of competition ids."""
+    if principal.has(GAMES):
+        return None
+    return select(CompetitionStaff.competition_id).where(CompetitionStaff.staff_user_id == principal.staff_user_id)
+
+
+def _scored(session: Db, principal: Principal, game_id: UUID, key: str, *, lock: bool = False) -> Game:
+    """A game loaded under `key` and, for a scorekeeper-only caller, one of their assigned competitions (404)."""
+    game = _scoped(session, principal, Game, game_id, key, lock=lock)
+    mine = assigned_competitions(principal)
+    if mine is not None and game.competition_id not in set(session.scalars(mine)):
+        raise NotFound()
+    return game
+
+
 def list_games(session: Db, principal: Principal, query: ListQuery) -> dict:
     authorize(principal, _game_reader(principal))
     g = Game
+    stmt = scope_query(select(g), principal, g.location_id)
+    if (mine := assigned_competitions(principal)) is not None:
+        stmt = stmt.where(g.competition_id.in_(mine))
     page = paginate(
-        session, scope_query(select(g), principal, g.location_id), query, id_column=g.id,
-        sort_fields={"created_at": g.created_at}, default_sort="created_at",
+        session, stmt, query, id_column=g.id,
+        sort_fields={"created_at": g.created_at, "starts_at": func.coalesce(g.starts_at, NO_TIME)},
+        default_sort="created_at",
         filter_fields={
             "location_id": g.location_id, "competition_id": g.competition_id, "division_id": g.division_id,
             "status": g.status, "resource_id": g.resource_id, "schedule_run_id": g.schedule_run_id,
@@ -1016,7 +1094,7 @@ def list_games(session: Db, principal: Principal, query: ListQuery) -> dict:
 
 
 def get_game(session: Db, principal: Principal, game_id: UUID) -> dict:
-    return game_views(session, [_scoped(session, principal, Game, game_id, _game_reader(principal))])[0]
+    return game_views(session, [_scored(session, principal, game_id, _game_reader(principal))])[0]
 
 
 def create_game(session: Db, principal: Principal, data: dict) -> dict:
@@ -1036,7 +1114,7 @@ def create_game(session: Db, principal: Principal, data: dict) -> dict:
     session.add(game)
     session.flush()
     if placed:
-        _place(session, game, data["resource_id"], data["starts_at"])
+        _place_from(session, game, data)
     audit.record(session, GAMES, game, location_id=game.location_id, changes={"status": [None, game.status]})
     return game_views(session, [game])[0]
 
@@ -1067,8 +1145,10 @@ def reschedule_game(session: Db, principal: Principal, game_id: UUID, data: dict
     game = _scoped(session, principal, Game, game_id, GAMES, lock=True)
     if game.status in ("cancelled", "bye"):
         raise Conflict(f"A {game.status} game cannot be scheduled.")
+    if not _court_and_time(data):
+        raise ValidationFailed("Give a court or a venue.", pointer="/resource_id")
     before = {"starts_at": _plain(game.starts_at), "resource_id": _plain(game.resource_id)}
-    _place(session, game, data["resource_id"], data["starts_at"], data.get("length_min"))
+    _place_from(session, game, data, data.get("length_min"))
     changes = {k: [v, _plain(getattr(game, k))] for k, v in before.items()}
     audit.record(session, GAMES, game, location_id=game.location_id, changes=changes)
     _publish(session, game, ev.GameRescheduled)
@@ -1083,7 +1163,7 @@ def postpone_game(session: Db, principal: Principal, game_id: UUID, data: dict) 
         raise Conflict(f"A {game.status} game cannot be postponed.")
     before = game.status
     if _court_and_time(data):
-        _place(session, game, data["resource_id"], data["starts_at"])
+        _place_from(session, game, data)
     else:
         _release(session, game, "postponed")
         game.version += 1
@@ -1163,7 +1243,7 @@ def _result_view(session: Db, game: Game) -> dict:
 
 
 def get_game_result(session: Db, principal: Principal, game_id: UUID) -> dict:
-    return _result_view(session, _scoped(session, principal, Game, game_id, RESULTS))
+    return _result_view(session, _scored(session, principal, game_id, RESULTS))
 
 
 def _slot_of(session: Db, game: Game) -> BracketSlot | None:
@@ -1174,7 +1254,7 @@ def put_game_result(session: Db, principal: Principal, game_id: UUID, data: dict
     """Record or correct both sides. The game becomes 'played', the competition's standings are rebuilt and a
     bracket game advances its winner (and loser, into a third-place game). A correction that would change who
     advanced after the next game was played is refused."""
-    game = _scoped(session, principal, Game, game_id, RESULTS, lock=True)
+    game = _scored(session, principal, game_id, RESULTS, lock=True)
     if game.status not in ("scheduled", "played"):
         raise Conflict("Only a scheduled or played game takes a result.")
     if game.home_team_id is None or game.away_team_id is None:
@@ -1210,6 +1290,8 @@ def put_game_result(session: Db, principal: Principal, game_id: UUID, data: dict
     session.flush()
     if slot is not None:
         _advance(session, slot, game, data)
+    if competition.format == "ladder":
+        _ladder_settle(session, game, standings.winner(data["home"], data["away"]) == "home")
     audit.record(session, RESULTS, game, location_id=game.location_id, changes=changes | {"status": [before, "played"]})
     _publish(session, game, ev.GameResultRecorded)
     rebuild_standings(session, competition)
@@ -1225,12 +1307,36 @@ def delete_game_result(session: Db, principal: Principal, game_id: UUID) -> None
     slot = _slot_of(session, game)
     if slot is not None:
         _unadvance(session, slot)
+    if competition.format == "ladder":
+        _ladder_settle(session, game, False)
     session.execute(delete(GameResult).where(GameResult.game_id == game.id))
     game.status = "scheduled" if game.booking_id else "proposed"
     game.version += 1
     audit.record(session, AMEND, game, location_id=game.location_id, changes={"status": ["played", game.status]})
     session.flush()
     rebuild_standings(session, competition)
+
+
+def _ladder_settle(session: Db, game: Game, challenger_won: bool) -> None:
+    """LGE-28: a challenger (home) who beats a higher-ranked team swaps rungs with it; a corrected or removed
+    result swaps back. `game.ladder_swapped` remembers the swap, so settling is idempotent."""
+    if game.ladder_swapped == challenger_won:
+        return
+    rows = {
+        r.competition_team_id: r
+        for r in session.scalars(select(LadderPosition).where(
+            LadderPosition.competition_id == game.competition_id,
+            LadderPosition.competition_team_id.in_((game.home_team_id, game.away_team_id)),
+        ).with_for_update())
+    }  # fmt: skip
+    home, away = rows.get(game.home_team_id), rows.get(game.away_team_id)
+    if home is None or away is None:
+        return
+    if challenger_won and home.position < away.position:
+        return  # the challenger was already above: nothing to swap
+    home.position, away.position = away.position, home.position  # rung uniqueness is checked at commit
+    game.ladder_swapped = challenger_won
+    session.flush()
 
 
 def rebuild_standings(session: Db, competition: Competition) -> None:
@@ -1346,18 +1452,17 @@ def adjust_standing(session: Db, principal: Principal, standing_id: UUID, data: 
 
 # --- schedule runs (LGE-08, LGE-09) -----------------------------------------------------------------------------
 
-_SUPPORTED_BYES = ("hidden", "occupy_slot")
-
 
 def run_view(row: ScheduleRun) -> dict:
-    return _columns(row) | {"stats": row.result_stats, "blackout_dates": row.excluded_dates}
+    return _columns(row) | {
+        "stats": row.result_stats, "blackout_dates": row.excluded_dates,
+        "progress": {"done": row.progress.get("next", 0), "total": len(row.competition_ids)},
+    }  # fmt: skip
 
 
 def _check_run_inputs(session: Db, principal: Principal, location_id: UUID, data: dict) -> None:
     """Every id in the run goes through a scoped loader: competitions must be the caller's, at the run's
     location; resources must be active courts there; windows must use the run's resources."""
-    if data.get("bye_mode") is not None and data["bye_mode"] not in _SUPPORTED_BYES:
-        raise ValidationFailed("This bye mode is not built yet.", pointer="/bye_mode", code="not-supported")
     for index, competition_id in enumerate(data.get("competition_ids") or []):
         competition = _competition(session, principal, competition_id, GENERATE)
         if competition.location_id != location_id:
@@ -1370,7 +1475,11 @@ def _check_run_inputs(session: Db, principal: Principal, location_id: UUID, data
         if found != set(resource_ids):
             raise ValidationFailed("Unknown resource at this location.", pointer="/resource_ids")
     for index, window in enumerate(data.get("time_slots") or []):
-        if resource_ids is not None and window["resource_id"] not in set(resource_ids):
+        if (window.get("resource_id") is None) == (window.get("venue_id") is None):
+            raise ValidationFailed("Give a court or a venue.", pointer=f"/time_slots/{index}/resource_id")
+        if window.get("venue_id") is not None:
+            _venue(session, location_id, window["venue_id"], f"/time_slots/{index}/venue_id")
+        elif resource_ids is not None and window["resource_id"] not in set(resource_ids):
             raise ValidationFailed(
                 "The window's resource is not in the run.", pointer=f"/time_slots/{index}/resource_id"
             )
@@ -1384,12 +1493,8 @@ def _run_fields(data: dict) -> dict:
         out["excluded_dates"] = out.pop("blackout_dates")
     if "time_slots" in out:
         out["time_slots"] = [
-            w
-            | {
-                "resource_id": str(w["resource_id"]),
-                "starts_at": str(w["starts_at"])[:5],
-                "ends_at": str(w["ends_at"])[:5],
-            }
+            {"weekday": w["weekday"], "starts_at": str(w["starts_at"])[:5], "ends_at": str(w["ends_at"])[:5]}
+            | {k: str(w[k]) for k in ("resource_id", "venue_id") if w.get(k) is not None}
             for w in out["time_slots"]
         ]
     return out
@@ -1449,22 +1554,79 @@ def update_schedule_run(session: Db, principal: Principal, run_id: UUID, data: d
 
 
 def generate_schedule(session: Db, principal: Principal, run_id: UUID) -> dict:
-    """Preview: pair every division of every competition in the run (circle method), place the pairs on the
-    run's weekly windows in round order, and write the games as 'proposed' (no booking yet). Pairs with no slot
-    are 'unschedulable'. Re-generating replaces the previous preview. Commit books the courts."""
+    """Start the preview (LGE-08): the run turns 'generating' and the chunked job `generate_schedule_job` pairs and
+    places one competition per chunk, writing games as 'proposed' (no booking yet). The run row is the job's
+    status: poll it until 'previewed'. Re-generating replaces the previous preview. Commit books the courts."""
     run = _open_run(session, principal, run_id)
     if not run.time_slots:
         raise ValidationFailed("Add at least one weekly time window.", pointer="/time_slots")
     session.execute(delete(Game).where(Game.schedule_run_id == run.id))
+    before = run.state
+    run.state, run.result_stats = "generating", None
+    run.progress = {"next": 0, "counts": {"games": 0, "byes": 0, "unschedulable": 0}, "home_away": {}}
+    audit.record(session, GENERATE, run, location_id=run.location_id, changes={"state": [before, "generating"]})
+    session.flush()
+    tenant_id, ident = str(session.info["tenant_id"]), str(run.id)
+
+    def enqueue() -> None:
+        from app.modules.leagues.jobs import generate_schedule_job
+
+        generate_schedule_job.send(tenant_id, ident)
+
+    session.info.setdefault("after_commit", []).append(enqueue)
+    return run_view(run)
+
+
+def _run_places(session: Db, run: ScheduleRun) -> tuple[list[dict], dict[UUID, Venue]]:
+    """The run's windows keyed by place (a court, or a venue standing for all its courts) and the venues used."""
+    windows, venues = [], {}
+    for window in run.time_slots:
+        place = UUID(window.get("venue_id") or window["resource_id"])
+        if window.get("venue_id"):
+            venue = session.get(Venue, place)
+            if venue is None or not venue.is_active:
+                continue  # a venue removed or deactivated since the run was set up: its window offers no slots
+            venues[place] = venue
+        windows.append(window | {"resource_id": place})
+    return windows, venues
+
+
+def _preferences(session: Db, team_ids: list[UUID]) -> dict:
+    rows = (
+        session.scalars(select(TeamPreference).where(TeamPreference.competition_team_id.in_(team_ids)))
+        if team_ids
+        else []
+    )
+    prefs: dict = defaultdict(list)
+    for row in rows:
+        prefs[row.competition_team_id].append(
+            {"kind": row.kind, "value": row.value, "wants": row.wants, "is_priority": row.is_priority}
+        )
+    return prefs
+
+
+def generate_schedule_chunk(session: Db, run_id: UUID) -> bool:
+    """One chunk of the generator job (internal): the next competition of a 'generating' run. Slots already
+    taken by this run's games are not offered again, so a redelivered chunk after a crash starts from the
+    committed cursor. Returns True while competitions remain; the last chunk sets 'previewed' and the stats."""
+    run = session.get(ScheduleRun, run_id, with_for_update=True)
+    if run is None or run.state != "generating":
+        return False
+    progress = dict(run.progress)
+    index = progress.get("next", 0)
     zone = _zone(session, run.location_id)
-    windows = [w | {"resource_id": UUID(w["resource_id"])} for w in run.time_slots]
+    windows, venues = _run_places(session, run)
     every = roundrobin.slots(
         run.starts_on, run.ends_on or run.starts_on, windows, run.game_length_min, frozenset(run.excluded_dates or [])
     )
-    free = list(every)
-    counts = {"games": 0, "byes": 0, "unschedulable": 0}
-    home_away: dict[str, dict] = defaultdict(lambda: {"home": 0, "away": 0})
-    for competition_id in run.competition_ids:
+    if index < len(run.competition_ids):
+        taken = set()
+        for game in session.scalars(select(Game).where(Game.schedule_run_id == run.id, Game.starts_at.is_not(None))):
+            local = game.starts_at.astimezone(zone)
+            taken.add(roundrobin.Slot(local.date(), local.time(), game.venue_id or game.resource_id))
+        free = [slot for slot in every if slot not in taken]
+        counts, home_away = progress["counts"], progress["home_away"]
+        competition_id = UUID(str(run.competition_ids[index]))
         divisions = session.scalars(
             select(Division).where(Division.competition_id == competition_id).order_by(Division.sort_order)
         ).all()
@@ -1475,40 +1637,64 @@ def generate_schedule(session: Db, principal: Principal, run_id: UUID) -> dict:
                     CompetitionTeam.status == "active",
                 ).order_by(CompetitionTeam.seed.nulls_last(), CompetitionTeam.created_at)
             ))  # fmt: skip
+            rounds = roundrobin.pairings(teams, run.rounds)
+            if run.bye_mode == "fold_last_round":
+                rounds = roundrobin.fold_last_round(rounds)
+            elif run.bye_mode == "rotate_extra_game":
+                rounds = roundrobin.rotate_extra_games(rounds)
             placed = roundrobin.assign(
-                roundrobin.pairings(teams, run.rounds), free, bye_takes_slot=run.bye_mode == "occupy_slot"
-            )
+                rounds, free, bye_takes_slot=run.bye_mode == "occupy_slot", prefs=_preferences(session, teams),
+                length_min=run.game_length_min,
+            )  # fmt: skip
             used = {p["slot"] for p in placed if p["slot"] is not None}
-            free = [s for s in free if s not in used]
+            free = [slot for slot in free if slot not in used]
             for pair in placed:
                 bye, slot = pair["away"] is None, pair["slot"]
+                venue = venues.get(slot.resource_id) if slot else None
                 starts = datetime.combine(slot.on, slot.start, zone) if slot else None
                 status = "bye" if bye else ("proposed" if slot else "unschedulable")
                 session.add(Game(
                     location_id=run.location_id, competition_id=competition_id, division_id=division.id,
                     schedule_run_id=run.id, home_team_id=pair["home"], away_team_id=pair["away"],
-                    resource_id=slot.resource_id if slot else None, starts_at=starts,
-                    ends_at=starts + timedelta(minutes=run.game_length_min) if starts else None,
+                    venue_id=venue.id if venue else None,
+                    resource_id=(venue.resource_ids[0] if venue else slot.resource_id) if slot else None,
+                    starts_at=starts, ends_at=starts + timedelta(minutes=run.game_length_min) if starts else None,
                     length_min=run.game_length_min, status=status, round_no=pair["round_no"], is_bye=bye,
                     conflict_note=None if slot or bye else {"reason": "no-free-slot"},
                 ))  # fmt: skip
                 counts["byes" if bye else "games"] += 1
                 counts["unschedulable"] += status == "unschedulable"
                 if not bye:
-                    home_away[str(pair["home"])]["home"] += 1
-                    home_away[str(pair["away"])]["away"] += 1
-    taken = set(every) - set(free)
-    last = max((s.on for s in taken), default=None)
+                    for side in ("home", "away"):
+                        tally = home_away.setdefault(str(pair[side]), {"home": 0, "away": 0})
+                        tally[side] += 1
+        index += 1
+        progress |= {"next": index, "counts": counts, "home_away": home_away}
+        run.progress = progress
+        session.flush()
+    if index < len(run.competition_ids):
+        return True
+    last = session.scalar(select(func.max(Game.starts_at)).where(Game.schedule_run_id == run.id))
     run.state, run.wizard_step = "previewed", max(run.wizard_step or 0, 6)
-    run.result_stats = counts | {
-        "home_away": dict(home_away), "predicted_completion_on": last.isoformat() if last else None,
+    run.result_stats = progress["counts"] | {
+        "home_away": progress["home_away"],
+        "predicted_completion_on": last.astimezone(zone).date().isoformat() if last else None,
     }  # fmt: skip
     audit.record(
         session, GENERATE, run, location_id=run.location_id,
-        changes={"state": [None, "previewed"]} | {k: [None, v] for k, v in counts.items()},
+        changes={"state": ["generating", "previewed"]} | {k: [None, v] for k, v in progress["counts"].items()},
     )  # fmt: skip
     session.flush()
-    return run_view(run)
+    return False
+
+
+def fail_schedule_run(session: Db, run_id: UUID) -> None:
+    """Dead-letter hook of the generator job: the run shows 'failed' and can be generated again."""
+    run = session.get(ScheduleRun, run_id, with_for_update=True)
+    if run is not None and run.state == "generating":
+        run.state = "failed"
+        audit.record(session, GENERATE, run, location_id=run.location_id, changes={"state": ["generating", "failed"]})
+        session.flush()
 
 
 def list_schedule_run_games(session: Db, principal: Principal, run_id: UUID, query: ListQuery) -> dict:
@@ -1541,9 +1727,10 @@ def commit_schedule(session: Db, principal: Principal, run_id: UUID) -> dict:
     ).all()
     for game in proposed:
         resource_id, starts_at = game.resource_id, game.starts_at
+        venue = session.get(Venue, game.venue_id) if game.venue_id else None
         try:
             with session.begin_nested():
-                _place(session, game, resource_id, starts_at)
+                _place(session, game, resource_id, starts_at, venue=venue)
             booked += 1
         except Conflict as exc:
             session.refresh(game)
@@ -1612,24 +1799,46 @@ def _seeded(session: Db, competition: Competition, data: dict) -> list[UUID]:
     if source == "standings":
         ranked = _ordered_standings(session, competition.id, data.get("division_id"))
         return [s.competition_team_id for s in ranked if s.competition_team_id in entries]
+    if source == "pools":
+        # LGE-11: each division is a pool; the top N of every pool advance, rank by rank (A1, B1, A2, B2), so the
+        # bracket's seed order crosses the pools over (A1 meets B2)
+        per = data.get("advance_per_pool") or 2
+        pools = session.scalars(
+            select(Division).where(Division.competition_id == competition.id).order_by(Division.sort_order)
+        ).all()
+        ranked = [
+            [s.competition_team_id for s in _ordered_standings(session, competition.id, pool.id)
+             if s.competition_team_id in entries][:per]
+            for pool in pools
+        ]  # fmt: skip
+        return [pool[rank] for rank in range(per) for pool in ranked if rank < len(pool)]
     return [e.id for e in sorted(entries.values(), key=lambda e: (e.seed is None, e.seed or 0, e.created_at))]
 
 
 def generate_bracket(session: Db, principal: Principal, competition_id: UUID, data: dict) -> dict:
-    """A draft single-elimination bracket from seeds, final standings or a manual order. Byes go to the top
-    seeds and advance at once. Double elimination and three-games-guaranteed are not built (422)."""
+    """A draft bracket from seeds, final standings, pool standings (crossover) or a manual order: single
+    elimination (optional third-place game), double elimination (LGE-12, optional grand-final reset) or
+    three games guaranteed (LGE-13, exactly eight teams). Byes go to the top seeds and advance at once."""
     competition = _competition(session, principal, competition_id, GENERATE, lock=True)
-    if (data.get("bracket_type") or "single_elimination") != "single_elimination":
-        raise ValidationFailed("Only single elimination is built.", pointer="/bracket_type", code="not-supported")
+    kind = data.get("bracket_type") or "single_elimination"
     division = _division(session, competition, data["division_id"]) if data.get("division_id") else None
     teams = _seeded(session, competition, data)
     if len(teams) < 2:
         raise ValidationFailed("A bracket needs at least two teams.", pointer="/seed_source")
-    third = bool(data.get("has_third_place_game"))
-    size, layout = bracket_layout.single_elimination(len(teams), third_place=third)
+    third = bool(data.get("has_third_place_game")) and kind == "single_elimination"
+    reset = bool(data.get("has_reset_game")) and kind == "double_elimination"
+    try:
+        if kind == "double_elimination":
+            size, layout = bracket_layout.double_elimination(len(teams), reset=reset)
+        elif kind == "three_games_guaranteed":
+            size, layout = bracket_layout.three_games_guaranteed(len(teams))
+        else:
+            size, layout = bracket_layout.single_elimination(len(teams), third_place=third)
+    except ValueError as exc:
+        raise ValidationFailed(str(exc), pointer="/bracket_type") from exc
     bracket = Bracket(
         competition_id=competition.id, division_id=division.id if division else None, name=data["name"],
-        bracket_type="single_elimination", size=size, has_third_place_game=third,
+        bracket_type=kind, size=size, has_third_place_game=third, has_reset_game=reset,
     )  # fmt: skip
     session.add(bracket)
     session.flush()
@@ -1683,6 +1892,18 @@ def _advance(session: Db, slot: BracketSlot, game: Game, data: dict) -> None:
     loser_id = game.away_team_id if home_won else game.home_team_id
     slot.winner_competition_team_id = winner_id
     _feed(session, slot, winner_id, loser_id)
+    reset = _reset_slot(session, slot)
+    if reset is not None and winner_id == slot.home_team_id:
+        # the unbeaten winners champion took the grand final: the reset game is not needed
+        reset.winner_competition_team_id = winner_id
+        if reset.game_id is not None:
+            _release(session, session.get(Game, reset.game_id), "cancelled")
+    elif reset is not None and reset.winner_competition_team_id is not None:
+        reset_game = session.get(Game, reset.game_id) if reset.game_id else None
+        if reset_game is None or reset_game.status == "cancelled":  # a corrected grand final: the reset is on again
+            reset.winner_competition_team_id = None
+            if reset_game is not None:
+                reset_game.status = "proposed"
     open_slots = session.scalar(
         select(func.count()).select_from(BracketSlot).where(
             BracketSlot.bracket_id == slot.bracket_id, BracketSlot.winner_competition_team_id.is_(None)
@@ -1692,7 +1913,25 @@ def _advance(session: Db, slot: BracketSlot, game: Game, data: dict) -> None:
         session.get(Bracket, slot.bracket_id).status = "completed"
 
 
+def _reset_slot(session: Db, slot: BracketSlot) -> BracketSlot | None:
+    """The grand-final reset slot fed by this slot, when it is the first grand final of a reset bracket."""
+    if (slot.side, slot.round_no) != ("final", 1):
+        return None
+    return session.scalar(
+        select(BracketSlot).where(BracketSlot.bracket_id == slot.bracket_id, BracketSlot.side == "final",
+                                  BracketSlot.round_no == 2).with_for_update()
+    )  # fmt: skip
+
+
 def _unadvance(session: Db, slot: BracketSlot) -> None:
+    reset = _reset_slot(session, slot)
+    if reset is not None and reset.winner_competition_team_id is not None:
+        game = session.get(Game, reset.game_id) if reset.game_id else None
+        if game is not None and game.status == "played":
+            raise Conflict("The next game has been played; remove its result first.")
+        reset.winner_competition_team_id = None
+        if game is not None and game.status == "cancelled":
+            game.status = "proposed"
     _feed(session, slot, None, None)
     slot.winner_competition_team_id = None
     bracket = session.get(Bracket, slot.bracket_id)
@@ -1735,7 +1974,7 @@ def update_bracket_slot(session: Db, principal: Principal, slot_id: UUID, data: 
             raise Conflict("Publish the bracket before scheduling its games.")
         authorize(principal, GAMES, location_id=competition.location_id)  # booking a court is a game move (W2-07)
         game = session.get(Game, slot.game_id)
-        _place(session, game, data["resource_id"], data["starts_at"])
+        _place_from(session, game, data)
         audit.record(
             session, GAMES, game, location_id=game.location_id, changes={"starts_at": [None, _plain(game.starts_at)]}
         )

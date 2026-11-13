@@ -257,7 +257,7 @@ step-up, purge and retention jobs, dead-letter table, contract checks, load test
 
 ## Phase 14: Programs, leagues and facility extras
 
-**Status:** Not started (can start any time)
+**Status:** Planned in `docs/planning/phase-14.md` (five chips in three lanes; REG-25, DOC-10, POS-20 parked)
 
 **P0** (3)
 
@@ -329,6 +329,14 @@ step-up, purge and retention jobs, dead-letter table, contract checks, load test
 - POS-20 POS deposits (undocumented)
 - DOC-10 Legacy membership agreement template
 - DOC-11 Membership agreement instance
+
+**Deferred** (follow-ups raised during the phase, not in the 62)
+
+| Priority | Item | Note |
+|---|---|---|
+| P1 | Double opt-in for anonymous public event form sign-ups | Owner decision 2026-11-12: double opt-in, planned as a follow-up (not the generic-reply workaround). The place is held until the address owner confirms from the mail; closes address squatting and the duplicate-email disclosure (programs README, "Not built"). |
+| P2 | Normalize contact addresses for the form limits (plus-tags, dots, trailing dot) | `core/ratelimit.py` and the one-per-address index only lowercase, so address variants bypass both. Risk review 2026-11-12. |
+| P2 | Per-address form limit that a third party cannot exhaust | Five submissions of someone's address across forms burn that address's hourly allowance. Double opt-in reduces the value; a per-form key or a confirmed-only count would close it. Risk review 2026-11-12. |
 
 ## Phase 15: Integrations, public API and partner adapters
 
