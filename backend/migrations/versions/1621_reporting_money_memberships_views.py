@@ -13,7 +13,7 @@ Revises: 1331
 from alembic import op
 
 revision = "1621"
-down_revision = "1331"
+down_revision = "1601"
 
 _NAME = "nullif(trim(coalesce({0}.first_name, '') || ' ' || coalesce({0}.last_name, '')), '')"
 _LOCAL = "({0} AT TIME ZONE l.time_zone)::date"

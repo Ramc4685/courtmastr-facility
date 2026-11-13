@@ -405,6 +405,7 @@ SALES_GROUPS = {
     "category": ("product_category_id", "category_name"), "employee": ("cashier_staff_user_id", "cashier_name"),
     "register": ("register_id", "register_name"), "product": ("product_id", "description"),
     "brand": ("product_brand_id", "brand_name"), "supplier": ("product_supplier_id", "supplier_name"),
+    "coupon": ("coupon_id", "coupon_name"),  # phase 12 chip C: the line's first coupon (RPT-30)
 }  # fmt: skip
 _PRODUCT_GROUPS = ("category", "product", "brand", "supplier")
 _LINE_SUMS = ("quantity", "gross_minor", "discount_minor", "net_minor", "tax_minor", "total_minor", "returned_quantity")
@@ -421,20 +422,28 @@ def _pos_sales(session: Session, p: PosSalesParams, scope: Scope) -> dict:
     where = [_between(s.sold_on, p, scope)]
     if p.group_by in _PRODUCT_GROUPS:
         where.append(s.line_kind == "product")
+    if p.group_by == "coupon":
+        where.append(s.coupon_id.is_not(None))
+    # buying price is the product's current cost; lines without one stay out of cost and margin
+    cost = s.quantity * s.unit_cost_minor
     grouped = session.execute(_loc(
         select(key.label("key"), func.max(label).label("label"), func.count(s.pos_sale_id.distinct()).label("sale_count"),
-               *(_sum(getattr(s, n), n) for n in _LINE_SUMS)).where(*where).group_by(key),
+               *(_sum(getattr(s, n), n) for n in _LINE_SUMS), _sum(cost, "cost_minor"),
+               _sum(s.net_minor - cost, "margin_minor")).where(*where).group_by(key),
         v.sale_line, scope,
     )).all()  # fmt: skip
-    rows = [{"group_key": _key(r.key), "label": r.label or "(none)", **_int(r, "sale_count", *_LINE_SUMS)}
+    rows = [{"group_key": _key(r.key), "label": r.label or "(none)",
+             **_int(r, "sale_count", *_LINE_SUMS, "cost_minor", "margin_minor")}
             for r in grouped]  # fmt: skip
     rows.sort(key=lambda r: (-r["total_minor"], r["label"]))
     details = [dict(r._mapping) | {"group_key": _key(r.key)} for r in session.execute(_loc(
         select(key.label("key"), s.sold_on, s.register_name, s.cashier_name, s.description, s.quantity, s.net_minor,
-               s.tax_minor, s.total_minor).where(*where).order_by(s.sold_on, s.pos_sale_id, s.pos_sale_line_id),
+               s.tax_minor, s.total_minor, s.unit_cost_minor, s.coupon_name)
+        .where(*where).order_by(s.sold_on, s.pos_sale_id, s.pos_sale_line_id),
         v.sale_line, scope,
     ))]  # fmt: skip
-    keys = ("quantity", "gross_minor", "discount_minor", "net_minor", "tax_minor", "total_minor")
+    keys = ("quantity", "gross_minor", "discount_minor", "net_minor", "tax_minor", "total_minor", "cost_minor",
+            "margin_minor")
     return {"rows": rows, "totals": {k: sum(r[k] for r in rows) for k in keys}, "details": details}
 
 
@@ -802,7 +811,8 @@ SPECS = (
     ReportSpec(
         "pos_sales",
         "Point of sale sales",
-        "Completed sales in the period grouped by category, employee, register, product, brand or supplier.",
+        "Completed sales in the period grouped by category, employee, register, product, brand, supplier or "
+        "coupon. Buying price and margin use each product's current buying price.",
         "pos",
         POS,
         "none",
@@ -814,8 +824,11 @@ SPECS = (
             Col("gross_minor", "Gross", "money"),
             *_MONEY,
             Col("returned_quantity", "Units returned", "number"),
+            Col("cost_minor", "Buying price", "money"),
+            Col("margin_minor", "Margin", "money"),
         ),
-        (Col("quantity", "Units", "number"), Col("gross_minor", "Gross", "money"), *_MONEY),
+        (Col("quantity", "Units", "number"), Col("gross_minor", "Gross", "money"), *_MONEY,
+         Col("cost_minor", "Buying price", "money"), Col("margin_minor", "Margin", "money")),
         _pos_sales,
         (
             Col("sold_on", "Date", "date"),
@@ -826,6 +839,8 @@ SPECS = (
             Col("net_minor", "Net", "money"),
             Col("tax_minor", "Tax", "money"),
             Col("total_minor", "Total", "money"),
+            Col("unit_cost_minor", "Buying price (unit)", "money"),
+            Col("coupon_name", "Coupon"),
         ),
         ("RPT-30",),
     ),  # fmt: skip
