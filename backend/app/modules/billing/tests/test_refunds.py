@@ -2,6 +2,7 @@
 the release-then-refund composite, and replays (retry, duplicate webhook) that never refund twice."""
 
 import importlib
+import threading
 from datetime import timedelta
 from uuid import uuid4
 
@@ -401,6 +402,41 @@ def test_a_caller_holding_the_payment_lock_still_gets_a_committed_refund_row(sho
         raise RuntimeError("died")
     with work(shop.tenant) as session:
         assert session.scalar(select(Refund.status).where(Refund.idempotency_key == "locked")) == "initiated"
+
+
+def test_two_refunds_racing_on_one_payment_leave_one_refund_and_no_stray_row(shop, monkeypatch):
+    """Both pass the unlocked early check; the short transaction's lock lets one through and refuses the other
+    before it writes anything, so neither is stuck counting the other's `initiated` row."""
+    ready(shop)
+    payment_id = _paid(shop)  # 500 free: room for one 300 refund, not two
+    barrier, real = threading.Barrier(2, timeout=20), svc._initiate_refund
+
+    def gated(session, values):
+        barrier.wait()  # both requests are past the early check before either writes
+        return real(session, values)
+
+    monkeypatch.setattr(svc, "_initiate_refund", gated)
+    outcomes: dict[str, str] = {}
+
+    def attempt(name: str) -> None:
+        try:
+            with work(shop.tenant) as session:
+                outcomes[name] = svc.refund(
+                    session, payment_id, amount_minor=300, reason="Twice", idempotency_key=name
+                ).status
+        except ValidationFailed as error:
+            outcomes[name] = error.code
+
+    threads = [threading.Thread(target=attempt, args=(name,)) for name in ("first", "second")]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(30)
+    assert sorted(outcomes.values()) == ["refund-exceeds-unapplied", "succeeded"]
+    with work(shop.tenant) as session:
+        assert session.scalars(select(Refund.status)).all() == ["succeeded"]  # the loser left no row
+        assert _provider_refunded(session, payment_id) == 300
+        assert_books_agree(session)
 
 
 def test_an_on_account_refund_replays_with_its_key(shop):

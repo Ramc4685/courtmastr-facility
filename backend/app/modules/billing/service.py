@@ -1245,24 +1245,43 @@ def _initiate_refund(session: Session, values: dict) -> Refund:
     _initiate does for payments; the same 500 ms fallback inserts it in the caller's transaction instead when
     the short one cannot see or lock what it needs (replay stays safe through the provider's key).
 
-    The row reserves its amount in the payment's remainder in the same short transaction, so nothing (autopay's
-    credit spending, a staff allocation) can spend money the processor may already be returning. A caller that
-    holds the payment lock (a membership cancel, a POS return) still gets the row committed: our locks are
-    FOR NO KEY UPDATE, which the row's foreign key check does not wait on; only the reservation is skipped
-    there, and the caller's own transaction applies it."""
+    The short transaction locks the payment first, then checks the amount against what is free once every
+    committed reservation is counted, and only then writes the row and its reservation: two requests racing on
+    one payment are serialised here, so the second sees the first's reservation and is refused with no row left
+    behind (a same-key twin gets the first row back). Nothing (autopay's credit spending, a staff allocation)
+    can then spend money the processor may already be returning.
+
+    A caller whose transaction already holds the payment (a membership cancel, a POS return, an account-credit
+    plan) is known from `_held_payments`, so the short transaction does not try to lock it: the row still
+    commits (our locks are FOR NO KEY UPDATE, which the row's foreign key check does not wait on), and the
+    caller's transaction checks and reserves under its own lock. Only if another request holds the payment for
+    longer than 500 ms does the row commit unchecked; refund() then checks it under the lock."""
     try:
         with tenant_session(session.info["tenant_id"], actor=session.info.get("actor")) as short:
             short.execute(text("SET LOCAL lock_timeout = '500ms'"))
-            row = Refund(**values)
-            short.add(row)
-            short.flush()
-            refund_id = row.id
-            try:
-                with short.begin_nested():
-                    held = short.get(Payment, values["payment_id"], with_for_update={"key_share": True, "nowait": True})
+            held = None
+            if values["payment_id"] not in _held_payments(session):
+                try:
+                    with short.begin_nested():
+                        held = short.get(Payment, values["payment_id"], with_for_update={"key_share": True})
+                except OperationalError:
+                    pass  # another request holds it for long; refund() checks under its own lock
+            twin = _refund_by_key(short, values["idempotency_key"]) if held is not None else None
+            if twin is not None:  # a same-key request committed while we waited for the lock
+                refund_id = twin.id
+            else:
+                if held is not None:
+                    ids = values["release_allocation_ids"] or ()
+                    if values["amount_minor"] > _remainder(short, held) - _reserved(short, held.id) + _releasable(
+                        short, held, ids
+                    ):
+                        _too_much()
+                row = Refund(**values)
+                short.add(row)
+                short.flush()
+                refund_id = row.id
+                if held is not None:
                     _settle_projections(short, held, ())
-            except OperationalError:
-                pass  # the caller holds the payment; its transaction reserves instead
     except (IntegrityError, OperationalError):
         existing = _refund_by_key(session, values["idempotency_key"])  # lost a race to the same key?
         if existing is not None:
@@ -1272,7 +1291,9 @@ def _initiate_refund(session: Session, values: dict) -> Refund:
         session.add(row)
         session.flush()
         return row
-    return _lock(session, Refund, refund_id)
+    row = _lock(session, Refund, refund_id)
+    _same_refund(row, values["payment_id"], values["amount_minor"], values["method"], values["reason"])
+    return row
 
 
 def _finish_refund(session: Session, row: Refund, payment: Payment, outcome: str) -> None:
@@ -1724,6 +1745,7 @@ def _write_plan(
     if location_ids is not None:
         stmt = stmt.where(Payment.location_id.in_(list(location_ids)))
     locked = session.scalars(stmt.order_by(Payment.id).with_for_update(key_share=True)).all()  # id order: no deadlock
+    _held_payments(session).update(payment.id for payment in locked)
     payments = sorted(locked, key=lambda p: (p.received_at, p.id), reverse=True)  # newest first
     if not 0 < amount_minor <= sum(payment.unapplied_minor for payment in payments):
         raise ValidationFailed(
@@ -2044,11 +2066,23 @@ def _get(session: Session, model, row_id: UUID, *, pointer: str | None = None, l
     # FOR NO KEY UPDATE: excludes every other writer, but lets a short transaction insert a row that only
     # references this one (the pre-provider refund row while a caller holds its payment).
     row = session.get(model, row_id, with_for_update={"key_share": True} if lock else None, populate_existing=lock)
+    if lock and model is Payment and row is not None:
+        _held_payments(session).add(row_id)
     if row is None:
         if pointer:
             raise ValidationFailed(f"Unknown {model.__tablename__.replace('_', ' ')}.", pointer=pointer)
         raise NotFound()
     return row
+
+
+def _held_payments(session: Session) -> set[UUID]:
+    """The payments this session's current transaction has locked, so a refund can tell whether its short
+    transaction may lock the payment itself. Kept per transaction: a commit releases the locks."""
+    transaction = session.get_transaction()
+    held = session.info.get("billing_held_payments")
+    if held is None or held[0] is not transaction:
+        held = session.info["billing_held_payments"] = (transaction, set())
+    return held[1]
 
 
 def _lock(session: Session, model, row_id: UUID, *, pointer: str | None = None):
