@@ -575,7 +575,7 @@ class PortalSignup(TenantOwned, Timestamps, Base):
         *tfk("location_id", "location"),
         *tfk("client_id", "client"),
         enum_check("status", PortalSignupStatus),
-        UniqueConstraint("token_hash", name="uq_portal_signup_token_hash"),
+        UniqueConstraint("tenant_id", "token_hash", name="uq_portal_signup_token_hash"),
         Index("ix_portal_signup_email", "tenant_id", "email"),
     )
 

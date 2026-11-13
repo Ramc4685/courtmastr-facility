@@ -45,8 +45,9 @@ def upgrade() -> None:
         sa.UniqueConstraint("tenant_id", "id", name=op.f("uq_app_config_tenant_id_id")),
     )
     enable_rls("app_config")
-    op.execute("GRANT SELECT ON app_config, portal_settings TO fh_platform")
-    # Column grants only: the directory shows a city and the tenant logo, nothing else of these tables.
+    # Column grants only: the directory reads the listing flags, a city and the tenant logo, nothing else.
+    op.execute("GRANT SELECT (tenant_id, is_enabled, is_listed_in_directory, directory_name) ON app_config TO fh_platform")
+    op.execute("GRANT SELECT (tenant_id, location_id, is_enabled, is_public) ON portal_settings TO fh_platform")
     op.execute("GRANT SELECT (tenant_id, id, city) ON location TO fh_platform")
     op.execute("GRANT SELECT (tenant_id, location_id, file_id) ON logo TO fh_platform")
     op.execute("GRANT SELECT (tenant_id, id, object_key) ON stored_file TO fh_platform")
@@ -56,5 +57,6 @@ def downgrade() -> None:
     op.execute("REVOKE SELECT (tenant_id, id, object_key) ON stored_file FROM fh_platform")
     op.execute("REVOKE SELECT (tenant_id, location_id, file_id) ON logo FROM fh_platform")
     op.execute("REVOKE SELECT (tenant_id, id, city) ON location FROM fh_platform")
-    op.execute("REVOKE SELECT ON app_config, portal_settings FROM fh_platform")
+    op.execute("REVOKE SELECT (tenant_id, location_id, is_enabled, is_public) ON portal_settings FROM fh_platform")
+    op.execute("REVOKE SELECT (tenant_id, is_enabled, is_listed_in_directory, directory_name) ON app_config FROM fh_platform")
     op.drop_table("app_config")

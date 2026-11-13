@@ -628,14 +628,45 @@ class AppConfigOut(Out):
     updated_at: datetime | None
 
 
+class PublicAppTile(Out):
+    type: str
+    caption: str | None = None
+    style: str
+
+
+class PublicAppDesign(Out):
+    columns: int
+    corners: str
+
+
+class PublicAppHomeScreen(Out):
+    tiles: list[PublicAppTile]
+    design: PublicAppDesign
+
+
+class PublicAppSchedule(Out):
+    shows_spots_left: bool
+    shows_full_sessions: bool
+    days_ahead: int | None = None
+
+
+class PublicAppFeatures(Out):
+    booking: bool
+    purchases: bool
+    membership_card: bool
+    wallet_pass: bool
+
+
 class PublicAppConfig(Out):
+    """The public answer has its own models: it never reuses the staff config shapes."""
+
     tenant_id: UUID
     app_name: str
     theme: AppTheme
     icon_url: str | None
-    features: AppFeatures
-    home_screen: AppHomeScreen | None
-    schedule: AppSchedule
+    features: PublicAppFeatures
+    home_screen: PublicAppHomeScreen | None
+    schedule: PublicAppSchedule
     portal: PublicPortalConfig
 
 

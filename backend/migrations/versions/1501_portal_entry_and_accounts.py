@@ -86,7 +86,7 @@ def upgrade() -> None:
         _tenant_fk("portal_signup"),
         sa.PrimaryKeyConstraint("id", name="pk_portal_signup"),
         sa.UniqueConstraint("tenant_id", "id", name="uq_portal_signup_tenant_id_id"),
-        sa.UniqueConstraint("token_hash", name="uq_portal_signup_token_hash"),
+        sa.UniqueConstraint("tenant_id", "token_hash", name="uq_portal_signup_token_hash"),
     )
     op.create_index("ix_portal_signup_location_id", "portal_signup", ["tenant_id", "location_id"])
     op.create_index("ix_portal_signup_client_id", "portal_signup", ["tenant_id", "client_id"])
