@@ -197,6 +197,8 @@ class Client(TenantOwned, Timestamps, Base):
     preferred_name: Mapped[str | None] = mapped_column(info=_FLAG)
     gender: Mapped[str | None] = enum_column()
     birth_on: Mapped[date | None] = mapped_column(info=_FLAG)
+    # A birth date first entered through the portal: kept, and flagged until staff confirm or change it.
+    is_birth_on_unverified: Mapped[bool] = mapped_column(server_default=text("false"))
     organization_name: Mapped[str | None]
     phone_mobile: Mapped[str | None] = mapped_column(info=_FLAG)
     phone_home: Mapped[str | None] = mapped_column(info=_FLAG)

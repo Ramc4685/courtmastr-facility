@@ -109,13 +109,14 @@ function PayCheckout({ checkout, quotedMinor, onDone }: { checkout: Checkout; qu
 function BookRentalDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient()
   const { actingFor, clients, money, zoneOf, locations } = usePortal()
-  // A rental is held and paid by an adult: acting for a child (guardian or delegate), the booking is in the
-  // signed-in person's own name and the child is named as a player (the minors rule, rentals README).
+  // A rental is held and paid by an adult with a birth date on file; a child plays only on a guardian's booking
+  // (the minors rule, rentals README). The server decides both (`is_adult`, `is_my_ward`), never the authority.
   const self = clients.find((c) => c.authority === 'self') ?? actingFor
-  const forChild = actingFor.authority === 'guardian' || actingFor.authority === 'delegate'
-  const holder = forChild ? self : actingFor
-  const household = clients.filter((c) => c.id !== holder.id && c.authority !== 'delegate')
-  const [players, setPlayers] = useState<string[]>(() => (forChild ? [actingFor.id] : []))
+  const holder = actingFor.is_adult ? actingFor : self
+  const forChild = holder.id !== actingFor.id
+  const mayPlay = (c: typeof actingFor) => (c.is_adult ? c.authority !== 'delegate' : holder.id === self.id && Boolean(c.is_my_ward))
+  const household = clients.filter((c) => c.id !== holder.id && mayPlay(c))
+  const [players, setPlayers] = useState<string[]>(() => (forChild && mayPlay(actingFor) ? [actingFor.id] : []))
   const [quoted, setQuoted] = useState<number | null>(null)
   const types = useRentalTypes()
   const [typeId, setTypeId] = useState('')
@@ -131,7 +132,7 @@ function BookRentalDialog({ onClose }: { onClose: () => void }) {
   const slots = useQuery({
     queryKey: ['portal', 'availability', holder.id, type?.id, on, minutes],
     queryFn: () => api.get('/api/v1/portal/rental-availability', { query: { client_id: holder.id, rental_type_id: type?.id ?? '', on, length_min: minutes, limit: 60 } }),
-    enabled: Boolean(type && on),
+    enabled: Boolean(type && on && holder.is_adult),
   })
   const hold = useMutation({
     mutationFn: (slot: Schemas['PortalRentalSlot']) => {
@@ -175,6 +176,14 @@ function BookRentalDialog({ onClose }: { onClose: () => void }) {
     if (types.isPending) return <LoadingState />
     if (types.isError) return <ErrorState error={types.error} />
     if (!type) return <EmptyState title="Nothing can be booked online right now" />
+    if (!holder.is_adult)
+      return (
+        <p role="note" className="rounded-md border border-border px-3 py-2 text-sm">
+          {self.birth_on
+            ? 'Court bookings are held by an adult. Ask a parent or guardian to book the court and add you as a player.'
+            : 'Add your birth date in your profile before booking a court online: courts are booked and paid by an adult.'}
+        </p>
+      )
     return (
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-3">

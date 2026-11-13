@@ -784,23 +784,35 @@ def _check_override(principal: Principal, decision: dict, location_id: UUID) -> 
 # --- staff commands: create, preview, bill selected, extend ----------------------------------------------
 
 
-def _is_minor(session: Db, client_id: UUID, on: date) -> bool:
+def _is_minor(session: Db, client_id: UUID, on: date, *, unknown_is_minor: bool = False) -> bool:
     """The one minor lookup for rentals: under the tenant's minor age (`platform.service.minor_age`, which Phase 13
     consolidates households' `age_of_majority` into) on the rental's local date. An unknown birth date counts as
-    an adult, as everywhere else (`clients.service.is_minor`, ADR 0002 section 5)."""
-    return clients.service.is_minor(clients.service.get(session, client_id), on, platform.service.minor_age(session))
+    an adult at the desk (`clients.service.is_minor`, ADR 0002 section 5) but as a minor online
+    (`unknown_is_minor`), where nobody is there to look."""
+    client = clients.service.get(session, client_id)
+    if client.birth_on is None:
+        return unknown_is_minor
+    return clients.service.is_minor(client, on, platform.service.minor_age(session))
 
 
-def _check_minors(session: Db, holder: UUID, parties, on: date, pointer: str = "/parties") -> None:
+def _check_minors(
+    session: Db, holder: UUID, parties, on: date, pointer: str = "/parties", *, online: bool = False
+) -> None:
     """The minors rule (pilot): a minor never holds a rental; a minor may play (an uncharged party) only on a
-    rental held, and so paid, by one of their guardians."""
+    rental held, and so paid, by one of their guardians (`clients.households.guardian_ids`: a guardianship
+    relationship, never a delegate's acting rights). Online the holder needs a birth date on file."""
+    if online and clients.service.get(session, holder).birth_on is None:
+        raise ValidationFailed(
+            "Add your birth date to your profile before booking a court online.",
+            pointer="/client_id", code="birth-date-required",
+        )  # fmt: skip
     if _is_minor(session, holder, on):
         raise ValidationFailed(
             "A child cannot hold a court booking. Book it in a parent's name and add the child as a player.",
             pointer="/client_id", code="minor-cannot-hold-rental",
         )  # fmt: skip
     for index, party in enumerate(parties):
-        if _is_minor(session, party["client_id"], on) and (
+        if _is_minor(session, party["client_id"], on, unknown_is_minor=online) and (
             party.get("is_charged") or holder not in clients.households.guardian_ids(session, party["client_id"])
         ):
             raise ValidationFailed(
@@ -888,8 +900,15 @@ def preview_rental(session: Db, principal: Principal, data: dict) -> dict:
             ).quote(_currency(session), rtype.deposit_pct)
     return {
         "occurrences": result["occurrences"], "requested_count": result["requested_count"],
-        "conflict_count": result["conflict_count"], "quote": quote,
+        "conflict_count": result["conflict_count"], "quote": quote, "birth_on_unknown": _birth_on_unknown(session, data),
     }  # fmt: skip
+
+
+def _birth_on_unknown(session: Db, data: dict) -> list[UUID]:
+    """The holder and players with no birth date: the desk keeps ADR 0002 section 5 (unknown counts as an adult)
+    but is told, so staff can check before booking."""
+    ids = [data["client_id"], *(p["client_id"] for p in data.get("parties") or [])]
+    return [i for i in ids if clients.service.get(session, i).birth_on is None]
 
 
 def create_rental(session: Db, principal: Principal, data: dict) -> dict:
@@ -919,7 +938,10 @@ def create_rental(session: Db, principal: Principal, data: dict) -> dict:
             changes={"charge_state": [None, row.charge_state], "rental_type_id": [None, str(row.rental_type_id)]} | flag,
         )  # fmt: skip
     first = min(rows, key=lambda r: r.starts_at)
-    return result | {"rental": _view(session, first), "quote": quote, "invoice_ids": invoice_ids}
+    return result | {
+        "rental": _view(session, first), "quote": quote, "invoice_ids": invoice_ids,
+        "birth_on_unknown": _birth_on_unknown(session, data),
+    }  # fmt: skip
 
 
 def bill_selected(session: Db, principal: Principal, data: dict) -> dict:
@@ -1468,7 +1490,7 @@ def create_portal_rental(session: Db, principal: Principal, data: dict) -> dict:
             raise NotFound()
         clients.service.require_active(session, player, pointer="/player_client_ids")
         players.append({"client_id": player, "is_charged": False})
-    _check_minors(session, client_id, players, rental_on, pointer="/player_client_ids")
+    _check_minors(session, client_id, players, rental_on, pointer="/player_client_ids", online=True)
     plan = data.get("rental_plan_purchase_id")
     hold = None
     if rtype.online_payment_mode == "pay_in_full" and not plan:

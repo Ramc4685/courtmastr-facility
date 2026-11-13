@@ -5972,6 +5972,10 @@ components:
         requested_count: {type: integer}
         conflict_count: {type: integer}
         quote: {$ref: '#/components/schemas/RentalQuote'}
+        birth_on_unknown:
+          type: array
+          items: {type: string, format: uuid}
+          description: holder or players with no birth date; the desk counts them as adults (ADR 0002 section 5), staff are warned
     Rental:
       type: object
       description: One rental occurrence (rental_booking 1:1 booking). `status`, times and `version` are read from the booking.
@@ -6021,6 +6025,10 @@ components:
         invoice_ids:
           type: array
           items: {type: string, format: uuid}
+        birth_on_unknown:
+          type: array
+          items: {type: string, format: uuid}
+          description: holder or players with no birth date; the desk counts them as adults (ADR 0002 section 5), staff are warned
     RentalCancel:
       type: object
       description: 'Unpaid charge shares are always reversed; `charge_action` decides paid money: account credit (default),
@@ -6107,7 +6115,8 @@ components:
           items: {type: string, format: uuid}
           description: 'Household members who will play (not charged): each must be a client the identity can act for, else
             404. A minor may play only when `client_id` is one of their guardians (minor-needs-guardian); a minor never
-            holds a rental (minor-cannot-hold-rental): the parent books in their own name and names the child here.'
+            holds a rental (minor-cannot-hold-rental): the parent books in their own name and names the child here.
+            Online the holder needs a birth date on file (birth-date-required) and a player with no birth date counts as a minor.'
     RentalCheckout:
       type: object
       description: 'pay_in_full: tentative booking with real holds and `expires_at` (checkout clock, default 10 minutes).

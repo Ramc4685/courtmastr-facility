@@ -14025,6 +14025,11 @@
             "title": "Id",
             "type": "string"
           },
+          "is_birth_on_unverified": {
+            "default": false,
+            "title": "Is Birth On Unverified",
+            "type": "boolean"
+          },
           "is_sensitive_masked": {
             "default": false,
             "title": "Is Sensitive Masked",
@@ -48648,6 +48653,16 @@
             "title": "Id",
             "type": "string"
           },
+          "is_adult": {
+            "default": false,
+            "title": "Is Adult",
+            "type": "boolean"
+          },
+          "is_my_ward": {
+            "default": false,
+            "title": "Is My Ward",
+            "type": "boolean"
+          },
           "last_name": {
             "title": "Last Name",
             "type": "string"
@@ -49572,16 +49587,9 @@
         "additionalProperties": false,
         "properties": {
           "birth_on": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Birth On"
+            "format": "date",
+            "title": "Birth On",
+            "type": "string"
           },
           "email": {
             "anyOf": [
@@ -49633,7 +49641,8 @@
         "required": [
           "relationship_type_id",
           "first_name",
-          "last_name"
+          "last_name",
+          "birth_on"
         ],
         "title": "PortalDependentCreate",
         "type": "object"
@@ -66221,6 +66230,15 @@
       },
       "RentalCreated": {
         "properties": {
+          "birth_on_unknown": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Birth On Unknown",
+            "type": "array"
+          },
           "booking_series_id": {
             "anyOf": [
               {
@@ -67394,6 +67412,15 @@
       },
       "RentalPreview": {
         "properties": {
+          "birth_on_unknown": {
+            "default": [],
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Birth On Unknown",
+            "type": "array"
+          },
           "conflict_count": {
             "title": "Conflict Count",
             "type": "integer"

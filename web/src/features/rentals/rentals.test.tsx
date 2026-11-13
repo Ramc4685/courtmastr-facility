@@ -69,6 +69,18 @@ describe('RentalsPage', SCREEN, () => {
     expect(calls.filter((c) => c.method === 'POST').at(-1)?.body).toMatchObject({ minor_override_reason: 'Coach supervises' })
   })
 
+  it('warns the desk when a player has no birth date on file', async () => {
+    renderAsStaff(<RentalsPage />, ALL, {
+      ...base,
+      'GET /api/v1/rentals': page([]),
+      'POST /api/v1/rentals/preview': { status: 200, body: { occurrences: [], requested_count: 1, conflict_count: 0, quote: null, birth_on_unknown: ['c7'] } },
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'New rental' }, { timeout: 5000 }))
+    const dialog = await screen.findByRole('dialog', { name: 'New rental' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Preview price' }))
+    expect(await within(dialog).findByRole('note')).toHaveTextContent('No birth date on file for a player: they are treated as an adult.')
+  })
+
   it('bills selected rentals from the unbilled queue after a preview', async () => {
     const calls = renderAsStaff(<RentalsPage />, ALL, {
       ...base,

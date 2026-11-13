@@ -64,11 +64,14 @@ def w(client_module):
         walk_in_pool = [str(c.id) for c in people.values() if c.id not in (parent.id, member.id)]
     owner = sign("owner")
     types = {t["name"]: t for t in ok(client_module.get(f"{API}/rental-types?location_id={location.id}", headers=owner), 200)["data"]}  # fmt: skip
+    # Every seeded adult holds a membership; a walk-in guest pays guest prices.
+    guest = ok(client_module.post(f"{API}/clients", headers=owner, json={
+        "first_name": "Gale", "last_name": "Guest", "home_location_id": str(location.id), "birth_on": "1988-03-04"}))["id"]  # fmt: skip
     return SimpleNamespace(
         tenant=tenant, mail=mail, location=str(location.id), courts=courts, member=str(member.id),
         parent=str(parent.id), kids=[str(k.id) for k in kids], kid_names=[k.first_name for k in kids], plans=plans,
         types={n: t["id"] for n, t in types.items()}, rates={n: t["online_rental_rate_id"] for n, t in types.items()},
-        others=walk_in_pool, owner=owner, manager=sign("manager"), desk=sign("front-desk"),
+        others=walk_in_pool, guest=guest, owner=owner, manager=sign("manager"), desk=sign("front-desk"),
         league=sign("league-admin"), member_portal=sign("member", "client"), parent_portal=sign("parent", "client"),
         public={"X-Tenant-Slug": tenant.slug},
     )  # fmt: skip
@@ -382,7 +385,7 @@ def preview(c, w, client_id: str, day: date, start: str, end: str, sport: str = 
 
 
 def test_g_peak_and_off_peak_in_the_location_zone_with_a_straddling_booking(client_module, w):
-    c, saturday, walk_in = client_module, MON + timedelta(days=12), w.others[-1]
+    c, saturday, walk_in = client_module, MON + timedelta(days=12), w.guest
     # Guest (non-member) prices: badminton $30 prime (18:00-22:00 Chicago), $24 outside; pickleball $14.40 mornings.
     assert preview(c, w, walk_in, PDAY, "10:00", "11:00")["subtotal_minor"] == 2400
     assert preview(c, w, walk_in, PDAY, "18:00", "19:00")["subtotal_minor"] == 3000
@@ -415,10 +418,10 @@ def test_g_member_prices(client_module, w):
 
 def test_h_cancellation_cut_off_late_fee_and_what_happens_to_the_payment(client_module, w):
     c = client_module
-    payer = w.others[1]
+    payer = w.guest
     far = ok(rent(c, w, w.desk, "Pickleball court", "Court 2", MON + timedelta(days=4), "14:00", "15:00", payer))
     paid = far["quote"]["subtotal_minor"]
-    assert paid == 2000  # the payer holds Adult monthly: the member off-prime price
+    assert paid == 2400  # a walk-in guest: the guest off-prime price (members pay 2000, test_g_member_prices)
     ok(c.post(f"{API}/payments", headers=w.desk | key(), json={"client_id": payer, "location_id": w.location,
          "amount_minor": paid, "tender_kind": "card", "method_token": "tok_card_ok", "invoice_id": far["invoice_ids"][0]}))  # fmt: skip
     result = ok(c.post(f"{API}/rentals/{far['rental']['id']}/cancel", headers=w.desk, json={"reason": "client"}), 200)
@@ -553,10 +556,18 @@ def test_j_a_newcomer_goes_from_finding_cirqt_to_a_paid_court_with_no_staff(clie
         "method_token": "tok_card_ok",
     }))  # fmt: skip
     assert member["status"] == "active" and member["payment_status"] == "succeeded"
-    checkout = ok(c.post(f"{API}/portal/rentals", headers=me, json={
-        "rental_type_id": w.types["Pickleball court"], "client_id": mine["id"], "resource_id": w.courts["Court 4"],
-        "starts_at": at(day, "08:00"), "ends_at": at(day, "09:00"),
-    }))  # fmt: skip
+    court = {
+        "rental_type_id": w.types["Pickleball court"],
+        "client_id": mine["id"],
+        "resource_id": w.courts["Court 4"],
+        "starts_at": at(day, "08:00"),
+        "ends_at": at(day, "09:00"),
+    }
+    # Courts are booked online by an adult: sign-up asks no birth date, so the court asks for one first.
+    first = c.post(f"{API}/portal/rentals", headers=me, json=court)
+    assert (first.status_code, first.json()["code"]) == (422, "birth-date-required"), first.text
+    ok(c.patch(f"{API}/portal/clients/{mine['id']}", headers=me, json={"birth_on": "1992-08-09"}), 200)
+    checkout = ok(c.post(f"{API}/portal/rentals", headers=me, json=court))
     paid = ok(c.post(f"{API}/portal/rentals/{checkout['rental']['id']}/confirm", headers=me | key(),
                      json={"provider_payment_token": "tok_card_ok"}), 200)  # fmt: skip
     assert paid["rental"]["status"] == "confirmed" and paid["payment_status"] == "succeeded"
@@ -684,6 +695,40 @@ def test_m_a_child_cannot_be_booked_on_a_court_without_a_parent(client_module, w
     with_parent = rent(client_module, w, w.desk, "Badminton court", "Court 4", day, "17:00", "18:00", w.parent,
                        parties=[{"client_id": w.kids[1]}])  # fmt: skip
     assert with_parent.status_code == 201, with_parent.text  # the parent holds and pays; the child plays
+
+
+def _portal_child(c, w, born: str) -> str:
+    parent_of = next(t for t in ok(c.get(f"{API}/portal/relationship-types", headers=w.parent_portal), 200)
+                     if t["code"] == "parent_of")  # fmt: skip
+    return ok(c.post(f"{API}/portal/dependents", headers=w.parent_portal, json={
+        "relationship_type_id": parent_of["id"], "first_name": "Remy", "last_name": "Added", "birth_on": born}))["id"]  # fmt: skip
+
+
+def test_m_a_child_the_parent_added_online_never_holds_a_court(client_module, w):
+    """The parent manages a child they add in the portal (`manager`, not `guardian`): the server's age check,
+    not the acting authority, keeps the court in the parent's name."""
+    c, day = client_module, MON + timedelta(days=13)
+    kid = _portal_child(c, w, (TODAY - timedelta(days=9 * 365)).isoformat())
+    acting = next(x for x in data(c.get(f"{API}/portal/clients", headers=w.parent_portal)) if x["id"] == kid)
+    assert (acting["authority"], acting["is_adult"], acting["is_my_ward"]) == ("manager", False, True)
+    body = {"rental_type_id": w.types["Badminton court"], "resource_id": w.courts["Court 4"],
+            "starts_at": at(day, "15:00"), "ends_at": at(day, "16:00")}  # fmt: skip
+    alone = c.post(f"{API}/portal/rentals", headers=w.parent_portal, json=body | {"client_id": kid})
+    assert (alone.status_code, alone.json()["code"]) == (422, "minor-cannot-hold-rental"), alone.text
+    ok(c.post(f"{API}/portal/rentals", headers=w.parent_portal,
+              json=body | {"client_id": w.parent, "player_client_ids": [kid]}))  # fmt: skip
+
+
+def test_m_a_dependant_with_no_birth_date_cannot_hold_a_court_online(client_module, w):
+    """Dependants added before birth dates were required: online an unknown date is not an adult."""
+    c, day = client_module, MON + timedelta(days=13)
+    kid = _portal_child(c, w, "2016-01-01")
+    with tenant_session(w.tenant.id) as session:
+        session.get(Client, kid).birth_on = None
+    body = {"rental_type_id": w.types["Badminton court"], "resource_id": w.courts["Court 4"], "client_id": kid,
+            "starts_at": at(day, "17:00"), "ends_at": at(day, "18:00")}  # fmt: skip
+    refused = c.post(f"{API}/portal/rentals", headers=w.parent_portal, json=body)
+    assert (refused.status_code, refused.json()["code"]) == (422, "birth-date-required"), refused.text
 
 
 # --- n. coaches: one on staff, one independent ----------------------------------------------------------------

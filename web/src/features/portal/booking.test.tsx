@@ -19,8 +19,9 @@ vi.mock('../../lib/auth', () => ({
 // session, payment plans and progress sharing.
 const ZONE = 'America/Chicago'
 const page = <T,>(data: T[]) => ({ status: 200, body: { data, page: { next_cursor: null, has_more: false } } })
-const person = (id: string, first: string, authority: string) => ({
+const person = (id: string, first: string, authority: string, extra: Record<string, unknown> = {}) => ({
   id, first_name: first, last_name: 'Member', preferred_name: null, authority, can_edit: true, member_number: null, primary_email: 'member@example.com',
+  is_adult: authority === 'self', is_my_ward: false, birth_on: authority === 'self' ? '1986-06-14' : null, ...extra,
   phone_mobile: null, phone_home: null, address_line1: null, address_line2: null, city: null, region: null, postal_code: null, custom_values: {},
 })
 const card = { id: 'pm1', client_id: 'c1', kind: 'card', brand: 'visa', last4: '4242', exp_month: 12, exp_year: 2099, funding: 'credit', wallet: null, is_autopay: false, status: 'active', created_at: '' }
@@ -130,13 +131,43 @@ describe('Portal booking and buying', { timeout: 20_000 }, () => {
     expect(confirms[0]?.headers['idempotency-key']).toBeTruthy()
   })
 
+  it('keys the holder on the server\'s adult flag: a child the parent added (manager) still plays, never holds', async () => {
+    const type = { id: 'rt1', name: 'Court rental', location_id: 'l1', min_length_min: 60, max_length_min: 60, default_length_min: 60, slot_granularity_min: 60, min_lead_min: 0, horizon_days: null, resources: [], online_description: null, cancel_cutoff_hours: null, late_cancel_fee_pct: null }
+    const calls = open('/portal/bookings', {
+      'GET /api/v1/portal/clients': { status: 200, body: { data: [person('c1', 'Morgan', 'self'), person('c2', 'Kit', 'manager', { is_my_ward: true })] } },
+      'GET /api/v1/portal/rentals': page([]),
+      'GET /api/v1/public/rental-types': { status: 200, body: [type] },
+      'GET /api/v1/portal/rental-availability': page([]),
+    })
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Acting for' }), 'c2')
+    await userEvent.click(await screen.findByRole('button', { name: 'Book a rental' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Book a rental' })
+    expect(dialog).toHaveAccessibleDescription('Booking for Morgan.')
+    expect(within(dialog).getByRole('checkbox', { name: 'Kit' })).toBeChecked()
+    await within(dialog).findByText('No open times on this date. Try another day.')
+    expect(calls.find((c) => c.url.includes('/portal/rental-availability'))?.url).toContain('client_id=c1')
+  })
+
+  it('asks for a birth date before the signed-in person can book a court', async () => {
+    const type = { id: 'rt1', name: 'Court rental', location_id: 'l1', min_length_min: 60, max_length_min: 60, default_length_min: 60, slot_granularity_min: 60, min_lead_min: 0, horizon_days: null, resources: [], online_description: null, cancel_cutoff_hours: null, late_cancel_fee_pct: null }
+    const calls = open('/portal/bookings', {
+      'GET /api/v1/portal/clients': { status: 200, body: { data: [person('c1', 'Morgan', 'self', { is_adult: false, birth_on: null })] } },
+      'GET /api/v1/portal/rentals': page([]),
+      'GET /api/v1/public/rental-types': { status: 200, body: [type] },
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'Book a rental' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Book a rental' })
+    expect(await within(dialog).findByRole('note')).toHaveTextContent('Add your birth date in your profile')
+    expect(calls.some((c) => c.url.includes('/portal/rental-availability'))).toBe(false)
+  })
+
   it('books a court for a child in the parent\'s name with the child playing, and says when the price changed', async () => {
     const type = { id: 'rt1', name: 'Court rental', location_id: 'l1', min_length_min: 60, max_length_min: 60, default_length_min: 60, slot_granularity_min: 60, min_lead_min: 0, horizon_days: null, resources: [], online_description: null, cancel_cutoff_hours: null, late_cancel_fee_pct: null }
     const rental = { id: 'r1', client_id: 'c1', location_id: 'l1', rental_type_id: 'rt1', title: 'Court rental', starts_at: '2031-05-06T00:00:00Z', ends_at: '2031-05-06T01:00:00Z', status: 'tentative', resources: [] }
     const quote = { lines: [{ description: 'Court rental', amount_minor: 2400 }], subtotal_minor: 2400, tax_minor: 0, total_minor: 2400 }
     const holds: Call[] = []
     const calls = open('/portal/bookings', {
-      'GET /api/v1/portal/clients': { status: 200, body: { data: [person('c1', 'Morgan', 'self'), person('c2', 'Kit', 'guardian')] } },
+      'GET /api/v1/portal/clients': { status: 200, body: { data: [person('c1', 'Morgan', 'self'), person('c2', 'Kit', 'guardian', { is_my_ward: true })] } },
       'GET /api/v1/portal/rentals': page([]),
       'GET /api/v1/public/rental-types': { status: 200, body: [type] },
       'GET /api/v1/portal/rental-availability': page([{ resource_id: 'res1', resource_name: 'Court 3', starts_at: '2031-05-06T00:00:00Z', ends_at: '2031-05-06T01:00:00Z', price_minor: 2000, is_member_price: true }]),

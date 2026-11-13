@@ -248,6 +248,7 @@ class RentalPreview(Out):
     requested_count: int
     conflict_count: int
     quote: Quote | None
+    birth_on_unknown: list[UUID] = []  # holder or players with no birth date: counted as adults at the desk
 
 
 class PartyOut(Out):
@@ -296,6 +297,7 @@ class RentalCreated(Out):
     quote: Quote | None = None
     invoice_ids: list[UUID] = []
     status_url: str | None = None
+    birth_on_unknown: list[UUID] = []
 
 
 class BillSelected(In):

@@ -10592,6 +10592,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/portal/rental-availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search Portal Rental Availability
+         * @description The open times priced for the client who will hold the rental: member prices, as the checkout charges.
+         */
+        get: operations["searchPortalRentalAvailability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portal/rental-plan-purchases": {
         parameters: {
             query?: never;
@@ -21564,6 +21584,11 @@ export interface components {
              */
             id: string;
             /**
+             * Is Birth On Unverified
+             * @default false
+             */
+            is_birth_on_unverified: boolean;
+            /**
              * Is Sensitive Masked
              * @default false
              */
@@ -30759,6 +30784,12 @@ export interface components {
             data: components["schemas"]["PortalRentalPlanPurchaseOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[PortalRentalSlot] */
+        Page_PortalRentalSlot_: {
+            /** Data */
+            data: components["schemas"]["PortalRentalSlot"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[PortalVideo] */
         Page_PortalVideo_: {
             /** Data */
@@ -32401,6 +32432,16 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Is Adult
+             * @default false
+             */
+            is_adult: boolean;
+            /**
+             * Is My Ward
+             * @default false
+             */
+            is_my_ward: boolean;
             /** Last Name */
             last_name: string;
             /** Member Number */
@@ -32686,8 +32727,11 @@ export interface components {
         };
         /** PortalDependentCreate */
         PortalDependentCreate: {
-            /** Birth On */
-            birth_on?: string | null;
+            /**
+             * Birth On
+             * Format: date
+             */
+            birth_on: string;
             /** Email */
             email?: string | null;
             /** First Name */
@@ -33791,6 +33835,11 @@ export interface components {
              * Format: date-time
              */
             ends_at: string;
+            /**
+             * Player Client Ids
+             * @default []
+             */
+            player_client_ids: string[];
             /** Rental Plan Purchase Id */
             rental_plan_purchase_id?: string | null;
             /**
@@ -33970,6 +34019,33 @@ export interface components {
             resource_id: string;
             /** Role */
             role: string;
+        };
+        /**
+         * PortalRentalSlot
+         * @description An open time priced for the signed-in client (portal schema, never the public one).
+         */
+        PortalRentalSlot: {
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Is Member Price */
+            is_member_price: boolean;
+            /** Price Minor */
+            price_minor: number;
+            /**
+             * Resource Id
+             * Format: uuid
+             */
+            resource_id: string;
+            /** Resource Name */
+            resource_name: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
         };
         /** PortalRosterEntryCreate */
         PortalRosterEntryCreate: {
@@ -38159,6 +38235,8 @@ export interface components {
              * Format: uuid
              */
             location_id: string;
+            /** Minor Override Reason */
+            minor_override_reason?: string | null;
             /** Notes */
             notes?: string | null;
             /**
@@ -38195,6 +38273,11 @@ export interface components {
         };
         /** RentalCreated */
         RentalCreated: {
+            /**
+             * Birth On Unknown
+             * @default []
+             */
+            birth_on_unknown: string[];
             /** Booking Series Id */
             booking_series_id: string | null;
             /** Conflict Count */
@@ -38521,6 +38604,11 @@ export interface components {
         };
         /** RentalPreview */
         RentalPreview: {
+            /**
+             * Birth On Unknown
+             * @default []
+             */
+            birth_on_unknown: string[];
             /** Conflict Count */
             conflict_count: number;
             /** Occurrences */
@@ -70536,6 +70624,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RelationshipOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    searchPortalRentalAvailability: {
+        parameters: {
+            query: {
+                client_id: string;
+                rental_type_id: string;
+                on: string;
+                length_min?: number | null;
+                resource_id?: string | null;
+                limit?: number;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PortalRentalSlot_"];
                 };
             };
             /** @description Validation Error */

@@ -21584,6 +21584,11 @@ export interface components {
              */
             id: string;
             /**
+             * Is Birth On Unverified
+             * @default false
+             */
+            is_birth_on_unverified: boolean;
+            /**
              * Is Sensitive Masked
              * @default false
              */
@@ -32427,6 +32432,16 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Is Adult
+             * @default false
+             */
+            is_adult: boolean;
+            /**
+             * Is My Ward
+             * @default false
+             */
+            is_my_ward: boolean;
             /** Last Name */
             last_name: string;
             /** Member Number */
@@ -32712,8 +32727,11 @@ export interface components {
         };
         /** PortalDependentCreate */
         PortalDependentCreate: {
-            /** Birth On */
-            birth_on?: string | null;
+            /**
+             * Birth On
+             * Format: date
+             */
+            birth_on: string;
             /** Email */
             email?: string | null;
             /** First Name */
@@ -38255,6 +38273,11 @@ export interface components {
         };
         /** RentalCreated */
         RentalCreated: {
+            /**
+             * Birth On Unknown
+             * @default []
+             */
+            birth_on_unknown: string[];
             /** Booking Series Id */
             booking_series_id: string | null;
             /** Conflict Count */
@@ -38581,6 +38604,11 @@ export interface components {
         };
         /** RentalPreview */
         RentalPreview: {
+            /**
+             * Birth On Unknown
+             * @default []
+             */
+            birth_on_unknown: string[];
             /** Conflict Count */
             conflict_count: number;
             /** Occurrences */

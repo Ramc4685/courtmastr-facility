@@ -1,5 +1,7 @@
 """Demo clients at both locations, and the client record behind the demo member sign-in."""
 
+from datetime import date
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -39,6 +41,8 @@ def seed(session: Session) -> None:
         select(Identity).where(Identity.kind == "client", Identity.email == f"member@{DOMAIN}")
     ).scalar_one()
     clients.service.link_identity(session, existing[f"member@{DOMAIN}"].id, identity.id)
+    # The portal books courts only for an adult with a birth date on file (rentals minors rule).
+    existing[f"member@{DOMAIN}"].birth_on = existing[f"member@{DOMAIN}"].birth_on or date(1986, 6, 14)
     _seed_people(session, existing, locations, identity.id)
 
 

@@ -103,6 +103,7 @@ class ClientOut(ClientListItem):
 
     gender: str | None
     birth_on: date | None
+    is_birth_on_unverified: bool = False  # first entered through the portal; staff confirm by saving a birth date
     organization_name: str | None
     phone_home: str | None
     phone_work: str | None
@@ -411,6 +412,8 @@ class PortalClientOut(Out):
     postal_code: str | None = None
     country_code: str | None = None
     custom_values: CustomValues = {}
+    is_adult: bool = False  # a birth date on file at or over the tenant's minor age (unknown: false)
+    is_my_ward: bool = False  # the signed-in person is this client's guardian
 
 
 class PortalClientList(Out):
@@ -430,7 +433,7 @@ class PortalDependentCreate(In):
     relationship_type_id: UUID  # read from the caller's side: "I am <type> of the new person"
     first_name: Name
     last_name: Name
-    birth_on: date | None = None
+    birth_on: date  # required: the minors rule on rentals and the unmanned site fail closed without it
     gender: GenderValue | None = None
     email: EmailStr | None = None  # may repeat the parent's address (FAM-02)
 

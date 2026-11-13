@@ -6106,6 +6106,9 @@ components:
         birth_on:
           type: [string, 'null']
           format: date
+        is_birth_on_unverified:
+          type: boolean
+          description: the birth date was first entered through the portal; a staff save of birth_on confirms it
         organization_name:
           type: [string, 'null']
         phone_mobile:
@@ -6388,7 +6391,9 @@ components:
       required: [email]
     ActableClient:
       type: object
-      description: A client the signed-in identity may act for (FAM-03).
+      description: A client the signed-in identity may act for (FAM-03). The portal view also carries `is_adult` (a birth
+        date on file at or over the tenant minor age; unknown is false) and `is_my_ward` (the signed-in person is a guardian),
+        which decide who may hold or play on a court rental (rentals README, minors rule).
       properties:
         client: {$ref: '#/components/schemas/ClientSummary'}
         basis:
@@ -6431,12 +6436,14 @@ components:
         first_name: {type: string}
         last_name: {type: string}
         birth_on:
-          type: [string, 'null']
+          type: string
           format: date
+          description: required; the rentals minors rule fails closed online without it. Kept and flagged for staff review
+            (Client.is_birth_on_unverified).
         gender:
           type: [string, 'null']
         relationship_type_id: {type: string, format: uuid}
-      required: [first_name, last_name, relationship_type_id]
+      required: [first_name, last_name, relationship_type_id, birth_on]
     RelationshipRequest:
       type: object
       description: Link to an existing account holder; creates a pending row and mails a confirmation token (FAM-02). Response never reveals whether

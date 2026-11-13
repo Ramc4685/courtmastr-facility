@@ -6,12 +6,13 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.core.audit import AuditEvent
 from app.core.auth import system_principal
 from app.core.db.session import tenant_session
 from app.modules import billing
+from app.modules.clients.models import Client
 from app.modules.memberships.tests.support import membership_plan
 from app.modules.programs.tests.test_selfservice import SOON, policy
 from app.modules.rentals.tests.test_rentals import portal_client
@@ -202,7 +203,11 @@ def test_a_guardian_books_and_names_the_children_who_play(client, owner, f):
     refused(rent(client, owner, body(f, parent, 17, 18, parties=[{"client_id": kid, "is_charged": True}])), 422,
             "minor-needs-guardian")  # fmt: skip
     unknown = new_client(client, owner, f.location)["id"]  # no birth date: treated as an adult (ADR 0002 section 5)
-    ok(rent(client, owner, body(f, unknown, 18, 19)))
+    preview = ok(client.post(f"{API}/rentals/preview", headers=owner, json=body(f, unknown, 18, 19)), 200)
+    assert preview["birth_on_unknown"] == [unknown]  # ... and the desk is warned
+    assert ok(rent(client, owner, body(f, unknown, 18, 19)))["birth_on_unknown"] == [unknown]
+    assert ok(client.post(f"{API}/rentals/preview", headers=owner, json=body(f, parent, 19, 20, parties=party)),
+              200)["birth_on_unknown"] == [parent]  # fmt: skip
 
 
 def test_the_minor_age_is_the_tenant_setting(client, owner, f):
@@ -243,3 +248,56 @@ def test_coaching_keeps_its_rules_a_parent_registers_a_child(client, owner, tena
     enrolled = ok(client.post(f"{API}/portal/enrollments", headers=portal,
                               json={"client_id": kid, "session_id": seat["id"]}))  # fmt: skip
     assert enrolled["client_id"] == kid and enrolled["status"] == "enrolled"
+
+
+# --- the portal fails closed on birth dates (nobody is at the desk to look) --------------------------------------
+
+
+def test_portal_holder_needs_a_birth_date_and_a_first_one_is_flagged_for_staff(client, owner, tenant, f):
+    me, portal = portal_client(client, owner, tenant, f, birth_on=None)
+    refused(client.post(f"{API}/portal/rentals", headers=portal, json=online(f, me, 15, 16)), 422,
+            "birth-date-required")  # fmt: skip
+    assert ok(client.get(f"{API}/portal/clients/{me}", headers=portal), 200)["is_adult"] is False
+    ok(client.patch(f"{API}/portal/clients/{me}", headers=portal, json={"birth_on": "1990-01-02"}), 200)
+    assert ok(client.get(f"{API}/clients/{me}", headers=owner), 200)["is_birth_on_unverified"] is True
+    with tenant_session(tenant.id) as session:
+        record = session.scalars(
+            select(AuditEvent).where(AuditEvent.entity_id == me, AuditEvent.action == "clients.client.update")
+        ).one()
+    assert record.changes["birth_on"] is True and record.changes["is_birth_on_unverified"] == [False, True]
+    ok(client.post(f"{API}/portal/rentals", headers=portal, json=online(f, me, 15, 16)))
+    ok(client.patch(f"{API}/clients/{me}", headers=owner, json={"birth_on": "1990-01-03"}), 200)
+    assert ok(client.get(f"{API}/clients/{me}", headers=owner), 200)["is_birth_on_unverified"] is False
+
+
+def test_a_portal_dependant_needs_a_birth_date_and_never_holds_the_rental(client, owner, tenant, f):
+    """A parent acting for a child they added resolves to `manager` authority: the server, not the authority,
+    decides who may hold (`is_adult`) and who may play (`is_my_ward`)."""
+    me, portal = portal_client(client, owner, tenant, f)
+    parent_of = next(t for t in ok(client.get(f"{API}/portal/relationship-types", headers=portal), 200)
+                     if t["code"] == "parent_of")  # fmt: skip
+    child = {"relationship_type_id": parent_of["id"], "first_name": "Kit", "last_name": "Pat"}
+    assert client.post(f"{API}/portal/dependents", headers=portal, json=child).status_code == 422
+    kid = ok(client.post(f"{API}/portal/dependents", headers=portal, json=child | {"birth_on": CHILD}), 201)
+    assert (kid["authority"], kid["is_adult"], kid["is_my_ward"]) == ("manager", False, True)
+    assert ok(client.get(f"{API}/clients/{kid['id']}", headers=owner), 200)["is_birth_on_unverified"] is True
+    refused(client.post(f"{API}/portal/rentals", headers=portal, json=online(f, kid["id"], 15, 16)), 422,
+            "minor-cannot-hold-rental")  # fmt: skip
+    ok(client.post(f"{API}/portal/rentals", headers=portal,
+                   json=online(f, me, 15, 16) | {"player_client_ids": [kid["id"]]}))  # fmt: skip
+
+
+def test_a_dateless_dependant_online_counts_as_a_minor(client, owner, tenant, f):
+    """Dependants added before birth dates were required: the parent manages them, the date is unknown."""
+    me, portal = portal_client(client, owner, tenant, f)
+    parent_of = next(t for t in ok(client.get(f"{API}/portal/relationship-types", headers=portal), 200)
+                     if t["code"] == "parent_of")  # fmt: skip
+    kid = ok(client.post(f"{API}/portal/dependents", headers=portal, json={
+        "relationship_type_id": parent_of["id"], "first_name": "Kit", "last_name": "Pat", "birth_on": CHILD}), 201)["id"]  # fmt: skip
+    with tenant_session(tenant.id, actor=system_principal("tests")) as session:
+        session.execute(update(Client).where(Client.id == kid).values(birth_on=None))
+    refused(client.post(f"{API}/portal/rentals", headers=portal, json=online(f, kid, 15, 16)), 422,
+            "birth-date-required")  # fmt: skip
+    ok(
+        client.post(f"{API}/portal/rentals", headers=portal, json=online(f, me, 15, 16) | {"player_client_ids": [kid]})
+    )  # the guardian may bring them

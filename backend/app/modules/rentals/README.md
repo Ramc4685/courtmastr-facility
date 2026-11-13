@@ -181,16 +181,25 @@ public-schedule control, no tax picker on rates, one resource per rental in the 
   as an uncharged party only when the holder is one of their guardians (`clients.households.guardian_ids`,
   `minor-needs-guardian`); the existing `rental_party` list is the participant list. Minor means under the
   tenant's `minor_age` (`platform.service.minor_age`), read in one function, `_is_minor`, on the rental's local
-  date, so Phase 13's single setting changes one line. Assumption: an unknown birth date counts as an adult, the
+  date, so Phase 13's single setting changes one line. At the desk an unknown birth date counts as an adult, the
   convention of `clients.service.is_minor` (ADR 0002 section 5) that access and engagement use too; treating it
-  as a minor would refuse every adult with no birth date on file.
+  as a minor would refuse every adult with no birth date on file. Staff are warned instead: preview and create
+  return `birth_on_unknown` (holder and players with no date) and the form says so.
+- **Online fails closed (deviation from ADR 0002 section 5).** Nobody looks at the portal customer, so there an
+  unknown birth date is not an adult: the holder needs a birth date on file (`birth-date-required`) and a player
+  with none counts as a minor (allowed only on a guardian's booking). A dependant added in the portal needs
+  `birth_on`. A first birth date entered in the portal is kept, flagged `client.is_birth_on_unverified` for staff
+  review (a staff save of the date clears it) and audited with the change; a recorded date stays locked
+  (`field-locked`). The portal never keys the holder on acting authority (parents of portal-added children are
+  `manager`, like any managed profile): it reads `is_adult` and `is_my_ward` on the portal client view.
 - **Staff override.** `minor_override_reason` on create (and preview) needs `rentals.booking.override_minor`
   (admin, manager) and lifts both checks. The reason is kept on `rental_booking.minor_override_reason`; the audit
   record carries a flag only. The staff form asks for the reason only after the server refuses and only to holders
   of the key.
 - **Portal.** A parent books in their own name and names household members who will play
-  (`player_client_ids`, each one the identity can act for, else 404). Acting for a child, the booking dialog books
-  in the parent's name with the child ticked as a player and says why. The portal rental view still carries no
+  (`player_client_ids`, each one the identity can act for, else 404). Acting for someone who is not an adult
+  (`is_adult` false), the booking dialog books in the signed-in person's name, ticks the child as a player when
+  they are the parent's ward, and says why; a signed-in person without a birth date is asked to add one first. The portal rental view still carries no
   co-party ids (S-06).
 - **Coaching** keeps its own rules: a parent may register a child for a session alone (tested here, unchanged).
 - **Out of scope** (seen, not built): online recurring bookings by members, club contracts, no-show and overstay

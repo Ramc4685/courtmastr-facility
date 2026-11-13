@@ -217,6 +217,11 @@ function NewRentalDialog({ ctx, onClose }: { ctx: Ctx; onClose: () => void }) {
         )}
         <Select label="Rental type" value={typeId} error={e.rental_type_id} onChange={(ev) => setTypeId(ev.target.value)} options={active.map((t) => ({ value: t.id, label: t.name }))} />
         <ClientPicker label="Client" value={client} onChange={setClient} required error={e.client_id} />
+        {p && p.birth_on_unknown && p.birth_on_unknown.length > 0 && (
+          <p role="note" className="text-sm text-warning">
+            No birth date on file for {p.birth_on_unknown.includes(client?.id ?? '') ? 'this client' : 'a player'}: they are treated as an adult. Check their age before booking.
+          </p>
+        )}
         <Select label="Resource" value={resourceId} placeholder="Choose a resource" error={e.resources ?? e['resources.0.resource_id']} onChange={(ev) => setResourceId(ev.target.value)} options={choices.map((r) => ({ value: r.id, label: r.name }))} />
         <div className="grid gap-4 sm:grid-cols-3">
           <Input label="Date" type="date" value={date} error={e.starts_at} onChange={(ev) => setDate(ev.target.value)} />

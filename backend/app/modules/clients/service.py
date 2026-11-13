@@ -778,6 +778,7 @@ def _create(
         created_via=created_via,
         created_by_staff_user_id=principal.staff_user_id,
         member_number_source="manual" if data.get("member_number") else None,
+        is_birth_on_unverified=context == "portal" and data.get("birth_on") is not None,
     )
     session.add(client)
     session.flush()
@@ -826,6 +827,9 @@ def apply_update(session: Session, client: Client, data: dict, *, context: str, 
             raise ValidationFailed(f"{key} cannot be null.", pointer=f"/{key}")
     _check_refs(session, data)
     check_capture(session, context, _policy_values(data, emails, custom), _policy_current(session, client))
+    if "birth_on" in data and data["birth_on"] != client.birth_on:
+        # Staff saving a birth date confirms it; one first entered through the portal waits for staff review.
+        client.is_birth_on_unverified = context == "portal"
     for key, value in data.items():
         setattr(client, key, value)
     if custom is not None:
