@@ -690,3 +690,27 @@ def test_someone_booking_for_another_adult_gets_no_age_signal(client, owner, ten
     assert paid["entry_code_notice"] is None
     mine = ok(client.post(f"{API}/portal/rentals", headers=theirs, json=online(f, helper, 17, 18)))
     assert mine["entry_code_notice"]  # their own booking: they are told
+
+
+def test_a_newcomers_first_session_enrolment_feeds_the_queue_and_the_one_notice(client, owner, tenant, f, mailbox):
+    """Entry codes are held for coaching sessions too: a session enrolment counts as a booking for the age check.
+    A child enrolled by a parent never gets a code, so it tells staff nothing."""
+    ok(client.patch(f"{API}/locations/{f.location}", headers=owner, json={"alert_email": "desk@example.com"}), 200)
+    policy(client, owner, f)
+    seat = ok(book(client, owner, f, [f.coach], at(13, SOON), at(14, SOON), kind="session"))["booking"]["session"]
+    me, portal = portal_client(client, owner, tenant, f)
+    kid = new_client(client, owner, f.location, first_name="Kit", birth_on=CHILD)["id"]
+    parent_of = next(t for t in ok(client.get(f"{API}/relationship-types", headers=owner), 200)
+                     if t["code"] == "parent_of")  # fmt: skip
+    ok(client.post(f"{API}/clients/{me}/relationships", headers=owner,
+                   json={"other_client_id": kid, "relationship_type_id": parent_of["id"]}))  # fmt: skip
+    mailbox.clear()
+    ok(client.post(f"{API}/portal/enrollments", headers=portal, json={"client_id": kid, "session_id": seat["id"]}))
+    assert not [m for m in mailbox if m.to == "desk@example.com"]
+    ok(client.post(f"{API}/portal/enrollments", headers=portal, json={"client_id": me, "session_id": seat["id"]}))
+    assert len([m for m in mailbox if m.to == "desk@example.com"]) == 1
+    rows = ok(client.get(f"{API}/client-age-reviews", headers=owner), 200)["data"]
+    [mine] = [r for r in rows if r["id"] == me]
+    assert datetime.fromisoformat(mine["earliest_booking_at"]) == datetime.fromisoformat(at(13, SOON))
+    with tenant_session(tenant.id) as session:
+        assert session.get(Client, kid).earliest_booking_at is None

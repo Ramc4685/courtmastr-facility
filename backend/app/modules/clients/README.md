@@ -42,7 +42,8 @@ kiosk's past-due lockout), `activity.active_alerts(session, client_id, "check_in
   and treats an unverified or missing date as "hold". No reverse event fires when a changed date unconfirms a client;
   building-control re-reads `is_age_confirmed` when it issues a code.
 - **Queue and notice.** `GET /client-age-reviews` lists unconfirmed clients, people with an online booking first
-  (`earliest_booking_at`, kept by `note_unconfirmed_booking`); `include=total` is the dashboard count. A newcomer's
+  (`earliest_booking_at`, kept by `note_unconfirmed_booking`, which the portal rental checkout and portal session
+  enrolment call once the booking is written; a declared minor's bookings are ignored); `include=total` is the dashboard count. A newcomer's
   first booking emails the location's alert address (else its email) once, without the birth date. The portal
   identity carries `age_confirmed` and `entry_code_notice` (the notice plus the location phone from
   `platform.service.location_contact`). A declared minor is told instead that a parent or guardian must book and come

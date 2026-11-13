@@ -265,6 +265,8 @@ def portal_enroll(session: Db, principal: Principal, data: dict) -> Enrollment:
     audit.record(
         session, service.ENROLL, row, location_id=row.location_id, changes={"session_id": [None, str(seat["id"])]}
     )
+    # entry codes are held for sessions too: a first online enrolment feeds the staff age check
+    clients.service.note_unconfirmed_booking(session, subject, seat["starts_at"], row.location_id)
     return row
 
 

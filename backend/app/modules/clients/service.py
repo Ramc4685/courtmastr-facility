@@ -936,11 +936,16 @@ def list_age_reviews(session: Session, principal: Principal, query: ListQuery) -
     return page
 
 
+def _declared_minor(session: Session, client: Client) -> bool:
+    return client.birth_on is not None and is_minor(client, clock.now().date(), platform.service.minor_age(session))
+
+
 def note_unconfirmed_booking(session: Session, client_id: UUID, starts_at: datetime, location_id: UUID) -> None:
-    """Internal (the portal rental checkout calls it): a holder whose age waits for staff booked. Keeps their
-    earliest booking for the queue and tells the location's staff once, on the first booking, never per booking."""
+    """Internal (the portal rental checkout and session enrolment call it): a person whose age waits for staff
+    booked. Keeps their earliest booking for the queue and tells the location's staff once, on the first booking,
+    never per booking. A minor never gets an entry code, so their bookings tell staff nothing."""
     client = get(session, client_id)
-    if _age_confirmed(client):
+    if _age_confirmed(client) or _declared_minor(session, client):
         return
     if client.earliest_booking_at is None or starts_at < client.earliest_booking_at:
         client.earliest_booking_at = starts_at
@@ -1176,8 +1181,7 @@ def entry_code_notice(session: Session, client: Client, location_id: UUID) -> st
     A declared minor never gets a code, so they are told a parent or guardian books instead."""
     if client.birth_on is None or not client.is_birth_on_unverified:
         return None
-    minor = is_minor(client, clock.now().date(), platform.service.minor_age(session))
-    notice = MINOR_NOTICE if minor else ENTRY_CODE_NOTICE
+    notice = MINOR_NOTICE if _declared_minor(session, client) else ENTRY_CODE_NOTICE
     phone, _ = platform.service.location_contact(session, location_id)
     return f"{notice} Questions? Call {phone}." if phone else notice
 
