@@ -102,18 +102,19 @@ A commit-time hook in `.claude/settings.json` (`.claude/hooks/egm-drift-gate.sh`
 - [ ] [undocumented] `permissions.py` registers `documents.document.bulk_request` (`backend/app/modules/documents/permissions.py:19`) for the unbuilt DOC-07. The README names only `documents.document.void`, and doesn't note that this key exists unused.
 - [ ] [wording] Line 66 says `app/scheduler.py` enqueues `sweep_documents` hourly, which is true (`backend/app/scheduler.py:22`). The actor's own docstring still says "Nothing schedules it yet (no scheduler in the kernel)" (`backend/app/modules/documents/service.py:1259-1261`), so code and README disagree. Here the code comment is the stale side.
 
-### engagement (10) — [evidence](drift/engagement.md)
+### engagement (13) — [evidence](drift/engagement.md)
 
-- [ ] [contract] The mobile-adapter path at line 112 is wrong. The README names `mobile/src/api/api.ts`, but that file does not exist. The adapter is `mobile/src/adapters/api.ts`; `mobile/src/api/` holds only `schema.d.ts`.
-- [ ] [wording] Line 104's heading, "Endpoints the mobile app depends on (keep stable)", overstates what the app uses. The mobile adapter calls only `GET /portal/inbox` (without `client_id`), `POST /portal/inbox/{id}/read` and `POST /portal/devices` (`mobile/src/adapters/api.ts:178-182`). No code in `mobile/src` (excluding the generated `schema.d.ts`) calls `/portal/inbox/unread-count`, `DELETE /portal/devices/{id}`, `/portal/videos`, `/public/portal-config` or `/portal/clients/{client_id}/communication-preferences`.
-- [ ] [wording] Lines 112-114 list the other portal routes the mobile adapter maps, and the list is incomplete. The adapter also calls `/portal/session-listings` (`mobile/src/adapters/api.ts:37`), `/portal/enrollments` and `/portal/enrollments/{id}/cancel` (`api.ts:90,126,133`), `/portal/app-cards` (`api.ts:118`) and `/portal/assessment-bests` (`api.ts:177`).
-- [ ] [contract] `getPortalVideo` (`GET /portal/videos/{video_id}`) is in the API contract (`docs/api/openapi-programs.yaml:5443-5446`), and `service.get_portal_video` exists (`backend/app/modules/engagement/service.py:1819`). No route serves it: `router.py:433` mounts only `GET /portal/videos`, and nothing calls the service function. The README lists only `GET /portal/videos` (line 109) and does not record the gap under Not built (lines 116-120).
-- [ ] [undocumented] The context emits three events the README never mentions: `engagement.campaign.sent` (`events.py:9-14`; `service.py:978`), `engagement.message.bounced` (`events.py:17-21`; `service.py:1164`) and `engagement.consent.changed` (`events.py:24-28`; `service.py:1183,1224`).
-- [ ] [undocumented] Portal inbox items expire 30 days after they are published. `INBOX_DAYS = 30` (`service.py:351`) sets `expires_at` on announcement and automation items (`service.py:949,1459`), and expired items drop out of the inbox and the unread count (`service.py:1248-1249`). Deviation 4 (lines 73-78) describes inbox read state and recall but not the expiry.
-- [ ] [undocumented] Two permission keys are registered but used nowhere in code: `engagement.sms_campaign.send` and `engagement.inbox.reply` (`permissions.py:19,22`). The only reference to either is the registration. SMS is listed as not built (line 119). Replying to client messages is not listed as not built, and no route offers it.
-- [ ] [undocumented] Line 14 says `subject.py` holds the merge and data-subject handlers, but it covers only the four messaging tables (`subject.py:13,46-47`). A second pair of handlers for `communication_preference` and `consent_event` lives in `service.py`, registered as `"engagement"` (`service.py:286-340`).
-- [ ] [undocumented] Built-in segments are read-only: an edit gets `409 segment-read-only` (`service.py:687-688`; `BUILTIN_SEGMENTS`/`ensure_builtin_segments` at `service.py:732-748`). The README also omits the system-template catalogue `SYSTEM_TEMPLATES`/`system_template` (`service.py:581-602`) and the `POST /segments/preview` route (`router.py:111`). The Rules section (lines 51-53) refers to "system templates" without saying where they come from.
-- [ ] [undocumented] Releasing an address that has turned permanent is refused with `409 suppression-permanent`, and releasing one twice gets `409 invalid-state-transition` (`service.py:1118-1128`). Line 56 says only that suppression becomes permanent "after a release".
+- [ ] [wording] README:9 says 15 tables; code has 21 (models.py:573-791 adds portal_signup, app_config, app_content, location_contact, app_inquiry, client_favorite, app_usage_day). File table (7-16) omits signup.py, content.py, member.py, domain/app_config.py, events.py, permissions.py, schemas.py and the two new web pages (App.tsx:206-207); subject.py now has five handler pairs (subject.py:110-124) plus `"engagement"` in service.py:340
+- [ ] [contract] `getPortalVideo` in openapi-programs.yaml:5446 has no route; service.get_portal_video (service.py:1882) is never called; not under Not built
+- [ ] [contract] `/public/portal-signups` and `/confirm` (router.py:511,525) are in no docs/api yaml
+- [ ] [wording] "Endpoints the mobile app depends on" names nonexistent `mobile/src/api/api.ts` (adapter is `mobile/src/adapters/api.ts`); app calls only inbox list/read and devices POST from the list (api.ts:253-256), and many routes it omits (app-config, app-directory, app-contents, contacts, trial-requests, feedback, favorites, app-usage, wallet, payments)
+- [ ] [undocumented] events campaign.sent, message.bounced, consent.changed, portal_signup.confirmed, app_config.updated (events.py:9-40) not in README
+- [ ] [undocumented] cross-context hooks: programs.selfservice.register_listing_presenter (service.py:1989), platform.branding.public_url_for_key (service.py:1984), core.db.platform.search_app_directory cross-tenant read (service.py:1985)
+- [ ] [undocumented] inbox items expire after INBOX_DAYS = 30 (service.py:355,953,1463,1252)
+- [ ] [undocumented] permission keys sms_campaign.send and inbox.reply registered, unused (permissions.py:19,23)
+- [ ] [undocumented] built-in segments read-only, SYSTEM_TEMPLATES catalogue, POST /segments/preview (router.py:126), suppression-permanent and invalid-state-transition errors
+- [ ] [undocumented] audit action engagement.app_inquiry.receive (content.py:32,259) is not a registered permission
+- [ ] [contract] web `engagement/app` and `engagement/app-content` sit under a route needing engagement.campaign.read (App.tsx:196), so a role with only the Phase 11 keys cannot reach them
 
 ### imports (7) — [evidence](drift/imports.md)
 
@@ -275,15 +276,6 @@ Found by re-running the drift reports against this branch's code. Merge these in
 - [ ] [stale-not-built] README:153 wallet pass "deferred" but built: /portal/wallet-passes (router.py:302-314), service.py:545-593, scan acceptance service.py:98-111,799; unsigned (is_signed)
 - [ ] [contract] /portal/wallet-passes routes not in contract; getWalletPass (:4717) still deferred, no route
 - [ ] [undocumented] handlers.py clients.client.disabled subscriber revokes wallet passes; README names no consumed event
-
-### engagement (+6) — [evidence](drift/engagement.md)
-
-- [ ] [wording] README:9 "15 tables", now 16 (app_config models.py:579); lines 3-5,10,16 omit member-app config (domain/app_config.py, AppConfigPage.tsx)
-- [ ] [undocumented] app_config feature: GET|PUT /app-config (router.py:442-452), gate app_content.manage with tenant-wide writes (service.py:1862) vs per-location Gates rule; invalid-app-config
-- [ ] [undocumented] GET /public/app-config, /public/app-directory (router.py:493,499; service.py:1885,1919); directory is the only cross-tenant read (core.db.platform.search_app_directory)
-- [ ] [undocumented] present_schedule registered into programs listing presenter (service.py:1906,1929); APP-18 flags change portal session listing
-- [ ] [undocumented] event engagement.app_config.updated (events.py:31-34)
-- [ ] [wording] mobile adapter also calls /public/app-config, /public/app-directory, wallet-passes, package-plans, setup-intents, payment confirm; README list omits them
 
 ### platform (+3) — [evidence](drift/platform.md)
 
