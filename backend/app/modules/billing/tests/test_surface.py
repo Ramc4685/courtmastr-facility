@@ -249,6 +249,18 @@ def test_bulk_invoicing_makes_one_invoice_per_client_and_never_mixes(client, api
     assert [(row["status"], row["total_minor"]) for row in cart] == [("done", 758)]
 
 
+def test_bulk_invoicing_by_location_is_capped_like_a_selection(api, shop, monkeypatch):
+    """The location mode runs in the request too, so it refuses more items than charge_ids may carry."""
+    monkeypatch.setattr(documents, "BULK_INVOICE_MAX", 2)
+    for price in (100, 200, 300):
+        api("POST", "/charges", item(shop, price), 201)
+    body = {"location_id": str(shop.location_id), "is_dry_run": True}
+    refused = api("POST", "/billing-bulk-actions", body, 422)
+    assert refused["code"] == "validation-failed" and refused["errors"][0]["pointer"] == "/location_id"
+    monkeypatch.setattr(documents, "BULK_INVOICE_MAX", 3)
+    assert len(api("POST", "/billing-bulk-actions", body)["items"]) == 1  # one client, three items
+
+
 def test_invoice_edits_schedule_void_and_mark_paid(client, api, shop, desk):
     other = new_client(client, shop.owner, shop.location_id)["id"]
     first, second = (api("POST", "/charges", item(shop, price), 201)["id"] for price in (3000, 1000))

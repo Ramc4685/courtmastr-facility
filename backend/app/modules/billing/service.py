@@ -1624,6 +1624,19 @@ def charge_states(session: Session, charge_ids: Iterable[UUID]) -> dict[UUID, di
     }
 
 
+def ledger_day_totals(session: Session, location_id: UUID, on: date) -> list[tuple]:
+    """Internal read (integrations' accounting export): (account, revenue_category_id, tax_id, debit_minor,
+    credit_minor, currency) summed per ledger dimension for one location-day."""
+    return [tuple(row) for row in session.execute(
+        select(
+            LedgerEntry.account, LedgerEntry.revenue_category_id, LedgerEntry.tax_id, func.sum(LedgerEntry.debit_minor),
+            func.sum(LedgerEntry.credit_minor), func.max(LedgerEntry.currency),
+        )
+        .where(LedgerEntry.location_id == location_id, LedgerEntry.effective_on == on)
+        .group_by(LedgerEntry.account, LedgerEntry.revenue_category_id, LedgerEntry.tax_id)
+    )]  # fmt: skip
+
+
 def excluded_tax_ids(session: Session, charge_id: UUID) -> list[UUID]:
     """Internal: the taxes a charge was posted without, so a re-post can keep the same choice."""
     return list(
