@@ -12,7 +12,6 @@ import time
 from typing import Any
 
 from app.core import context
-from app.core.pan import mask_card_numbers
 
 _STANDARD = set(logging.makeLogRecord({}).__dict__) | {"message", "asctime"}
 
@@ -23,25 +22,38 @@ _DENY = {
     "ssn", "credential", "body", "medical",
 }  # fmt: skip
 _WORDS = re.compile(r"[A-Z]?[a-z0-9]{1,64}|[A-Z]{1,64}(?![a-z])")
-# Bounded, no nested quantifiers: a hostile log string cannot make a record slow (each scrub is linear in MAX_CHARS).
-_EMAIL = re.compile(r"(?<![\w.+-])[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63}){1,8}")
-_DIGITS = re.compile(r"\d{9,64}")  # phone, account and card numbers typed without separators
+_SPACE = re.compile(r"(\s+)")
+# Fail closed and linear: any run of digits joined by spaces or dashes that holds 9 or more digits is masked
+# (phones, account and card numbers however grouped; a date and time may go too). No address regex: every
+# whitespace-delimited token holding an @ is masked whole, however malformed.
+_DIGIT_RUN = re.compile(r"\d[\d -]*\d")
 _STATIC = {"method", "status", "duration_ms"}  # written by our own code from fixed values: kept as they are
 REDACTED, TRUNCATED = "[redacted]", "...[truncated]"
 MAX_CHARS, MAX_DEPTH, MAX_ITEMS = 2048, 6, 100
 MAX_EXC_CHARS = 16_384  # a traceback is our own text and needs its frames; still capped
+_LOOKAHEAD = 256  # the scrub sees this far past the cut, so a value straddling it is masked whole first
 
 
 def _denied(key: str) -> bool:
     return any(word.lower() in _DENY for word in _WORDS.findall(str(key)[:MAX_CHARS]))
 
 
+def _mask_digits(match: re.Match) -> str:
+    run = match.group()
+    return "[digits]" if sum(c.isdigit() for c in run) >= 9 else run
+
+
 def scrub(value: str, limit: int = MAX_CHARS) -> str:
-    if len(value) > limit:
-        value = value[:limit] + TRUNCATED
+    cut = len(value) > limit
+    value = value[: limit + _LOOKAHEAD]
     if "@" in value:
-        value = _EMAIL.sub("[email]", value)
-    return _DIGITS.sub("[digits]", mask_card_numbers(value))
+        value = "".join("[email]" if "@" in token else token for token in _SPACE.split(value))
+    value = _DIGIT_RUN.sub(_mask_digits, value)
+    if not cut:
+        return value
+    # Drop the token touching the cut, and any digits or separators before it: half a value is still a value.
+    kept = value[:limit].rsplit(maxsplit=1)
+    return (kept[0] if len(kept) == 2 else "").rstrip("0123456789 +-.@") + TRUNCATED
 
 
 def redact(value: Any, depth: int = 0) -> Any:

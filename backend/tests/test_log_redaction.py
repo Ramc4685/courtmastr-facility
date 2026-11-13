@@ -13,7 +13,7 @@ from sqlalchemy import text
 from app.core import api
 from app.core.db.platform import platform_engine
 from app.core.db.session import app_engine
-from app.core.logging import TRUNCATED, JsonFormatter
+from app.core.logging import MAX_CHARS, TRUNCATED, JsonFormatter, scrub
 
 EMAIL, PHONE, PAN, DOB = "jane.doe@example.com", "2175550123", "4111 1111 1111 1111", "2014-03-09"
 CORPUS = {
@@ -67,6 +67,38 @@ def test_exception_text_is_scrubbed():
         logger.exception("failed")
     _assert_clean(stream.getvalue())
     assert "ValueError" in stream.getvalue()
+
+
+@pytest.mark.parametrize(
+    ("text_", "secret"),
+    [
+        ("x" * 65 + "@example.com", "x" * 65),  # a local part longer than RFC 5321 allows
+        ("jane@" + "l" * 64 + ".com", "l" * 64),  # a label longer than DNS allows
+        ("mail jane@localhost now", "jane"),  # no dot
+        ("To: <jane.doe@example.com>", "jane.doe"),
+        ('"jane.doe@example.com",', "jane.doe"),
+        ("a jane@example.com b bob@example.org c", "bob"),
+    ],
+)
+def test_any_token_with_an_at_sign_is_masked_whole(text_, secret):
+    out = scrub(text_)
+    assert secret not in out and "example" not in out and "[email]" in out
+
+
+@pytest.mark.parametrize("secret", ["jane.doe@example.com", "4111111111111111", "4111 1111 1111 1111 111"])
+@pytest.mark.parametrize("offset", [1, 5, 10, 15])
+def test_values_straddling_the_cut_are_masked_not_halved(secret, offset):
+    """Fail closed: the scrub sees past the cut, and a partial token touching the cut is dropped."""
+    value = "w " * ((MAX_CHARS - offset) // 2) + "a" * ((MAX_CHARS - offset) % 2) + " " + secret + " tail"
+    out = scrub(value)
+    assert out.endswith(TRUNCATED)
+    for part in (secret[:4], secret[-4:], secret.split("@")[0]):
+        assert part not in out, part
+
+
+def test_separated_digit_runs_of_nine_or_more_are_masked():
+    assert scrub("call 217 555 0123 or 217-555-0123") == "call [digits] or [digits]"
+    assert scrub("room 12, 2026") == "room 12, 2026"
 
 
 @pytest.mark.parametrize(

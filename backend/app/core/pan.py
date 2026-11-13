@@ -1,6 +1,6 @@
 """Card number (PAN) detector: Luhn-valid digit runs of 13 to 19 digits, optionally grouped by single spaces or
 dashes, with a card-network prefix (security-baseline section 3, free-text leakage). Used on free-text input
-(`app.core.schemas.In`) and by the log formatter."""
+(`app.core.schemas.In`); the log formatter masks every 9-digit run, a superset."""
 
 import re
 
