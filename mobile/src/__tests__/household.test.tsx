@@ -5,6 +5,7 @@ import { Text } from 'react-native';
 
 import type { ActableClient } from '../adapters/types';
 import { clientName, HouseholdProvider, useHousehold } from '../lib/household';
+import * as storage from '../lib/storage';
 import { ProfileSwitcher } from '../ui/ProfileSwitcher';
 
 const mockSignOut = jest.fn();
@@ -71,4 +72,21 @@ it('falls back to the guardian when the selected dependent leaves the household'
   // A one-person household shows no switcher at all.
   await act(async () => {});
   expect(screen.queryByLabelText(/Act for/)).toBeNull();
+});
+
+it('a stored choice that loads after a switch does not undo the switch', async () => {
+  let release: (value: string | null) => void = () => {};
+  const late = new Promise<string | null>((resolve) => (release = resolve));
+  // The stored choice arrives late, as on a slow device.
+  const spy = jest.spyOn(storage, 'readJson').mockImplementation(() => late as Promise<never>);
+  try {
+    await renderHousehold();
+    await waitFor(() => expect(screen.getByTestId('acting').props.children).toBe('Morgan Doe'));
+    await fireEvent.press(screen.getByLabelText('Act for Avery Doe'));
+    expect(screen.getByTestId('acting').props.children).toBe('Avery Doe');
+    await act(async () => release('sam'));
+    expect(screen.getByTestId('acting').props.children).toBe('Avery Doe');
+  } finally {
+    spy.mockRestore();
+  }
 });

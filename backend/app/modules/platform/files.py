@@ -98,7 +98,7 @@ def store(
     if public and (purpose not in PUBLIC_PURPOSES or content_type not in (JPEG, PNG)):
         raise ValueError("only logo image renditions may be stored public")  # a programming error, not user input
     if not generated and (signature := scanner.scan(data)):
-        log.warning("upload refused by the malware scanner", extra={"signature": signature, "purpose": purpose})
+        log.warning("upload refused by the malware scanner", extra={"detection": signature, "purpose": purpose})
         raise ValidationFailed("The file failed the malware scan.", code="file-infected")
     tenant_id = session.info["tenant_id"]
     file_id = new_id()

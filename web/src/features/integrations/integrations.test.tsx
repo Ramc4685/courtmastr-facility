@@ -201,7 +201,7 @@ describe('integrations settings', () => {
     expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/sync/reset'))).toBe(true)
   })
 
-  it('publishes a location schedule and offers the embed snippet with its proxy caveat', async () => {
+  it('publishes a location schedule and offers a framed page to embed', async () => {
     const user = userEvent.setup()
     const settings = { location_id: 'l1', is_enabled: false, show_sessions: true, show_busy: false, days_ahead: 14 }
     const calls = renderAt(['scheduling.public_schedule.manage'], {
@@ -214,9 +214,8 @@ describe('integrations settings', () => {
     expect(await screen.findByText('Public schedule saved and published.')).toBeInTheDocument()
     expect(calls.find((c) => c.method === 'PATCH')?.body).toEqual({ ...settings, is_enabled: true })
     const snippet = screen.getByRole('textbox', { name: 'Embed snippet' })
-    expect((snippet as HTMLTextAreaElement).value).toContain('/api/v1/public/schedule?location_id=l1')
-    expect((snippet as HTMLTextAreaElement).value).toContain("'X-Tenant-Slug': 'courtside-demo'")
-    expect(snippet).toHaveAccessibleDescription(/not turned on at our proxy yet/)
+    expect((snippet as HTMLTextAreaElement).value).toMatch(/^<iframe src="http:\/\/[^"]+\/schedule\/public\/l1" title="Club schedule"/)
+    expect(snippet).toHaveAccessibleDescription(/your own website/)
   })
 
   it('a session with no meeting offers one, and a pasted link replaces the empty state', async () => {

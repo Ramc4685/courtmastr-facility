@@ -10,6 +10,7 @@ line a reason.
 | import-linter | `make boundaries` | a context importing one it may not call (overview section 2) | `ignore_imports` per contract, `backend/pyproject.toml` |
 | API breaking-change diff | `make api-diff` | removed or narrowed API surface against the merge base with `main` | `docs/api/breaking-allow.txt` |
 | Schemathesis (small) | inside `make test` | 5xx and responses that break their own schema | `KNOWN_FAILURES` in `backend/tests/test_contract_schemathesis.py` |
+| Secret scan (gitleaks 8.30.1) | CI job `secrets`; locally `gitleaks git --redact .` | a credential anywhere in the history | `.gitleaksignore` (one fingerprint per reviewed example value or false positive) |
 | Schemathesis (long) | `make contract` | the same, over every operation with more examples | same list |
 
 ## mypy
@@ -35,7 +36,7 @@ import, change the "May call" column in the overview first, then the contract; t
 
 `oasdiff breaking` between `backend/openapi.json` at the merge base with `main` (`API_DIFF_BASE` overrides the
 ref) and the working copy, failing on errors. Install oasdiff 1.37.0 locally (`brew install oasdiff`); CI pins
-the same release. To allow a breaking change, add the line oasdiff printed, in the form `METHOD /path message`,
+the same release and checks its SHA-256. To allow a breaking change, add the line oasdiff printed, in the form `METHOD /path message`,
 to `docs/api/breaking-allow.txt` with a reason comment, and have it reviewed.
 
 **What the diff cannot see.** Cookies, CSRF headers and rate limits are not in the OpenAPI document. S1's session
@@ -55,3 +56,11 @@ end the session the run uses. The default run covers a fixed 1-in-8 sample of op
 (`FH_CONTRACT_EXAMPLES`, default 25, sample 1). Random path ids mean most calls end in 404: the test finds crashes
 on malformed input, not workflow bugs. A found 500 is fixed in the same change; if it is in a context you may
 not touch, add `"METHOD /path": "reason"` to `KNOWN_FAILURES` (the test then xfails that operation).
+
+## Supply chain in CI
+
+Every action in `.github/workflows/ci.yml` is pinned to a full commit SHA with its tag in a comment; to upgrade,
+resolve the new tag with `gh api repos/<owner>/<repo>/git/ref/tags/<tag>` (an annotated tag needs a second
+`git/tags/<sha>` call for its commit). Downloaded tools (oasdiff, gitleaks) are pinned releases whose SHA-256 is
+checked before use (the digest is on the release asset: `gh api repos/<owner>/<repo>/releases/tags/<tag>`). The
+`mobile` job runs the app's lint, typecheck and Jest suite. No job needs a repository secret.

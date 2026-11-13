@@ -122,7 +122,7 @@ with **PCI DSS SAQ A** and we stay a service provider that does not store, proce
 | Card entry | Only through the provider's hosted fields (Stripe Payment Element / Elements iframes) loaded from the provider origin. Applies to portal checkout, public registration, staff-keyed (phone order) entry and POS. Our code receives a PaymentMethod or SetupIntent id, nothing else (PAY-06). |
 | Stored on our side | Provider customer id, payment-method id, brand, last4, expiry month and year, funding type, bank name, mandate reference, autopay flag. |
 | Never stored or accepted | PAN, CVC, magnetic track, PIN block, full bank account or routing number. No API field exists that could carry them. PAY-19 (swipe wedge) is not built. Imports never accept card or bank columns (the reference imports them from spreadsheets); migration is processor-to-processor token transfer. |
-| Free-text leakage | Notes, activity log, alerts, form answers, email bodies and chat-like fields run a Luhn-validated PAN detector on write; a match is rejected with `card-data-not-allowed`. The same detector runs in the log redaction processor. **[test]** `test_pan_detector`. |
+| Free-text leakage | Notes, activity log, alerts, form answers, email bodies and chat-like fields run a Luhn-validated PAN detector on write; a match is rejected with `card-data-not-allowed`. Every string field on a request body is scanned unless `core.schemas.NOT_FREE_TEXT` names it (ids, codes, credentials, contacts, URLs, times, decimals, structured config; a name stays there only when its values are machine-shaped, so staff-typed payment references, contact roles, postal codes and settings maps are scanned), and so is every query value of a write by the same names (`TxRoute`; a photo caption arrives that way); `*_html` values are scanned with tags removed. A match, after NFKC normalisation, is a window of whole digit groups (each at least 3 digits, separated by whitespace, dashes of any width, dots, slashes, underscores or commas) whose length fits its network prefix and that passes Luhn (`app/core/pan.py`). It is a best-effort guard against accidental entry, not a guarantee. Known false positives, accepted: two phone numbers written next to each other, or four 4-digit locker numbers in a row, can form a Luhn-valid window with a card prefix and be refused; rewording the note gets past it. The log scrub does not use it: it masks every long digit run, Luhn or not, and is the stricter of the two. **[test]** `test_pan_detector`, `test_log_redaction`. |
 | Card-present | Terminal adapters (PAY-12, POS-21) are ports in v1. When built they must be provider-managed, end-to-end encrypted readers that return a token; a keyboard-emulating reader is never acceptable. |
 | ACH / direct debit | Bank details are collected by the provider's hosted flow; mandate text and acceptance evidence are stored by the provider, and we keep the mandate reference and status (PAY-10). |
 | Page integrity | SAQ A eligibility now requires the merchant to confirm the page hosting the payment iframe is not susceptible to script attacks. Our control set: strict CSP with no inline or third-party scripts except the provider's (9.6), no tag managers, script inventory equals the Vite build manifest plus Stripe.js, and the build manifest hash is recorded per release. |
@@ -484,9 +484,9 @@ JavaScript is accepted anywhere. Values reach the page as CSS custom properties 
 
 ```
 Content-Security-Policy:
-  default-src 'self'; script-src 'self' https://js.stripe.com; style-src 'self'; style-src-attr 'unsafe-inline';
+  default-src 'self'; script-src 'self' https://js.stripe.com https://*.js.stripe.com; style-src 'self'; style-src-attr 'unsafe-inline';
   img-src 'self' data: blob: https://<files-origin>; font-src 'self'; connect-src 'self' https://api.stripe.com;
-  frame-src https://js.stripe.com https://hooks.stripe.com https://www.youtube-nocookie.com
+  frame-src https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://www.youtube-nocookie.com
             https://player.vimeo.com https://fast.wistia.net;
   object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
 Strict-Transport-Security: max-age=31536000; includeSubDomains
@@ -498,8 +498,11 @@ Cross-Origin-Opener-Policy: same-origin
 
 - `camera=(self)` is for photo capture (CLI-12) and kiosk scanning. `style-src-attr 'unsafe-inline'` exists
   because React sets style attributes for theme variables; no inline `<style>` or `<script>` is permitted.
-- Embeddable public routes (`/embed/*`, SCH-20, LGE-17) replace `frame-ancestors 'none'` with the tenant's
-  configured origin allow-list, default none. They set no cookies and expose only C1 data.
+- Embeddable public routes replace `frame-ancestors 'none'`. Owner decision 2026-11-13 (question 5): the public
+  league pages, the TV board and the public schedule page (`/leagues/public*`, `/leagues/board/*`,
+  `/schedule/public/*`) send `frame-ancestors *` and no `X-Frame-Options`; no per-tenant origin allow-list. They
+  set no cookies, expose only C1 data and take no payment, so their CSP names no Stripe origin (`script-src 'self';
+  connect-src 'self'`).
 - CSP violations report to an endpoint that is rate-limited and logs the directive and blocked host only.
 - **[test]** `test_security_headers`: every route class returns the expected header set; Playwright runs fail
   on any CSP violation logged during the end-to-end suite.

@@ -89,6 +89,9 @@ def test_links_news_photos_and_sponsors(client, owner, tenant, f):
     assert len(get(client, owner, "/league-news")["data"]) == 3
 
     image = owner | {"Content-Type": "image/png"}
+    card = client.post(f"{API}/league-photos?caption=4111 1111 1111 1111", headers=image, content=png_bytes())
+    assert (card.status_code, card.json()["code"]) == (422, "card-data-not-allowed")  # query text is stored too
+    assert card.json()["errors"][0]["pointer"] == "/caption"
     photo = ok(client.post(f"{API}/league-photos?caption=Final&album=2031", headers=image, content=png_bytes()))
     hidden_photo = ok(client.post(f"{API}/league-photos", headers=image, content=png_bytes()))
     ok(client.patch(f"{API}/league-photos/{hidden_photo['id']}", headers=owner, json={"is_published": False}), 200)

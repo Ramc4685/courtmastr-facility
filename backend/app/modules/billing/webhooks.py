@@ -23,7 +23,7 @@ from app.ports.payment_provider import PaymentState, WebhookRejected
 
 log = logging.getLogger(__name__)
 STALE_AFTER = timedelta(minutes=5)  # leave a request that is still running alone
-RETRY_ATTEMPTS = 5  # a failed event is tried this many times, then left `failed` for an operator
+RETRY_ATTEMPTS = inbound_webhooks.RETRY_ATTEMPTS  # then left `failed` for an operator
 ABANDON_AFTER = timedelta(minutes=30)  # an `initiated` payment the provider never heard of
 
 
@@ -76,10 +76,22 @@ def apply_event(session: Session, kind: str, object_ref: str | None, account_ref
             methods.refresh_provider_account(session, account_id)
 
 
+def _payload_gone(row_id: UUID, row) -> bool:
+    """Every stored event carries kind and object; an empty payload (purged, or stored malformed) cannot be
+    applied, and treating it as applied would mark it processed. Recorded as a failed attempt instead."""
+    if row.payload:
+        return False
+    log.error("webhook %s has no payload to apply; left failed for an operator", row_id)
+    inbound_webhooks.finish(row_id, error="payload missing")
+    return True
+
+
 @tenant_actor
 def process_provider_event(session: Session, row_id: str) -> None:
     row = inbound_webhooks.get(UUID(row_id))
     if row is None or row.status == "processed":
+        return
+    if _payload_gone(UUID(row_id), row):
         return
     try:
         apply_event(session, row.payload.get("kind"), row.payload.get("object"), row.payload.get("account"))
@@ -98,6 +110,8 @@ def retry_provider_events(session: Session) -> None:
     tenant_id = session.info["tenant_id"]
     for row_id in inbound_webhooks.stale(tenant_id, clock.now() - STALE_AFTER, RETRY_ATTEMPTS):
         row = inbound_webhooks.get(row_id)
+        if _payload_gone(row_id, row):
+            continue
         try:
             with session.begin_nested():
                 apply_event(session, row.payload.get("kind"), row.payload.get("object"), row.payload.get("account"))

@@ -9,18 +9,11 @@ import { useMe } from '../../lib/auth'
 
 type Settings = Schemas['PublicScheduleSettingsOut']
 
-/** A starting point for a site's own script: the route needs the tenant from the host or `X-Tenant-Slug`. */
-export const embedSnippet = (locationId: string, slug: string) =>
-  `<div id="club-schedule"></div>
-<script>
-  fetch('${window.location.origin}/api/v1/public/schedule?location_id=${locationId}', { headers: { 'X-Tenant-Slug': '${slug}' } })
-    .then((r) => r.json())
-    .then((s) => {
-      document.getElementById('club-schedule').textContent = s.sessions.map((x) => x.title + ' ' + x.starts_at).join('\\n')
-    })
-</script>`
+/** The page a club's site frames (/schedule/public/:locationId; the proxy lets other sites frame it). */
+export const embedSnippet = (locationId: string) =>
+  `<iframe src="${window.location.origin}/schedule/public/${locationId}" title="Club schedule" width="100%" height="600" style="border:0" loading="lazy"></iframe>`
 
-function SettingsForm({ settings, slug }: { settings: Settings; slug: string }) {
+function SettingsForm({ settings }: { settings: Settings }) {
   const qc = useQueryClient()
   const toast = useToast()
   const [form, setForm] = useState(settings)
@@ -33,7 +26,7 @@ function SettingsForm({ settings, slug }: { settings: Settings; slug: string }) 
     },
   })
   const errors = fieldErrors(save.error)
-  const snippet = embedSnippet(settings.location_id, slug)
+  const snippet = embedSnippet(settings.location_id)
   const submit = (e: FormEvent) => {
     e.preventDefault()
     save.mutate()
@@ -64,9 +57,9 @@ function SettingsForm({ settings, slug }: { settings: Settings; slug: string }) 
         <label htmlFor="embed-snippet" className="text-sm font-medium">
           Embed snippet
         </label>
-        <textarea id="embed-snippet" readOnly rows={9} value={snippet} aria-describedby="embed-note" className="w-full rounded border border-border bg-surface-2 p-3 font-mono text-xs text-fg" onFocus={(e) => e.currentTarget.select()} />
+        <textarea id="embed-snippet" readOnly rows={4} value={snippet} aria-describedby="embed-note" className="w-full rounded border border-border bg-surface-2 p-3 font-mono text-xs text-fg" onFocus={(e) => e.currentTarget.select()} />
         <p id="embed-note" className="text-sm text-muted">
-          Embedding on other sites is not turned on at our proxy yet, so pages on another domain cannot load this schedule today. The address works from this site.
+          Paste this into a page on your own website. It shows the published schedule; nothing appears until you publish it.
         </p>
         <div>
           <Button variant="secondary" onClick={() => void copy()}>
@@ -96,7 +89,7 @@ export function PublicSchedulePanel() {
       </div>
       <Select label="Location" className="max-w-sm" value={locationId} onChange={(e) => setLocationId(e.target.value)} options={(me.locations ?? []).map((l) => ({ value: l.id, label: l.name }))} />
       {query.data ? (
-        <SettingsForm key={locationId} settings={query.data} slug={me.tenant.slug} />
+        <SettingsForm key={locationId} settings={query.data} />
       ) : query.error ? (
         <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : (

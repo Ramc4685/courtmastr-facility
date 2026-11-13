@@ -19,6 +19,9 @@ import { FormDialog, TextArea } from '../billing/shared'
 import { label } from './queries'
 import { Alert, List } from './shared'
 
+/** The site title goes into a snippet pasted into other HTML: escape it for an attribute. */
+const attr = (v: string) => v.replace(/[&"<>]/g, (c) => `&#${c.charCodeAt(0)};`)
+
 type SiteIn = Schemas['LeagueSiteIn']
 type Post = Schemas['LeaguePostOut']
 const IMAGE = { accept: ['image/jpeg', 'image/png'], maxBytes: 900_000 }
@@ -68,7 +71,10 @@ function OptionsTab() {
       </form>
       <Card title="Your public league site">
         <p className="text-sm">Link to it from your own website: <a className="text-primary hover:underline" href={publicUrl} target="_blank" rel="noopener noreferrer">{publicUrl}</a></p>
-        <p className="mt-2 text-sm text-muted">Embedding it inside another website is not switched on yet; until it is, an embedded copy shows a blank frame, so link to it instead.</p>
+        <label htmlFor="league-embed-code" className="mt-3 block text-sm font-medium">Embed code</label>
+        <textarea id="league-embed-code" readOnly rows={3} aria-describedby="league-embed-note" className="mt-1 w-full rounded border border-border bg-surface-2 p-3 font-mono text-xs text-fg" onFocus={(ev) => ev.currentTarget.select()}
+          value={`<iframe src="${publicUrl}?embed=1" title="${attr(f.title || 'Leagues')}" width="100%" height="800" loading="lazy"></iframe>`} />
+        <p id="league-embed-note" className="mt-1 text-sm text-muted">Paste it into your own website to show the league pages without our header. The league pages and the TV board are the only pages other sites may frame.</p>
       </Card>
     </div>
   )

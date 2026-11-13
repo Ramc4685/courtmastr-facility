@@ -151,7 +151,7 @@ function SiteSections({ site }: { site: Site }) {
                   <p className="mt-2 text-sm">
                     {c.is_open ? (c.spots_left !== null && c.spots_left !== undefined ? `${c.spots_left} spots left` : 'Open') : 'Registration closed'}
                   </p>
-                  {c.is_open && <Link className="mt-2 inline-block text-sm text-primary hover:underline" to="/portal/programs">Register in the member portal</Link>}
+                  {c.is_open && <a className="mt-2 inline-block text-sm text-primary hover:underline" href="/portal/programs" target="_top">Register in the member portal</a>}
                 </Card>
               </li>
             ))}
@@ -237,7 +237,7 @@ function PostsSection({ kind, title }: { kind: 'classified' | 'pickup'; title: s
           ))}
         </ul>
       )}
-      <p className="mt-3 text-sm"><Link className="text-primary hover:underline" to="/portal/league-posts">Post or reply in the member portal</Link></p>
+      <p className="mt-3 text-sm"><a className="text-primary hover:underline" href="/portal/league-posts" target="_top">Post or reply in the member portal</a></p>
     </Section>
   )
 }
