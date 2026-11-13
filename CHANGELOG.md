@@ -53,6 +53,7 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Registration defaults per location that new programs start with.
 
 ### Changed
+- Breaking for API clients: `PATCH /tenant` no longer accepts `currency`, and a request that still sends it gets a 422. The currency is set when the account is created and shows read-only in tenant settings.
 - Sign-in is harder to abuse: per-address and per-account rate limits, escalating lockouts, a common-password check, and a sign-in token that expires with the page.
 - Staff can only sign in from the networks the owner lists, when a list is set; this now applies to owners and admins too.
 - Staff are signed out after 30 minutes without activity (the owner can set 15 to 60) and after 12 hours in any case.
