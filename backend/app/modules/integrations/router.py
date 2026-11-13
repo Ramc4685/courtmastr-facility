@@ -1,23 +1,26 @@
 """integrations HTTP surface (docs/api/openapi-programs.yaml, tag integrations): API keys, webhooks, provider
-connections, the accounting export and the adapter directory. Every route is require()-gated, so API keys may
-call them too, but minting credentials and subscribing need a signed-in person (service._require_person)."""
+connections, the accounting export and the adapter directory. Staff routes are require()-gated, so API keys may
+call them too, but minting credentials and subscribing need a signed-in person (service._require_person).
+`inbound` routes are anonymous: provider webhooks and the OAuth callback (verified by signature or sealed
+state) and the public calendar feed and schedule."""
 
 from datetime import date
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session as Db
 
 from app.core import ratelimit
 from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, current_ctx, public_session, request_session, require
 from app.core.auth.principal import system_principal
-from app.core.errors import NotFound
+from app.core.errors import NotFound, PermissionDenied
 from app.core.idempotency import idempotency, secret_response
 from app.core.pagination import ListQuery, list_query
 from app.core.ratelimit import rate_limit
-from app.modules.integrations import feeds, service
+from app.modules.integrations import feeds, quickbooks, service
 from app.modules.integrations import schemas as s
 from app.modules.integrations.domain.webhooks import redact
 
@@ -143,12 +146,79 @@ def list_external_connections(query: Lists, ctx: Ctx = Depends(require("integrat
     return service.list_external_connections(ctx.session, ctx.principal, query)
 
 
-@router.post("/external-connections", response_model=s.ExternalConnectionOut, status_code=201)
+@router.post("/external-connections", response_model=s.ExternalConnectionCreated, status_code=201)
 def create_external_connection(
     body: s.ExternalConnectionCreate, ctx: Ctx = Depends(require("integrations.connection.manage"))
 ):
-    """Connect the accounting export. Errors: provider-not-configured (QuickBooks needs an Intuit app)."""
-    return service.create_external_connection(ctx.session, ctx.principal, body.model_dump())
+    """Connect the accounting export, or start connecting QuickBooks (pending, with `authorize_url`).
+    Errors: provider-not-configured (QuickBooks is switched off), staff-session-required."""
+    row, authorize_url = service.create_external_connection(ctx.session, ctx.principal, body.model_dump())
+    return s.ExternalConnectionOut.model_validate(row).model_dump() | {"authorize_url": authorize_url}
+
+
+@inbound.post("/external-connections/oauth/callback", response_model=s.OAuthCallbackOut)
+def complete_external_connection_o_auth(body: s.OAuthCallbackIn, request: Request):
+    """Posted by the web app's callback page with what the provider sent back. Authenticated by the sealed
+    state (tenant, connection, staff user, ten-minute expiry), never by a session. Errors: state-invalid."""
+    tenant_id = quickbooks.tenant_of_state(body.state)
+    if tenant_id is None:
+        raise PermissionDenied("This connection link is not valid", code="state-invalid")
+    session = request_session(request, tenant_id)
+    session.info["actor"] = system_principal("quickbooks oauth")
+    return quickbooks.complete(session, body.state, body.code, body.realm_id, body.error)
+
+
+@router.get("/external-connections/{external_connection_id}", response_model=s.ExternalConnectionOut)
+def get_external_connection(
+    external_connection_id: UUID, ctx: Ctx = Depends(require("integrations.connection.manage"))
+):
+    return quickbooks.get_connection(ctx.session, ctx.principal, external_connection_id)
+
+
+@router.patch("/external-connections/{external_connection_id}", response_model=s.ExternalConnectionOut)
+def update_external_connection(
+    external_connection_id: UUID, body: s.ExternalConnectionUpdate,
+    ctx: Ctx = Depends(require("integrations.connection.manage")),
+):  # fmt: skip
+    """Merge-patch the provider settings. Errors: validation-failed (unknown setting)."""
+    return quickbooks.update_settings(ctx.session, ctx.principal, external_connection_id, body.settings)
+
+
+@router.get("/external-connections/{external_connection_id}/sync-mappings", response_model=s.SyncMappingsOut)
+def get_sync_mappings(external_connection_id: UUID, ctx: Ctx = Depends(require("integrations.connection.manage"))):
+    """The mappings, the posting keys recent exports carried that still lack one, and the provider's accounts
+    and classes fetched live. Errors: provider-unavailable."""
+    return quickbooks.get_mappings(ctx.session, ctx.principal, external_connection_id)
+
+
+@router.put("/external-connections/{external_connection_id}/sync-mappings", response_model=s.SyncMappingsOut)
+def put_sync_mappings(
+    external_connection_id: UUID, body: s.SyncMappingsIn, ctx: Ctx = Depends(require("integrations.connection.manage"))
+):
+    """Replace every mapping; the daily export reads them from the next run."""
+    mappings = [m.model_dump() for m in body.mappings]
+    return quickbooks.put_mappings(ctx.session, ctx.principal, external_connection_id, mappings)
+
+
+@router.post("/external-connections/{external_connection_id}/sync", response_model=s.SyncRunOut, status_code=202)
+def run_sync(external_connection_id: UUID, body: s.SyncRun, ctx: Ctx = Depends(require("integrations.sync.run"))):
+    """Export each past day in the range (default yesterday, at most 31 days) for the connection's location.
+    Idempotent per day. Errors: invalid-state-transition, validation-failed."""
+    return quickbooks.run_sync(ctx.session, ctx.principal, external_connection_id, body.model_dump(by_alias=True))
+
+
+@router.post("/accounting-exports/{accounting_export_id}/retry", response_model=s.AccountingExportOut, status_code=202)
+def retry_accounting_export(accounting_export_id: UUID, ctx: Ctx = Depends(require("integrations.sync.run"))):
+    """Retry one failed day with the same provider request id. Errors: invalid-state-transition."""
+    return quickbooks.retry_export(ctx.session, ctx.principal, accounting_export_id)
+
+
+@inbound.post("/webhooks/quickbooks", status_code=200, response_model=s.InboundAck)
+async def receive_quick_books_events(request: Request):
+    """Signed QuickBooks notifications, verified (`intuit-signature`) and stored once. Errors: invalid-signature."""
+    body = await request.body()
+    stored = await run_in_threadpool(quickbooks.receive_webhook, body, request.headers.get("intuit-signature", ""))
+    return {"stored": stored}
 
 
 @router.post("/external-connections/{external_connection_id}/disconnect", response_model=s.ExternalConnectionOut)

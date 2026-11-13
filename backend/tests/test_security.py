@@ -26,6 +26,8 @@ ANONYMOUS = {
     "/auth/oidc/callback",  # authenticated by the single-use state bound to the pre-session cookie, then the ID token
     "/auth/oidc/link",  # the emailed single-use link, redeemed in the browser that did the provider sign-in
     "/webhooks/{provider}",  # authenticated by the provider's signature, not a session
+    "/webhooks/quickbooks",  # likewise (intuit-signature)
+    "/external-connections/oauth/callback",  # authenticated by the sealed OAuth state, not a session
     # authenticated by the paired device's kiosk cookie (pairing: the single-use code), not a session
     "/kiosk/pair", "/kiosk/config", "/kiosk/lookups", "/kiosk/check-ins", "/kiosk/exit",
     "/files/{tenant_id}/{file_id}",  # authenticated by the URL's signature, issued after a permission check

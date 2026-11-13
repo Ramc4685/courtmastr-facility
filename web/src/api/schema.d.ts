@@ -108,6 +108,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/accounting-exports/{accounting_export_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Accounting Export
+         * @description Retry one failed day with the same provider request id. Errors: invalid-state-transition.
+         */
+        post: operations["retryAccountingExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/adapter-commands": {
         parameters: {
             query?: never;
@@ -4950,13 +4970,56 @@ export interface paths {
         put?: never;
         /**
          * Create External Connection
-         * @description Connect the accounting export. Errors: provider-not-configured (QuickBooks needs an Intuit app).
+         * @description Connect the accounting export, or start connecting QuickBooks (pending, with `authorize_url`).
+         *     Errors: provider-not-configured (QuickBooks is switched off), staff-session-required.
          */
         post: operations["createExternalConnection"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external-connections/oauth/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete External Connection O Auth
+         * @description Posted by the web app's callback page with what the provider sent back. Authenticated by the sealed
+         *     state (tenant, connection, staff user, ten-minute expiry), never by a session. Errors: state-invalid.
+         */
+        post: operations["completeExternalConnectionOAuth"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external-connections/{external_connection_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get External Connection */
+        get: operations["getExternalConnection"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update External Connection
+         * @description Merge-patch the provider settings. Errors: validation-failed (unknown setting).
+         */
+        patch: operations["updateExternalConnection"];
         trace?: never;
     };
     "/api/v1/external-connections/{external_connection_id}/disconnect": {
@@ -4970,6 +5033,52 @@ export interface paths {
         put?: never;
         /** Disconnect External Connection */
         post: operations["disconnectExternalConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external-connections/{external_connection_id}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Sync
+         * @description Export each past day in the range (default yesterday, at most 31 days) for the connection's location.
+         *     Idempotent per day. Errors: invalid-state-transition, validation-failed.
+         */
+        post: operations["runSync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/external-connections/{external_connection_id}/sync-mappings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sync Mappings
+         * @description The mappings, the posting keys recent exports carried that still lack one, and the provider's accounts
+         *     and classes fetched live. Errors: provider-unavailable.
+         */
+        get: operations["getSyncMappings"];
+        /**
+         * Put Sync Mappings
+         * @description Replace every mapping; the daily export reads them from the next run.
+         */
+        put: operations["putSyncMappings"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -14986,6 +15095,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/webhooks/quickbooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Receive Quick Books Events
+         * @description Signed QuickBooks notifications, verified (`intuit-signature`) and stored once. Errors: invalid-signature.
+         */
+        post: operations["receiveQuickBooksEvents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/webhooks/{provider}": {
         parameters: {
             query?: never;
@@ -22529,6 +22658,11 @@ export interface components {
              */
             provider: "accounting_file" | "quickbooks_online";
             /**
+             * Return Url
+             * @description QuickBooks: where the browser lands after authorising
+             */
+            return_url?: string | null;
+            /**
              * Settings
              * @description `account_map` (posting key -> account) and `default_income_account`
              */
@@ -22538,8 +22672,13 @@ export interface components {
                 };
             } | null;
         };
-        /** ExternalConnectionOut */
-        ExternalConnectionOut: {
+        /** ExternalConnectionCreated */
+        ExternalConnectionCreated: {
+            /**
+             * Authorize Url
+             * @description QuickBooks: send the browser here to authorise
+             */
+            authorize_url?: string | null;
             /** Connected At */
             connected_at: string | null;
             /**
@@ -22547,6 +22686,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** External Account Id */
+            external_account_id: string | null;
             /** External Account Name */
             external_account_name: string | null;
             /**
@@ -22567,6 +22708,48 @@ export interface components {
              * @enum {string}
              */
             status: "pending" | "active" | "error" | "disconnected";
+        };
+        /** ExternalConnectionOut */
+        ExternalConnectionOut: {
+            /** Connected At */
+            connected_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** External Account Id */
+            external_account_id: string | null;
+            /** External Account Name */
+            external_account_name: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Error */
+            last_error: string | null;
+            /** Last Sync At */
+            last_sync_at: string | null;
+            /** Location Id */
+            location_id: string | null;
+            /** Provider */
+            provider: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "active" | "error" | "disconnected";
+        };
+        /** ExternalConnectionUpdate */
+        ExternalConnectionUpdate: {
+            /**
+             * Settings
+             * @description Merge-patch: default_income_account, sync_from, auto_sync; null removes a key
+             */
+            settings: {
+                [key: string]: string | boolean | null;
+            };
         };
         /** FacilityHoursDay */
         FacilityHoursDay: {
@@ -23688,6 +23871,11 @@ export interface components {
             kind: string;
             /** Label */
             label: string;
+        };
+        /** InboundAck */
+        InboundAck: {
+            /** Stored */
+            stored: number;
         };
         /** InstalmentIn */
         InstalmentIn: {
@@ -25970,6 +26158,32 @@ export interface components {
             is_enabled?: boolean | null;
             /** Staff User Ids */
             staff_user_ids?: string[] | null;
+        };
+        /** OAuthCallbackIn */
+        OAuthCallbackIn: {
+            /** Code */
+            code?: string | null;
+            /** Error */
+            error?: string | null;
+            /** Realm Id */
+            realm_id?: string | null;
+            /** State */
+            state: string;
+        };
+        /** OAuthCallbackOut */
+        OAuthCallbackOut: {
+            /**
+             * External Connection Id
+             * Format: uuid
+             */
+            external_connection_id: string;
+            /** Return Url */
+            return_url: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "connected" | "error";
         };
         /** OccupancyOut */
         OccupancyOut: {
@@ -37428,6 +37642,66 @@ export interface components {
              */
             start_on: string;
         };
+        /** SyncMappingIn */
+        SyncMappingIn: {
+            /** External Id */
+            external_id: string;
+            /** External Name */
+            external_name?: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "ledger_account" | "tender_account" | "tax_account" | "revenue_account" | "revenue_class";
+            /** Local Key */
+            local_key: string;
+        };
+        /** SyncMappingsIn */
+        SyncMappingsIn: {
+            /** Mappings */
+            mappings: components["schemas"]["SyncMappingIn"][];
+        };
+        /** SyncMappingsOut */
+        SyncMappingsOut: {
+            /** External Options */
+            external_options: {
+                [key: string]: unknown;
+            };
+            /** Mappings */
+            mappings: components["schemas"]["SyncMappingIn"][];
+            /** Unmapped */
+            unmapped: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** SyncRun */
+        SyncRun: {
+            /** From */
+            from?: string | null;
+            /**
+             * Location Id
+             * @description Required when the connection serves every location
+             */
+            location_id?: string | null;
+            /**
+             * Retries Failed
+             * @default false
+             */
+            retries_failed: boolean;
+            /** To */
+            to?: string | null;
+        };
+        /** SyncRunOut */
+        SyncRunOut: {
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Status */
+            status: string;
+            /** Status Url */
+            status_url: string;
+        };
         /** SystemAlertOut */
         SystemAlertOut: {
             /** Amount Minor */
@@ -39315,6 +39589,40 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountingExportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retryAccountingExport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                accounting_export_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -51668,6 +51976,111 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    "application/json": components["schemas"]["ExternalConnectionCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    completeExternalConnectionOAuth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OAuthCallbackIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthCallbackOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getExternalConnection: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                external_connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalConnectionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateExternalConnection: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                external_connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalConnectionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
                     "application/json": components["schemas"]["ExternalConnectionOut"];
                 };
             };
@@ -51703,6 +52116,116 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExternalConnectionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    runSync: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                external_connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyncRun"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getSyncMappings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                external_connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncMappingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    putSyncMappings: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                external_connection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyncMappingsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncMappingsOut"];
                 };
             };
             /** @description Validation Error */
@@ -77164,6 +77687,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    receiveQuickBooksEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboundAck"];
                 };
             };
         };

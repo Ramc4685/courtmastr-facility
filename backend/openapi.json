@@ -23955,6 +23955,20 @@
             "title": "Provider",
             "type": "string"
           },
+          "return_url": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "minLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "QuickBooks: where the browser lands after authorising",
+            "title": "Return Url"
+          },
           "settings": {
             "anyOf": [
               {
@@ -23987,8 +24001,20 @@
         "title": "ExternalConnectionCreate",
         "type": "object"
       },
-      "ExternalConnectionOut": {
+      "ExternalConnectionCreated": {
         "properties": {
+          "authorize_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "QuickBooks: send the browser here to authorise",
+            "title": "Authorize Url"
+          },
           "connected_at": {
             "anyOf": [
               {
@@ -24005,6 +24031,17 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "external_account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Account Id"
           },
           "external_account_name": {
             "anyOf": [
@@ -24077,6 +24114,118 @@
           "location_id",
           "provider",
           "status",
+          "external_account_id",
+          "external_account_name",
+          "connected_at",
+          "last_sync_at",
+          "last_error",
+          "created_at"
+        ],
+        "title": "ExternalConnectionCreated",
+        "type": "object"
+      },
+      "ExternalConnectionOut": {
+        "properties": {
+          "connected_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connected At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "external_account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Account Id"
+          },
+          "external_account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Account Name"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_sync_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sync At"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Id"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "active",
+              "error",
+              "disconnected"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "location_id",
+          "provider",
+          "status",
+          "external_account_id",
           "external_account_name",
           "connected_at",
           "last_sync_at",
@@ -24084,6 +24233,34 @@
           "created_at"
         ],
         "title": "ExternalConnectionOut",
+        "type": "object"
+      },
+      "ExternalConnectionUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "settings": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": "Merge-patch: default_income_account, sync_from, auto_sync; null removes a key",
+            "title": "Settings",
+            "type": "object"
+          }
+        },
+        "required": [
+          "settings"
+        ],
+        "title": "ExternalConnectionUpdate",
         "type": "object"
       },
       "FacilityHoursDay": {
@@ -27531,6 +27708,19 @@
           "fields"
         ],
         "title": "ImportTemplateOut",
+        "type": "object"
+      },
+      "InboundAck": {
+        "properties": {
+          "stored": {
+            "title": "Stored",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stored"
+        ],
+        "title": "InboundAck",
         "type": "object"
       },
       "InstalmentIn": {
@@ -34755,6 +34945,86 @@
           }
         },
         "title": "NotificationRouteUpdate",
+        "type": "object"
+      },
+      "OAuthCallbackIn": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "realm_id": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Realm Id"
+          },
+          "state": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "OAuthCallbackIn",
+        "type": "object"
+      },
+      "OAuthCallbackOut": {
+        "properties": {
+          "external_connection_id": {
+            "format": "uuid",
+            "title": "External Connection Id",
+            "type": "string"
+          },
+          "return_url": {
+            "title": "Return Url",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "connected",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "external_connection_id",
+          "status",
+          "return_url"
+        ],
+        "title": "OAuthCallbackOut",
         "type": "object"
       },
       "OccupancyOut": {
@@ -70343,6 +70613,177 @@
         "title": "SuspensionOut",
         "type": "object"
       },
+      "SyncMappingIn": {
+        "additionalProperties": false,
+        "properties": {
+          "external_id": {
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "External Id",
+            "type": "string"
+          },
+          "external_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Name"
+          },
+          "kind": {
+            "enum": [
+              "ledger_account",
+              "tender_account",
+              "tax_account",
+              "revenue_account",
+              "revenue_class"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "local_key": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Local Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "local_key",
+          "external_id"
+        ],
+        "title": "SyncMappingIn",
+        "type": "object"
+      },
+      "SyncMappingsIn": {
+        "additionalProperties": false,
+        "properties": {
+          "mappings": {
+            "items": {
+              "$ref": "#/components/schemas/SyncMappingIn"
+            },
+            "maxItems": 500,
+            "title": "Mappings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "mappings"
+        ],
+        "title": "SyncMappingsIn",
+        "type": "object"
+      },
+      "SyncMappingsOut": {
+        "properties": {
+          "external_options": {
+            "additionalProperties": true,
+            "title": "External Options",
+            "type": "object"
+          },
+          "mappings": {
+            "items": {
+              "$ref": "#/components/schemas/SyncMappingIn"
+            },
+            "title": "Mappings",
+            "type": "array"
+          },
+          "unmapped": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Unmapped",
+            "type": "array"
+          }
+        },
+        "required": [
+          "mappings",
+          "unmapped",
+          "external_options"
+        ],
+        "title": "SyncMappingsOut",
+        "type": "object"
+      },
+      "SyncRun": {
+        "additionalProperties": false,
+        "properties": {
+          "from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From"
+          },
+          "location_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Required when the connection serves every location",
+            "title": "Location Id"
+          },
+          "retries_failed": {
+            "default": false,
+            "title": "Retries Failed",
+            "type": "boolean"
+          },
+          "to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To"
+          }
+        },
+        "title": "SyncRun",
+        "type": "object"
+      },
+      "SyncRunOut": {
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "status_url": {
+            "title": "Status Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "counts",
+          "status_url"
+        ],
+        "title": "SyncRunOut",
+        "type": "object"
+      },
       "SystemAlertOut": {
         "properties": {
           "amount_minor": {
@@ -75651,6 +76092,72 @@
           }
         },
         "summary": "Run Accounting Export",
+        "tags": [
+          "integrations"
+        ],
+        "x-api-key-scopes": [
+          "integrations.sync.run"
+        ]
+      }
+    },
+    "/api/v1/accounting-exports/{accounting_export_id}/retry": {
+      "post": {
+        "description": "Retry one failed day with the same provider request id. Errors: invalid-state-transition.",
+        "operationId": "retryAccountingExport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "accounting_export_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Accounting Export Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountingExportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Accounting Export",
         "tags": [
           "integrations"
         ],
@@ -101723,7 +102230,7 @@
         ]
       },
       "post": {
-        "description": "Connect the accounting export. Errors: provider-not-configured (QuickBooks needs an Intuit app).",
+        "description": "Connect the accounting export, or start connecting QuickBooks (pending, with `authorize_url`).\nErrors: provider-not-configured (QuickBooks is switched off), staff-session-required.",
         "operationId": "createExternalConnection",
         "parameters": [
           {
@@ -101761,7 +102268,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ExternalConnectionOut"
+                  "$ref": "#/components/schemas/ExternalConnectionCreated"
                 }
               }
             },
@@ -101779,6 +102286,181 @@
           }
         },
         "summary": "Create External Connection",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/external-connections/oauth/callback": {
+      "post": {
+        "description": "Posted by the web app's callback page with what the provider sent back. Authenticated by the sealed\nstate (tenant, connection, staff user, ten-minute expiry), never by a session. Errors: state-invalid.",
+        "operationId": "completeExternalConnectionOAuth",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthCallbackIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthCallbackOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Complete External Connection O Auth",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/external-connections/{external_connection_id}": {
+      "get": {
+        "operationId": "getExternalConnection",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "external_connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "External Connection Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalConnectionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get External Connection",
+        "tags": [
+          "integrations"
+        ]
+      },
+      "patch": {
+        "description": "Merge-patch the provider settings. Errors: validation-failed (unknown setting).",
+        "operationId": "updateExternalConnection",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "external_connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "External Connection Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExternalConnectionUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalConnectionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update External Connection",
         "tags": [
           "integrations"
         ]
@@ -101841,6 +102523,216 @@
           }
         },
         "summary": "Disconnect External Connection",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/external-connections/{external_connection_id}/sync": {
+      "post": {
+        "description": "Export each past day in the range (default yesterday, at most 31 days) for the connection's location.\nIdempotent per day. Errors: invalid-state-transition, validation-failed.",
+        "operationId": "runSync",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "external_connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "External Connection Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncRun"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncRunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Sync",
+        "tags": [
+          "integrations"
+        ],
+        "x-api-key-scopes": [
+          "integrations.sync.run"
+        ]
+      }
+    },
+    "/api/v1/external-connections/{external_connection_id}/sync-mappings": {
+      "get": {
+        "description": "The mappings, the posting keys recent exports carried that still lack one, and the provider's accounts\nand classes fetched live. Errors: provider-unavailable.",
+        "operationId": "getSyncMappings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "external_connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "External Connection Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncMappingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Sync Mappings",
+        "tags": [
+          "integrations"
+        ]
+      },
+      "put": {
+        "description": "Replace every mapping; the daily export reads them from the next run.",
+        "operationId": "putSyncMappings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "external_connection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "External Connection Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncMappingsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncMappingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Sync Mappings",
         "tags": [
           "integrations"
         ]
@@ -155330,6 +156222,28 @@
           }
         },
         "summary": "List Webhook Event Types",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/v1/webhooks/quickbooks": {
+      "post": {
+        "description": "Signed QuickBooks notifications, verified (`intuit-signature`) and stored once. Errors: invalid-signature.",
+        "operationId": "receiveQuickBooksEvents",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundAck"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Receive Quick Books Events",
         "tags": [
           "integrations"
         ]

@@ -19,8 +19,10 @@ Feature status against the parity matrix: `docs/status/16-integrations.md`.
 | `reference.py` | the generated public API reference: `x-api-key-scopes` on every operation a key may call (added in `app.main`'s OpenAPI hook), listed by `GET /api-reference` |
 | `feeds.py` | calendar feeds (`calendar_feed`: staff, team and member schedules as iCalendar) and the embeddable public schedule (`public_schedule_setting`, `GET /public/schedule`) |
 | `domain/ical.py` | RFC 5545 text: escaping, 75-octet folding, UTC stamps |
+| `quickbooks.py` | QuickBooks Online (INT-07): OAuth round trip with a sealed state, sealed credentials and refresh, mappings, settings, the in-request sync and retry, the verified webhook |
 
-Ports added: `app/ports/accounting.py` (adapters: `FakeAccounting`, `JsonFileAccounting`, `QuickBooksOnline`)
+Ports added: `app/ports/accounting.py` (adapters: `FakeAccounting`, `JsonFileAccounting`, `QuickBooksOnline`;
+the connection side `AccountingConnect`: `FakeQuickBooks` and `QuickBooksConnect`)
 and `app/ports/video_meeting.py` (`FakeVideo`, a simulated Zoom). `app/core/crypto.py` seals webhook secrets
 with AES-GCM, the tenant id as associated data. Simulated adapters write every call to `adapter_command_log`
 through `service.adapter_for`.
@@ -57,6 +59,17 @@ through `service.adapter_for`.
 - **Accounting export.** One row per (connection, location, business day), idempotent. The doc number is
   `FH-<LOCATION SLUG>-<YYYYMMDD>` and the request id `{tenant}:qbo_je:{export id}`. Unbalanced days fail and
   record the error. QuickBooks is refused (`provider-not-configured`) unless `integrations.quickbooks_enabled`.
+- **QuickBooks connection.** Creating one returns `authorize_url`; the provider sends the browser to the web
+  page `/integrations/quickbooks/callback`, which POSTs `{state, code, realm_id, error}` to
+  `/external-connections/oauth/callback` (the OIDC sign-in pattern: a GET that changes state would break the
+  no-mutating-GET rule). The state is sealed with AES-GCM under the tenant (connection, staff user, ten-minute
+  expiry) and works once; a forged, expired or used state is `403 state-invalid`. Credentials are sealed the
+  same way and refreshed within five minutes of expiry. `return_url` must be on `app.web_base_url`. The
+  webhook (`intuit-signature`, HMAC-SHA256) stores each notification once in the inbound log; the sync is
+  one-way, so nothing else happens. It answers 401 while QuickBooks is off, and outside dev and test whenever
+  the simulated adapter is in use (its signing secret is public). Posting keys are unique across account kinds
+  (they share `account_map`). A pending connection has no `connected_at`. **Neither adapter has run against Intuit:** the tests drive
+  `QuickBooksConnect` on `httpx.MockTransport` shaped from Intuit's public documentation.
 - **Calendar feeds.** The URL token `fhcal_<tenant>_<secret>` (256-bit) is shown once, stored as SHA-256 with
   a lookup prefix, and rotated when a disabled feed is re-enabled. A GET path is the accepted exception to "no
   secrets in URLs" (calendar clients can only GET); the route rewrites the request path to `[redacted]` before
@@ -88,9 +101,16 @@ through `service.adapter_for`.
 - `sweep_webhook_deliveries` runs every minute (app/scheduler.py) and re-enqueues due deliveries whose message
   was lost; a duplicate is harmless because `attempt_delivery` locks and re-checks the row.
 - The disable email goes to the endpoint's creator, not to every Owner.
-- Not built: OAuth client-credentials and the QuickBooks OAuth round trip, `sync_mapping` per object, the
-  class/account mapping screen, a `video_meeting` table and entitlement-checked join redirects, and a
-  mandatory `Idempotency-Key` for machine principals.
+- Not built: OAuth client-credentials, a `sync_mapping` table per object (mappings live in the connection's
+  settings as `account_map` and `class_map`), and a mandatory `Idempotency-Key` for machine principals.
+- QuickBooks app credentials come from `FH_QUICKBOOKS_CLIENT_ID`, `FH_QUICKBOOKS_CLIENT_SECRET` and
+  `FH_QUICKBOOKS_WEBHOOK_VERIFIER` read in `quickbooks.connector()`, because core settings were frozen this
+  phase; without all three the simulated adapter is used. Move them to `core.settings` when it opens.
+- The sync runs inside the request (at most 31 past days, idempotent per day) rather than as a job.
+- Not built for QuickBooks: `sync_from` and `auto_sync` are stored but nothing reads them yet (no scheduled
+  sync); no `mappings-incomplete` refusal, sub-category inheritance or `needs_reauth` notice (ADR 0012); the
+  platform realm lookup is kept on disconnect (`register_provider_account` is insert-only, a core function), so
+  a realm cannot move to another tenant.
 - Team feeds walk the owner's games by start time and keep the team's, scanning at most 1000 (leagues has no
   team filter on `list_games`). Feeds carry at most 1000 events.
 - The public schedule and its settings live here, not in scheduling (contract tag `scheduling`), because

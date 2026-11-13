@@ -1221,7 +1221,7 @@ def _populate_integrations(client, headers, tenant, post, location, person) -> d
         == 200
     )
     connection = post("/external-connections", {"provider": "accounting_file", "location_id": location["id"]})
-    post("/accounting-exports", {
+    export = post("/accounting-exports", {
         "external_connection_id": connection["id"], "location_id": location["id"], "business_on": "2020-01-01",
     })  # fmt: skip
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
@@ -1240,5 +1240,5 @@ def _populate_integrations(client, headers, tenant, post, location, person) -> d
     assert published.status_code == 200, published.text
     return {
         "api_key_id": api_key["id"], "webhook_endpoint_id": endpoint["id"], "webhook_delivery_id": delivery_id,
-        "external_connection_id": connection["id"], "calendar_feed_id": feed["id"],
+        "external_connection_id": connection["id"], "calendar_feed_id": feed["id"], "accounting_export_id": export["id"],
     }  # fmt: skip

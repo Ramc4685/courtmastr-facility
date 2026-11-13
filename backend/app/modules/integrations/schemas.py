@@ -112,6 +112,7 @@ class ExternalConnectionCreate(In):
     settings: dict[str, str | dict[str, str]] | None = Field(
         None, description="`account_map` (posting key -> account) and `default_income_account`"
     )
+    return_url: Url | None = Field(None, description="QuickBooks: where the browser lands after authorising")
 
 
 class ExternalConnectionOut(Out):
@@ -119,11 +120,69 @@ class ExternalConnectionOut(Out):
     location_id: UUID | None
     provider: str
     status: Literal["pending", "active", "error", "disconnected"]
+    external_account_id: str | None
     external_account_name: str | None
     connected_at: datetime | None
     last_sync_at: datetime | None
     last_error: str | None
     created_at: datetime
+
+
+class ExternalConnectionCreated(ExternalConnectionOut):
+    authorize_url: str | None = Field(None, description="QuickBooks: send the browser here to authorise")
+
+
+class ExternalConnectionUpdate(In):
+    settings: dict[str, str | bool | None] = Field(
+        description="Merge-patch: default_income_account, sync_from, auto_sync; null removes a key"
+    )
+
+
+class SyncMappingIn(In):
+    kind: Literal["ledger_account", "tender_account", "tax_account", "revenue_account", "revenue_class"]
+    local_key: Annotated[str, StringConstraints(min_length=1, max_length=100)]
+    external_id: Annotated[str, StringConstraints(min_length=1, max_length=50)]
+    external_name: Annotated[str, StringConstraints(max_length=200)] | None = None
+
+
+class SyncMappingsIn(In):
+    mappings: list[SyncMappingIn] = Field(max_length=500)
+
+
+class SyncMappingsOut(Out):
+    mappings: list[SyncMappingIn]
+    unmapped: list[dict]
+    external_options: dict
+
+
+class SyncRun(In):
+    from_: date | None = Field(None, alias="from")
+    to: date | None = None
+    location_id: UUID | None = Field(None, description="Required when the connection serves every location")
+    retries_failed: bool = False
+
+
+class OAuthCallbackIn(In):
+    state: Annotated[str, StringConstraints(min_length=1, max_length=2000)]
+    code: Annotated[str, StringConstraints(max_length=1000)] | None = None
+    realm_id: Annotated[str, StringConstraints(max_length=50)] | None = None
+    error: Annotated[str, StringConstraints(max_length=200)] | None = None
+
+
+class OAuthCallbackOut(Out):
+    external_connection_id: UUID
+    status: Literal["connected", "error"]
+    return_url: str
+
+
+class InboundAck(Out):
+    stored: int
+
+
+class SyncRunOut(Out):
+    status: str
+    counts: dict[str, int]
+    status_url: str
 
 
 class AccountingExportRun(In):

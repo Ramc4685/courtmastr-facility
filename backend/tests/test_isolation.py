@@ -395,6 +395,9 @@ _BODIES = {
     "rotateApiKey": {},
     "updateWebhookEndpoint": {"description": "Renamed"},
     "updateCalendarFeed": {"name": "Renamed"},
+    "updateExternalConnection": {"settings": {"auto_sync": True}},
+    "putSyncMappings": {"mappings": []},
+    "runSync": {},
     # platform OIDC (Phase 8 S3)
     "updateIdentityProvider": {"display_name": "Renamed"},
 }

@@ -642,9 +642,11 @@ def list_external_connections(session: Session, principal: Principal, query: Lis
     )  # fmt: skip
 
 
-def create_external_connection(session: Session, principal: Principal, data: dict) -> ExternalConnection:
-    """v1 connects the JSON-file accounting export. QuickBooks needs a registered Intuit app
-    (integrations.quickbooks_enabled) and its OAuth round trip, which are not built: 422 until then."""
+def create_external_connection(
+    session: Session, principal: Principal, data: dict
+) -> tuple[ExternalConnection, str | None]:
+    """The JSON-file accounting export connects at once. QuickBooks (only with integrations.quickbooks_enabled)
+    starts pending and returns the authorise URL; the OAuth callback activates it (quickbooks.complete)."""
     location_id = data.get("location_id")
     authorize(principal, "integrations.connection.manage", location_id=location_id)
     _require_person(principal)
@@ -653,20 +655,31 @@ def create_external_connection(session: Session, principal: Principal, data: dic
             "QuickBooks Online is not configured", pointer="/provider", code="provider-not-configured"
         )
     _check_locations(session, principal, [location_id] if location_id else None, "/location_id")
+    oauth = data["provider"] == Provider.QUICKBOOKS_ONLINE  # connected only once the OAuth round trip completes
     row = ExternalConnection(
         provider=data["provider"], location_id=location_id, status=ConnectionStatus.ACTIVE,
         settings=data.get("settings") or {}, connected_by_staff_user_id=principal.staff_user_id,
-        connected_at=clock.now(),
+        connected_at=None if oauth else clock.now(),
     )  # fmt: skip
     session.add(row)
     session.flush()
+    authorize_url = None
+    if row.provider == Provider.QUICKBOOKS_ONLINE:
+        from app.modules.integrations import quickbooks
+
+        authorize_url = quickbooks.start(session, row, principal, data.get("return_url"))
     audit.record(session, "integrations.connection.create", row, location_id=location_id, changes=audit.diff(row))
-    return row
+    return row, authorize_url
 
 
 def disconnect_external_connection(session: Session, principal: Principal, connection_id: UUID) -> ExternalConnection:
+    from app.modules.integrations import quickbooks
+
     row = _load_connection(session, principal, connection_id)
     authorize(principal, "integrations.connection.manage", location_id=row.location_id)
+    if row.status == ConnectionStatus.DISCONNECTED:
+        raise Conflict("The connection is already disconnected")
+    quickbooks.revoke(session, row)
     row.status, row.credentials_ciphertext = ConnectionStatus.DISCONNECTED, None
     audit.record(
         session, "integrations.connection.disconnect", row, location_id=row.location_id, changes=audit.diff(row)
@@ -675,19 +688,15 @@ def disconnect_external_connection(session: Session, principal: Principal, conne
     return row
 
 
-def _accounting_adapter(connection: ExternalConnection, tenant_id: UUID) -> Any:
-    from app.adapters.accounting import FakeAccounting, JsonFileAccounting, QuickBooksOnline
+def _accounting_adapter(session: Session, connection: ExternalConnection) -> Any:
+    from app.adapters.accounting import FakeAccounting, JsonFileAccounting
+    from app.modules.integrations import quickbooks
 
     cfg = get_settings().integrations
     if connection.provider == Provider.ACCOUNTING_FILE:
         return JsonFileAccounting(cfg.accounting_file_dir)
-    if (
-        connection.provider == Provider.QUICKBOOKS_ONLINE
-        and cfg.quickbooks_enabled
-        and connection.credentials_ciphertext
-    ):
-        token = json.loads(crypto.decrypt(connection.credentials_ciphertext, tenant_id))["access_token"]
-        return QuickBooksOnline(realm_id=connection.external_account_id or "", access_token=token)
+    if connection.provider == Provider.QUICKBOOKS_ONLINE and cfg.quickbooks_enabled:
+        return quickbooks.journal_poster(session, connection)  # refreshes the tokens when they are due
     return FakeAccounting()
 
 
@@ -766,6 +775,7 @@ def _post_journal(
     from app.ports.accounting import Journal, JournalLine
 
     account_map: dict[str, str] = connection.settings.get("account_map", {})
+    class_map: dict[str, str] = connection.settings.get("class_map", {})
     default_income = connection.settings.get("default_income_account")
     unmapped, out = [], []
     for line in lines:
@@ -776,15 +786,19 @@ def _post_journal(
         if ref is None and connection.provider == Provider.QUICKBOOKS_ONLINE:
             raise ValidationFailed(f"No QuickBooks account mapped for {line.posting_key}")
         out.append(
-            JournalLine(ref or line.posting_key, line.debit_minor, line.credit_minor, description=line.posting_key)
+            JournalLine(
+                ref or line.posting_key,
+                line.debit_minor,
+                line.credit_minor,
+                class_ref=class_map.get(line.posting_key),
+                description=line.posting_key,
+            )
         )
     entry = Journal(
         doc_number=export.doc_number, business_on=export.business_on.isoformat(), currency=currency,
         memo=f"FacilityHub daily summary {export.business_on.isoformat()}", lines=out,
     )  # fmt: skip
-    adapter = adapter_for(
-        session, _accounting_adapter(connection, session.info["tenant_id"]), "accounting", location_id
-    )
+    adapter = adapter_for(session, _accounting_adapter(session, connection), "accounting", location_id)
     return adapter.post_journal(entry, request_id=f"{session.info['tenant_id']}:qbo_je:{export.id}"), unmapped
 
 
