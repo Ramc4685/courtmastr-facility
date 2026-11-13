@@ -337,6 +337,25 @@ def test_removing_a_card_leg_refunds_it(client, store):
     assert payment["refunded_minor"] == payment["amount_minor"]
 
 
+def test_a_declined_leg_refund_can_be_tried_again(client, store, monkeypatch):
+    """The refund key carries an attempt number: a declined refund is kept as `failed`, and "try again" makes a
+    new attempt instead of replaying that row for ever."""
+    from app.ports import payment_provider
+    from app.ports.payment_provider import RefundState
+
+    sale = add(store, start(store), product_id=store.product_id)
+    sale = pay(store, sale, tender_type_id=store.card, provider_confirmation_token="tok_card_ok")
+    path = f"{API}/pos-sales/{sale['id']}/tenders/{sale['tenders'][0]['id']}"
+    fake = payment_provider.get("fake")
+    with monkeypatch.context() as patched:
+        patched.setattr(fake, "refund", lambda **_: RefundState("fake_ref_declined", "failed", "No"))
+        refused = client.delete(path, headers=store.owner)
+        assert refused.status_code == 502 and refused.json()["code"] == "refund-failed"
+    sale = client.delete(path, headers=store.owner)
+    assert sale.status_code == 200, sale.text
+    assert sale.json()["tenders"][0]["status"] == "removed"
+
+
 def test_register_session_and_drawer_requirement(client, store):
     session = client.get(f"{API}/registers/{store.register_id}/session", headers=store.front).json()
     assert session["register"]["id"] == store.register_id and session["drawer_session"]["id"] == store.drawer_id
