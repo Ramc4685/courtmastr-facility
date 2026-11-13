@@ -1562,6 +1562,7 @@ def create_portal_rental(session: Db, principal: Principal, data: dict) -> dict:
         clients.service.require_active(session, player, pointer="/player_client_ids")
         players.append({"client_id": player, "is_charged": False})
     _check_minors(session, client_id, players, rental_on, pointer="/player_client_ids", online=True)
+    clients.service.note_unconfirmed_booking(session, client_id, data["starts_at"], rtype.location_id)
     plan = data.get("rental_plan_purchase_id")
     hold = None
     if rtype.online_payment_mode == "pay_in_full" and not plan:

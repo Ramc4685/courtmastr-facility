@@ -7,18 +7,18 @@ Households and portal live in `households.py`, notes/tasks/alerts in `activity.p
 """
 
 import re
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, delete, exists, extract, func, or_, select, update
+from sqlalchemy import DateTime, and_, delete, exists, extract, func, literal, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
 from app.core import audit, clock, events
 from app.core.api import CONSTRAINT_CODES, CONSTRAINT_FIELDS
-from app.core.auth import Principal, authorize, tokens
+from app.core.auth import Principal, authorize, scope_query, tokens
 from app.core.errors import Conflict, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
 from app.core.settings import get_settings
@@ -64,6 +64,13 @@ SENSITIVE_FIELDS = (
     "birth_on", "address_line1", "address_line2", "city", "region", "postal_code", "country_code", "medical_notes",
 )  # fmt: skip
 
+notifications.register_template(
+    "clients.age_review",
+    subject="$app: confirm a new member's age",
+    body="Hello,\n\n$name has booked online for the first time with a birth date they entered themselves. Their "
+    "entry code is held until a member of staff confirms their age once (ID in person or by photo).\n\n"
+    "Open the age checks list: $url",
+)
 notifications.register_template(
     "clients.email_verification",
     subject="$app: confirm your email address",
@@ -897,6 +904,58 @@ def _mark_age_unconfirmed(client: Client) -> None:
 def _mark_age_confirmed(client: Client, staff_user_id: UUID | None) -> None:
     client.is_birth_on_unverified = False
     client.age_confirmed_at, client.age_confirmed_by_staff_user_id = clock.now(), staff_user_id
+
+
+_NO_BOOKING = datetime(9999, 12, 31, tzinfo=UTC)  # sorts people with no booking last (sort keys are NOT NULL)
+
+
+def list_age_reviews(session: Session, principal: Principal, query: ListQuery) -> dict:
+    """Clients whose birth date waits for staff, people with a booking first (earliest booking soonest), within the
+    caller's locations. Filter: location_id (the home location). `?include=total` gives the dashboard count."""
+    authorize(principal, CONFIRM_AGE)
+    stmt = select(Client).where(Client.is_birth_on_unverified, Client.status == "active", Client.merged_into_id.is_(None))
+    stmt = scope_query(stmt, principal, Client.home_location_id)
+    due = func.coalesce(Client.earliest_booking_at, literal(_NO_BOOKING, DateTime(timezone=True)))
+    page = paginate(
+        session, stmt, query, id_column=Client.id, sort_fields={"earliest_booking_at": due},
+        default_sort="earliest_booking_at", filter_fields={"location_id": Client.home_location_id},
+    )  # fmt: skip
+    masked = not principal.has(_SENSITIVE)
+    page["data"] = [
+        {"id": c.id, "first_name": c.first_name, "last_name": c.last_name, "home_location_id": c.home_location_id,
+         "birth_on": None if masked else c.birth_on, "earliest_booking_at": c.earliest_booking_at,
+         "created_via": c.created_via, "created_at": c.created_at}
+        for c in page["data"]
+    ]  # fmt: skip
+    return page
+
+
+def note_unconfirmed_booking(session: Session, client_id: UUID, starts_at: datetime, location_id: UUID) -> None:
+    """Internal (the portal rental checkout calls it): a holder whose age waits for staff booked. Keeps their
+    earliest booking for the queue and tells the location's staff once, on the first booking, never per booking."""
+    client = get(session, client_id)
+    if _age_confirmed(client):
+        return
+    if client.earliest_booking_at is None or starts_at < client.earliest_booking_at:
+        client.earliest_booking_at = starts_at
+    # atomic: two first bookings at once still send one notice
+    first = session.execute(
+        update(Client).where(Client.id == client.id, Client.age_review_notified_at.is_(None))
+        .values(age_review_notified_at=clock.now()).returning(Client.id)
+        .execution_options(synchronize_session="fetch")
+    ).scalar()  # fmt: skip
+    changes = audit.diff(client)
+    if first is not None:
+        changes["age_review_notified_at"] = True
+        _, to = platform.service.location_contact(session, location_id)
+        if to:
+            settings = get_settings()
+            notifications.send(session, "clients.age_review", to, {
+                "app": settings.app.display_name, "name": display_name(client),
+                "url": f"{settings.app.web_base_url}/clients/age-checks"})  # fmt: skip
+    if changes:
+        audit.record(session, "clients.client.age_review", client, location_id=client.home_location_id,
+                     changes=changes)  # fmt: skip
 
 
 def confirm_age(session: Session, principal: Principal, client_id: UUID, data: dict) -> Client:

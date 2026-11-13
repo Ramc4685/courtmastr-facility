@@ -372,6 +372,19 @@ class PortalAccessList(Out):
     data: list[PortalAccessOut]
 
 
+class AgeReviewItem(Out):
+    """One client in the staff age-check queue. birth_on is null without clients.client.read_sensitive."""
+
+    id: UUID
+    first_name: str
+    last_name: str
+    home_location_id: UUID
+    birth_on: date | None
+    earliest_booking_at: datetime | None  # null: no online booking yet (listed last)
+    created_via: str
+    created_at: datetime
+
+
 class AgeConfirmation(In):
     """Staff saw the person's ID once. Send the birth date only to correct it; no document detail is taken."""
 

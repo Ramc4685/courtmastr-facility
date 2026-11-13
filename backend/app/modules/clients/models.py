@@ -191,6 +191,8 @@ class Client(TenantOwned, Timestamps, Base):
         ),
         Index("ix_client_duplicate_key", "tenant_id", func.lower(text("last_name")), "birth_on"),
         Index("ix_client_merged_into", "tenant_id", "merged_into_id", postgresql_where=text("merged_into_id IS NOT NULL")),
+        Index("ix_client_age_review", "tenant_id", "home_location_id", "earliest_booking_at", "id",
+              postgresql_where=text("is_birth_on_unverified")),
     )  # fmt: skip
 
     first_name: Mapped[str] = mapped_column(info=_FLAG)
@@ -202,6 +204,8 @@ class Client(TenantOwned, Timestamps, Base):
     is_birth_on_unverified: Mapped[bool] = mapped_column(server_default=text("false"))
     age_confirmed_at: Mapped[datetime | None]  # staff saw ID (in person or a photo); nothing about it is kept
     age_confirmed_by_staff_user_id: Mapped[UUID | None]
+    earliest_booking_at: Mapped[datetime | None]  # the staff age-check queue puts people who booked first
+    age_review_notified_at: Mapped[datetime | None]  # staff were told once, on the first online booking
     organization_name: Mapped[str | None]
     phone_mobile: Mapped[str | None] = mapped_column(info=_FLAG)
     phone_home: Mapped[str | None] = mapped_column(info=_FLAG)

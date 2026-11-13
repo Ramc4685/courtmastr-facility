@@ -584,3 +584,37 @@ def test_a_dateless_dependant_online_counts_as_a_minor(client, owner, tenant, f)
     ok(
         client.post(f"{API}/portal/rentals", headers=portal, json=online(f, me, 15, 16) | {"player_client_ids": [kid]})
     )  # the guardian may bring them
+
+
+# --- the staff queue of age checks (owner decision 2026-11-13) --------------------------------------------------
+
+
+def test_staff_get_one_notice_on_a_newcomers_first_booking_and_a_queue_with_bookers_first(
+    client, owner, tenant, f, mailbox
+):
+    ok(client.patch(f"{API}/locations/{f.location}", headers=owner, json={"alert_email": "desk@example.com"}), 200)
+    waiting = new_client(client, owner, f.location, birth_on="1980-01-01")["id"]  # unconfirmed, no booking
+    me, portal = portal_client(client, owner, tenant, f, birth_on=None)
+    ok(client.patch(f"{API}/portal/clients/{me}", headers=portal, json={"birth_on": "1990-01-02"}), 200)
+    mailbox.clear()
+    ok(client.post(f"{API}/portal/rentals", headers=portal, json=online(f, me, 17, 18)))
+    ok(client.post(f"{API}/portal/rentals", headers=portal, json=online(f, me, 15, 16)))
+    notices = [m for m in mailbox if m.to == "desk@example.com"]
+    assert len(notices) == 1 and "age" in notices[0].subject.lower()  # one, not one per booking
+    assert "1990" not in notices[0].body  # no birth date in the email
+    page = ok(client.get(f"{API}/client-age-reviews?include=total", headers=owner), 200)
+    ids = [row["id"] for row in page["data"]]
+    assert ids.index(me) < ids.index(waiting) and page["page"]["total"] >= 2  # a booker first
+    first = page["data"][ids.index(me)]
+    assert datetime.fromisoformat(first["earliest_booking_at"]) == datetime.fromisoformat(at(15))  # the earliest
+    one = ok(client.get(f"{API}/client-age-reviews?limit=1", headers=owner), 200)
+    assert one["page"]["has_more"] and ok(client.get(
+        f"{API}/client-age-reviews?limit=1&cursor={one['page']['next_cursor']}", headers=owner), 200)["data"]  # fmt: skip
+    ok(client.post(f"{API}/clients/{me}/age-confirmation", headers=owner, json={}), 200)
+    assert me not in [r["id"] for r in ok(client.get(f"{API}/client-age-reviews", headers=owner), 200)["data"]]
+    elsewhere = ok(client.post(f"{API}/locations", headers=owner, json={
+        "name": f"Elsewhere {uuid4().hex[:4]}", "time_zone": "America/Chicago", "country_code": "US"}))["id"]  # fmt: skip
+    away = login(client, tenant, add_staff(tenant, "front_desk", location_ids=[elsewhere])[0])
+    assert waiting not in [r["id"] for r in ok(client.get(f"{API}/client-age-reviews", headers=away), 200)["data"]]
+    coach = login(client, tenant, add_staff(tenant, "coach", all_locations=True)[0])
+    assert client.get(f"{API}/client-age-reviews", headers=coach).status_code == 403
