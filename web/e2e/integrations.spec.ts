@@ -131,14 +131,14 @@ test('the public schedule is published, its framed page lists it, and every scre
   await page.getByRole('button', { name: 'Save settings' }).click()
   await expect(page.getByText('Public schedule saved and published.')).toBeVisible()
   const snippet = await page.getByRole('textbox', { name: 'Embed snippet' }).inputValue()
-  const src = /<iframe src="([^"]+)"/.exec(snippet)?.[1]
+  const src = /<iframe src="([^"]+)"/.exec(snippet)?.[1] ?? ''
   expect(src).toMatch(/\/schedule\/public\/[0-9a-f-]{36}$/)
   await scan(page, 'public schedule')
   await page.emulateMedia({ colorScheme: 'dark' })
   await scan(page, 'public schedule dark')
 
   const visitor = await (await browser.newContext()).newPage() // anonymous
-  await visitor.goto(new URL(src!).pathname)
+  await visitor.goto(new URL(src).pathname)
   await expect(visitor.getByRole('heading', { level: 1, name: 'Schedule' })).toBeVisible()
   await expect(visitor.getByRole('heading', { name: 'Sessions' })).toBeVisible()
   await scan(visitor, 'public schedule page')
