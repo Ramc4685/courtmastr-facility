@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.core import audit, clock, events
 from app.core.auth import Principal, authorize, authorize_tenant_wide, scope_query, system_principal, tokens
 from app.core.auth.passwords import hash_password, verify_password
-from app.core.errors import Conflict, NotFound, ValidationFailed
+from app.core.errors import Conflict, DomainError, NotFound, ValidationFailed
 from app.core.pagination import ListQuery, paginate
 from app.modules import billing, clients, documents, memberships, platform, programs, scheduling
 from app.modules.access import desk
@@ -53,6 +53,8 @@ MATCH_TTL = timedelta(seconds=120)
 # it admits without counting another visit.
 REPEAT_WINDOW = timedelta(minutes=10)
 KIOSK_EXIT_ATTEMPTS = 5  # wrong exit PINs in a row before the device is revoked
+KIOSK_UNKNOWN_VALUES = 5  # unknown card values in a row before the kiosk stops reading values for a while
+KIOSK_UNKNOWN_LOCKOUT = timedelta(minutes=5)
 NAME_MATCHES = 5
 _CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O, 1/I
 
@@ -735,15 +737,35 @@ def kiosk_config(session: Session, device: KioskDevice) -> dict:
     }  # fmt: skip
 
 
-def _match_token(session: Session, device: KioskDevice, client_id: UUID, credential: Credential | None = None) -> str:
-    """An opaque, single-use token for one lookup result on this device (stored hashed, two minutes). It keeps the
-    credential scanned, if any, so the check-in records that the client showed a card."""
+def _match_token(session: Session, device: KioskDevice, client_id: UUID) -> str:
+    """An opaque, single-use token for one lookup result on this device (stored hashed, two minutes)."""
     raw = secrets.token_urlsafe(24)
     session.add(KioskMatch(
-        kiosk_device_id=device.id, client_id=client_id, token_hash=tokens.digest(raw), expires_at=clock.now() + MATCH_TTL,
-        credential_id=credential.id if credential else None,
+        kiosk_device_id=device.id, client_id=client_id, token_hash=tokens.digest(raw), expires_at=clock.now() + MATCH_TTL
     ))  # fmt: skip
     return raw
+
+
+def _kiosk_value(session: Session, device: KioskDevice, value: str):
+    """`resolve` for a value read at a kiosk, behind the device's lockout: KIOSK_UNKNOWN_VALUES unknown values in a
+    row stop value reads on this device for KIOSK_UNKNOWN_LOCKOUT (name search still works). Unknown re-raises
+    NotFound marked persist, so the count survives a refused check-in."""
+    now = clock.now()
+    if device.unknown_value_locked_until is not None and device.unknown_value_locked_until > now:
+        raise DomainError("Please see the front desk.", status=429, code="kiosk-locked-out")
+    try:
+        found = resolve(session, value)
+    except NotFound as exc:
+        device.unknown_value_count += 1
+        if device.unknown_value_count >= KIOSK_UNKNOWN_VALUES:
+            device.unknown_value_count, device.unknown_value_locked_until = 0, now + KIOSK_UNKNOWN_LOCKOUT
+            audit.record(session, LAUNCH, device, location_id=device.location_id, reason="unknown-values",
+                         changes={"unknown_value_locked_until": [None, device.unknown_value_locked_until.isoformat()]})  # fmt: skip
+        session.flush()
+        exc.persist = True
+        raise
+    device.unknown_value_count = 0
+    return found
 
 
 def _from_match(session: Session, device: KioskDevice, token: str):
@@ -753,8 +775,7 @@ def _from_match(session: Session, device: KioskDevice, token: str):
     if row is None or row.expires_at < clock.now():
         raise ValidationFailed("Look the client up again.", code="match-token-expired", pointer="/match_token")
     session.delete(row)  # used once
-    credential = session.get(Credential, row.credential_id) if row.credential_id else None
-    return clients.service.get(session, row.client_id), credential
+    return clients.service.get(session, row.client_id)
 
 
 def _masked(client) -> dict:
@@ -765,10 +786,9 @@ def kiosk_lookup(session: Session, device: KioskDevice, data: dict) -> dict:
     """Minimal PII: first name and last initial per match. A scan always works; name search needs the location's
     lookup method and three letters, returns at most five, and never lists minors or disabled clients."""
     method = settings_view(session, device.location_id)["lookup_method"]
-    credential = None
     if data.get("credential_value"):
         try:
-            client, credential = resolve(session, data["credential_value"])
+            client, _ = _kiosk_value(session, device, data["credential_value"])
         except NotFound:
             return {"matches": []}
         if (
@@ -793,22 +813,30 @@ def kiosk_lookup(session: Session, device: KioskDevice, data: dict) -> dict:
     session.execute(
         delete(KioskMatch).where(KioskMatch.kiosk_device_id == device.id, KioskMatch.expires_at < clock.now())
     )
-    matches = [{"match_token": _match_token(session, device, c.id, credential), **_masked(c)} for c in found]
+    matches = [{"match_token": _match_token(session, device, c.id), **_masked(c)} for c in found]
     session.flush()
     return {"matches": matches}
 
 
 def kiosk_check_in(session: Session, device: KioskDevice, data: dict) -> dict:
     """Self check-in (CHK-05). Never returns amounts, reasons or plan names: admitted with the alert codes the
-    location chose to display, or see staff and nothing else (owner: a refusal is explained at the desk)."""
+    location chose to display, or see staff and nothing else (owner: a refusal is explained at the desk).
+    `card_payload` is a scan (the app's code, a wallet pass, a card or fob): a credential scanned is possession. A
+    `match_token` comes from a typed lookup, name or value, and never is."""
     if data.get("card_payload"):
-        card = _app_card(session, data["card_payload"]) or _wallet_pass(session, data["card_payload"])
-        if card is None:
-            raise ValidationFailed("This is not a member card.", code="card-invalid", pointer="/card_payload")
-        client, credential, identified = clients.service.get(session, card.client_id), card, "credential"
+        try:
+            client, credential = _kiosk_value(session, device, data["card_payload"])
+        except NotFound as exc:
+            if exc.code != "credential-not-found":
+                raise  # a known card that is stale or revoked
+            raise ValidationFailed(
+                "This is not a member card.", code="card-invalid", pointer="/card_payload", persist=True
+            ) from None
+        if credential is None and settings_view(session, device.location_id)["lookup_method"] == "name":
+            raise ValidationFailed("Look up by name here.", code="lookup-method-disabled", pointer="/card_payload")
+        identified = "credential" if credential else "name_search"  # a member-number barcode is no credential
     elif data.get("match_token"):
-        client, credential = _from_match(session, device, data["match_token"])
-        identified = "credential" if credential else "name_search"
+        client, credential, identified = _from_match(session, device, data["match_token"]), None, "name_search"
     else:
         raise ValidationFailed("Scan a card or look the client up.", pointer="/match_token")
     config = settings_view(session, device.location_id)

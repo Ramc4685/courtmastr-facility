@@ -45,8 +45,10 @@ def k(client, tenant, owner):
     return SimpleNamespace(loc=w.location_id, person=person, tenant=tenant)
 
 
-def enter(client, person, card: str | None = None) -> dict:
-    """Self check-in found by name, or by scanning `card` (possession)."""
+def enter(client, person, card: str | None = None, *, typed: bool = False) -> dict:
+    """Self check-in found by name, by scanning `card` (possession), or by typing `card` into a lookup (not)."""
+    if card and not typed:
+        return ok(client.post(f"{API}/kiosk/check-ins", json={"card_payload": card}), 201)
     body = {"credential_value": card} if card else {"last_name_prefix": person["last_name"]}
     found = ok(client.post(f"{API}/kiosk/lookups", json=body))["matches"]
     return ok(client.post(f"{API}/kiosk/check-ins", json={"match_token": found[0]["match_token"]}), 201)
@@ -192,6 +194,8 @@ def test_booking_attempts_are_rate_limited_per_kiosk(client, tenant, owner, k, m
     seat = soon(client, owner, k.loc, 30, free=False)
     entered = enter(client, k.person)
     monkeypatch.setattr(get_settings().rate_limit, "enabled", True)
+    frozen = clock.now()  # one fixed minute window: the loop must not straddle a minute boundary
+    monkeypatch.setattr(router, "clock", SimpleNamespace(now=lambda: frozen))
     codes = [book(client, entered, seat.id).status_code for _ in range(router.KIOSK_BOOKINGS_PER_MINUTE + 1)]
     assert codes[:-1] == [409] * router.KIOSK_BOOKINGS_PER_MINUTE and codes[-1] == 429
 
@@ -264,3 +268,36 @@ def test_a_visit_token_cannot_be_spent_twice_concurrently(client, tenant, owner,
     booked = scalar(tenant, select(func.count()).select_from(Enrollment).where(
         Enrollment.client_id == UUID(k.person["id"]), Enrollment.session_id.in_([UUID(one.id), UUID(two.id)])))  # fmt: skip
     assert booked == 1
+
+
+def test_a_typed_card_value_is_not_possession(client, tenant, owner, k):
+    """A value typed into a lookup checks in like a name: it never spends a package. Scanning the same card does."""
+    paid = soon(client, owner, k.loc, 30, free=False)
+    give_package(client, owner, tenant, k, paid.type_id)
+    card = card_of(client, owner, k.person)
+    typed = enter(client, k.person, card, typed=True)
+    assert not next(s for s in typed["sessions"] if s["target_id"] == paid.id)["is_bookable"]
+    refused = book(client, typed, paid.id)
+    assert refused.status_code == 409 and refused.json()["code"] == "see-staff"
+    assert pricing(tenant, paid.id) is None
+    ok(book(client, enter(client, k.person, card), paid.id))
+    assert pricing(tenant, paid.id) == "entitlement"
+
+
+def test_repeated_unknown_values_lock_the_kiosk_for_a_while(client, tenant, owner, k, monkeypatch):
+    from app.modules.access import service
+
+    card = card_of(client, owner, k.person)
+    for n in range(service.KIOSK_UNKNOWN_VALUES):
+        if n % 2:
+            assert ok(client.post(f"{API}/kiosk/lookups", json={"credential_value": f"NOPE{n}"}))["matches"] == []
+        else:  # a refused scan still counts: the counter survives the error
+            assert client.post(f"{API}/kiosk/check-ins", json={"card_payload": f"NOPE{n}"}).status_code == 422
+    locked = client.post(f"{API}/kiosk/check-ins", json={"card_payload": card})  # even a real card waits
+    assert locked.status_code == 429 and locked.json()["code"] == "kiosk-locked-out"
+    assert client.post(f"{API}/kiosk/lookups", json={"credential_value": card}).status_code == 429
+    assert ok(client.post(f"{API}/kiosk/lookups", json={"last_name_prefix": k.person["last_name"]}))["matches"]
+
+    later = clock.now() + service.KIOSK_UNKNOWN_LOCKOUT + timedelta(seconds=1)
+    monkeypatch.setattr(service, "clock", SimpleNamespace(now=lambda: later))
+    assert ok(client.post(f"{API}/kiosk/lookups", json={"credential_value": card}))["matches"]

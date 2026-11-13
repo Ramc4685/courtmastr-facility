@@ -259,23 +259,24 @@ class KioskDevice(TenantOwned, Timestamps, Base):
     revoked_at: Mapped[datetime | None]
     # Wrong kiosk exit PINs since the last right one; the fifth revokes the device (KIOSK_EXIT_ATTEMPTS).
     exit_pin_failure_count: Mapped[int] = mapped_column(server_default=text("0"))
+    # Unknown card values in a row (KIOSK_UNKNOWN_VALUES); the last one stops value reads until then (migration 1962).
+    unknown_value_count: Mapped[int] = mapped_column(server_default=text("0"))
+    unknown_value_locked_until: Mapped[datetime | None]
 
 
 class KioskMatch(TenantOwned, Timestamps, Base):
-    """A name-search result handed to a kiosk: an opaque token (stored hashed) that checks the client in once,
-    within two minutes, on that device only."""
+    """A lookup result handed to a kiosk: an opaque token (stored hashed) that checks the client in once,
+    within two minutes, on that device only. A lookup is typed, so it never counts as possession."""
 
     __tablename__ = "kiosk_match"
     __table_args__ = tenant_args(
         *tfk("kiosk_device_id", "kiosk_device"),
         *tfk("client_id", "client"),
-        *tfk("credential_id", "credential"),
         Index("uq_kiosk_match_token", "tenant_id", "token_hash", unique=True),
     )
 
     kiosk_device_id: Mapped[UUID]
     client_id: Mapped[UUID]
-    credential_id: Mapped[UUID | None]  # the card scanned; None for a name or member-number match (migration 1962)
     token_hash: Mapped[str] = mapped_column(info={"audit": "never"})
     expires_at: Mapped[datetime]
 

@@ -13,7 +13,7 @@ nothing writes it yet.
 | `check_in` | client, location, channel, how the client was identified (`credential`, `name_search`, `client_record`), credential used, result (`granted` / `denied` / `granted_override`), deny reasons, alert codes, override and its reason, staff user or kiosk device |
 | `check_in_attendance` | each programme session place marked attended by a check-in (the link back for history) |
 | `credential` | membership number, barcode, app card, wallet pass, RFID and biometric reference; value unique per tenant while active; app cards keep the rotating-QR secret, which revocation wipes |
-| `kiosk_device` | a named device at a location, its single-use pairing code (hashed, 10 minutes), its revocation and the count of wrong exit PINs since the last right one (`exit_pin_failure_count`, migration 1022) |
+| `kiosk_device` | a named device at a location, its single-use pairing code (hashed, 10 minutes), its revocation and the count of wrong exit PINs since the last right one (`exit_pin_failure_count`, migration 1022); unknown card values in a row and the lockout end (`unknown_value_count`, `unknown_value_locked_until`, migration 1962) |
 | `kiosk_settings` | one row per location: lookup methods, early and late windows, confirmation timeout, welcome text, alerts the kiosk may show, the hashed exit PIN (migration 1021); visible range, auto-book and reservation timeout (migration 1961); name-search booking switch (migration 1962) |
 
 Migration `1021_access_rules` (phase 10 chip B) adds:
@@ -26,7 +26,7 @@ Migration `1021_access_rules` (phase 10 chip B) adds:
 | `access_schedule`, `access_schedule_range` | named time-of-day schedules (CHK-09): weekday plus local from/to wall time, 24:00 allowed |
 | `membership_type_access` | a membership type's schedule (none = any hour) |
 | `membership_type_location` | locations a membership type is limited to (CHK-10): no rows admits everywhere; rows restrict to them plus the contract's own location |
-| `kiosk_match` | single-use kiosk lookup tokens: hash, device, client, expiry (migration 1022); the credential a card lookup matched (migration 1962) |
+| `kiosk_match` | single-use kiosk lookup tokens: hash, device, client, expiry (migration 1022); a lookup is typed, so its check-in is always `name_search` |
 | `kiosk_visit` | single-use visit tokens for the reservation page: hash, device, check-in, expiry (migration 1962) |
 
 Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
@@ -104,13 +104,18 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   Idempotency-Key is 409 `response-not-stored`. Booking attempts have their own per-device limit (10 a minute).
 - **What a name-search check-in may do (owner decisions 2026-11-13).** Spending anything at the kiosk (a package
   credit, and in future a membership visit, an account charge or a payment) needs identification by possession:
-  `check_in.identified_by = credential`, which is a scanned card, fob, wallet pass or the app's code. A lookup by
-  card keeps the matched credential on `kiosk_match.credential_id`, so the check-in records it. The kiosk cannot
-  tell a scanned credential value from a typed one, so any value that matches a credential row counts (the tablet
-  only takes values from the scanner). A member number on the client record, or a name search, is `name_search`. Such a visit may book only sessions that allow free booking, so nothing is
-  spent, and only while the location's `is_name_search_booking_allowed` is on (default on). Any refusal is 409
-  `see-staff`, `is_booked` is always false on its page, and auto-book follows the same rule. It never learns the
-  client's packages, balance or eligibility. Possession unlocks the full portal rules above.
+  `check_in.identified_by = credential`, which is a scan sent as `card_payload` that matches a card, fob, wallet
+  pass or the app's code. The tablet sends every scanner burst as `card_payload`; a lookup (`credential_value` or a
+  name) is typed, so its match token is always `name_search`, even when the typed value is a card's. A member
+  number, scanned or typed, is `name_search` too. Such a visit may book only sessions that allow free booking, so
+  nothing is spent, and only while the location's `is_name_search_booking_allowed` is on (default on). Any refusal
+  is 409 `see-staff`, `is_booked` is always false on its page, and it never learns the client's packages, balance or
+  eligibility. Possession lets the person pick, on screen, a session the portal rules allow, including one a
+  package credit pays for; auto-book never spends a credit for anyone.
+- **Unknown-value lockout (migration 1962).** Five unknown values in a row on one device, scanned or typed, stop
+  value reads there for five minutes (429 `kiosk-locked-out`, audited as `reason: unknown-values`); name search
+  still works. Any value that resolves resets the count (`kiosk_device.unknown_value_count`,
+  `unknown_value_locked_until`). A refused scan keeps the count (the error persists).
 - **Kiosk package purchase: not built (review 2026-11-13).** A first version was dropped before merge: a routine
   check-in scan authorised a one-tap charge that could repeat (each purchase handed back a fresh visit token), a
   wallet pass is a static bearer barcode, and an app QR could be replayed at a second kiosk inside its step. A future
@@ -121,7 +126,7 @@ Migration `1041_access_checkin_desk` (phase 10 chip C) adds:
   the app shows `fhq.<credential>.<30 s step>.<hmac>`, accepted for the current and previous step at the kiosk and
   the staff window.
 - **Scanner (CHK-14).** `web/src/features/access/useScanBurst.ts` detects keyboard-wedge bursts anywhere on the
-  check-in window and the kiosk and routes them to the lookup.
+  check-in window and the kiosk: the window looks the value up, the kiosk checks in with it as `card_payload`.
 - **History (CHK-18, CHK-19).** Recent check-ins per location; per-client history on its own screen and as a tab
   of the client profile, with CSV export.
 - **Remediation at the window (CHK-21).** Every alert on the staff status card carries an `action`

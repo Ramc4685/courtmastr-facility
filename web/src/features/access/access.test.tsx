@@ -221,6 +221,20 @@ describe('KioskPage', SCREEN, () => {
     expect(await screen.findByText('Please see the front desk, Kit.')).toBeInTheDocument()
     expect(calls.find((c) => c.url === '/api/v1/kiosk/check-ins')?.body).toEqual({ card_payload: 'fhq.abc.1.x' })
   })
+
+  it('a scanned fob is a card payload too, never a typed lookup', async () => {
+    const calls = renderKiosk({
+      'GET /api/v1/kiosk/config': { status: 200, body: config },
+      'POST /api/v1/kiosk/check-ins': { status: 422, body: { code: 'card-invalid', status: 422, detail: 'This is not a member card.' } },
+    })
+    await screen.findByRole('heading', { name: 'Welcome to Courtside Downtown' })
+    const clock = vi.spyOn(Event.prototype, 'timeStamp', 'get').mockReturnValue(1000)
+    ;[...'KC12345', 'Enter'].forEach((key) => fireEvent.keyDown(document.body, { key }))
+    clock.mockRestore()
+    expect(await screen.findByText('We could not find you. Please see the front desk.')).toBeInTheDocument()
+    expect(calls.find((c) => c.url === '/api/v1/kiosk/check-ins')?.body).toEqual({ card_payload: 'KC12345' })
+    expect(calls.some((c) => c.url === '/api/v1/kiosk/lookups')).toBe(false)
+  })
 })
 
 describe('access rules and access mode (CHK-08, MEM-20)', SCREEN, () => {

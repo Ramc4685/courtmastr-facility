@@ -1283,7 +1283,7 @@ def _populate_access(client, headers, post, tenant, location_id, client_id, spac
         ))  # fmt: skip
         session.add(KioskMatch(
             kiosk_device_id=device["kiosk_device_id"], client_id=client_id, token_hash=f"pop-{uuid4().hex}",
-            expires_at=clock.now(), credential_id=credential["id"],
+            expires_at=clock.now(),
         ))  # fmt: skip
         session.add(KioskVisit(
             kiosk_device_id=device["kiosk_device_id"], check_in_id=checked["check_in"]["id"],

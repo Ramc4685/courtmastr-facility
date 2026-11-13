@@ -1,7 +1,7 @@
 """access: kiosk visit tokens and identification by possession (CHK-05; owner decisions 2026-11-13, question 15).
-A single-use server-side token binds the reservation page to one admitted check-in on one device; the credential a
-kiosk lookup matched is kept so a scanned card counts as possession; and a location switch for whether a visit found
-by name may book free sessions.
+A single-use server-side token binds the reservation page to one admitted check-in on one device; a per-device count
+of unknown card values with a lockout time; and a location switch for whether a visit found by name may book free
+sessions.
 
 Written by hand in the shape autogenerate produces; enable_rls() for the new table.
 
@@ -49,12 +49,10 @@ def upgrade() -> None:
     )
     op.create_index("uq_kiosk_visit_token", "kiosk_visit", ["tenant_id", "token_hash"], unique=True)
     enable_rls("kiosk_visit")
-    op.add_column("kiosk_match", sa.Column("credential_id", sa.Uuid(), nullable=True))
-    op.create_foreign_key(
-        op.f("fk_kiosk_match_credential_id_credential"), "kiosk_match", "credential",
-        ["tenant_id", "credential_id"], ["tenant_id", "id"], ondelete="RESTRICT",
-    )  # fmt: skip
-    op.create_index(op.f("ix_kiosk_match_credential_id"), "kiosk_match", ["tenant_id", "credential_id"], unique=False)
+    op.add_column(
+        "kiosk_device", sa.Column("unknown_value_count", sa.Integer(), server_default=sa.text("0"), nullable=False)
+    )
+    op.add_column("kiosk_device", sa.Column("unknown_value_locked_until", sa.DateTime(timezone=True), nullable=True))
     op.add_column(
         "kiosk_settings",
         sa.Column("is_name_search_booking_allowed", sa.Boolean(), server_default=sa.text("true"), nullable=False),
@@ -63,7 +61,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_column("kiosk_settings", "is_name_search_booking_allowed")
-    op.drop_index(op.f("ix_kiosk_match_credential_id"), table_name="kiosk_match")
-    op.drop_constraint(op.f("fk_kiosk_match_credential_id_credential"), "kiosk_match", type_="foreignkey")
-    op.drop_column("kiosk_match", "credential_id")
+    op.drop_column("kiosk_device", "unknown_value_locked_until")
+    op.drop_column("kiosk_device", "unknown_value_count")
     op.drop_table("kiosk_visit")

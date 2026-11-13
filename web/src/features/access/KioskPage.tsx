@@ -90,9 +90,16 @@ function Kiosk({ config }: { config: Config }) {
     setBooked(null)
     setProblem(null)
   }, [result?.visit_token])
-  const fail = (e: unknown) => setProblem(e instanceof ApiError && e.status === 401 ? 'This kiosk was signed out. Ask staff to pair it again.' : 'Something went wrong. Please see the front desk.')
+  const fail = (e: unknown) =>
+    setProblem(
+      e instanceof ApiError && e.status === 401
+        ? 'This kiosk was signed out. Ask staff to pair it again.'
+        : e instanceof ApiError && e.code === 'card-invalid'
+          ? 'We could not find you. Please see the front desk.'
+          : 'Something went wrong. Please see the front desk.',
+    )
   const lookup = useMutation({
-    mutationFn: (body: { credential_value?: string; last_name_prefix?: string }) => api.post('/api/v1/kiosk/lookups', { body }),
+    mutationFn: (body: { last_name_prefix: string }) => api.post('/api/v1/kiosk/lookups', { body }),
     onSuccess: (out) => {
       setProblem(out.matches.length ? null : 'We could not find you. Please see the front desk.')
       setMatches(out.matches)
@@ -123,10 +130,10 @@ function Kiosk({ config }: { config: Config }) {
     onSuccess: () => qc.resetQueries({ queryKey: ['kiosk', 'config'] }),
   })
 
+  // Every scan goes as a card payload: a scanned card is possession, a typed lookup never is.
   useScanBurst((value) => {
     reset()
-    if (value.toLowerCase().startsWith('fhq.')) enter.mutate({ card_payload: value })
-    else lookup.mutate({ credential_value: value })
+    enter.mutate({ card_payload: value })
   })
   // Each screen after check-in returns to the start on its own timeout (CHK-06); a new screen restarts the clock.
   useEffect(() => {

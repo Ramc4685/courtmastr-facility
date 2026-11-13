@@ -52,8 +52,8 @@ info:
        `is_dry_run` previews. Rejected: synchronous bulk endpoints (timeouts, no partial-failure story).
     8. A denied check-in is `201` with `result: denied`, not a 4xx: it is a logged fact (CHK-01). 4xx is kept for
        malformed or unauthorised requests. Kiosk responses collapse the reason to `admitted | see_staff`.
-    9. Kiosk lookup returns an opaque short-lived `match_token`, never a client id, and records whether the client
-       was identified by possession (scan) or by name; purchases require possession (rbac 10).
+    9. Kiosk lookup returns an opaque short-lived `match_token`, never a client id; a lookup is typed, so it is never
+       identification by possession. Only a scanned credential sent as `card_payload` is (rbac 10).
     10. POS cart is server-side (`pos_sale` draft) so totals, tax and discounts have one implementation and a
         handed-over tablet resumes. Rejected: client-side cart posted whole (duplicates rounding rules in TS).
     11. Split tender: each `POST /pos-sales/{id}/tenders` captures one leg; `complete` requires legs to equal the
@@ -4325,7 +4325,7 @@ paths:
       requestBody:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/KioskLookupRequest'}}}
-      x-problem-codes: [validation-failed, rate-limited, lookup-method-disabled]
+      x-problem-codes: [validation-failed, rate-limited, lookup-method-disabled, kiosk-locked-out]
       responses:
         '200':
           description: OK.
@@ -4352,7 +4352,8 @@ paths:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/KioskCheckInCreate'}}}
       x-problem-codes: [validation-failed, request-in-progress, idempotency-key-reused, rate-limited, match-token-expired,
-        second-factor-failed, card-invalid, response-not-stored]
+        second-factor-failed, card-invalid, response-not-stored, kiosk-locked-out,
+        lookup-method-disabled]
       responses:
         '201':
           description: Created.
@@ -7704,7 +7705,7 @@ components:
         last_name_prefix: {type: string}
     KioskMatch:
       type: object
-      description: '`match_token` is opaque, expires in 2 minutes and encodes how the client was identified.'
+      description: '`match_token` is opaque, expires in 2 minutes; a check-in from it is identified by name (`name_search`).'
       required: [match_token, first_name, last_initial, needs_second_factor]
       properties:
         match_token: {type: string}
@@ -7726,8 +7727,10 @@ components:
         value: {type: string}
     KioskCheckInCreate:
       type: object
-      description: '`card_payload` is a signed app-card QR, possibly verified offline and queued; `scanned_at` is then the
-        kiosk clock, and the server re-evaluates.'
+      description: '`card_payload` is a scanned value: a signed app-card QR, a wallet pass, a card or fob, or a member-number
+        barcode; a scanned credential is identification by possession (a member number is not), and a `match_token` (a typed lookup) never is.
+        Five unknown values in a row (here or in a lookup) stop value reads on the device for five minutes, 429
+        `kiosk-locked-out`. A queued offline scan carries `scanned_at` (the kiosk clock), and the server re-evaluates.'
       properties:
         match_token: {type: string}
         card_payload: {type: string}
