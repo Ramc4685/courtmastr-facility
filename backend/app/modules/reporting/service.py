@@ -10,7 +10,7 @@ from datetime import timedelta
 from uuid import UUID
 
 from pydantic import ValidationError
-from sqlalchemy import or_, select, update
+from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.core import audit, clock, events, xlsx
@@ -474,6 +474,28 @@ def purge_expired_results(session: Session) -> int:
             removed += 1
     session.flush()
     return removed
+
+
+def erase_client(session: Session, client_id: UUID) -> dict:
+    """Internal, reporting's data subject erase handler (security-baseline 4.2). Snapshot and export rows carry
+    no client id (most reports drop it, or never select it), so a run that names the client cannot be told
+    apart: every live snapshot, export file and partial export in the tenant goes. Runs and exports then read
+    `expired`, queued or running exports fail; rerunning a report rebuilds it without the erased client."""
+    now, live = clock.now(), (RunStatus.QUEUED, RunStatus.RUNNING)
+    purged = platform.files.purge(
+        session, select(ReportRun.result_file_id).where(ReportRun.result_file_id.is_not(None))
+    )
+    purged += platform.files.purge(session, select(ExportJob.file_id).where(ExportJob.file_id.is_not(None)))
+    for model, column in ((ReportRun, ReportRun.result_file_id), (ExportJob, ExportJob.file_id)):
+        session.execute(update(model).where(column.is_not(None))
+                        .values({column: None, model.expires_at: func.least(model.expires_at, now)}))  # fmt: skip
+    stopped = session.execute(
+        update(ExportJob).where(or_(ExportJob.status.in_(live), ExportJob.partial.is_not(None)))
+        .values(status=case((ExportJob.status.in_(live), RunStatus.FAILED), else_=ExportJob.status),
+                error=case((ExportJob.status.in_(live), "Stopped by a data erasure"), else_=ExportJob.error),
+                partial=None, finished_at=func.coalesce(ExportJob.finished_at, now))
+    ).rowcount  # fmt: skip
+    return {"purged_files": purged, "stopped_exports": stopped}
 
 
 EXPORT_CHUNK_ROWS = 1_000  # rows rendered per job message (ADR 0008 section 3)

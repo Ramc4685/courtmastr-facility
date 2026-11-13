@@ -30,14 +30,18 @@ export function DashboardTiles() {
               <Link className="text-primary underline" to={`/reports/${t.key}`}>{t.name}</Link>
               <span className="ml-2 text-sm font-normal text-muted">{t.period ? PERIOD[t.period] ?? t.period : 'Now'}</span>
             </h3>
-            <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
-              {t.totals.map((c) => (
-                <div key={c.key}>
-                  <dt className="text-muted">{c.label}</dt>
-                  <dd className="text-lg font-semibold tabular-nums">{formatCell(c.value, c.type, currency)}</dd>
-                </div>
-              ))}
-            </dl>
+            {t.available ? (
+              <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                {t.totals.map((c) => (
+                  <div key={c.key}>
+                    <dt className="text-muted">{c.label}</dt>
+                    <dd className="text-lg font-semibold tabular-nums">{formatCell(c.value, c.type, currency)}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <p className="mt-3 text-sm text-muted">Too much data for a tile. Open the full report to narrow it.</p>
+            )}
           </li>
         ))}
       </ul>

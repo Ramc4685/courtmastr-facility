@@ -1,6 +1,7 @@
 """The management dashboard (RPT-02; ADR 0010 section 7): a composition of existing report specs called through
-the runner, never its own queries. Each tile is one spec's totals for a fixed period, built with the caller's
-permissions, locations and reach exactly as a run would be; a spec the caller may not run is left out. Nothing is
+the runner, never its own queries. Each tile is one spec's totals for a fixed period (built totals-only, without detail rows), with the
+caller's permissions, locations and reach exactly as a run would be; a spec the caller may not run is left out, and
+one with more rows than a run allows stays as an unavailable tile. Nothing is
 stored. The result is cached in Redis for CACHE_SECONDS per tenant, staff user, location and permission set, so a
 refresh storm costs one build a minute; a Redis outage only means no cache."""
 
@@ -17,9 +18,8 @@ from app.core.auth import Principal, authorize
 from app.core.errors import PermissionDenied, ValidationFailed
 from app.core.settings import get_settings
 from app.modules import platform
-from app.modules.reporting import service
+from app.modules.reporting import registry, service
 from app.modules.reporting.catalogue import REGISTRY
-from app.modules.reporting.registry import MAX_ROWS
 
 log = logging.getLogger(__name__)
 KEY = "reporting.dashboard.read"
@@ -55,17 +55,20 @@ def _tile(session: Session, principal: Principal, tile: tuple, location_id: UUID
         raw["period"] = period
     try:
         params, scope = service.resolve(session, principal, spec, raw)
-        result = spec.build(session, params, scope)
+        result = spec.build(session, params, scope, totals_only=True)
+        available = len(result["rows"]) <= registry.MAX_ROWS
     except PermissionDenied:  # own reach on a report without own-reach support
         return None
-    except ValidationFailed:  # too many rows for one run: the full report says so
-        log.info("dashboard tile %s skipped", report_key)
-        return None
-    if len(result["rows"]) + len(result["details"] or []) > MAX_ROWS:
-        return None
-    totals = json.loads(json.dumps(result["totals"], default=str))
+    except ValidationFailed as error:  # too many rows for one run: the tile stays, without figures
+        if error.code != "report-too-large":
+            log.warning("dashboard tile %s left out: %s", report_key, error)
+            return None
+        available = False
+    if not available:
+        log.info("dashboard tile %s unavailable: too many rows", report_key)
+    totals = json.loads(json.dumps(result["totals"], default=str)) if available else {}
     return {
-        "key": spec.key, "name": spec.name, "period": period,
+        "key": spec.key, "name": spec.name, "period": period, "available": available,
         "totals": [c.out() | {"value": totals.get(c.key)} for key in shown for c in spec.totals if c.key == key],
     }  # fmt: skip
 

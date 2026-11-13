@@ -20686,6 +20686,8 @@ export interface components {
         };
         /** DashboardTileOut */
         DashboardTileOut: {
+            /** Available */
+            available: boolean;
             /** Key */
             key: string;
             /** Name */

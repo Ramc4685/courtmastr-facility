@@ -122,7 +122,7 @@ class RevenueParams(RangeParams):
     goal_minor: int | None = Field(None, ge=0, description="Revenue goal for the period, in minor units")
 
 
-def _revenue(session: Session, p: RevenueParams, scope: Scope) -> dict:
+def _revenue(session: Session, p: RevenueParams, scope: Scope, totals_only: bool = False) -> dict:
     c = v.charge.c
     where = [c.status != "voided", _between(c.revenue_on, p, scope)]
     if p.revenue_category_ids:
@@ -137,7 +137,7 @@ def _revenue(session: Session, p: RevenueParams, scope: Scope) -> dict:
     net = sum(int(r.net_minor) for r in summary)
     rows = [{"group_key": _key(r.revenue_category_id), "revenue_category": r.revenue_category_label,
              **_int(r, "charge_count", *money), "share_pct": _pct(int(r.net_minor), net)} for r in summary]  # fmt: skip
-    details = [dict(r._mapping) | {"group_key": _key(r.revenue_category_id)} for r in session.execute(_loc(
+    details = None if totals_only else [dict(r._mapping) | {"group_key": _key(r.revenue_category_id)} for r in session.execute(_loc(
         select(c.revenue_category_id, c.revenue_on, c.description, c.kind, c.quantity, c.discount_minor, c.net_minor,
                c.tax_minor, c.total_minor).where(*where).order_by(c.revenue_on, c.charge_id),
         v.charge, scope,
@@ -166,7 +166,7 @@ _MONEY = (Col("discount_minor", "Discounts", "money"), Col("net_minor", "Net rev
 # --- financial: deposits (RPT-04) ----------------------------------------------------------------------------
 
 
-def _deposits(session: Session, p: RangeParams, scope: Scope) -> dict:
+def _deposits(session: Session, p: RangeParams, scope: Scope, totals_only: bool = False) -> dict:
     pay, ref = v.payment.c, v.refund.c
     in_range = _between(pay.received_on, p, scope)
     by = (pay.tender_kind, pay.tender_label)
@@ -211,7 +211,7 @@ def _deposits(session: Session, p: RangeParams, scope: Scope) -> dict:
     rows = sorted(found.values(), key=lambda r: r["tender_label"] or "")
     for r in rows:
         r["net_minor"] = r["received_minor"] - r["refunded_minor"]
-    details = [dict(r._mapping) | {"group_key": _key(r.tender_kind, r.tender_label)} for r in session.execute(_loc(
+    details = None if totals_only else [dict(r._mapping) | {"group_key": _key(r.tender_kind, r.tender_label)} for r in session.execute(_loc(
         select(pay.tender_kind, pay.tender_label, pay.receipt_number, pay.received_on, pay.status, pay.amount_minor,
                pay.refunded_minor, pay.unapplied_minor, pay.is_voided, pay.provider_payment_ref)
         .where(in_range, or_(pay.status.in_(COUNTED_PAYMENTS), pay.is_voided)).order_by(pay.received_at, pay.payment_id),
@@ -245,7 +245,7 @@ class OpenInvoiceParams(Params):
     as_of_on: date | None = Field(None, description="Cut-off date; defaults to today. Payments on that day count.")
 
 
-def _open_invoices(session: Session, p: OpenInvoiceParams, scope: Scope) -> dict:
+def _open_invoices(session: Session, p: OpenInvoiceParams, scope: Scope, totals_only: bool = False) -> dict:
     i, a = v.invoice.c, v.allocation.c
     cut = p.as_of_on
     paid = (
@@ -257,7 +257,8 @@ def _open_invoices(session: Session, p: OpenInvoiceParams, scope: Scope) -> dict
         select(i.invoice_id, i.number, i.client_id, i.client_name, i.invoice_on, i.due_on, i.total_minor,
                func.coalesce(paid.c.paid_minor, 0).label("paid_minor"))
         .select_from(v.invoice).outerjoin(paid, paid.c.invoice_id == i.invoice_id)
-        .where(i.status != "voided", i.invoice_on <= cut).order_by(i.client_name, i.due_on, i.number),
+        .where(i.status != "voided", i.invoice_on <= cut, i.total_minor > func.coalesce(paid.c.paid_minor, 0))
+        .order_by(i.client_name, i.due_on, i.number),
         v.invoice, scope,
     )).all()  # fmt: skip
     if len(found) > MAX_ROWS:
@@ -280,7 +281,11 @@ def _open_invoices(session: Session, p: OpenInvoiceParams, scope: Scope) -> dict
         customer[periods.aging_bucket(days)] += balance
     rows = list(customers.values())
     keys = ("invoice_count", "balance_minor", *periods.BUCKETS)
-    return {"rows": rows, "totals": {k: sum(r[k] for r in rows) for k in keys}, "details": details}
+    return {
+        "rows": rows,
+        "totals": {k: sum(r[k] for r in rows) for k in keys},
+        "details": None if totals_only else details,
+    }
 
 
 _BUCKET_COLS = (Col("current_minor", "Current", "money"), Col("days_1_30_minor", "1 to 30 days", "money"),
@@ -299,7 +304,9 @@ class MembershipStatusParams(Params):
     include_sharers: bool = Field(False, description="Count people sharing a contract as members")
 
 
-def _memberships_by_status(session: Session, p: MembershipStatusParams, scope: Scope) -> dict:
+def _memberships_by_status(
+    session: Session, p: MembershipStatusParams, scope: Scope, totals_only: bool = False
+) -> dict:
     m = v.contract.c
     where = [] if p.include_ended else [m.status.not_in(ENDED)]
     if p.membership_type_ids:
@@ -316,7 +323,7 @@ def _memberships_by_status(session: Session, p: MembershipStatusParams, scope: S
         rows.append({"group_key": _key(r.status, r.membership_type_id), "status": r.status,
                      "membership_type": r.membership_type_name, **counts,
                      "member_count": counts["contract_count"] + (counts["sharer_count"] if p.include_sharers else 0)})  # fmt: skip
-    details = [dict(r._mapping) | {"group_key": _key(r.status, r.membership_type_id)} for r in session.execute(_loc(
+    details = None if totals_only else [dict(r._mapping) | {"group_key": _key(r.status, r.membership_type_id)} for r in session.execute(_loc(
         select(m.status, m.membership_type_id, m.client_name, m.contract_name, m.start_on, m.end_on, m.is_auto_renew,
                m.sharer_count).where(*where).order_by(m.client_name, m.start_on), v.contract, scope,
     ))]  # fmt: skip
@@ -378,7 +385,18 @@ def _attendance(session: Session, p: AttendanceParams, scope: Scope) -> dict:
     return {"rows": rows, "totals": _status_counts(rows), "details": None}
 
 
-def _attendance_overview(session: Session, p: AttendanceParams, scope: Scope) -> dict:
+def _attendance_overview(session: Session, p: AttendanceParams, scope: Scope, totals_only: bool = False) -> dict:
+    if totals_only:  # counts per status in SQL: the tile needs no attendee rows
+        a = v.attendance.c
+        counted = dict(session.execute(_loc(select(a.status, func.count()).where(*_attendance_where(p, scope))
+                                            .group_by(a.status), v.attendance, scope)).all())  # fmt: skip
+        counts = {s: int(counted.get(s, 0)) for s in ATTENDANCE_STATUSES}
+        total = sum(int(n) for n in counted.values())
+        totals = counts | {
+            "total": total,
+            "attended_pct": _pct(counts["attended"], counts["attended"] + counts["no_show"]),
+        }
+        return {"rows": [], "totals": totals, "details": None}
     details = _attendance_rows(session, p, scope)
     groups: dict[str, list[dict]] = {}
     for row in details:
@@ -455,7 +473,7 @@ def _pos_sales(session: Session, p: PosSalesParams, scope: Scope) -> dict:
     return {"rows": rows, "totals": {k: sum(r[k] for r in rows) for k in keys}, "details": details}
 
 
-def _daily_register(session: Session, p: RangeParams, scope: Scope) -> dict:
+def _daily_register(session: Session, p: RangeParams, scope: Scope, totals_only: bool = False) -> dict:  # noqa: ARG001  (no details to skip)
     sale, tender, ret, drawer = v.sale.c, v.tender.c, v.pos_return.c, v.drawer.c
     registers: dict = {}
 

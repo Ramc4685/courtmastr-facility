@@ -13,7 +13,7 @@ from openpyxl import load_workbook
 from app.core import xlsx
 from app.core.auth import system_principal
 from app.core.db.session import tenant_session
-from app.modules.reporting import dashboard, schedules
+from app.modules.reporting import dashboard, registry, schedules
 from app.modules.reporting.catalogue import REGISTRY
 from app.modules.reporting.domain import report_files
 from app.modules.reporting.models import ExportJob, ReportSchedule
@@ -231,3 +231,18 @@ def test_dashboard_composes_reports_per_caller_and_caches_briefly(client, tenant
     )
     coach = login(client, tenant, add_staff(tenant, "coach", all_locations=True)[0])
     assert code(client.get(f"{API}/dashboards/management", headers=coach), 403) == "permission-denied"
+
+
+def test_dashboard_tiles_skip_detail_rows_and_mark_an_oversized_tile_unavailable(client, owner, world, monkeypatch):
+    third = base._location(client, owner, "Third")
+    person = base.new_client(client, owner, third)["id"]
+    for _ in range(2):  # one revenue category (one summary row, two detail rows) and two open invoices
+        base._sale(client, owner, person, third, world.category, 1000, pay=False)
+    monkeypatch.setattr(registry, "MAX_ROWS", 1)
+    tiles = {
+        t["key"]: t for t in ok(client.get(f"{API}/dashboards/management?location_id={third}", headers=owner))["tiles"]
+    }
+    revenue = tiles["revenue_summary"]
+    assert revenue["available"] and next(t["value"] for t in revenue["totals"] if t["key"] == "charge_count") == 2
+    invoices = tiles["open_invoices"]  # two invoices are more rows than the cap: shown, but without figures
+    assert not invoices["available"] and all(t["value"] is None for t in invoices["totals"])

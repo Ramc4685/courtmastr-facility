@@ -243,6 +243,8 @@ def _expiring(session: Session, p: ExpiringParams, scope: Scope) -> dict:
         later = [newer.client_id == t.client_id, newer.end_on > t.end_on, newer.status != "cancelled"]
         if p.membership_type_ids:
             later.append(newer.membership_type_id.in_(p.membership_type_ids))
+        if scope.location_ids is not None:  # a contract the caller cannot see must not hide one they can
+            later.append(newer.location_id.in_(scope.location_ids))
         where.append(~exists().where(*later))
     rows = [dict(r._mapping) for r in session.execute(_loc(
         select(t.client_name, t.client_email, t.client_phone, t.contract_name, t.membership_type_name, t.status,

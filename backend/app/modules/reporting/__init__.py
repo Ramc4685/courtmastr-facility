@@ -5,6 +5,11 @@ saved reports, CSV, XLSX and PDF export jobs, scheduled delivery, the management
 Public interface: `service`.
 """
 
+from app.modules.platform import privacy as _privacy
 from app.modules.reporting import dashboard, jobs, models, permissions, schedules, service
+
+_privacy.register_subject_handler(
+    "reporting", tables=("report_run", "export_job"), export=lambda session, client_id: {}, erase=service.erase_client
+)  # export: snapshots and export files are derived from other contexts' records, which hand over the data itself
 
 __all__ = ["dashboard", "jobs", "models", "permissions", "schedules", "service"]

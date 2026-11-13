@@ -575,6 +575,7 @@ Rejected: a subject grant per report (about 60 rows per role for no extra contro
 | `reporting.league.run` | L | | | Y | Y | - | - | Y | - | - | LGE-32, RPT-36 |
 | `reporting.marketing.run` | L | | | Y | Y | - | - | - | - | - | RPT-29, RPT-38, MKT-07, APP-17 |
 | `reporting.report.export` | L | X | | Y | Y | - | - | Y | - | - | RPT-01 (CSV, XLSX, PDF of any report the caller may run) |
+| `reporting.report_schedule.manage` | L | | | Y | - | - | - | - | - | - | RPT-01 (see and delete any staff user's schedule, e.g. a deactivated owner's) |
 
 Report rows are filtered by the caller's location set and reach before aggregation, in the query, never in the
 renderer (STF-11, REL-05). Columns from section 8 are dropped when the caller lacks the masking key.

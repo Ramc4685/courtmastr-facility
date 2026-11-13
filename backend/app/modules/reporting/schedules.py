@@ -5,7 +5,9 @@ A schedule belongs to its creator, who must own or see the saved report and hold
 the schedule location's zone, the hourly `run_report_schedules` job gives every recipient their own run and export,
 built with that recipient's permissions and locations (so a schedule never widens anyone's reach), and the finished
 export emails them a sign-in link (service._send_link). A recipient who lost access, or whose locations no longer
-cover the saved parameters, is skipped for that day."""
+cover the saved parameters, is skipped for that day. A schedule whose owner was deactivated or lost the keys is
+switched off at its next due time (audited); holders of `reporting.report_schedule.manage` see and delete any
+schedule in their locations. A schedule that crashes keeps its day's claim, so it cannot starve the others."""
 
 import logging
 from datetime import date, datetime
@@ -25,6 +27,7 @@ from app.modules.reporting.catalogue import REGISTRY
 from app.modules.reporting.models import ReportSchedule, SavedReport
 
 log = logging.getLogger(__name__)
+MANAGE = "reporting.report_schedule.manage"  # see and delete anyone's schedule, e.g. a deactivated owner's
 _FIELDS = ("location_id", "frequency", "weekday", "month_day", "send_time", "format", "includes_details",
            "recipient_staff_user_ids", "is_active")  # fmt: skip
 
@@ -78,11 +81,18 @@ def _check(session: Session, principal: Principal, saved: SavedReport, data: dic
             )
 
 
-def _load(session: Session, principal: Principal, schedule_id: UUID) -> ReportSchedule:
+def _load(session: Session, principal: Principal, schedule_id: UUID, *, manage: bool = False) -> ReportSchedule:
+    """The caller's own schedule; with `manage`, also anyone's for a holder of MANAGE at its location (read and
+    delete only: a schedule's settings stay its owner's)."""
     schedule = session.get(ReportSchedule, schedule_id)
-    if schedule is None or schedule.owner_staff_user_id != service._staff(principal):
+    if schedule is None:
         raise NotFound()
-    authorize(principal, service.EXPORT, location_id=schedule.location_id)
+    if schedule.owner_staff_user_id == service._staff(principal):
+        authorize(principal, service.EXPORT, location_id=schedule.location_id)
+    elif manage and service._holds(principal, MANAGE):
+        authorize(principal, MANAGE, location_id=schedule.location_id)  # outside the caller's locations: 404
+    else:
+        raise NotFound()
     saved = session.get(SavedReport, schedule.saved_report_id)
     if saved is None or not service._holds(principal, REGISTRY[saved.report_key].permission):
         raise NotFound()
@@ -105,19 +115,19 @@ def create(session: Session, principal: Principal, data: dict) -> dict:
 
 
 def get(session: Session, principal: Principal, schedule_id: UUID) -> dict:
-    return view(_load(session, principal, schedule_id))
+    return view(_load(session, principal, schedule_id, manage=True))
 
 
 def list_mine(session: Session, principal: Principal, query: ListQuery) -> dict:
+    """The caller's schedules; a holder of MANAGE sees every staff user's within their locations."""
     authorize(principal, service.EXPORT)
     stmt = (
         select(ReportSchedule)
         .join(SavedReport, SavedReport.id == ReportSchedule.saved_report_id)
-        .where(
-            ReportSchedule.owner_staff_user_id == service._staff(principal),
-            SavedReport.report_key.in_(service._permitted_keys(principal)),
-        )
+        .where(SavedReport.report_key.in_(service._permitted_keys(principal)))
     )
+    if not service._holds(principal, MANAGE):
+        stmt = stmt.where(ReportSchedule.owner_staff_user_id == service._staff(principal))
     if principal.location_ids is not None:
         stmt = stmt.where(ReportSchedule.location_id.in_(principal.location_ids))
     page = paginate(
@@ -143,7 +153,7 @@ def update(session: Session, principal: Principal, schedule_id: UUID, data: dict
 
 
 def delete(session: Session, principal: Principal, schedule_id: UUID) -> None:
-    schedule = _load(session, principal, schedule_id)
+    schedule = _load(session, principal, schedule_id, manage=True)
     audit.record(session, "reporting.report_schedule.delete", schedule)
     session.delete(schedule)
     session.flush()
@@ -171,6 +181,13 @@ def recipients(session: Session, principal: Principal, report_key: str) -> dict:
 def _deliver(session: Session, schedule: ReportSchedule, today: date) -> int:
     schedule.last_run_on = today
     saved = session.get_one(SavedReport, schedule.saved_report_id)
+    owner = platform.staff.principal_for(session, schedule.owner_staff_user_id)
+    if owner is None or not _holds_both(owner, saved.report_key):
+        # Deactivated, or lost the report's keys: the schedule stops rather than mail on in their name.
+        schedule.is_active = False
+        audit.record(session, "reporting.report_schedule.deactivate", schedule,
+                     changes={"is_active": [True, False], "cause": "owner_lost_access"})  # fmt: skip
+        return 0
     sent = 0
     for staff_user_id in schedule.recipient_staff_user_ids:
         recipient = platform.staff.principal_for(session, staff_user_id)
@@ -203,7 +220,15 @@ def run_due_schedule(session: Session) -> bool:
     for schedule in session.scalars(stmt):
         local_now = now.astimezone(ZoneInfo(platform.service.location_time_zone(session, schedule.location_id)))
         if is_due(schedule, local_now):
-            _deliver(session, schedule, local_now.date())
+            today = local_now.date()
+            try:
+                with session.begin_nested():
+                    _deliver(session, schedule, today)
+            except Exception:  # a bug in one schedule must not starve the rest: it rolls back, its claim stays
+                log.exception("report schedule %s failed; next try on its next due day", schedule.id)
+                schedule.last_run_on = today
+                audit.record(session, "reporting.report_schedule.run", schedule,
+                             changes={"last_run_on": today.isoformat(), "sent": 0, "failed": True})  # fmt: skip
             session.flush()
             return True
     return False

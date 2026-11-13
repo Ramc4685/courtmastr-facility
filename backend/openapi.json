@@ -18530,6 +18530,10 @@
       },
       "DashboardTileOut": {
         "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
           "key": {
             "title": "Key",
             "type": "string"
@@ -18561,6 +18565,7 @@
           "key",
           "name",
           "period",
+          "available",
           "totals"
         ],
         "title": "DashboardTileOut",

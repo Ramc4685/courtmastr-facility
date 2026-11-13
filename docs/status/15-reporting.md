@@ -84,6 +84,13 @@ Counts: P0 13 done; P1 36 done, 3 partial (RPT-29, RPT-38, FIT-04).
 | Direct debit batch | gap: no bank-debit batch file in billing |
 | Resource schedule (bookings with cost) | gap: `resource_utilization` and `peak_times` cover load, not per-booking cost |
 
+## Known limits
+
+- PDF and XLSX money formatting (`domain/report_files.py`) assumes a currency with two decimal places.
+- `schedules.py` reads `platform.models.StaffUser` directly for recipient names (an open owner decision on a
+  platform staff lookup), and the view SQL for about twelve other contexts lives in reporting's migrations.
+- The PDF caps detail rows at 5,000 (`report_files.py`) but not summary rows; a huge summary renders in full.
+
 ## Open questions
 
 - `/pos-reports/*` is gated by `pos.sale.read`, while the report centre's POS reports use `reporting.pos.run`. Left as is for the owner to decide.

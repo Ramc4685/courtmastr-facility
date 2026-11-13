@@ -185,7 +185,7 @@ def _trainer_performance(session: Session, p: TrainerParams, scope: Scope) -> di
         row(r.trainer_resource_id, r.name).update(package_count=int(r.n), package_sales_minor=int(r.amount))
     for r in session.execute(_loc(
         select(k.trainer_resource_id, func.max(k.trainer_name).label("name"),
-               _sum(k.consumed_delta * k.unit_value_minor, "value"))
+               func.round(func.coalesce(func.sum(k.consumed_delta * k.unit_value_minor), 0)).label("value"))
         .where(k.trainer_resource_id.is_not(None), k.consumed_delta != 0, _between(k.session_on, p, scope),
                *_own(k.trainer_resource_id, scope), *picked(k.trainer_resource_id))
         .group_by(k.trainer_resource_id), v.package_credit, scope,

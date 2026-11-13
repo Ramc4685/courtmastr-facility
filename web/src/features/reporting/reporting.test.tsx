@@ -139,12 +139,14 @@ describe('report centre, wave 4', SCREEN, () => {
   it('shows the dashboard tiles with links to the full reports', async () => {
     renderAsStaff(<DashboardTiles />, ['reporting.dashboard.read', 'reporting.financial.run'], {
       'GET /api/v1/dashboards/management': { status: 200, body: { location_id: null, generated_at: '', tiles: [
-        { key: 'revenue_summary', name: 'Revenue summary', period: 'this_month', totals: [{ key: 'net_minor', label: 'Net revenue', type: 'money', value: 9000 }] },
+        { key: 'revenue_summary', name: 'Revenue summary', period: 'this_month', available: true, totals: [{ key: 'net_minor', label: 'Net revenue', type: 'money', value: 9000 }] },
+        { key: 'open_invoices', name: 'Open invoices', period: null, available: false, totals: [{ key: 'balance_minor', label: 'Balance', type: 'money', value: null }] },
       ] } },
     })
     expect(await screen.findByRole('link', { name: 'Revenue summary' })).toHaveAttribute('href', '/reports/revenue_summary')
     expect(screen.getByText('$90.00')).toBeInTheDocument()
     expect(screen.getByText('This month')).toBeInTheDocument()
+    expect(screen.getByText(/Too much data for a tile/)).toBeInTheDocument()
   })
 })
 

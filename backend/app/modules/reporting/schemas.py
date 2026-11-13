@@ -178,6 +178,7 @@ class DashboardTileOut(Out):
     key: str
     name: str
     period: str | None
+    available: bool  # false: too many rows for a tile; the totals are null and the full report says why
     totals: list[DashboardTotalOut]
 
 

@@ -137,6 +137,20 @@ Status per feature: `docs/status/15-reporting.md`.
 - **Renewal candidates (RPT-23)** take the last booked session of the same service (client and reservation
   type) and count distinct clients, not names. **Attrition** counts a contract starting on the first of a month as
   active at that month's start.
+- **Dashboard tiles** build their reports totals-only (no detail rows; attendance counts per status in SQL). A tile
+  whose report would pass the row cap stays on the board as unavailable (`available: false`, totals null) rather
+  than vanishing; a tile the caller may not run is still left out.
+- **Package session value** is carried unrounded in the views (price over sessions granted) and rounded half-up
+  once on each report line or sum, so an untouched 100.00 pack of three is worth 100.00, not 99.99.
+- **Receivables and open invoices** leave settled invoices out in SQL, so the row cap counts open invoices only.
+- **Schedules**: one that crashes keeps its day's claim (logged, audited `failed`) so the tenant's others still run;
+  one whose owner is deactivated or lost the report or export key is switched off at its next due time (audited
+  `reporting.report_schedule.deactivate`). `reporting.report_schedule.manage` (Admin) lists, reads and deletes any
+  staff user's schedule in its locations; settings stay the owner's. With it, `GET /report-schedules` lists everyone's.
+- **Erasure** (`service.erase_client`, privacy handler `reporting`): snapshots carry no client id, so erasing one
+  client purges every live run snapshot, export file and partial export in the tenant (runs and exports read
+  `expired`; queued or running exports fail). They are derived data and rebuild on rerun. The data-subject export
+  hands over nothing here: the source contexts export the records themselves.
 - `/pos-reports/*` stays gated by `pos.sale.read` while report-centre POS reports use `reporting.pos.run` (owner
   question, unchanged).
 

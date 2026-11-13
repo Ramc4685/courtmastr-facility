@@ -15,8 +15,10 @@ from app.modules.billing.models import Invoice
 from app.modules.memberships.tests.support import membership_plan, package_plan
 from app.modules.packages.tests.test_packages import reserve, settle
 from app.modules.platform.models import StaffUser
+from app.modules.reporting.reports import money
 from app.modules.reporting.tests.test_reporting import (  # noqa: F401  (same_day_everywhere is an autouse fixture)
     API,
+    _location,
     _pay,
     _sale,
     code,
@@ -79,6 +81,19 @@ def test_receivables_by_due_date_count_instalments_as_they_fall_due(client, tena
     assert ran(client, owner, "receivables", as_of_on=day(50), invoices="auto_pay_only")["row_count"] == 0
     response, _ = run(client, owner, "receivables", as_of_on=day(0), earliest_on=day(1))
     assert response.status_code == 422 and response.json()["errors"][0]["pointer"] == "/params/earliest_on"
+
+
+def test_receivables_leave_paid_invoices_to_sql_so_the_row_cap_counts_only_open_ones(client, owner, world, monkeypatch):
+    third = _location(client, owner, "Third")
+    person = new_client(client, owner, third)["id"]
+    for _ in range(2):
+        _sale(client, owner, person, third, world.category, 1000)  # paid in full
+    _, open_invoice = _sale(client, owner, person, third, world.category, 1000, pay=False)
+    ok(client.put(f"{API}/invoices/{open_invoice['id']}/payment-schedule", headers=owner,
+                  json={"instalments": [{"due_on": day(0), "amount_minor": 1100}]}))  # fmt: skip
+    monkeypatch.setattr(money, "MAX_ROWS", 1)  # stands in for 50,000 paid invoices
+    for basis in ("due", "invoice"):
+        assert ran(client, owner, "receivables", basis=basis, location_ids=[third])["totals"]["balance_minor"] == 1100
 
 
 # --- unapplied payments (RPT-07), income and balances (RPT-08), underpaid items (RPT-09) -----------------------
@@ -320,3 +335,22 @@ def test_membership_revenue_is_before_tax_for_billed_and_scheduled_periods(clien
     assert year["totals"]["total_minor"] == 12 * 3100 and year["totals"]["posted_minor"] == 3100
     deferred = ran(client, owner, "deferred_membership_revenue", location_ids=[world.north])
     assert deferred["totals"]["billed_minor"] == 3720  # the charge itself was taxed: 3100 + 20 %
+
+
+def test_expiring_memberships_judge_superseded_only_within_the_callers_locations(client, owner, world, members):
+    body = {"client_id": world.person, "location_id": world.north, "membership_plan_id": members.main["membership_plan_id"],
+            "start_on": day(401)}  # fmt: skip
+    ok(client.post(f"{API}/membership-contracts", headers=owner, json=body), 201)  # the renewal, at North
+    year_end = {"from_on": day(300), "to_on": day(400)}
+    main = ran(client, owner, "expiring_memberships", **year_end, location_ids=[world.main])
+    assert main["row_count"] == 1  # a North contract the caller cannot see neither hides nor reveals anything
+    everywhere = ran(client, owner, "expiring_memberships", **year_end)
+    assert everywhere["row_count"] == 1  # Main is superseded; North's referral contract still expires
+
+
+def test_unused_session_value_rounds_once_so_an_untouched_pack_is_worth_its_price(client, tenant, owner, world):
+    third = _location(client, owner, "Third")
+    three = package_plan(client, owner, tenant, session_count=3)  # 100.00 over three sessions: 33.333... each
+    _sell(client, owner, three, new_client(client, owner, third)["id"], third)
+    unused = ran(client, owner, "unused_session_value", location_ids=[third])
+    assert unused["totals"]["value_minor"] == 10000  # not 3 x 3333

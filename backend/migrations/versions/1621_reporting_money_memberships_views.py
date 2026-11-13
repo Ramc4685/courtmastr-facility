@@ -18,10 +18,11 @@ down_revision = "1601"
 _NAME = "nullif(trim(coalesce({0}.first_name, '') || ' ' || coalesce({0}.last_name, '')), '')"
 _LOCAL = "({0} AT TIME ZONE l.time_zone)::date"
 # Value of one session of a package: the per-session price, else the price spread over the sessions granted,
-# rounded half-up once; unlimited packages carry no per-session value.
+# left unrounded (numeric) so a report rounds half-up once on its line or sum: 100.00 over 3 sessions stays 100.00;
+# unlimited packages carry no per-session value.
 _UNIT = """CASE WHEN cp.is_unlimited OR cp.sessions_granted_count <= 0 THEN 0
                 WHEN cp.fee_basis = 'per_session' AND cp.unit_price_minor IS NOT NULL THEN cp.unit_price_minor
-                ELSE round(cp.price_minor::numeric / cp.sessions_granted_count)::bigint END"""
+                ELSE cp.price_minor::numeric / cp.sessions_granted_count END"""
 _CONTRACT_JOINS = """
         JOIN membership_type mt ON mt.tenant_id = mc.tenant_id AND mt.id = mc.membership_type_id
         JOIN client cl ON cl.tenant_id = mc.tenant_id AND cl.id = mc.owner_client_id

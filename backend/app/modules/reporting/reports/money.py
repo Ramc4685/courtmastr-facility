@@ -4,12 +4,13 @@ session value (RPT-22), the package pipeline (RPT-23) and package sales (PKG-15)
 only, every query goes through `_loc` and every date window through `_between` (ADR 0010 sections 1 and 2)."""
 
 from datetime import date
+from decimal import ROUND_HALF_UP, Decimal
 from types import SimpleNamespace
 from typing import Literal
 from uuid import UUID
 
 from pydantic import Field
-from sqlalchemy import and_, false, func, or_, select
+from sqlalchemy import BigInteger, and_, cast, false, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationFailed
@@ -57,11 +58,14 @@ def _fetch(session: Session, stmt, view, scope: Scope) -> list:
     return found
 
 
-def _instalments(session: Session, scope: Scope, cut: date) -> dict[UUID, list[tuple[date, int]]]:
-    """Instalments due on or before `cut`, oldest first, per invoice (basis `due`)."""
+def _instalments(session: Session, scope: Scope, cut: date, ids: list[UUID]) -> dict[UUID, list[tuple[date, int]]]:
+    """Instalments of the given invoices due on or before `cut`, oldest first, per invoice (basis `due`)."""
     i = v.instalment.c
     due: dict[UUID, list[tuple[date, int]]] = {}
-    for r in _fetch(session, select(i.invoice_id, i.due_on, i.amount_minor).where(_between(i.due_on, _upto(cut), scope))
+    if not ids:
+        return due
+    for r in _fetch(session, select(i.invoice_id, i.due_on, i.amount_minor)
+                    .where(i.invoice_id.in_(ids), _between(i.due_on, _upto(cut), scope))
                     .order_by(i.invoice_id, i.due_on, i.seq), v.instalment, scope):  # fmt: skip
         due.setdefault(r.invoice_id, []).append((r.due_on, int(r.amount_minor)))
     return due
@@ -110,13 +114,15 @@ def _receivables(session: Session, p: ReceivableParams, scope: Scope) -> dict:
         where.append(~r.in_collections)
     if p.clients != "both":
         where.append(r.is_client_deleted if p.clients == "deleted" else ~r.is_client_deleted)
+    if not p.include_paid:  # settled invoices never owe anything, so keep them out of the row cap
+        where.append(r.total_minor > func.coalesce(paid.c.paid_minor, 0))
     found = _fetch(session, select(
         r.invoice_id, r.number, r.client_id, r.client_name, r.client_phone, r.invoice_on, r.due_on, r.total_minor,
         r.is_autopay, r.in_collections, r.collections_tag, r.last_decline_reason,
         func.coalesce(paid.c.paid_minor, 0).label("paid_minor"),
     ).select_from(v.receivable).outerjoin(paid, paid.c.id == r.invoice_id).where(*where)
         .order_by(r.client_name, r.due_on, r.number), v.receivable, scope)  # fmt: skip
-    schedule = _instalments(session, scope, cut) if p.basis == "due" else {}
+    schedule = _instalments(session, scope, cut, [row.invoice_id for row in found]) if p.basis == "due" else {}
     customers: dict[str, dict] = {}
     details = []
     for row in found:
@@ -219,7 +225,7 @@ def _underpaid(session: Session, p: UnderpaidParams, scope: Scope) -> dict:
     if not p.include_paid_to_date:
         # an invoice "paid to date" owes nothing as of the cut on its schedule, though items on it are unpaid
         invoice_ids = {r.invoice_id for r in found if r.invoice_id}
-        schedule = _instalments(session, scope, cut)
+        schedule = _instalments(session, scope, cut, list(invoice_ids))
         invoice_paid = _paid_by(cut, "invoice_id")
         rv = v.receivable.c
         for r in _fetch(session, select(rv.invoice_id, rv.total_minor, func.coalesce(invoice_paid.c.paid_minor, 0)
@@ -263,17 +269,18 @@ def _accrued(session: Session, p: AccruedParams, scope: Scope) -> dict:
     where = [k.consumed_delta != 0, _between(k.session_on, p, scope)]
     if p.trainer_resource_ids:
         where.append(k.trainer_resource_id.in_(p.trainer_resource_ids))
-    value = k.consumed_delta * k.unit_value_minor
+    value = k.consumed_delta * k.unit_value_minor  # unrounded: rounded half-up once per line and per trainer
     grouped = session.execute(_loc(
         select(k.trainer_resource_id, func.max(k.trainer_name).label("trainer_name"),
-               _sum(k.consumed_delta, "sessions"), _sum(value, "value_minor"))
+               _sum(k.consumed_delta, "sessions"), func.round(func.coalesce(func.sum(value), 0)).label("value_minor"))
         .where(*where).group_by(k.trainer_resource_id).order_by(func.max(k.trainer_name)), v.package_credit, scope,
     )).all()  # fmt: skip
     rows = [{"group_key": _key(r.trainer_resource_id), "trainer": r.trainer_name or "(no trainer)",
              **_int(r, "sessions", "value_minor")} for r in grouped]  # fmt: skip
     details = [dict(r._mapping) | {"group_key": _key(r.trainer_resource_id)} for r in session.execute(_loc(
         select(k.trainer_resource_id, k.session_on, k.client_name, k.package_name, k.trainer_name,
-               k.consumed_delta.label("sessions"), k.unit_value_minor, value.label("value_minor"))
+               k.consumed_delta.label("sessions"), cast(func.round(k.unit_value_minor), BigInteger).label("unit_value_minor"),
+               cast(func.round(value), BigInteger).label("value_minor"))
         .where(*where).order_by(k.session_on, k.credit_ledger_entry_id), v.package_credit, scope,
     ))]  # fmt: skip
     return {"rows": rows, "totals": {k: sum(r[k] for r in rows) for k in ("sessions", "value_minor")},
@@ -314,10 +321,10 @@ def _unused(session: Session, p: UnusedParams, scope: Scope) -> dict:
     details = []
     for r in found:
         group = _key(r.client_id)
-        value = int(r.unused) * int(r.unit_value_minor)
+        value = int((r.unused * r.unit_value_minor).quantize(Decimal(1), ROUND_HALF_UP))  # the one rounding
         details.append({"group_key": group, "package_name": r.package_name, "reservation_type": r.reservation_type_name,
                         "sold_on": r.sold_on, "valid_to_on": r.valid_to_on, **_int(r, "granted", "used", "unused"),
-                        "unit_value_minor": int(r.unit_value_minor), "value_minor": value})  # fmt: skip
+                        "unit_value_minor": int(r.unit_value_minor.quantize(Decimal(1), ROUND_HALF_UP)), "value_minor": value})  # fmt: skip
         client = clients.setdefault(group, {"group_key": group, "client_name": r.client_name, "package_count": 0,
                                             "unused": 0, "value_minor": 0})  # fmt: skip
         client["package_count"] += 1
