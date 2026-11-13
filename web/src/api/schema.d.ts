@@ -5956,6 +5956,221 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/locker-leases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Locker Leases
+         * @description Filters: location_id, locker_id, client_id, ends_on ([gte], [lte]), is_open. Sort: ends_on, created_at.
+         */
+        get: operations["listLockerLeases"];
+        put?: never;
+        /**
+         * Create Locker Lease
+         * @description Errors: locker-already-rented, locker-unavailable, term-ended.
+         */
+        post: operations["createLockerLease"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/locker-leases/clear-expired": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clear Expired Locker Leases */
+        post: operations["clearExpiredLockerLeases"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/locker-leases/{locker_lease_id}/clear": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clear Locker Lease */
+        post: operations["clearLockerLease"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/locker-leases/{locker_lease_id}/renew": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Renew Locker Lease
+         * @description Closes the lease as renewed and starts the next term with its own charge (a lapsed lease restarts
+         *     today). Errors: lease-cleared, lease-overlaps, locker-unavailable.
+         */
+        post: operations["renewLockerLease"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/locker-rooms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Locker Rooms
+         * @description Filters: location_id, is_active. Sort: sort_order, name.
+         */
+        get: operations["listLockerRooms"];
+        put?: never;
+        /** Create Locker Room */
+        post: operations["createLockerRoom"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/locker-rooms/{locker_room_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Locker Room */
+        patch: operations["updateLockerRoom"];
+        trace?: never;
+    };
+    "/api/v1/locker-rooms/{locker_room_id}/lockers/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Create Lockers
+         * @description Numbers the room already has are skipped. Errors: locker-room-inactive.
+         */
+        post: operations["bulkCreateLockers"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/locker-terms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Locker Terms
+         * @description Filters: location_id, is_active.
+         */
+        get: operations["listLockerTerms"];
+        put?: never;
+        /** Create Locker Term */
+        post: operations["createLockerTerm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/locker-terms/{locker_term_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Locker Term */
+        patch: operations["updateLockerTerm"];
+        trace?: never;
+    };
+    "/api/v1/lockers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Lockers
+         * @description Lockers with their lease state (available, rented, expired). Filters: location_id, locker_room_id, status.
+         */
+        get: operations["listLockers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/lockers/{locker_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Locker
+         * @description Errors: locker-leased (taking a rented locker out of service).
+         */
+        patch: operations["updateLocker"];
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -7202,6 +7417,68 @@ export interface paths {
         head?: never;
         /** Update Package Settings */
         patch: operations["updatePackageSettings"];
+        trace?: never;
+    };
+    "/api/v1/padlocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Padlocks
+         * @description Filters: location_id, status; q searches the number.
+         */
+        get: operations["listPadlocks"];
+        put?: never;
+        /** Create Padlock */
+        post: operations["createPadlock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/padlocks/{padlock_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Padlock
+         * @description Removes the lock from the inventory and from its locker; the row is kept for the audit trail.
+         */
+        delete: operations["deletePadlock"];
+        options?: never;
+        head?: never;
+        /** Update Padlock */
+        patch: operations["updatePadlock"];
+        trace?: never;
+    };
+    "/api/v1/padlocks/{padlock_id}/reveal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reveal Padlock Combination
+         * @description A POST because each reveal is written to the audit log (who looked, never the value).
+         */
+        post: operations["revealPadlockCombination"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/pay-statements/{pay_statement_id}": {
@@ -8711,6 +8988,67 @@ export interface paths {
         put?: never;
         /** Portal End Relationship */
         post: operations["portalEndRelationship"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/rental-plan-purchases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Rental Plan Purchases
+         * @description Live plans the acting client owns or may draw on through a share.
+         */
+        get: operations["listPortalRentalPlanPurchases"];
+        put?: never;
+        /**
+         * Buy Portal Rental Plan
+         * @description Errors: payment-failed (nothing is sold), membership-required.
+         */
+        post: operations["buyPortalRentalPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/rental-plan-purchases/{purchase_id}/auto-renew-opt-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Portal Opt Out Rental Plan Auto Renew */
+        post: operations["portalOptOutRentalPlanAutoRenew"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portal/rental-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Portal Rental Plans
+         * @description Plans sold online, priced for the acting client. Filters: location_id, rental_type_id.
+         */
+        get: operations["listPortalRentalPlans"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -10819,7 +11157,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Rental Plan Purchase
+         * @description Auto-renew and autopay of one purchase. Errors: plan-not-valid.
+         */
+        patch: operations["updateRentalPlanPurchase"];
         trace?: never;
     };
     "/api/v1/rental-plan-purchases/{purchase_id}/cancel": {
@@ -10849,6 +11191,27 @@ export interface paths {
         /** List Rental Plan Ledger */
         get: operations["listRentalPlanLedger"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rental-plan-purchases/{purchase_id}/shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace Rental Plan Shares
+         * @description Share with related clients; the list replaces the live shares. Errors: plan-not-shareable,
+         *     client-not-related.
+         */
+        put: operations["replaceRentalPlanShares"];
         post?: never;
         delete?: never;
         options?: never;
@@ -22659,6 +23022,332 @@ export interface components {
             /** Website Url */
             website_url?: string | null;
         };
+        /** LockerBulkCreate */
+        LockerBulkCreate: {
+            /** From Number */
+            from_number: number;
+            /** Size Label */
+            size_label?: string | null;
+            /** To Number */
+            to_number: number;
+        };
+        /** LockerBulkResult */
+        LockerBulkResult: {
+            /** Created Count */
+            created_count: number;
+            /** Skipped Count */
+            skipped_count: number;
+        };
+        /** LockerLeaseClearExpired */
+        LockerLeaseClearExpired: {
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Locker Room Id */
+            locker_room_id?: string | null;
+        };
+        /** LockerLeaseClearResult */
+        LockerLeaseClearResult: {
+            /** Cleared Count */
+            cleared_count: number;
+        };
+        /** LockerLeaseCreate */
+        LockerLeaseCreate: {
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Ends On */
+            ends_on?: string | null;
+            /** Fee Minor */
+            fee_minor?: number | null;
+            /**
+             * Invoice Routing
+             * @default new_single
+             * @enum {string}
+             */
+            invoice_routing: "new_single" | "cart";
+            /**
+             * Locker Id
+             * Format: uuid
+             */
+            locker_id: string;
+            /** Locker Term Id */
+            locker_term_id?: string | null;
+            /** Starts On */
+            starts_on?: string | null;
+            /**
+             * Term Kind
+             * @enum {string}
+             */
+            term_kind: "day" | "week" | "month" | "year" | "term" | "custom";
+        };
+        /** LockerLeaseOut */
+        LockerLeaseOut: {
+            /** Charge Id */
+            charge_id: string | null;
+            /** Charge State */
+            charge_state: string;
+            /** Clear Source */
+            clear_source: string | null;
+            /** Cleared At */
+            cleared_at: string | null;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
+            /** Client Name */
+            client_name: string | null;
+            /**
+             * Ends On
+             * Format: date
+             */
+            ends_on: string;
+            /** Fee Minor */
+            fee_minor: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /**
+             * Locker Id
+             * Format: uuid
+             */
+            locker_id: string;
+            /** Locker Number */
+            locker_number?: number | null;
+            /** Locker Room Name */
+            locker_room_name?: string | null;
+            /** Locker Term Id */
+            locker_term_id: string | null;
+            /** Renewed From Lease Id */
+            renewed_from_lease_id: string | null;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "rented" | "expired" | "cleared";
+            /** Term Kind */
+            term_kind: string;
+        };
+        /** LockerLeaseRenew */
+        LockerLeaseRenew: {
+            /** Ends On */
+            ends_on?: string | null;
+            /** Fee Minor */
+            fee_minor?: number | null;
+            /**
+             * Invoice Routing
+             * @default new_single
+             * @enum {string}
+             */
+            invoice_routing: "new_single" | "cart";
+            /** Locker Term Id */
+            locker_term_id?: string | null;
+            /** Starts On */
+            starts_on?: string | null;
+            /**
+             * Term Kind
+             * @enum {string}
+             */
+            term_kind: "day" | "week" | "month" | "year" | "term" | "custom";
+        };
+        /** LockerOut */
+        LockerOut: {
+            /** Client Id */
+            client_id: string | null;
+            /** Client Name */
+            client_name: string | null;
+            /** Ends On */
+            ends_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Locker Lease Id */
+            locker_lease_id: string | null;
+            /**
+             * Locker Room Id
+             * Format: uuid
+             */
+            locker_room_id: string;
+            /** Locker Room Name */
+            locker_room_name: string | null;
+            /** Number */
+            number: number;
+            /** Padlock Id */
+            padlock_id: string | null;
+            /** Padlock Number */
+            padlock_number: string | null;
+            /** Size Label */
+            size_label: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "rented" | "expired";
+            /** Status */
+            status: string;
+        };
+        /** LockerRoomCreate */
+        LockerRoomCreate: {
+            /**
+             * Designation
+             * @default unspecified
+             * @enum {string}
+             */
+            designation: "male" | "female" | "all_gender" | "unspecified";
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+        };
+        /** LockerRoomOut */
+        LockerRoomOut: {
+            /** Designation */
+            designation: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /** LockerRoomUpdate */
+        LockerRoomUpdate: {
+            /** Designation */
+            designation?: ("male" | "female" | "all_gender" | "unspecified") | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Sort Order */
+            sort_order?: number | null;
+        };
+        /** LockerTermCreate */
+        LockerTermCreate: {
+            /**
+             * Ends On
+             * Format: date
+             */
+            ends_on: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Price Minor
+             * @default 0
+             */
+            price_minor: number;
+            /**
+             * Sort Order
+             * @default 0
+             */
+            sort_order: number;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+        };
+        /** LockerTermOut */
+        LockerTermOut: {
+            /**
+             * Ends On
+             * Format: date
+             */
+            ends_on: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Name */
+            name: string;
+            /** Price Minor */
+            price_minor: number;
+            /** Sort Order */
+            sort_order: number;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+        };
+        /** LockerTermUpdate */
+        LockerTermUpdate: {
+            /** Ends On */
+            ends_on?: string | null;
+            /** Is Active */
+            is_active?: boolean | null;
+            /** Name */
+            name?: string | null;
+            /** Price Minor */
+            price_minor?: number | null;
+            /** Sort Order */
+            sort_order?: number | null;
+            /** Starts On */
+            starts_on?: string | null;
+        };
+        /** LockerUpdate */
+        LockerUpdate: {
+            /** Padlock Id */
+            padlock_id?: string | null;
+            /** Size Label */
+            size_label?: string | null;
+            /** Status */
+            status?: ("active" | "out_of_service" | "retired") | null;
+        };
         /** LookupIn */
         LookupIn: {
             /**
@@ -24690,6 +25379,59 @@ export interface components {
             /** Valid Until On */
             valid_until_on?: string | null;
         };
+        /** PadlockCombinationOut */
+        PadlockCombinationOut: {
+            /** Combination */
+            combination: string;
+            /** Number */
+            number: string;
+            /**
+             * Padlock Id
+             * Format: uuid
+             */
+            padlock_id: string;
+        };
+        /** PadlockCreate */
+        PadlockCreate: {
+            /** Combination */
+            combination: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Number */
+            number: string;
+        };
+        /**
+         * PadlockOut
+         * @description Never carries the combination: that is `revealPadlockCombination`, under its own key.
+         */
+        PadlockOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Number */
+            number: string;
+            /** Status */
+            status: string;
+        };
+        /** PadlockUpdate */
+        PadlockUpdate: {
+            /** Combination */
+            combination?: string | null;
+            /** Number */
+            number?: string | null;
+            /** Status */
+            status?: ("active" | "disabled") | null;
+        };
         /** PageInfo */
         PageInfo: {
             /** Has More */
@@ -25023,6 +25765,30 @@ export interface components {
             data: components["schemas"]["LocationOut"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** Page[LockerLeaseOut] */
+        Page_LockerLeaseOut_: {
+            /** Data */
+            data: components["schemas"]["LockerLeaseOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[LockerOut] */
+        Page_LockerOut_: {
+            /** Data */
+            data: components["schemas"]["LockerOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[LockerRoomOut] */
+        Page_LockerRoomOut_: {
+            /** Data */
+            data: components["schemas"]["LockerRoomOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[LockerTermOut] */
+        Page_LockerTermOut_: {
+            /** Data */
+            data: components["schemas"]["LockerTermOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
         /** Page[MembershipPlanOut] */
         Page_MembershipPlanOut_: {
             /** Data */
@@ -25099,6 +25865,12 @@ export interface components {
         Page_PackageSeriesOut_: {
             /** Data */
             data: components["schemas"]["PackageSeriesOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PadlockOut] */
+        Page_PadlockOut_: {
+            /** Data */
+            data: components["schemas"]["PadlockOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[PayStatementLineOut] */
@@ -25201,6 +25973,18 @@ export interface components {
         Page_PortalRentalOut_: {
             /** Data */
             data: components["schemas"]["PortalRentalOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PortalRentalPlanOut] */
+        Page_PortalRentalPlanOut_: {
+            /** Data */
+            data: components["schemas"]["PortalRentalPlanOut"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** Page[PortalRentalPlanPurchaseOut] */
+        Page_PortalRentalPlanPurchaseOut_: {
+            /** Data */
+            data: components["schemas"]["PortalRentalPlanPurchaseOut"][];
             page: components["schemas"]["PageInfo"];
         };
         /** Page[PortalVideo] */
@@ -26183,6 +26967,10 @@ export interface components {
             client_id: string;
             /** Invoice Routing */
             invoice_routing?: ("new_single" | "cart") | null;
+            /** Is Auto Renew */
+            is_auto_renew?: boolean | null;
+            /** Is Autopay */
+            is_autopay?: boolean | null;
             /** Quantity Total */
             quantity_total?: number | string | null;
             /**
@@ -27794,6 +28582,99 @@ export interface components {
             status: string;
             /** Title */
             title: string;
+        };
+        /** PortalRentalPlanBuy */
+        PortalRentalPlanBuy: {
+            /** Client Id */
+            client_id?: string | null;
+            /** Method Token */
+            method_token?: string | null;
+            /** Payment Method Id */
+            payment_method_id?: string | null;
+            /**
+             * Rental Plan Id
+             * Format: uuid
+             */
+            rental_plan_id: string;
+        };
+        /** PortalRentalPlanOut */
+        PortalRentalPlanOut: {
+            /** Client Description */
+            client_description: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /** Is Members Only */
+            is_members_only: boolean;
+            /** Is Purchasable */
+            is_purchasable: boolean;
+            /** Is Unlimited */
+            is_unlimited: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Model */
+            model: string;
+            /** Name */
+            name: string;
+            /** Price Minor */
+            price_minor: number;
+            /** Quantity */
+            quantity: string | null;
+            /**
+             * Rental Type Id
+             * Format: uuid
+             */
+            rental_type_id: string;
+            /** Validity Days */
+            validity_days: number | null;
+        };
+        /** PortalRentalPlanPurchaseOut */
+        PortalRentalPlanPurchaseOut: {
+            /** Balance */
+            balance: string | null;
+            /** Expires On */
+            expires_on: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /** Is Owner */
+            is_owner: boolean;
+            /**
+             * Location Id
+             * Format: uuid
+             */
+            location_id: string;
+            /** Model */
+            model: string;
+            /** Payment Status */
+            payment_status?: string | null;
+            /** Quantity Total */
+            quantity_total: string | null;
+            /**
+             * Rental Plan Id
+             * Format: uuid
+             */
+            rental_plan_id: string;
+            /** Rental Plan Name */
+            rental_plan_name: string | null;
+            /**
+             * Starts On
+             * Format: date
+             */
+            starts_on: string;
+            /** Status */
+            status: string;
         };
         /** PortalRentalResourceOut */
         PortalRentalResourceOut: {
@@ -29842,6 +30723,10 @@ export interface components {
             id: string;
             /** Invoice Id */
             invoice_id?: string | null;
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /** Is Autopay */
+            is_autopay: boolean;
             /**
              * Location Id
              * Format: uuid
@@ -29853,11 +30738,18 @@ export interface components {
             price_minor: number;
             /** Quantity Total */
             quantity_total: string | null;
+            /** Renewed From Purchase Id */
+            renewed_from_purchase_id: string | null;
             /**
              * Rental Plan Id
              * Format: uuid
              */
             rental_plan_id: string;
+            /**
+             * Shared With Client Ids
+             * @default []
+             */
+            shared_with_client_ids: string[];
             /** Sold Via */
             sold_via: string;
             /**
@@ -29867,6 +30759,13 @@ export interface components {
             starts_on: string;
             /** Status */
             status: string;
+        };
+        /** PurchaseUpdate */
+        PurchaseUpdate: {
+            /** Is Auto Renew */
+            is_auto_renew?: boolean | null;
+            /** Is Autopay */
+            is_autopay?: boolean | null;
         };
         /**
          * Quote
@@ -30737,6 +31636,10 @@ export interface components {
             fixed_starts_on?: string | null;
             /** Internal Description */
             internal_description?: string | null;
+            /** Is Auto Renew */
+            is_auto_renew?: boolean | null;
+            /** Is Autopay Default */
+            is_autopay_default?: boolean | null;
             /** Is Flat Rate */
             is_flat_rate?: boolean | null;
             /** Is Members Only */
@@ -30822,6 +31725,10 @@ export interface components {
             id: string;
             /** Internal Description */
             internal_description: string | null;
+            /** Is Auto Renew */
+            is_auto_renew: boolean;
+            /** Is Autopay Default */
+            is_autopay_default: boolean;
             /** Is Flat Rate */
             is_flat_rate: boolean;
             /** Is Members Only */
@@ -30864,6 +31771,11 @@ export interface components {
             /** Validity Days */
             validity_days: number | null;
         };
+        /** RentalPlanShares */
+        RentalPlanShares: {
+            /** Client Ids */
+            client_ids: string[];
+        };
         /** RentalPlanUpdate */
         RentalPlanUpdate: {
             /** Client Description */
@@ -30876,6 +31788,10 @@ export interface components {
             fixed_starts_on?: string | null;
             /** Internal Description */
             internal_description?: string | null;
+            /** Is Auto Renew */
+            is_auto_renew?: boolean | null;
+            /** Is Autopay Default */
+            is_autopay_default?: boolean | null;
             /** Is Flat Rate */
             is_flat_rate?: boolean | null;
             /** Is Members Only */
@@ -51113,6 +52029,546 @@ export interface operations {
             };
         };
     };
+    listLockerLeases: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_LockerLeaseOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createLockerLease: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LockerLeaseCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LockerLeaseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clearExpiredLockerLeases: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LockerLeaseClearExpired"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LockerLeaseClearResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clearLockerLease: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                locker_lease_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LockerLeaseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    renewLockerLease: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                locker_lease_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LockerLeaseRenew"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LockerLeaseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listLockerRooms: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_LockerRoomOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createLockerRoom: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LockerRoomCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LockerRoomOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateLockerRoom: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                locker_room_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LockerRoomUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LockerRoomOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulkCreateLockers: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                locker_room_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LockerBulkCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LockerBulkResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listLockerTerms: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_LockerTermOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createLockerTerm: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LockerTermCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LockerTermOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateLockerTerm: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                locker_term_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LockerTermUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LockerTermOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listLockers: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_LockerOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateLocker: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                locker_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LockerUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LockerOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getMe: {
         parameters: {
             query?: never;
@@ -54259,6 +55715,189 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PackageSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPadlocks: {
+        parameters: {
+            query?: {
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PadlockOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createPadlock: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PadlockCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PadlockOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deletePadlock: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                padlock_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updatePadlock: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                padlock_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PadlockUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PadlockOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revealPadlockCombination: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                padlock_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PadlockCombinationOut"];
                 };
             };
             /** @description Validation Error */
@@ -57706,6 +59345,164 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RelationshipOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalRentalPlanPurchases: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PortalRentalPlanPurchaseOut_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    buyPortalRentalPlan: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Required; keys live 24 hours. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortalRentalPlanBuy"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalRentalPlanPurchaseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    portalOptOutRentalPlanAutoRenew: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                purchase_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalRentalPlanPurchaseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalRentalPlans: {
+        parameters: {
+            query?: {
+                client_id?: string | null;
+                /** @description Page size */
+                limit?: number;
+                /** @description Opaque keyset cursor from page.next_cursor */
+                cursor?: string | null;
+                /** @description Comma-separated allow-listed fields; - prefix for descending */
+                sort?: string | null;
+                /** @description `total` adds page.total */
+                include?: string | null;
+                /** @description Free-text search */
+                q?: string | null;
+            };
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PortalRentalPlanOut_"];
                 };
             };
             /** @description Validation Error */
@@ -62616,6 +64413,44 @@ export interface operations {
             };
         };
     };
+    updateRentalPlanPurchase: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                purchase_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PurchaseUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     cancelRentalPlanPurchase: {
         parameters: {
             query?: never;
@@ -62675,6 +64510,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RentalPlanLedgerEntryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replaceRentalPlanShares: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                purchase_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RentalPlanShares"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOut"];
                 };
             };
             /** @description Validation Error */

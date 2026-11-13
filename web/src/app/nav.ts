@@ -4,7 +4,7 @@ export type NavItem = { label: string; to?: string; permission?: string | string
 export type IconName = 'home' | 'pin' | 'users' | 'shield' | 'list' | 'gear' | 'calendar' | 'ticket' | 'person' | 'card' | 'clipboard' | 'pen' | 'cash' | 'cart' | 'door' | 'trophy' | 'clock' | 'mail' | 'pulse' | 'chart' | 'plug' | 'phone'
 
 // Any report family key opens the report centre; listed here so nav.ts stays free of feature imports.
-const REPORT_KEYS = ['reporting.financial.run', 'reporting.membership.run', 'reporting.attendance.run', 'reporting.pos.run', 'reporting.time_clock.run', 'reporting.league.run']
+const REPORT_KEYS = ['reporting.financial.run', 'reporting.membership.run', 'reporting.attendance.run', 'reporting.pos.run', 'reporting.time_clock.run', 'reporting.league.run', 'reporting.client.run']
 
 export const PLATFORM_NAV: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: 'home' },
@@ -29,6 +29,7 @@ export const PLATFORM_NAV: NavItem[] = [
   { label: 'Scheduling setup', to: '/scheduling/setup', icon: 'list' },
   { label: 'Rentals', to: '/rentals', permission: 'scheduling.booking.read', icon: 'ticket' },
   { label: 'Rental setup', to: '/rentals/setup', icon: 'list' },
+  { label: 'Lockers', to: '/lockers', permission: ['rentals.locker_rental.manage', 'resources.locker.manage', 'resources.padlock.reveal_combination'], icon: 'door' },
   { label: 'Programs & registration', to: '/programs', permission: 'programs.registration.read', icon: 'clipboard' },
   { label: 'Booking policies', to: '/programs/booking-policies', permission: 'programs.registration_config.manage', icon: 'gear' },
   { label: 'Check-in', to: '/check-in', permission: 'access.checkin.create', icon: 'door' },

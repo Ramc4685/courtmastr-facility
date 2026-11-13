@@ -290,6 +290,15 @@ _BODIES = {
     "confirmPortalRental": {"provider_payment_token": "tok_card_ok"},
     "updateRentalPlan": {"name": "Renamed"},
     "cancelRentalPlanPurchase": {"cancel_mode": "keep_billing", "reason": "Mistake"},
+    "updateRentalPlanPurchase": {"is_auto_renew": False},
+    "replaceRentalPlanShares": lambda ids: {"client_ids": [ids.kid_id]},
+    "renewLockerLease": {"term_kind": "month"},
+    # lockers and padlocks (RES-07..09)
+    "updateLockerRoom": {"name": "Renamed"},
+    "bulkCreateLockers": {"from_number": 5, "to_number": 6},
+    "updateLocker": {"size_label": "Half"},
+    "updateLockerTerm": {"name": "Renamed"},
+    "updatePadlock": {"number": "P-9"},
     # staff (build module 12)
     "updateStaffPayee": {"display_name": "Renamed"},
     "putDefaultPayRate": {"pay_basis": "per_session"},

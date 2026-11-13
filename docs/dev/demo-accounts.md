@@ -73,6 +73,13 @@ day" flat rate; 25% deposit online; 24-hour cut-off with a 50% late-cancel fee. 
 Tuesday 19:00 rental on Court 3 (four weeks, billed on one invoice), Riley Reyes has an unbilled Thursday
 rental in the queue, and Jordan Okafor bought the **10-hour court pack** and used two hours of it on Friday.
 
+## Demo lockers (phase 14)
+
+At Downtown, the **Main locker room** has lockers 1 to 20 and a priced term **Season <year>** ($60). Jordan
+Okafor rents locker 1 for the season with padlock **PL-01** (combination 12-24-36, revealed only to staff
+allowed to see it); Riley Reyes rents locker 2 by the week. The 10-hour court pack is sold online, renews
+automatically and can be shared with related clients.
+
 ## Demo check-in (build module 10)
 
 At Downtown: barcode `DEMO-CARD-0001` belongs to Morgan Member (scan or type it on Check-in), two earlier

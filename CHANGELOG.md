@@ -12,6 +12,8 @@ under `Unreleased` in the same change that makes the behaviour visible.
 - Leagues: league venues, per-team scheduling preferences, ladders, player stat tables with formula stats, and game card PDFs.
 - Leagues: per-competition league staff and a scorekeeper screen that shows only the scorekeeper's games.
 - Leagues: publish a program as a league or tournament; captains manage their roster in the portal ("My teams"); split a team fee across players.
+- Lockers: set up locker rooms (create lockers in bulk), priced locker terms and padlocks, then rent, renew and clear lockers from the Lockers board. Padlock combinations are stored encrypted and shown only to staff allowed to reveal them; every reveal is logged.
+- Rental plans can renew automatically and charge the saved card, be sold to members only, and be shared with related clients; members can buy a rental plan and stop its renewal in the portal.
 - Phase 8 (platform, security and operations) is in progress; the entries below have landed.
 - File storage in a cloud bucket with malware scanning and expiring download links.
 - Background jobs retry automatically, and failed jobs land in a dead-letter list an operator can requeue.

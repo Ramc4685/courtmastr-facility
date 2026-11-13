@@ -78,6 +78,11 @@ time_entry = _view(
     """time_entry_id location_id staff_user_id staff_name job_classification_id
     job_name clock_in_at clock_out_at work_on clock_in_time clock_out_time source is_edited minutes""",
 )
+locker = _view(
+    "rpt_locker",  # migration 1461 (RPT-35)
+    """locker_id location_id locker_room_id locker_room_name number size_label locker_status locker_lease_id
+    client_id client_name term_kind starts_on ends_on fee_minor state today_on""",
+)
 
 league_game = _view(  # migration 1421 (leagues chip B1): scheduled league games for game cards
     "rpt_league_game",
@@ -90,4 +95,4 @@ league_team = _view(  # migration 1421: active team entries, for blank game card
 
 ALL = (charge, payment, refund, invoice, allocation, contract, attendance, sale_line, sale, tender, pos_return, drawer,
        time_entry,
-       league_game, league_team)  # fmt: skip
+       league_game, league_team, locker)  # fmt: skip

@@ -34,7 +34,7 @@ Totals: **P0** 13 done, 1 partial, 3 not built (17). **P1** 5 done, 4 partial, 1
 | FAM-03 Act on behalf of a related person | P0 | done | `households.can_act_for(session, identity_id, client_id, capability)`, checked per request | `test_can_act_for_rules` | Authorities are self, manager, guardian and delegate. A delegate cannot edit the profile or consent. |
 | FAM-04 Membership sharing | P0 | not built | none | none | Owned by memberships (`membership_share`, data-model-people section 9). |
 | FAM-05 Package sharing | P0 | not built | none | none | Owned by packages (`package_share`). |
-| FAM-06 Rental plan sharing | P1 | not built | none | none | Owned by rentals. |
+| FAM-06 Rental plan sharing | P1 | done | rentals `PUT /rental-plan-purchases/{id}/shares` | rentals `test_share_with_related_clients_only` | Built in rentals (RNT-10). |
 
 Also built, outside the CLI and FAM IDs:
 

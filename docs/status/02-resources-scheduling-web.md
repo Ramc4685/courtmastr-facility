@@ -22,9 +22,9 @@ Tests:
 | RES-04 Schedule groups | P0 | done | `/resources` group cards; calendar group filter | `ResourcesPage.test.tsx`, e2e | Create, rename, reorder and deactivate groups. |
 | RES-05 Linked multi-resource reservations | P0 | done | Resources › Links dialog; drawer "Also book" and "linked resources" | `BookingDrawer.test.tsx` (additional resource, linked names) | Standing links are edited per resource. The drawer names the linked resources it will also hold. |
 | RES-06 League venues mapping | P1 | not built | | | League module (later). |
-| RES-07 Locker rooms | P1 | not built | | | No API. |
-| RES-08 Locker terms | P1 | not built | | | No API. |
-| RES-09 Padlock inventory | P2 | not built | | | No API. |
+| RES-07 Locker rooms | P1 | done | `/lockers` Locker board and Setup tabs | e2e `lockers.spec.ts` | Room create with bulk lockers. |
+| RES-08 Locker terms | P1 | done | `/lockers` Setup tab | e2e `lockers.spec.ts` | |
+| RES-09 Padlock inventory | P2 | done | `/lockers` Setup tab, Reveal button | e2e `lockers.spec.ts` | Revealed value kept in component state only. |
 | SCH-01 Calendar views and navigation | P0 | done | `/schedule` | `TimeGrid.test.tsx`, e2e | Day view has one column per resource. Week view has one column per day, with resource names on each entry. Month view is a 42-day grid whose day buttons open that day. Navigation: Previous, Today, Next and go to date. Filters cover location, schedule group, resources and types. The header shows the time zone, e.g. "America/Chicago (CST)". |
 | SCH-02 Reservation types | P0 | done | Setup › Reservation types | `SetupPage.test.tsx` | Colour, category, length, capacity, buffers, flags, active. |
 | SCH-03 Type online-booking options | P0 | done | type dialog; session panel flags; link to booking policies | `SetupPage.test.tsx` | Per-type defaults and per-session flags here; the full online policy per type (listing mode, booking window, cut-offs, allowed packages) is programs' booking policy (location default plus type override), linked from the types tab. |
