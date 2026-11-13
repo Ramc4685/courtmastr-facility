@@ -391,6 +391,13 @@ _BODIES = {
     "replaceGamePlayerStats": {"stats": []},
     "splitTeamFee": lambda ids: {"shares": [{"roster_entry_id": ids.roster_entry_id, "amount_minor": 1}]},
     "createPortalRosterEntry": {"first_name": "Walk", "last_name": "On"},
+    # public league site (Phase 14 chip B2)
+    "updateLeagueLink": {"title": "Renamed"},
+    "updateLeaguePhoto": {"caption": "Renamed"},
+    "updateLeagueSponsor": {"name": "Renamed"},
+    "updateLeagueNewsStory": {"title": "Renamed"},
+    "rejectLeaguePost": {},
+    "contactPortalLeaguePost": {"message": "Is there still room on the team?"},
     # integrations (module 16)
     "rotateApiKey": {},
     "updateWebhookEndpoint": {"description": "Renamed"},

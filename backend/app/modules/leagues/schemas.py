@@ -138,6 +138,7 @@ class _CompetitionFields(_ScoringIn):
     game_length_min: Annotated[int, Field(gt=0, le=600)] | None = None
     is_public: bool | None = None
     shows_roster_publicly: bool | None = None
+    show_players: bool | None = None  # B2: player names and stats on the public site; default off (minors)
     max_defaults: Annotated[int, Field(ge=0)] | None = None
     max_forfeits: Annotated[int, Field(ge=0)] | None = None
     min_sportsmanship: Annotated[Decimal, Field(ge=0, le=99, max_digits=4, decimal_places=2)] | None = None
@@ -182,6 +183,7 @@ class CompetitionOut(_ScoringOut):
     status: str
     is_public: bool
     shows_roster_publicly: bool
+    show_players: bool
     max_defaults: int | None
     max_forfeits: int | None
     min_sportsmanship: Decimal | None
@@ -871,7 +873,10 @@ class PublicCompetitionOut(Out):
     kind: str
     format: str
     name: str
+    sport_id: UUID
     sport_name: str
+    season_id: UUID | None
+    show_players: bool
     status: str
     starts_on: date
     ends_on: date | None
@@ -908,3 +913,300 @@ class PublicStandingOut(Out):
     goal_difference: int
     win_pct: Decimal
     points: Decimal
+
+
+# --- public league site (Phase 14 B2) ---------------------------------------------------------------------------
+
+Url = Annotated[str, Field(max_length=500, pattern=r"^https?://\S+$")]
+Short = Annotated[str, Field(min_length=1, max_length=100)]
+LongText = Annotated[str, Field(min_length=1, max_length=20000)]
+
+
+class LeagueSiteIn(In):
+    """PUT replaces the whole options set (LGE-19, PLT-12)."""
+
+    is_enabled: bool = False
+    title: Name = "Leagues"
+    tagline: Annotated[str, Field(max_length=300)] | None = None
+    about_text: Text | None = None
+    accent_color: Color | None = None
+    shows_facility_info: bool = True
+    shows_classes: bool = True
+    shows_news: bool = True
+    shows_gallery: bool = True
+    shows_sponsors: bool = True
+    shows_links: bool = True
+    shows_classifieds: bool = False
+    shows_pickup_games: bool = False
+    board_refresh_sec: Annotated[int, Field(ge=15, le=600)] = 60
+
+
+class LeagueSiteOut(Out):
+    is_enabled: bool
+    title: str
+    tagline: str | None
+    about_text: str | None
+    accent_color: str | None
+    shows_facility_info: bool
+    shows_classes: bool
+    shows_news: bool
+    shows_gallery: bool
+    shows_sponsors: bool
+    shows_links: bool
+    shows_classifieds: bool
+    shows_pickup_games: bool
+    board_refresh_sec: int
+
+
+class PublicFacilityOut(Out):
+    id: UUID
+    name: str
+    address_line1: str | None
+    address_line2: str | None
+    city: str | None
+    region: str | None
+    postal_code: str | None
+    phone: str | None
+    email: str | None
+    website_url: str | None
+
+
+class PublicLeagueSiteOut(LeagueSiteOut):
+    facilities: list[PublicFacilityOut]
+
+
+class LeagueLinkCreate(In):
+    title: Name
+    url: Url
+    category: Short | None = None
+    sort_order: Annotated[int, Field(ge=0, le=9999)] = 0
+
+
+class LeagueLinkUpdate(In):
+    title: Name | None = None
+    url: Url | None = None
+    category: Short | None = None
+    sort_order: Annotated[int, Field(ge=0, le=9999)] | None = None
+
+
+class LeagueLinkOut(Out):
+    id: UUID
+    title: str
+    url: str
+    category: str | None
+    sort_order: int
+
+
+class LeaguePhotoUpdate(In):
+    caption: Annotated[str, Field(max_length=300)] | None = None
+    album: Short | None = None
+    sort_order: Annotated[int, Field(ge=0, le=9999)] | None = None
+    is_published: bool | None = None
+
+
+class LeaguePhotoOut(Out):
+    id: UUID
+    caption: str | None
+    album: str | None
+    sort_order: int
+    is_published: bool
+
+
+class PublicLeaguePhotoOut(Out):
+    id: UUID
+    caption: str | None
+    album: str | None
+
+
+class LeagueSponsorCreate(In):
+    name: Name
+    url: Url | None = None
+    blurb: Annotated[str, Field(max_length=500)] | None = None
+    starts_on: date | None = None
+    ends_on: date | None = None
+    sort_order: Annotated[int, Field(ge=0, le=9999)] = 0
+    is_active: bool = True
+
+
+class LeagueSponsorUpdate(In):
+    name: Name | None = None
+    url: Url | None = None
+    blurb: Annotated[str, Field(max_length=500)] | None = None
+    starts_on: date | None = None
+    ends_on: date | None = None
+    sort_order: Annotated[int, Field(ge=0, le=9999)] | None = None
+    is_active: bool | None = None
+
+
+class LeagueSponsorOut(Out):
+    id: UUID
+    name: str
+    url: str | None
+    blurb: str | None
+    starts_on: date | None
+    ends_on: date | None
+    sort_order: int
+    is_active: bool
+    has_logo: bool
+
+
+class PublicLeagueSponsorOut(Out):
+    id: UUID
+    name: str
+    url: str | None
+    blurb: str | None
+    has_logo: bool
+
+
+class LeagueNewsCreate(In):
+    title: Name
+    summary: Annotated[str, Field(max_length=500)] | None = None
+    body: LongText
+    published_at: datetime | None = None
+    is_pinned: bool = False
+
+
+class LeagueNewsUpdate(In):
+    title: Name | None = None
+    summary: Annotated[str, Field(max_length=500)] | None = None
+    body: LongText | None = None
+    published_at: datetime | None = None
+    is_pinned: bool | None = None
+
+
+class LeagueNewsOut(Out):
+    id: UUID
+    title: str
+    summary: str | None
+    body: str
+    published_at: datetime | None
+    is_pinned: bool
+    created_at: datetime
+
+
+class PublicLeagueNewsOut(Out):
+    id: UUID
+    title: str
+    summary: str | None
+    body: str
+    published_at: datetime
+    is_pinned: bool
+
+
+class PublicClassOut(Out):
+    id: UUID
+    location_name: str
+    kind: str
+    name: str
+    description: str | None
+    starts_on: date | None
+    ends_on: date | None
+    price_minor: int | None
+    is_open: bool
+    spots_left: int | None
+
+
+class PublicTeamOut(Out):
+    name: str
+    division_name: str | None
+    players: list[str] | None
+
+
+class PublicPlayerStatOut(Out):
+    player_name: str
+    team_name: str
+    stats: dict[str, Decimal | None]
+
+
+class PublicBracketSlotOut(Out):
+    side: str
+    round_no: int
+    round_name: str
+    position: int
+    home_seed: int | None
+    away_seed: int | None
+    home_name: str | None
+    away_name: str | None
+    home_score: int | None
+    away_score: int | None
+    starts_at: datetime | None
+    is_bye: bool
+    winner: Literal["home", "away"] | None
+
+
+class PublicBracketOut(Out):
+    name: str
+    bracket_type: str
+    status: str
+    slots: list[PublicBracketSlotOut]
+
+
+class BoardGameOut(Out):
+    starts_at: datetime | None
+    competition_name: str
+    venue: str | None
+    status: str
+    home_name: str | None
+    away_name: str | None
+    home_score: int | None
+    away_score: int | None
+
+
+class PublicBoardOut(Out):
+    location_name: str
+    time_zone: str
+    on_date: date
+    refresh_sec: int
+    generated_at: datetime
+    games: list[BoardGameOut]
+
+
+_POST_KIND = Literal["classified", "pickup"]
+_POST_CATEGORY = Literal["player_wanted", "team_wanted", "coach_wanted", "other"]
+
+
+class LeaguePostCreate(In):
+    kind: _POST_KIND
+    location_id: UUID
+    category: _POST_CATEGORY = "other"
+    sport_id: UUID | None = None
+    title: Annotated[str, Field(min_length=3, max_length=120)]
+    body: Annotated[str, Field(min_length=10, max_length=2000)]
+    starts_at: datetime | None = None
+    skill_level: Annotated[str, Field(max_length=60)] | None = None
+    players_needed: Annotated[int, Field(ge=1, le=50)] | None = None
+
+
+class PublicLeaguePostOut(Out):
+    id: UUID
+    kind: str
+    category: str
+    location_name: str
+    sport_name: str | None
+    title: str
+    body: str
+    starts_at: datetime | None
+    skill_level: str | None
+    players_needed: int | None
+    posted_at: datetime
+    expires_at: datetime
+
+
+class PortalLeaguePostOut(PublicLeaguePostOut):
+    status: str
+
+
+class LeaguePostOut(PublicLeaguePostOut):
+    location_id: UUID
+    status: str
+    client_name: str
+    moderated_at: datetime | None
+    reject_reason: str | None
+
+
+class LeaguePostReject(In):
+    reason: Annotated[str, Field(max_length=500)] | None = None
+
+
+class LeaguePostContact(In):
+    message: Annotated[str, Field(min_length=10, max_length=2000)]

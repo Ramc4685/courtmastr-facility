@@ -26,7 +26,8 @@ import { TemplateEditorPage } from '../features/documents/TemplateEditorPage'
 import { TemplatesPage } from '../features/documents/TemplatesPage'
 import { ScoresPage, StatsPage, VenuesPage } from '../features/leagues/depth'
 import { LeaguePage, LeaguesPage } from '../features/leagues/LeaguesPage'
-import { PublicLeaguesPage } from '../features/leagues/PublicLeaguesPage'
+import { LeagueBoardPage, PublicLeaguesPage } from '../features/leagues/PublicLeaguesPage'
+import { LeaguePostsPage, LeagueSitePage } from '../features/leagues/SitePages'
 import { MembershipsPage } from '../features/memberships/MembershipsPage'
 import { PackagesPage } from '../features/packages/PackagesPage'
 import { PortalApp } from '../features/portal/PortalApp'
@@ -126,6 +127,7 @@ export function AppRoutes() {
       <Route path="/leagues/public" element={<PublicLeaguesPage />} />
       <Route path="/forms/:id" element={<PublicFormPage />} />
       <Route path="/leagues/public/:id" element={<PublicLeaguesPage />} />
+      <Route path="/leagues/board/:locationId" element={<LeagueBoardPage />} />
       <Route path="/portal/*" element={<RequireClient><PortalApp /></RequireClient>} />
       <Route path="/kiosk" element={<KioskPage />} />
       <Route path="/billing/invoices/:id/document" element={<RequireStaff><RequirePermission permission="billing.invoice.read"><InvoiceDocumentPage /></RequirePermission></RequireStaff>} />
@@ -228,6 +230,8 @@ export function AppRoutes() {
         <Route path="leagues" element={<RequirePermission permission="leagues.competition.manage"><LeaguesPage /></RequirePermission>} />
         <Route path="leagues/venues" element={<RequirePermission permission="leagues.competition.manage"><VenuesPage /></RequirePermission>} />
         <Route path="leagues/stats" element={<RequirePermission permission="leagues.competition.manage"><StatsPage /></RequirePermission>} />
+        <Route path="leagues/site" element={<RequirePermission permission="leagues.public_site.manage"><LeagueSitePage /></RequirePermission>} />
+        <Route path="leagues/posts" element={<RequirePermission permission="leagues.classified.moderate"><LeaguePostsPage /></RequirePermission>} />
         <Route path="leagues/scores" element={<RequirePermission permission="leagues.result.enter"><ScoresPage /></RequirePermission>} />
         <Route path="leagues/:id" element={<RequirePermission permission="leagues.competition.manage"><LeaguePage /></RequirePermission>} />
         {import.meta.env.DEV && (

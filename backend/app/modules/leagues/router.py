@@ -3,27 +3,34 @@ groups, seasons, competitions, divisions, teams, team entries, rosters, standing
 officials, brackets and the public schedule and standings. `billCompetitionTeam` is ours (the YAML has no
 command for billing a team fee). Phase 14 chip B1 (ours, `depth`): venues, team preferences, league staff,
 ladders, stat tables and player stats, the team fee split, publishing a program group, game-card PDFs and the
-captain's portal roster. Not routed (see README): league site and alert settings, public brackets and team pages,
-portal games."""
+captain's portal roster. Phase 14 chip B2 (ours, `site`): the public league site (options, links, gallery, sponsors,
+news, classes, teams, brackets, player stats, the TV board) and moderated classifieds and pickup games. Every
+anonymous route shares the `public-site` rate limit. Not routed (see README): league alert settings, portal games."""
 
 from datetime import date
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from app.core.api import TxRoute, camel_id
 from app.core.auth.deps import Ctx, current_ctx, public_session, require
 from app.core.idempotency import idempotency
 from app.core.pagination import ListQuery, list_query
-from app.modules.leagues import depth, service
+from app.core.ratelimit import hit, rate_limit
+from app.modules.leagues import depth, service, site
 from app.modules.leagues import schemas as s
 
 staff = APIRouter(
     route_class=TxRoute, tags=["leagues"], generate_unique_id_function=camel_id, dependencies=[Depends(idempotency)]
 )
-public = APIRouter(route_class=TxRoute, tags=["leagues"], generate_unique_id_function=camel_id)  # anonymous
+public = APIRouter(  # anonymous: published data only, one per-IP bucket for the whole public site
+    route_class=TxRoute,
+    tags=["leagues"],
+    generate_unique_id_function=camel_id,
+    dependencies=[Depends(rate_limit("public-site"))],
+)
 Lists = Annotated[ListQuery, Depends(list_query)]
 Public = Annotated[Session, Depends(public_session)]
 Manage = Depends(require(service.MANAGE))
@@ -497,8 +504,18 @@ def publish_bracket(bracket_id: UUID, ctx: Ctx = Generate):
 
 
 @public.get("/public/competitions", response_model=list[s.PublicCompetitionOut])
-def list_public_competitions(session: Public, location_id: UUID | None = None):
-    return service.list_public_competitions(session, location_id)
+def list_public_competitions(
+    session: Public,
+    location_id: UUID | None = None,
+    sport_id: UUID | None = None,
+    season_id: UUID | None = None,
+    kind: Literal["league", "tournament"] | None = None,
+    status: Literal["active", "completed"] | None = None,
+    q: Annotated[str, Query(max_length=100)] | None = None,
+):
+    """LGE-17: the filters also make the shareable URL and the embed (`/leagues/public?sport_id=...&embed=1`)."""
+    filters = {"sport_id": sport_id, "season_id": season_id, "kind": kind, "status": status, "q": q}
+    return service.list_public_competitions(session, location_id, filters)
 
 
 @public.get("/public/competitions/{competition_id}", response_model=s.PublicCompetitionOut)
@@ -721,6 +738,257 @@ def create_portal_roster_entry(competition_team_id: UUID, body: s.PortalRosterEn
 @portal.delete("/portal/league-roster-entries/{roster_entry_id}", status_code=204)
 def delete_portal_roster_entry(roster_entry_id: UUID, ctx: Portal):
     depth.portal_remove_roster_entry(ctx.session, ctx.principal, roster_entry_id)
+
+
+# --- public league site (Phase 14 B2) ---------------------------------------------------------------------------
+
+SiteManage = Depends(require(site.SITE))
+Moderate = Depends(require(site.MODERATE))
+SponsorManage = Depends(require(site.SPONSORS))
+_IMAGE: dict[int | str, dict[str, Any]] = {
+    200: {"content": {"image/jpeg": {}, "image/png": {}}, "description": "The image."}
+}
+
+
+def _image(named) -> Response:
+    row, data = named
+    return Response(data, media_type=row.content_type,
+                    headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "public, max-age=300"})  # fmt: skip
+
+
+async def _upload(request: Request) -> tuple[bytes, str]:
+    return await request.body(), request.headers.get("content-type", "application/octet-stream").split(";")[0].strip()
+
+
+@public.get("/public/league-site", response_model=s.PublicLeagueSiteOut)
+def get_public_league_site(session: Public):
+    """The enabled site's options and facility info; 404 while the site is off."""
+    return site.public_site(session)
+
+
+@public.get("/public/league-site/links", response_model=list[s.LeagueLinkOut])
+def list_public_league_links(session: Public):
+    return site.public_links(session)
+
+
+@public.get("/public/league-site/photos", response_model=list[s.PublicLeaguePhotoOut])
+def list_public_league_photos(session: Public):
+    return site.public_photos(session)
+
+
+@public.get("/public/league-site/photos/{photo_id}/image", response_class=Response, responses=_IMAGE)
+def get_public_league_photo_image(photo_id: UUID, session: Public):
+    return _image(site.public_photo_image(session, photo_id))
+
+
+@public.get("/public/league-site/sponsors", response_model=list[s.PublicLeagueSponsorOut])
+def list_public_league_sponsors(session: Public):
+    return site.public_sponsors(session)
+
+
+@public.get("/public/league-site/sponsors/{sponsor_id}/logo", response_class=Response, responses=_IMAGE)
+def get_public_league_sponsor_logo(sponsor_id: UUID, session: Public):
+    return _image(site.public_sponsor_logo(session, sponsor_id))
+
+
+@public.get("/public/league-site/news", response_model=list[s.PublicLeagueNewsOut])
+def list_public_league_news(session: Public):
+    return site.public_news(session)
+
+
+@public.get("/public/league-site/news/{story_id}", response_model=s.PublicLeagueNewsOut)
+def get_public_league_news_story(story_id: UUID, session: Public):
+    return site.public_news_story(session, story_id)
+
+
+@public.get("/public/league-site/classes", response_model=list[s.PublicClassOut])
+def list_public_league_classes(session: Public, location_id: UUID | None = None):
+    """CLS-07: programs, camps, clinics and class series published to the portal."""
+    return site.public_classes(session, location_id)
+
+
+@public.get("/public/league-site/posts", response_model=list[s.PublicLeaguePostOut])
+def list_public_league_posts(session: Public, kind: Literal["classified", "pickup"], location_id: UUID | None = None):
+    """Approved classifieds or pickup games still within their 30 days; no poster details."""
+    return site.public_posts(session, kind, location_id)
+
+
+@public.get("/public/competitions/{competition_id}/teams", response_model=list[s.PublicTeamOut])
+def list_public_teams(competition_id: UUID, session: Public):
+    """Team names; player names only when the competition has `show_players` on."""
+    return site.public_teams(session, competition_id)
+
+
+@public.get("/public/competitions/{competition_id}/player-stats", response_model=list[s.PublicPlayerStatOut])
+def list_public_player_stats(competition_id: UUID, session: Public):
+    """404 unless the competition shows players."""
+    return site.public_player_stats(session, competition_id)
+
+
+@public.get("/public/competitions/{competition_id}/brackets", response_model=list[s.PublicBracketOut])
+def list_public_brackets(competition_id: UUID, session: Public):
+    return site.public_brackets(session, competition_id)
+
+
+@public.get("/public/locations/{location_id}/league-board", response_model=s.PublicBoardOut)
+def get_public_league_board(location_id: UUID, session: Public):
+    """LGE-24: today's games and scores at one location, for a lobby screen; it refreshes every `refresh_sec`."""
+    return site.public_board(session, location_id)
+
+
+@staff.get("/league-site", response_model=s.LeagueSiteOut)
+def get_league_site(ctx: Ctx = SiteManage):
+    return site.get_site(ctx.session, ctx.principal)
+
+
+@staff.put("/league-site", response_model=s.LeagueSiteOut)
+def put_league_site(body: s.LeagueSiteIn, ctx: Ctx = SiteManage):
+    """Tenant-wide: needs the key at every location."""
+    return site.put_site(ctx.session, ctx.principal, body.model_dump())
+
+
+@staff.get("/league-links", response_model=list[s.LeagueLinkOut])
+def list_league_links(ctx: Ctx = SiteManage):
+    return site.list_links(ctx.session, ctx.principal)
+
+
+@staff.post("/league-links", response_model=s.LeagueLinkOut, status_code=201)
+def create_league_link(body: s.LeagueLinkCreate, ctx: Ctx = SiteManage):
+    return site.create_link(ctx.session, ctx.principal, body.model_dump())
+
+
+@staff.patch("/league-links/{link_id}", response_model=s.LeagueLinkOut)
+def update_league_link(link_id: UUID, body: s.LeagueLinkUpdate, ctx: Ctx = SiteManage):
+    return site.update_link(ctx.session, ctx.principal, link_id, _patch(body))
+
+
+@staff.delete("/league-links/{link_id}", status_code=204)
+def delete_league_link(link_id: UUID, ctx: Ctx = SiteManage):
+    site.delete_link(ctx.session, ctx.principal, link_id)
+
+
+@staff.get("/league-photos", response_model=list[s.LeaguePhotoOut])
+def list_league_photos(ctx: Ctx = SiteManage):
+    return site.list_photos(ctx.session, ctx.principal)
+
+
+@staff.post("/league-photos", response_model=s.LeaguePhotoOut, status_code=201)
+async def upload_league_photo(
+    request: Request, caption: Annotated[str, Query(max_length=300)] | None = None,
+    album: Annotated[str, Query(max_length=100)] | None = None, ctx: Ctx = SiteManage,
+):  # fmt: skip
+    """JPEG or PNG bytes as the body, up to 900 KB, re-encoded and scanned. Errors: file-type-mismatch,
+    file-too-large, file-infected."""
+    data, content_type = await _upload(request)
+    return site.upload_photo(ctx.session, ctx.principal, data, content_type, {"caption": caption, "album": album})
+
+
+@staff.patch("/league-photos/{photo_id}", response_model=s.LeaguePhotoOut)
+def update_league_photo(photo_id: UUID, body: s.LeaguePhotoUpdate, ctx: Ctx = SiteManage):
+    return site.update_photo(ctx.session, ctx.principal, photo_id, _patch(body))
+
+
+@staff.delete("/league-photos/{photo_id}", status_code=204)
+def delete_league_photo(photo_id: UUID, ctx: Ctx = SiteManage):
+    site.delete_photo(ctx.session, ctx.principal, photo_id)
+
+
+@staff.get("/league-sponsors", response_model=list[s.LeagueSponsorOut])
+def list_league_sponsors(ctx: Ctx = SponsorManage):
+    return site.list_sponsors(ctx.session, ctx.principal)
+
+
+@staff.post("/league-sponsors", response_model=s.LeagueSponsorOut, status_code=201)
+def create_league_sponsor(body: s.LeagueSponsorCreate, ctx: Ctx = SponsorManage):
+    return site.create_sponsor(ctx.session, ctx.principal, body.model_dump())
+
+
+@staff.patch("/league-sponsors/{sponsor_id}", response_model=s.LeagueSponsorOut)
+def update_league_sponsor(sponsor_id: UUID, body: s.LeagueSponsorUpdate, ctx: Ctx = SponsorManage):
+    return site.update_sponsor(ctx.session, ctx.principal, sponsor_id, _patch(body))
+
+
+@staff.put("/league-sponsors/{sponsor_id}/logo", response_model=s.LeagueSponsorOut)
+async def set_league_sponsor_logo(sponsor_id: UUID, request: Request, ctx: Ctx = SponsorManage):
+    """JPEG or PNG bytes as the body, up to 900 KB; replaces any earlier logo."""
+    data, content_type = await _upload(request)
+    return site.set_sponsor_logo(ctx.session, ctx.principal, sponsor_id, data, content_type)
+
+
+@staff.delete("/league-sponsors/{sponsor_id}", status_code=204)
+def delete_league_sponsor(sponsor_id: UUID, ctx: Ctx = SponsorManage):
+    site.delete_sponsor(ctx.session, ctx.principal, sponsor_id)
+
+
+@staff.get("/league-news", response_model=s.Page[s.LeagueNewsOut])
+def list_league_news(query: Lists, ctx: Ctx = SiteManage):
+    """Sort: created_at, published_at, title. Filter: is_pinned. q: title."""
+    return site.list_news(ctx.session, ctx.principal, query)
+
+
+@staff.get("/league-news/{story_id}", response_model=s.LeagueNewsOut)
+def get_league_news_story(story_id: UUID, ctx: Ctx = SiteManage):
+    return site.get_news(ctx.session, ctx.principal, story_id)
+
+
+@staff.post("/league-news", response_model=s.LeagueNewsOut, status_code=201)
+def create_league_news_story(body: s.LeagueNewsCreate, ctx: Ctx = SiteManage):
+    """Public once `published_at` is set and reached; leave it empty for a draft."""
+    return site.create_news(ctx.session, ctx.principal, body.model_dump())
+
+
+@staff.patch("/league-news/{story_id}", response_model=s.LeagueNewsOut)
+def update_league_news_story(story_id: UUID, body: s.LeagueNewsUpdate, ctx: Ctx = SiteManage):
+    return site.update_news(ctx.session, ctx.principal, story_id, _patch(body))
+
+
+@staff.delete("/league-news/{story_id}", status_code=204)
+def delete_league_news_story(story_id: UUID, ctx: Ctx = SiteManage):
+    site.delete_news(ctx.session, ctx.principal, story_id)
+
+
+@staff.get("/league-posts", response_model=s.Page[s.LeaguePostOut])
+def list_league_posts(query: Lists, ctx: Ctx = Moderate):
+    """The moderation queue at the caller's locations. Filters: status, kind, location_id. q: title."""
+    return site.list_posts(ctx.session, ctx.principal, query)
+
+
+@staff.post("/league-posts/{post_id}/approve", response_model=s.LeaguePostOut)
+def approve_league_post(post_id: UUID, ctx: Ctx = Moderate):
+    """Errors: post-not-pending."""
+    return site.approve_post(ctx.session, ctx.principal, post_id)
+
+
+@staff.post("/league-posts/{post_id}/reject", response_model=s.LeaguePostOut)
+def reject_league_post(post_id: UUID, body: s.LeaguePostReject, ctx: Ctx = Moderate):
+    """Refuse a pending post or take down an approved one. Errors: post-not-pending."""
+    return site.reject_post(ctx.session, ctx.principal, post_id, body.reason)
+
+
+@portal.get("/portal/league-posts", response_model=list[s.PortalLeaguePostOut])
+def list_portal_league_posts(ctx: Portal):
+    return site.portal_list_posts(ctx.session, ctx.principal)
+
+
+@portal.post("/portal/league-posts", response_model=s.PortalLeaguePostOut, status_code=201,
+             dependencies=[Depends(rate_limit("league-post"))])  # fmt: skip
+def create_portal_league_post(body: s.LeaguePostCreate, ctx: Portal):
+    """A classified or a pickup game; shown once staff approve, for 30 days. Errors: post-limit."""
+    return site.portal_create_post(ctx.session, ctx.principal, body.model_dump())
+
+
+@portal.post("/portal/league-posts/{post_id}/withdraw", status_code=204)
+def withdraw_portal_league_post(post_id: UUID, ctx: Portal):
+    site.portal_withdraw_post(ctx.session, ctx.principal, post_id)
+
+
+@portal.post("/portal/league-posts/{post_id}/contact", status_code=204,
+             dependencies=[Depends(rate_limit("league-post-contact"))])  # fmt: skip
+def contact_portal_league_post(post_id: UUID, body: s.LeaguePostContact, ctx: Portal, response: Response):
+    """The relay: the poster is emailed the message and your name and address; theirs is never shown.
+    Errors: contact-unavailable, rate-limited."""
+    site.portal_contact_post(ctx.session, ctx.principal, post_id, body.message)
+    hit("league-post-contact-sender", str(ctx.principal.identity_id), response, tenant=ctx.session.info["tenant_id"])
 
 
 router = APIRouter()
