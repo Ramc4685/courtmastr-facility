@@ -178,6 +178,16 @@ class RefundOut(Out):
     created_at: datetime
 
 
+class RefundBatchOut(Out):
+    """An account-credit refund: what was asked, what the processor has refunded (`succeeded` legs), and each leg
+    with its status, so a declined or pending leg is never read as success."""
+
+    refund_batch_id: UUID
+    amount_minor: int
+    refunded_minor: int
+    refunds: list[RefundOut]
+
+
 class PaymentOut(Out):
     id: UUID
     receipt_number: int

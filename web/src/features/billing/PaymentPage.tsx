@@ -13,7 +13,7 @@ import { useAuth } from '../../lib/auth'
 import { formatDateTime } from '../../lib/format'
 import { ReasonDialog } from './ChargeDialogs'
 import { HistoryList } from './InvoicePage'
-import { PAYMENT_STATUS, TENDER_LABEL, formatMoney, parseMoney, toMoneyInput } from './money'
+import { PAYMENT_STATUS, TENDER_LABEL, formatMoney, parseMoney, refundOutcome, toMoneyInput } from './money'
 import { ClientName, Facts, FormDialog, ListTable, Money, MoneyInput, PdfButton, StatusBadge, TextArea, useCurrency, useLocationRef } from './shared'
 
 type Payment = Schemas['PaymentDetail']
@@ -33,7 +33,8 @@ function RefundDialog({ payment, onClose }: { payment: Payment; onClose: () => v
     mutationFn: () => api.post('/api/v1/payments/{payment_id}/refunds', { path: { payment_id: payment.id }, body: { amount_minor: parseMoney(amount) ?? 0, method, reason: reason.trim(), comments: comments.trim() || null } }),
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: ['billing'] })
-      toast('success', r.status === 'pending' ? 'Refund sent to the processor; it settles shortly.' : 'Refund recorded.')
+      const outcome = refundOutcome([r], currency)
+      toast(outcome.tone, outcome.message)
       onClose()
     },
   })

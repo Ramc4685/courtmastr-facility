@@ -571,12 +571,45 @@ def test_a_declined_credit_refund_leg_is_not_paid_on_retry(shop, monkeypatch):
                                   idempotency_key=refund_key)  # fmt: skip
         assert [r.status for r in first] == ["succeeded", "failed"]
     monkeypatch.setattr(fake, "refund", real)
+    with pytest.raises(Conflict) as incomplete, work(shop.tenant) as session:
+        svc.refund_credit(session, shop.client_id, amount_minor=1000, reason="Leaving", idempotency_key=refund_key)
+    assert incomplete.value.code == "refund-plan-incomplete"  # replayed: the declined leg is reported, not re-sent
     with work(shop.tenant) as session:
-        again = svc.refund_credit(session, shop.client_id, amount_minor=1000, reason="Leaving",
-                                  idempotency_key=refund_key)  # fmt: skip
-        assert [r.id for r in again] == [r.id for r in first]  # replayed, the declined leg is not re-sent
+        assert sorted(session.scalars(select(Refund.status)).all()) == ["failed", "succeeded"]
         assert _paid_out(session, (p1, p2, p3)) == 500
         assert_books_agree(session)
+
+
+def test_the_credit_refund_api_states_what_was_refunded_and_a_replay_of_an_incomplete_plan_is_409(
+    client, shop, owner, monkeypatch
+):
+    """S1: the 201 body carries the refunded total and each leg's status (a declined leg is visible, not hidden
+    behind a success); a same-key replay of a plan with a declined or cancelled leg is 409 `refund-plan-incomplete`
+    as the contract says, never a 201 that reads like success."""
+    ready(shop)
+    p1, p2, p3 = _three_cards(shop)
+    with work(shop.tenant) as session:
+        p2_ref = session.get(svc.Payment, p2).provider_payment_ref
+    fake, real = payment_provider.get("fake"), payment_provider.get("fake").refund
+
+    def refund(**kw):
+        if kw["provider_payment_ref"] == p2_ref:
+            return RefundState(f"fake_ref_{uuid4().hex}", "failed", "Declined by the bank.")
+        return real(**kw)
+
+    monkeypatch.setattr(fake, "refund", refund)
+    path, headers = f"{API}/clients/{shop.client_id}/account-credit/refund", owner | key()
+    body = {"amount_minor": 1000, "reason": "Leaving"}
+    first = client.post(path, headers=headers, json=body)
+    assert first.status_code == 201, first.text
+    batch = first.json()
+    assert (batch["amount_minor"], batch["refunded_minor"]) == (1000, 500)
+    assert [(r["payment_id"], r["status"]) for r in batch["refunds"]] == [(str(p3), "succeeded"), (str(p2), "failed")]
+    monkeypatch.setattr(idempotency, "begin", lambda *_: None)  # past the HTTP replay cache: the service answers
+    again = client.post(path, headers=headers, json=body)
+    assert (again.status_code, again.json()["code"]) == (409, "refund-plan-incomplete")
+    with work(shop.tenant) as session:
+        assert _paid_out(session, (p1, p2, p3)) == 500
 
 
 def test_another_key_while_a_credit_refund_is_initiated_plans_around_it(shop, monkeypatch):

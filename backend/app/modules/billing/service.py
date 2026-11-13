@@ -1723,8 +1723,11 @@ def refund_credit(
     The legs are planned once and the plan is committed (`refund_credit_plan`) before any processor call. A retry
     with the key replays exactly those legs, each idempotent under `<key>:<payment id>`; it never re-plans from
     current balances, which the first attempt's `initiated` legs already lowered (re-planning would pay twice). A
-    leg that can no longer be refunded is 409 `refund-plan-incomplete`: what was paid stays within the plan."""
+    leg that can no longer be refunded, or a replay of a plan with a declined or cancelled leg, is 409
+    `refund-plan-incomplete`: what was paid stays within the plan. A first attempt returns every leg with its
+    status (a declined leg is `failed`); the caller reports what was actually refunded."""
     plan = session.scalar(select(RefundCreditPlan).where(RefundCreditPlan.idempotency_key == idempotency_key))
+    replay = plan is not None
     if plan is None:
         plan = _plan_credit_refund(session, client_id, amount_minor, reason, idempotency_key, location_ids)
     if (plan.client_id, plan.amount_minor, plan.reason) != (client_id, amount_minor, reason):
@@ -1750,6 +1753,12 @@ def refund_credit(
                 "This refund was started earlier and one of its payments can no longer be refunded. "
                 "Check the client's refunds before trying again.", code="refund-plan-incomplete",
             ) from error  # fmt: skip
+    if replay and any(r.status in ("failed", "cancelled") for r in refunds):
+        # persist: a replay may have finished other legs, and that money has moved
+        raise Conflict(
+            "This refund was started earlier and did not complete: a payment's refund was declined or cancelled. "
+            "Check the client's refunds before trying again.", code="refund-plan-incomplete", persist=True,
+        )  # fmt: skip
     return refunds
 
 

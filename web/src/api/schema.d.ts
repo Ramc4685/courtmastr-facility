@@ -3219,7 +3219,9 @@ export interface paths {
         put?: never;
         /**
          * Refund Account Credit
-         * @description One refund per payment, newest first, each to its original method. Errors: refund-exceeds-unapplied.
+         * @description One refund per payment, newest first, each to its original method; the body states what was refunded and
+         *     each leg's status. Errors: refund-exceeds-unapplied, refund-plan-incomplete (a replay of a plan that did not
+         *     complete).
          */
         post: operations["refundAccountCredit"];
         delete?: never;
@@ -37708,6 +37710,24 @@ export interface components {
             /** Refresh Token */
             refresh_token?: string | null;
         };
+        /**
+         * RefundBatchOut
+         * @description An account-credit refund: what was asked, what the processor has refunded (`succeeded` legs), and each leg
+         *     with its status, so a declined or pending leg is never read as success.
+         */
+        RefundBatchOut: {
+            /** Amount Minor */
+            amount_minor: number;
+            /**
+             * Refund Batch Id
+             * Format: uuid
+             */
+            refund_batch_id: string;
+            /** Refunded Minor */
+            refunded_minor: number;
+            /** Refunds */
+            refunds: components["schemas"]["RefundOut"][];
+        };
         /** RefundCreate */
         RefundCreate: {
             /** Amount Minor */
@@ -51921,7 +51941,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RefundOut"][];
+                    "application/json": components["schemas"]["RefundBatchOut"];
                 };
             };
             /** @description Validation Error */

@@ -329,7 +329,10 @@ and record a failed attempt ("payload missing").
   already lowered (re-planning paid twice: a 1000 request could pay 1500). The same key with another client,
   amount or reason (the caller's location scope is not compared: the stored plan is replayed) is 409 `idempotency-key-reused`; a lost race on the plan is 409 `request-in-progress`. A leg
   that can no longer be refunded (its credit was spent after a crash rolled the leg back) stops the retry with 409
-  `refund-plan-incomplete`, so what the processor paid never exceeds the plan. **Every leg is reserved when the
+  `refund-plan-incomplete`, so what the processor paid never exceeds the plan; so is a same-key replay of a plan
+  with a declined or cancelled leg (committed: legs the replay finished stay finished). The 201 body is the
+  contract's `RefundBatch`: `amount_minor` asked, `refunded_minor` refunded (succeeded legs) and every leg with
+  its status, so a declined or pending leg is never read as success. **Every leg is reserved when the
   plan is committed**: the same short transaction locks the client's payments and writes an `initiated` refund row
   per leg (record-only legs too, finished without a processor call), so a second refund, autopay or a staff
   allocation sees only genuinely free credit and the first request always completes. A plan whose request dies

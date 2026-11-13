@@ -631,14 +631,16 @@ def apply_account_credit(
     return desk.apply_account_credit(ctx.session, ctx.principal, client_id, body.model_dump())
 
 
-@router.post("/clients/{client_id}/account-credit/refund", response_model=list[s.RefundOut], status_code=201)
+@router.post("/clients/{client_id}/account-credit/refund", response_model=s.RefundBatchOut, status_code=201)
 def refund_account_credit(
     client_id: UUID,
     body: s.CreditRefundRequest,
     idempotency_key: RequiredKey,
     ctx: Ctx = Depends(require("billing.refund.create")),
 ):
-    """One refund per payment, newest first, each to its original method. Errors: refund-exceeds-unapplied."""
+    """One refund per payment, newest first, each to its original method; the body states what was refunded and
+    each leg's status. Errors: refund-exceeds-unapplied, refund-plan-incomplete (a replay of a plan that did not
+    complete)."""
     return desk.refund_account_credit(ctx.session, ctx.principal, client_id, body.model_dump(), idempotency_key)
 
 

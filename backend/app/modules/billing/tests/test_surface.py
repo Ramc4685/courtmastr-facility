@@ -584,9 +584,12 @@ def test_receipts_statements_credit_and_ageing(api, shop, emailed, mailbox):
         extra = api(
             "POST", "/payments", who | {"amount_minor": 250, "tender_kind": "card", "method_token": "tok_card_ok"}, 201
         )
-        refunds = api(
+        batch = api(
             "POST", f"/clients/{emailed}/account-credit/refund", {"amount_minor": 250, "reason": "Leaving"}, 201
         )
+        refunds = batch["refunds"]
+        assert (batch["amount_minor"], batch["refunded_minor"]) == (250, 250)
+        assert batch["refund_batch_id"] == refunds[0]["refund_batch_id"]
         assert [(row["payment_id"], row["method"], row["status"]) for row in refunds] == [
             (extra["id"], "original", "succeeded")
         ]

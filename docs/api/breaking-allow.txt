@@ -59,3 +59,5 @@ POST /api/v1/billing-bulk-actions `header` request parameter `idempotency-key` l
 POST /api/v1/billing-bulk-actions for the `header` request parameter `idempotency-key`, the maxLength was set to `255`
 POST /api/v1/billing-bulk-actions for the `header` request parameter `idempotency-key`, the minLength was set to `8`
 POST /api/v1/billing-bulk-actions added the pattern `^[A-Za-z0-9_.:\-]{1,255}$` to the `header` request parameter `idempotency-key`
+# S1 (phase 9 orphans): the account-credit refund answers its contract's RefundBatch (refunded total and each leg's status) instead of a bare list; the staff web page is its only client and moves with it.
+POST /api/v1/clients/{client_id}/account-credit/refund the response's body `type` changed from `array<object>` to `object` for status `201`

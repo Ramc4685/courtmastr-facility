@@ -323,10 +323,10 @@ def apply_account_credit(session: Session, principal: Principal, client_id: UUID
     }
 
 
-def refund_account_credit(session: Session, principal: Principal, client_id: UUID, data: dict, key: str) -> list:
+def refund_account_credit(session: Session, principal: Principal, client_id: UUID, data: dict, key: str) -> dict:
     authorize(principal, "billing.refund.create")
     clients.service.get(session, client_id)
-    return service.refund_credit(
+    refunds = service.refund_credit(
         session,
         client_id,
         amount_minor=data["amount_minor"],
@@ -334,3 +334,9 @@ def refund_account_credit(session: Session, principal: Principal, client_id: UUI
         idempotency_key=f"staff:{principal.actor_id}:{key}",
         location_ids=None if principal.kind == "system" else principal.location_ids,
     )
+    return {
+        "refund_batch_id": refunds[0].refund_batch_id,
+        "amount_minor": data["amount_minor"],
+        "refunded_minor": sum(r.amount_minor for r in refunds if r.status == "succeeded"),
+        "refunds": refunds,
+    }

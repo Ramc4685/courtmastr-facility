@@ -64632,6 +64632,39 @@
         "title": "RefreshRequest",
         "type": "object"
       },
+      "RefundBatchOut": {
+        "description": "An account-credit refund: what was asked, what the processor has refunded (`succeeded` legs), and each leg\nwith its status, so a declined or pending leg is never read as success.",
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "refund_batch_id": {
+            "format": "uuid",
+            "title": "Refund Batch Id",
+            "type": "string"
+          },
+          "refunded_minor": {
+            "title": "Refunded Minor",
+            "type": "integer"
+          },
+          "refunds": {
+            "items": {
+              "$ref": "#/components/schemas/RefundOut"
+            },
+            "title": "Refunds",
+            "type": "array"
+          }
+        },
+        "required": [
+          "refund_batch_id",
+          "amount_minor",
+          "refunded_minor",
+          "refunds"
+        ],
+        "title": "RefundBatchOut",
+        "type": "object"
+      },
       "RefundCreate": {
         "additionalProperties": false,
         "properties": {
@@ -100124,7 +100157,7 @@
     },
     "/api/v1/clients/{client_id}/account-credit/refund": {
       "post": {
-        "description": "One refund per payment, newest first, each to its original method. Errors: refund-exceeds-unapplied.",
+        "description": "One refund per payment, newest first, each to its original method; the body states what was refunded and\neach leg's status. Errors: refund-exceeds-unapplied, refund-plan-incomplete (a replay of a plan that did not\ncomplete).",
         "operationId": "refundAccountCredit",
         "parameters": [
           {
@@ -100167,11 +100200,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/RefundOut"
-                  },
-                  "title": "Response Refundaccountcredit",
-                  "type": "array"
+                  "$ref": "#/components/schemas/RefundBatchOut"
                 }
               }
             },

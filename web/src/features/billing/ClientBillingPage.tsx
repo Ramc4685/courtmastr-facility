@@ -17,7 +17,7 @@ import { ClientPicker, type ClientSummary } from '../clients/ClientPicker'
 import { AddChargeDialog, EditChargeDialog, ReverseChargeDialog, VoidChargeDialog } from './ChargeDialogs'
 import { ClientItemSales, SellItemDialog } from './CatalogPage'
 import { CollectionsTab } from './CollectionsPage'
-import { CHARGE_STATUS, INVOICE_STATUS, PAYMENT_STATUS, TENDER_LABEL, formatMoney, parseMoney, today } from './money'
+import { CHARGE_STATUS, INVOICE_STATUS, PAYMENT_STATUS, TENDER_LABEL, formatMoney, parseMoney, refundOutcome, today } from './money'
 import { PaymentMethodField } from './PaymentMethodField'
 import { ClientName, Facts, FormDialog, ListTable, Money, MoneyInput, PdfButton, StatusBadge, TextArea, useClient, useCurrency } from './shared'
 import { TakePaymentDialog } from './TakePaymentDialog'
@@ -384,9 +384,10 @@ function RefundCreditDialog({ clientId, max, onClose }: { clientId: string; max:
   const [reason, setReason] = useState('')
   const m = useMutation({
     mutationFn: () => api.post('/api/v1/clients/{client_id}/account-credit/refund', { path: { client_id: clientId }, body: { amount_minor: parseMoney(amount) ?? 0, reason: reason.trim() } }),
-    onSuccess: () => {
+    onSuccess: (batch) => {
       void qc.invalidateQueries({ queryKey: ['billing'] })
-      toast('success', 'Credit refunded.')
+      const outcome = refundOutcome(batch.refunds, currency)
+      toast(outcome.tone, outcome.message)
       onClose()
     },
   })

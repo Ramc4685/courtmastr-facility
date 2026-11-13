@@ -6488,10 +6488,12 @@ components:
         comments: {type: [string, 'null']}
     RefundBatch:
       type: object
-      required: [refund_batch_id, amount_minor, refunds]
+      description: amount_minor is what was asked; refunded_minor what the processor has refunded (succeeded legs). Each leg carries its own status, so a declined or pending leg is never read as success.
+      required: [refund_batch_id, amount_minor, refunded_minor, refunds]
       properties:
         refund_batch_id: {type: string, format: uuid}
         amount_minor: {type: integer, format: int64}
+        refunded_minor: {type: integer, format: int64}
         refunds: {type: array, items: {$ref: '#/components/schemas/Refund'}}
     ClientBillingSummary:
       type: object
