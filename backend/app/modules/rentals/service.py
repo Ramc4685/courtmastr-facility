@@ -1603,6 +1603,7 @@ def _checkout(
     return {
         "rental": _view(session, row), "quote": quote or empty, "expires_at": booking.expires_at, "invoice_id": invoice_id,
         "payment_required": required, "amount_due_minor": _amount_due(quote) if required else 0, "payment_status": status,
+        "entry_code_notice": clients.service.entry_code_notice(session, clients.service.get(session, booking.client_id), row.location_id),
     }  # fmt: skip
 
 

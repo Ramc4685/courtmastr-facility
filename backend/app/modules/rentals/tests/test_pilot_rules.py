@@ -485,7 +485,8 @@ def test_only_a_guardian_brings_a_child_a_delegate_does_not(client, owner, tenan
     ok(client.post(f"{API}/clients/{grandparent}/relationships", headers=owner,
                    json={"other_client_id": kid, "relationship_type_id": minds["id"]}))  # fmt: skip
     seen = ok(client.get(f"{API}/portal/clients/{kid}", headers=theirs), 200)
-    assert (seen["authority"], seen["is_adult"], seen["is_my_ward"]) == ("delegate", None, False)  # no age signal
+    assert (seen["authority"], seen["is_adult"], seen["is_my_ward"], seen["age_confirmed"]) == (
+        "delegate", None, False, None)  # no age signal  # fmt: skip
     refused(client.post(f"{API}/portal/rentals", headers=theirs,
                         json=online(f, grandparent, 15, 16) | {"player_client_ids": [kid]}), 422,
             "minor-needs-guardian")  # fmt: skip
@@ -523,9 +524,33 @@ def test_portal_holder_needs_a_birth_date_and_a_first_one_is_flagged_for_staff(c
             select(AuditEvent).where(AuditEvent.entity_id == me, AuditEvent.action == "clients.client.update")
         ).one()
     assert record.changes["birth_on"] is True and record.changes["is_birth_on_unverified"] == [False, True]
-    ok(client.post(f"{API}/portal/rentals", headers=portal, json=online(f, me, 15, 16)))
-    ok(client.patch(f"{API}/clients/{me}", headers=owner, json={"birth_on": "1990-01-03"}), 200)
-    assert ok(client.get(f"{API}/clients/{me}", headers=owner), 200)["is_birth_on_unverified"] is False
+    # Owner decision 2026-11-13: a self-declared adult books and pays, but is told the first entry code waits for
+    # staff to confirm the age once; the date is not trusted for entry until then.
+    ok(client.patch(f"{API}/locations/{f.location}", headers=owner, json={"phone": "217-555-0100"}), 200)
+    me_seen = ok(client.get(f"{API}/portal/clients/{me}", headers=portal), 200)
+    assert (me_seen["is_adult"], me_seen["age_confirmed"]) == (True, False)
+    checkout = ok(client.post(f"{API}/portal/rentals", headers=portal, json=online(f, me, 15, 16)))
+    assert checkout["entry_code_notice"].startswith("Your entry code will be sent once our staff have confirmed")
+    assert "217-555-0100" in checkout["entry_code_notice"] == me_seen["entry_code_notice"]
+    ok(client.post(f"{API}/clients/{me}/age-confirmation", headers=owner, json={}), 200)  # the same date, confirmed
+    me_seen = ok(client.get(f"{API}/portal/clients/{me}", headers=portal), 200)
+    assert (me_seen["age_confirmed"], me_seen["entry_code_notice"]) == (True, None)
+    assert ok(client.post(f"{API}/portal/rentals", headers=portal, json=online(f, me, 16, 17)))["entry_code_notice"] is None
+
+
+def test_a_self_declared_adult_pays_online_and_a_self_declared_minor_still_cannot_hold(client, owner, tenant, f):
+    me, portal = portal_client(client, owner, tenant, f, birth_on=None)
+    ok(client.patch(f"{API}/portal/clients/{me}", headers=portal, json={"birth_on": "1990-01-02"}), 200)
+    checkout = ok(client.post(f"{API}/portal/rentals", headers=portal, json=online(f, me, 15, 16)))
+    assert checkout["payment_required"] and checkout["entry_code_notice"]  # told before paying
+    paid = ok(client.post(f"{API}/portal/rentals/{checkout['rental']['id']}/confirm",
+                          headers=portal | {"Idempotency-Key": uuid4().hex},
+                          json={"provider_payment_token": "tok_card_ok"}), 200)  # fmt: skip
+    assert paid["rental"]["status"] == "confirmed" and paid["entry_code_notice"] == checkout["entry_code_notice"]
+    kid, kid_portal = portal_client(client, owner, tenant, f, birth_on=None)
+    ok(client.patch(f"{API}/portal/clients/{kid}", headers=kid_portal, json={"birth_on": CHILD}), 200)
+    refused(client.post(f"{API}/portal/rentals", headers=kid_portal, json=online(f, kid, 15, 16)), 422,
+            "minor-cannot-hold-rental")  # fmt: skip
 
 
 def test_a_portal_dependant_needs_a_birth_date_and_never_holds_the_rental(client, owner, tenant, f):

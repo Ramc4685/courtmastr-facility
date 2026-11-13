@@ -1085,6 +1085,18 @@ def is_age_confirmed(session: Session, client_id: UUID) -> bool:
     return _age_confirmed(get(session, client_id))
 
 
+ENTRY_CODE_NOTICE = "Your entry code will be sent once our staff have confirmed your age. This is a one-time check."
+
+
+def entry_code_notice(session: Session, client: Client, location_id: UUID) -> str | None:
+    """Internal: what a person with a self-declared birth date is told before paying (owner decision
+    2026-11-13), with the location's phone number; None once staff confirmed it (or with no date on file)."""
+    if client.birth_on is None or not client.is_birth_on_unverified:
+        return None
+    phone, _ = platform.service.location_contact(session, location_id)
+    return f"{ENTRY_CODE_NOTICE} Questions? Call {phone}." if phone else ENTRY_CODE_NOTICE
+
+
 def is_minor(client: Client, on: date, age_of_majority: int) -> bool:
     """Unknown birth date counts as an adult (ADR 0002 section 5)."""
     if client.birth_on is None:

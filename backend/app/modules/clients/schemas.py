@@ -423,6 +423,8 @@ class PortalClientOut(Out):
     custom_values: CustomValues = {}
     is_adult: bool | None = None  # a birth date on file at or over the minor age (unknown: false; delegates: null)
     is_my_ward: bool = False  # the signed-in person is this client's guardian
+    age_confirmed: bool | None = None  # staff confirmed the birth date once (delegates: null); the web and app read it
+    entry_code_notice: str | None = None  # set while a self-declared date waits for staff: show it before payment
 
 
 class PortalClientList(Out):

@@ -504,6 +504,8 @@ def portal_view(session: Session, client: Client, found: str, me_id: UUID | None
         "id": client.id, "first_name": client.first_name, "last_name": client.last_name,
         "preferred_name": client.preferred_name, "authority": found, "can_edit": found in EDIT,
         "is_adult": is_adult(session, client) if found in EDIT else None, "is_my_ward": me_id is not None and me_id in guardian_ids(session, client.id),
+        "age_confirmed": service._age_confirmed(client) if found in EDIT else None,
+        "entry_code_notice": service.entry_code_notice(session, client, client.home_location_id) if found in EDIT else None,
     }  # fmt: skip
     if found in EDIT:
         view.update({f: getattr(client, f) for f in PORTAL_FIELDS})

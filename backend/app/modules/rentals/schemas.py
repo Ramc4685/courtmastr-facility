@@ -489,6 +489,7 @@ class PortalRentalCheckout(Out):
     payment_required: bool
     amount_due_minor: int
     payment_status: str | None = None
+    entry_code_notice: str | None = None  # the holder's birth date waits for staff: the first entry code is held
 
 
 # --- plans -------------------------------------------------------------------------------------------------
