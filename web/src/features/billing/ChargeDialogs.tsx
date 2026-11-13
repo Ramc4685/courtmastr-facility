@@ -125,7 +125,10 @@ export function EditChargeDialog({ charge, onClose }: { charge: Schemas['ChargeO
   const qc = useQueryClient()
   const toast = useToast()
   const detail = useQuery({ queryKey: ['billing', 'charge', charge.id], queryFn: () => api.get('/api/v1/charges/{charge_id}', { path: { charge_id: charge.id } }) })
+  const categories = useRevenueCategories()
   const [form, setForm] = useState<ItemForm | null>(null)
+  const [revenueOn, setRevenueOn] = useState<string | null>(null)
+  const [categoryId, setCategoryId] = useState<string | null>(null)
   const loaded = detail.data
   const current: ItemForm | null =
     form ??
@@ -154,6 +157,8 @@ export function EditChargeDialog({ charge, onClose }: { charge: Schemas['ChargeO
           internal_remarks: f.remarks.trim() || null,
           ...(money ? { quantity: f.quantity, unit_price_minor: parseMoney(f.price), discount_minor: parseMoney(f.discount) ?? 0 } : {}),
           exclude_tax_ids: f.excluded,
+          ...(revenueOn && revenueOn !== loaded.revenue_on ? { revenue_on: revenueOn } : {}),
+          ...(categoryId && categoryId !== loaded.revenue_category_id ? { revenue_category_id: categoryId } : {}),
           reason: f.reason.trim() || null,
         },
       })
@@ -166,11 +171,13 @@ export function EditChargeDialog({ charge, onClose }: { charge: Schemas['ChargeO
   })
   const errors = fieldErrors(save.error)
   return (
-    <FormDialog title="Edit item" description="A change to quantity, price, discount or taxes replaces the item with an adjusted one and keeps the original in history." submitLabel="Save item" busy={save.isPending} error={save.error} onClose={onClose} onSubmit={() => save.mutate()} size="lg">
-      {current ? (
+    <FormDialog title="Edit item" description="A change to quantity, price, discount, taxes, revenue date or revenue category replaces the item with an adjusted one and keeps the original in history." submitLabel="Save item" busy={save.isPending} error={save.error} onClose={onClose} onSubmit={() => save.mutate()} size="lg">
+      {current && loaded ? (
         <>
-          <ItemFields form={current} set={(p) => setForm({ ...current, ...p })} errors={errors} taxIds={loaded?.taxes.map((t) => t.tax_id) ?? []} />
-          <TextArea label="Reason for a money change" value={current.reason} onChange={(reason) => setForm({ ...current, reason })} error={errors.reason} />
+          <ItemFields form={current} set={(p) => setForm({ ...current, ...p })} errors={errors} taxIds={loaded.taxes.map((t) => t.tax_id)} />
+          <Input label="Revenue date" type="date" value={revenueOn ?? loaded.revenue_on} error={errors.revenue_on} onChange={(e) => setRevenueOn(e.target.value)} />
+          <Select label="Revenue category" value={categoryId ?? loaded.revenue_category_id} error={errors.revenue_category_id} onChange={(e) => setCategoryId(e.target.value)} options={(categories.data?.data ?? []).filter((c) => c.is_active || c.id === loaded.revenue_category_id).map((c) => ({ value: c.id, label: `${c.label} (${c.code})` }))} />
+          <TextArea label="Reason for a money or revenue change" value={current.reason} onChange={(reason) => setForm({ ...current, reason })} error={errors.reason} />
         </>
       ) : (
         <p role="status">Loading…</p>

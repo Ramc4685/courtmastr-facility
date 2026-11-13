@@ -33,6 +33,7 @@ class ChargeCreate(In):
     unit_price_minor: Minor
     quantity: Annotated[Decimal, Field(gt=0, le=100000, decimal_places=3)] = Decimal(1)
     discount_minor: Minor = 0
+    discount_pct: Annotated[Decimal, Field(ge=0, le=100, max_digits=5, decimal_places=2)] | None = None
     revenue_category_id: UUID | None = None
     revenue_on: date | None = None
     additional_description: Text | None = None
@@ -63,6 +64,7 @@ class ChargeOut(Out):
     quantity: Decimal
     unit_price_minor: int
     discount_minor: int
+    discount_pct: Decimal | None = None
     net_minor: int
     tax_minor: int
     total_minor: int
@@ -463,7 +465,10 @@ class ChargeUpdate(In):
     quantity: Quantity | None = None
     unit_price_minor: Minor | None = None
     discount_minor: Minor | None = None
+    discount_pct: Annotated[Decimal, Field(ge=0, le=100, max_digits=5, decimal_places=2)] | None = None
     exclude_tax_ids: Annotated[list[UUID], Field(max_length=20)] | None = None
+    revenue_on: date | None = None
+    revenue_category_id: UUID | None = None
     reason: Text | None = None
 
 

@@ -6137,8 +6137,8 @@ components:
         invoice_id: {type: [string, 'null'], format: uuid}
     ChargeUpdate:
       type: object
-      description: Text and service-period fields update in place. Any money field posts an `adjustment` charge and needs
-        `reason`.
+      description: Text and service-period fields update in place. Any money field, the revenue date or the revenue
+        category posts an `adjustment` charge and needs `reason`.
       properties:
         description: {type: string}
         additional_description: {type: [string, 'null']}
@@ -6151,6 +6151,7 @@ components:
         discount_minor: {type: [integer, 'null'], format: int64}
         excluded_tax_ids: {type: array, items: {type: string, format: uuid}}
         revenue_on: {type: string, format: date}
+        revenue_category_id: {type: string, format: uuid}
         reason: {type: string}
     ChargePreview:
       type: object

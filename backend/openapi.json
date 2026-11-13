@@ -10679,6 +10679,22 @@
             "title": "Discount Minor",
             "type": "integer"
           },
+          "discount_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Pct"
+          },
           "exclude_tax_ids": {
             "default": [],
             "items": {
@@ -11012,6 +11028,17 @@
             "title": "Discount Minor",
             "type": "integer"
           },
+          "discount_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Pct"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -11280,6 +11307,17 @@
           "discount_minor": {
             "title": "Discount Minor",
             "type": "integer"
+          },
+          "discount_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Pct"
           },
           "id": {
             "format": "uuid",
@@ -11667,6 +11705,22 @@
             ],
             "title": "Discount Minor"
           },
+          "discount_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Pct"
+          },
           "exclude_tax_ids": {
             "anyOf": [
               {
@@ -11724,6 +11778,30 @@
               }
             ],
             "title": "Reason"
+          },
+          "revenue_category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Category Id"
+          },
+          "revenue_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue On"
           },
           "service_ends_on": {
             "anyOf": [
@@ -52312,6 +52390,7 @@
           },
           "status": {
             "enum": [
+              "initiated",
               "pending",
               "succeeded",
               "failed",
@@ -64466,6 +64545,15 @@
             "minLength": 1,
             "title": "Reason",
             "type": "string"
+          },
+          "release_allocation_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Release Allocation Ids",
+            "type": "array"
           }
         },
         "required": [
@@ -64542,6 +64630,7 @@
           },
           "status": {
             "enum": [
+              "initiated",
               "pending",
               "succeeded",
               "failed",

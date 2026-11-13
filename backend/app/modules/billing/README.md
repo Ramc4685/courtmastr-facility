@@ -232,6 +232,14 @@ handlers re-read the object from the provider.
 
 ## Assumptions and deviations (the specs win where they are silent; these are the places we chose)
 
+- **Revenue date and category edits (BIL-01)** are adjustments like a price edit: the original is negated at
+  its own revenue date in its own category and the replacement posts at the new date (period lock applies to
+  both) in the new category, which must be active and not a system category. Taxes keep the rates snapshotted
+  on the original, even when the new category maps other taxes or the new date has another rate (re-create
+  the item to re-tax it). Staff need `billing.charge.update` and a reason; no price moves, so no override key.
+- **`discount_pct` (BIL-01)** is set on `POST /charges`, `PATCH /charges/{id}` and `post_charge`, never with an
+  amount: it becomes `discount_minor` half-up once on the gross, and a quantity or price edit recomputes it.
+  An amount discount clears it. With a coupon at `POST /charges` the percentage is turned into an amount first.
 - **Item edits replace, they do not add a delta.** ADR 0003 section 3 describes an adjustment row "for the
   delta". A negative delta row cannot hold allocations, so the original would look open again. Instead the
   original is negated (status `reversed`) and an `adjustment` row with the full new values takes its place;
@@ -253,8 +261,12 @@ handlers re-read the object from the provider.
   left the account either way; the remainder check constraint then refuses and the sweep fails loudly).
   The early amount check runs before the row is written, so a plain mistake leaves no row; the
   locked re-check after it can still refuse a race, which leaves an `initiated` row for the sweep to cancel.
-  A replay with the key and a different amount is 409 `idempotency-key-reused`. Record-only (`external`)
-  refunds have no row before anything, as there is no call to make, and no replay key.
+  **A refund key is bound to its payment and its request**: a key already used on another payment, or on
+  this payment with another amount, method or reason, is 409 `idempotency-key-reused` before anything is
+  released or sent to the processor; the same request replays the stored refund. Uniqueness is per payment
+  (`(tenant_id, payment_id, idempotency_key)`) and the processor key carries the payment id. Record-only
+  (`external`) refunds are written in the request (no call to make) but keep the key, so they replay too.
+  `release_allocation_ids` are not part of the stored request: a replay never releases, whatever it names.
 - **Release-then-refund (PAY-05).** `release_allocation_ids` on `refund()` and `POST /payments/{id}/refunds`
   releases those allocations of the same payment (to credit, posted) and then refunds, in one transaction and
   one audit row for the payment; the staff route also needs `billing.payment.reallocate` at the payment's

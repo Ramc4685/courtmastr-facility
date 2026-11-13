@@ -20525,6 +20525,8 @@ export interface components {
              * @default 0
              */
             discount_minor: number;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
             /**
              * Exclude Tax Ids
              * @default []
@@ -20618,6 +20620,8 @@ export interface components {
             description: string;
             /** Discount Minor */
             discount_minor: number;
+            /** Discount Pct */
+            discount_pct?: string | null;
             /**
              * Id
              * Format: uuid
@@ -20710,6 +20714,8 @@ export interface components {
             description: string;
             /** Discount Minor */
             discount_minor: number;
+            /** Discount Pct */
+            discount_pct?: string | null;
             /**
              * Id
              * Format: uuid
@@ -20845,6 +20851,8 @@ export interface components {
             description?: string | null;
             /** Discount Minor */
             discount_minor?: number | null;
+            /** Discount Pct */
+            discount_pct?: number | string | null;
             /** Exclude Tax Ids */
             exclude_tax_ids?: string[] | null;
             /** Internal Remarks */
@@ -20853,6 +20861,10 @@ export interface components {
             quantity?: number | string | null;
             /** Reason */
             reason?: string | null;
+            /** Revenue Category Id */
+            revenue_category_id?: string | null;
+            /** Revenue On */
+            revenue_on?: string | null;
             /** Service Ends On */
             service_ends_on?: string | null;
             /** Service Starts On */
@@ -33705,7 +33717,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "pending" | "succeeded" | "failed" | "cancelled";
+            status: "initiated" | "pending" | "succeeded" | "failed" | "cancelled";
         };
         /** PortalRelationshipList */
         PortalRelationshipList: {
@@ -37623,6 +37635,8 @@ export interface components {
             method?: ("original" | "external") | null;
             /** Reason */
             reason: string;
+            /** Release Allocation Ids */
+            release_allocation_ids?: string[];
         };
         /** RefundOut */
         RefundOut: {
@@ -37665,7 +37679,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "pending" | "succeeded" | "failed" | "cancelled";
+            status: "initiated" | "pending" | "succeeded" | "failed" | "cancelled";
         };
         /** RegisterCreate */
         RegisterCreate: {
