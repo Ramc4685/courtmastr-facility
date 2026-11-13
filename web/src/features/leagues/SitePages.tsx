@@ -33,9 +33,6 @@ function useInvalidate(key: string) {
   return () => void qc.invalidateQueries({ queryKey: [key] })
 }
 
-/** Escape a value for a double-quoted HTML attribute in the copy-paste embed code. */
-const attr = (v: string) => v.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-
 function OptionsTab() {
   const toast = useToast()
   const site = useQuery({ queryKey: ['league-site'], queryFn: () => api.get('/api/v1/league-site') })
@@ -50,7 +47,7 @@ function OptionsTab() {
   if (site.isPending || !f) return site.isError ? <ErrorState error={site.error} onRetry={() => site.refetch()} /> : <LoadingState />
   const set = (patch: Partial<SiteIn>) => setF({ ...f, ...patch })
   const e = fieldErrors(save.error)
-  const embed = `<iframe src="${window.location.origin}/leagues/public?embed=1" title="${attr(f.title ?? 'Leagues')}" width="100%" height="800" loading="lazy"></iframe>`
+  const publicUrl = `${window.location.origin}/leagues/public`
   return (
     <div className="space-y-6">
       <form className="grid gap-4 sm:grid-cols-2" noValidate aria-label="League site options" onSubmit={(ev) => { ev.preventDefault(); save.mutate(f) }}>
@@ -69,9 +66,9 @@ function OptionsTab() {
         </fieldset>
         <div><Button type="submit" loading={save.isPending}>Save</Button></div>
       </form>
-      <Card title="Embed on your website">
-        <p className="mb-2 text-sm text-muted">Paste this into a page of your own website. Add <code>&amp;sport=…</code> or <code>&amp;kind=tournament</code> to filter.</p>
-        <TextArea label="Embed code" value={embed} onChange={() => undefined} />
+      <Card title="Your public league site">
+        <p className="text-sm">Link to it from your own website: <a className="text-primary hover:underline" href={publicUrl} target="_blank" rel="noopener noreferrer">{publicUrl}</a></p>
+        <p className="mt-2 text-sm text-muted">Embedding it inside another website is not switched on yet; until it is, an embedded copy shows a blank frame, so link to it instead.</p>
       </Card>
     </div>
   )
@@ -124,6 +121,7 @@ function PhotosTab() {
   const remove = useMutation({ mutationFn: (id: string) => api.delete('/api/v1/league-photos/{photo_id}', { path: { photo_id: id } }), onSuccess: refresh })
   return (
     <div className="space-y-4">
+      <p className="text-sm text-muted">The public gallery shows the first 100 shown photos, in display order.</p>
       <FileUpload label="Add a photo" purpose="league_photo" route="/api/v1/league-photos" method="POST" {...IMAGE} onUploaded={refresh} />
       {photos.isPending ? <LoadingState /> : photos.isError ? <ErrorState error={photos.error} /> : (
         <List

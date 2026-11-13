@@ -195,7 +195,7 @@ export function AppFrame() {
       <a href="#main" className="sr-only z-50 rounded bg-surface px-3 py-2 focus:not-sr-only focus:fixed focus:left-2 focus:top-2">
         Skip to content
       </a>
-      <aside className="hidden w-64 shrink-0 lg:block">
+      <aside className="hidden w-64 shrink-0 lg:block print:hidden">
         <div className="sticky top-0 h-screen">
           <Sidebar />
         </div>
@@ -209,7 +209,7 @@ export function AppFrame() {
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-surface/95 px-4 backdrop-blur md:px-6">
+        <header className="sticky top-0 z-20 flex h-14 print:hidden items-center gap-3 border-b border-border bg-surface/95 px-4 backdrop-blur md:px-6">
           <button
             type="button"
             className="rounded p-2 hover:bg-surface-2 lg:hidden"

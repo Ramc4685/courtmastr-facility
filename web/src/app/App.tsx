@@ -77,10 +77,11 @@ import { BillingSettingsPage } from '../features/billing/SettingsPage'
 import { StatementsPage } from '../features/billing/StatementsPage'
 import { SetupPage as BillingSetupPage } from '../features/billing/SetupPage'
 import { WorkbenchPage } from '../features/billing/WorkbenchPage'
-import { RUN_KEYS } from '../features/reporting/queries'
+import { EXPORT_KEY, RUN_KEYS } from '../features/reporting/queries'
 import { FacilityApp } from '../features/entry/FacilityApp'
 import { ReportRunRoute } from '../features/reporting/ReportRunPage'
 import { ReportsPage } from '../features/reporting/ReportsPage'
+import { ExportJobPage } from '../features/reporting/ExportJobPage'
 import { DrawersPage, EquipmentPage, PosReportsPage } from '../features/pos/OperationsPages'
 import { ProductsPage } from '../features/pos/ProductsPage'
 import { RegisterPage, RegisterPickerPage } from '../features/pos/RegisterPage'
@@ -116,8 +117,9 @@ export function makeQueryClient() {
   })
 }
 
-/** True inside an iframe. The proxy lets other sites frame the public league pages and the TV board only; this keeps
- * every other screen out of a frame too, since the app is one document and any route can load behind those paths. */
+/** True inside an iframe. Embedding is not yet enabled at the proxy (it still refuses all framing); when it is, it
+ * should allow the public league pages and the TV board only, and this keeps every other screen out of a frame too,
+ * since the app is one document and any route can load behind those paths. */
 export function isFramed(): boolean {
   return window.top !== window.self
 }
@@ -204,6 +206,7 @@ export function AppRoutes() {
           <Route path="setup" element={<RequirePermission permission="pos.register.manage"><PosSetupPage /></RequirePermission>} />
         </Route>
         <Route path="reports" element={<RequirePermission permission={RUN_KEYS}><ReportsPage /></RequirePermission>} />
+        <Route path="reports/exports/:exportJobId" element={<RequirePermission permission={EXPORT_KEY}><ExportJobPage /></RequirePermission>} />
         <Route path="reports/:reportKey" element={<RequirePermission permission={RUN_KEYS}><ReportRunRoute /></RequirePermission>} />
         <Route path="staff-time" element={<StaffTimeLayout />}>
           <Route index element={<RequirePermission permission="staff.time_entry.punch"><ClockPage /></RequirePermission>} />

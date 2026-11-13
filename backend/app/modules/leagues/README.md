@@ -27,13 +27,21 @@ tenant FKs. Status per feature: `docs/status/11-leagues.md`.
 - **Standings are rebuilt, not edited.** Every result write, removal and team move recomputes the competition's
   rows with `domain/standings.py`. Manual `adjustment_points` (key `leagues.standings.adjust`) survive a rebuild.
   Ranking applies the competition's ordered tie-breaks. `H2H` is a mini-table: the points each team took off
-  the others still tied with it, so a three-way tie stays consistent.
+  the others still tied with it, so a three-way tie stays consistent. The competition's `max_forfeits` and
+  `max_defaults` caps set each standing's `is_over_discipline_cap` flag on every rebuild. Nothing blocks on the
+  flag yet; it is only reported.
 - **Brackets advance on result.** A bracket game needs a winner (`422 bracket-needs-winner`). Byes go to the
   top seeds and advance at once. The third-place game takes the semi-final losers.
 - **Officials** must be active, at the game's location, and qualified for the sport (and the age group, when
   the competition has one): otherwise `422 official-not-qualified`. Double-booking an official is refused by
   the exclusion constraint `ex_game_official_overlap` (`409 official-conflict`), and the range follows the game
   when it moves.
+- **Events.** The module publishes `leagues.schedule.generated`, `leagues.game.rescheduled`,
+  `leagues.game.cancelled`, `leagues.game.result_recorded` and `leagues.standings.updated`.
+- **Client merge and erasure.** Leagues registers a merge handler and a data-subject handler for `team`,
+  `competition_team`, `roster_entry`, `team_fee_share` and `league_post` (an erased client's posts are deleted). A merge moves captaincies, fee payers, roster places and
+  fee shares to the survivor. Erasure keeps billed team entries, fee shares and past roster rows, clears the
+  client as captain and takes them off every active roster.
 
 ## Permissions (rbac-matrix 6.13)
 
@@ -48,7 +56,7 @@ games to score.
 
 | Rule | How | Test |
 |---|---|---|
-| Scope comes from the key | every command loads its aggregate through `_scoped` / `_competition` / `_child` with `location_id` | `test_location_scope_and_scoped_body_ids`, `tests/test_location_scope.py` |
+| Scope comes from the key | every command loads its aggregate through `_scoped` / `_competition` / `_child` with `location_id` | `test_location_scope_and_scoped_body_ids`, `backend/tests/test_location_scope.py` |
 | Body ids through scoped loaders | teams, resources, competitions, officials and clients in bodies are checked at the record's location (422) | `test_location_scope_and_scoped_body_ids` |
 | Gates in the shared inner function | `_enter` (add, generate, copy), `_place` (create, reschedule, postpone, bracket slot), `_bill` | `test_team_fee_is_billed_once_through_billing`, `test_game_lifecycle` |
 | Privileged flags need their own key | result removal (`amend_final`) and standings adjustment (`standings.adjust`) | `test_results_standings_and_their_keys` |
@@ -56,7 +64,7 @@ games to score.
 | Client ids through the scoped loader | `client_id` (roster) loads under `roster.manage`, `captain_client_id` under `team.manage`, the key the command is gated by | `test_leagues.py::test_w2_06_roster_and_captain_clients_go_through_the_scoped_loader` |
 | One key per effect | a bracket slot's court booking also needs `game.manage`; a copy with `includes_rosters` also needs `roster.manage`, and each copied client loads under it | `test_leagues.py::test_w2_07_bracket_booking_needs_the_games_key_and_copied_rosters_the_roster_key` |
 | Online checkout | no portal sale in this module | none needed |
-| Portal and public schemas | public routes have their own `Public*Out` schemas with no fees, ids of staff records, notes or adjustments | `test_public_schedule_and_standings`, `tests/test_portal_schemas.py` |
+| Portal and public schemas | public routes have their own `Public*Out` schemas with no fees, ids of staff records, notes or adjustments | `test_public_schedule_and_standings`, `backend/tests/test_portal_schemas.py` |
 | Tenant-wide rows | sports, age groups and seasons through `authorize_tenant_wide` | `test_reference_data_is_tenant_wide_and_guarded` |
 
 ## Assumptions and deviations (written down, not guessed)
@@ -116,15 +124,17 @@ games to score.
   teams"), clients of the household or walk-ons.
 - **Game cards (LGE-16, RPT-36)** are PDFs through `core/pdf.py`: one game per card section, no page break per
   game (`core/pdf.py` has no `new_page()`); a run is capped at 31 days and 200 games.
-- **Not routed (P1/P2):** alert settings and portal games (chip C2 and later).
+- **Not routed (P1/P2):** alert settings and portal games (chip C2 and later). Discipline suspensions have no
+  model or route either; the key `leagues.discipline.manage` is registered for them and unused (no phase yet).
 - **Public league site (chip B2, migration `1441`).** Teams, schedules, standings, brackets (once published) and
   results are public as soon as a competition is public; the site switch (`league_site.is_enabled`) governs
   only the extra sections (facility info, news, classes, gallery, sponsors, links, classifieds, pickup games),
   each with its own switch. The TV board (`/public/locations/{id}/league-board`) works with the site off.
 - **Players are private by default.** Player names and stats show publicly only when a competition's
-  `show_players` is on (default off, many players are minors), and only for active roster entries: a removed
+  `show_players` is on (default off, many players are minors), and only for active roster entries on active teams: a removed
   player drops out of the public stats (staff keep the history). `show_players` wins: the public site never reads
-  the older `shows_roster_publicly`. Team names are free text staff type; in an individual sport staff may name
+  the older `shows_roster_publicly`, which the API no longer accepts (it stays on the read model and in the
+  table). Team names are free text staff type; in an individual sport staff may name
   an entry after a person, and nothing derives a team name from a player's name.
 - **The site options are tenant-wide** (`leagues.public_site.manage` at every location); a manager limited to
   one location can read them but not save. Sponsors have their own key, held by league admins and admins.
@@ -138,9 +148,12 @@ games to score.
   a portal sign-in on both sides and is rate limited per IP and per sender. A pickup game needs a future start.
 - **Images** (photos, sponsor logos) go through `platform.files` and are capped at 900 KB (the API's 1 MiB body
   cap); they are served by our own public routes, published photos and active sponsors only.
-- **Embedding (LGE-21).** The proxy lets other sites frame `/leagues/public*` and `/leagues/board/*` only; the
-  web app, when framed, renders only those routes and refuses every other screen, because the app is one document
-  and any route could load behind an embeddable path. The second line of defence is the session cookie,
+- **Embedding (LGE-21) is not enabled yet.** The proxy (`infra/proxy/Caddyfile`) still refuses all framing
+  (`X-Frame-Options: DENY`, `frame-ancestors 'none'`), so an embedded copy renders blank and the staff screen
+  offers a link to the public site instead of an embed snippet. Turning it on waits for the owner: the proxy
+  should then allow `/leagues/public*` and `/leagues/board/*` only. The web app is ready for that: when framed it
+  renders only those routes and refuses every other screen, because the app is one document and any route could
+  load behind an embeddable path. The second line of defence is the session cookie,
   `SameSite=Lax`: a browser does not send it on requests from a frame on another site, so a framed screen has no
   session.
 - **Shortcut: sponsor date windows use today's UTC date**, not a location's zone; a tenant-wide sponsor has no
@@ -149,8 +162,8 @@ games to score.
   with online registration on (the same gate as programs' own public list), not ended in their location's zone,
   with the online description only (never the staff description or price); registering happens in the portal (`programs` is read, never written; it does not import us).
 - **Anonymous routes** are rate limited (`public-site`, 120 a minute per IP; gallery images and logos have their
-  own `public-site-media` bucket, 600 a minute, so a gallery cannot starve a TV board; the gallery list is capped
-  at 100), including the four public routes
+  own `public-site-media` bucket, 600 a minute, so a gallery cannot starve a TV board; the public gallery shows
+  the first 100 published photos in display order, `PHOTO_CAP`, and the staff screen says so), including the four public routes
   that existed before B2. They return names, never staff or client ids.
 - **Gap: a hard "wants date" preference is greedy (`roundrobin.py`).** Rounds are placed in order, so a team that
   wants one date can pull an early round onto it and leave a later round with no free slot; the run then reports

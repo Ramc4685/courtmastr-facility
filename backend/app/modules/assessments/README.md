@@ -13,7 +13,8 @@ client-visible fields and personal bests on the portal when sharing is on.
    an active field of an active category, once, and is rounded half-up to the field's decimal places on write.
    `assessments.result.recorded` is published with ids only.
 3. History: `listAssessmentResults` (entries, newest first, keyset pages) and `getAssessmentSeries` (per field:
-   points newest first, latest, first, change, best by direction). Filters: field ids, category, time window.
+   points newest first, latest, first, change, best by direction). The list filters on `recorded_at`; the series
+   takes field ids, category and a time window.
 4. Portal: `listPortalAssessmentResults` and `listPortalAssessmentBests` answer for the acted-for client
    (`client_id`, default the identity's own record) with portal-only schemas: client-visible fields only,
    never the staff note or who recorded the entry.
@@ -23,10 +24,15 @@ client-visible fields and personal bests on the portal when sharing is on.
 - Staff routes under `/assessment-*`; portal routes `/portal/assessment-results`, `/portal/assessment-bests`.
 - Permissions (rbac-matrix 6.16): `assessment.read` and `assessment.record` are `C` keys with own reach for
   coaches (their own clients: default trainer or salesperson); `assessment.delete` is `L` on the entry's
-  location; `definition.manage` is `T` (needs every location, as all tenant-wide writes do).
+  location, and the caller must also reach the client with `assessment.read`; `definition.manage` is `T` (needs
+  every location, as all tenant-wide writes do). `assessment.share` is registered for coaches, but nothing uses it
+  yet (its feature, `shareAssessmentResult`, is not built).
 - Recording a result loads the client through `clients.service.load` before checking it is active, so a client
   outside the caller's reach (or unknown) is 404, never a 422 that confirms it exists (W2-09).
-- Merge moves every entry to the survivor; erasure deletes the client's entries (`subject.py`).
+- Merge moves every entry to the survivor; erasure deletes the client's entries (`subject.py`). The data subject
+  export returns each entry's `recorded_at`, staff note and values.
+- Screens: `web/src/features/assessments/` (`AssessmentSetupPage.tsx`, `ClientAssessmentsTab.tsx`,
+  `PortalProgress.tsx`). The mobile Progress screen (`mobile/src/app/progress.tsx`) reads the portal bests route.
 - `clients.households.CAPABILITIES["assessments"]`: who may view a household member's results on the portal
   (the same edit authorities as documents and invoices).
 
@@ -34,8 +40,9 @@ client-visible fields and personal bests on the portal when sharing is on.
 
 - Values are health data (rbac flag `H`): the value column is `audit: flag`, so audit rows record that values
   changed and how many, never the numbers. Events carry ids only.
-- A result needs a location (the spec allows null). It anchors the `L` delete key, so a location-scoped admin
-  deletes only entries taken at their sites.
+- The API requires a location when a result is recorded; the column itself allows null. A result's location anchors
+  the `L` delete key, so a location-scoped admin deletes only entries taken at their sites. A null-location entry
+  needs the tenant-wide `assessment.delete` key.
 - Editing a result's time moves its stored values with it, even values on a since-archived field. Replacing
   values re-checks every field.
 - Changing a field's decimal places applies to new values; stored values keep their rounding.
@@ -49,7 +56,7 @@ client-visible fields and personal bests on the portal when sharing is on.
 ## Not built
 
 - The cohort summary report (FIT-04, P1) and its `summary_max_age_days_default` input (the column exists).
-- Emailing a result to the client (`shareAssessmentResult`, FIT-05 P1); mobile screens.
+- Emailing a result to the client (`shareAssessmentResult`, FIT-05 P1).
 - PDF or CSV export of a client's history (FIT-03 names it; the series is in the API and on screen).
 - A scoring hook for later automated scoring (FIT-02 mentions one; nothing calls it yet).
 

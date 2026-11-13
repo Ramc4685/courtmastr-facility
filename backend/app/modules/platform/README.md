@@ -6,24 +6,29 @@ scope, the audit trail read API and tenant onboarding. Calls no other context.
 
 | File | Holds |
 |---|---|
-| `service.py` | tenant profile, locations, facility hours, audit read, `get_me`, `onboard_tenant` |
-| `auth.py` | sign-in, emailed links (magic link, reset, invite), sessions, CSRF check, lockout, staff IP allow-list, `authenticate` |
+| `service.py` | tenant profile, locations, facility hours, audit read, `get_me`, `onboard_tenant`, the staff IP allow-list write path and validation (`update_security_settings`, `clear_staff_ip_allowlist`), and the cross-context helpers (`register_client_ids_resolver`, `create_client_identity`, `disable_client_identity`, `set_linked_resource`, `location_time_zone`, and others) |
+| `auth.py` | sign-in, emailed links (magic link, reset, invite), sessions, CSRF check, lockout, the staff IP allow-list check, `authenticate` |
+| `router.py`, `schemas.py`, `models.py` | core routes (`/me`, `/tenant`, `/security-settings`, locations, `/public/locations`, staff users, roles, `/permissions`, `/audit-events`, `/auth/sessions`, `/operator/tenants`, health checks); request and response shapes; tables |
+| `events.py` | events published: `platform.tenant.created`, `platform.location.created`, `platform.staff_user.invited`, `platform.staff_user.deactivated`, `platform.identity.locked`, `platform.data_subject_request.completed`. The `platform.identity_locked` notification (sent at a lockout) is a different name |
 | `staff.py` | staff users, roles, overrides, and the escalation rules of `rbac-matrix.md` section 13 |
 | `rbac.py` | effective-permission resolution (system roles from code, custom roles from rows, overrides win) |
 | `permissions.py` | the 31 `platform.*` catalogue entries; a test diffs them against `rbac-matrix.md` 6.1 |
-| `retention.py` | hourly retention purges (`purge_expired`), `register_purge`, and the dead-letter commands (`resolve_failed_job`) |
+| `retention.py` | hourly retention purges (`purge_expired`), `register_purge` (also called by `imports`), and the dead-letter commands (`open_failed_jobs`, `resolve_failed_job`) |
 | `entitlements.py`, `entitlements_router.py` | plans, feature and limit checks, `Me.entitlements`, the plan screen and operator plan routes (Phase 8 T1) |
 | `files.py`, `files_router.py` | stored files (security-baseline 8): checks, scan, store, read, load, remove, signed downloads, `purge_files` |
 | `mfa.py` | TOTP factors, recovery codes and the tenant MFA policy (Phase 8 S2) |
 | `oidc.py`, `oidc_router.py` | OIDC providers, sign-in, link confirmation and provider step-up (Phase 8 S3) |
-| `branding.py`, `privacy.py`, `onboarding.py`, `tenant_export.py` and their routers | logos, GDPR mode and data-subject requests, setup checklist and support requests, whole-account export (Phase 8 T2) |
+| `branding.py`, `privacy.py`, `onboarding.py`, `tenant_export.py` and their routers | logos, GDPR mode and data-subject requests, setup checklist and support requests, whole-account export (Phase 8 T2). `tenant_export` has no router of its own: the `/tenant-exports` routes are in `privacy_router.py` |
 
 Other contexts use `service`, `auth` and `staff` only, never the models. Exception: `privacy` calls
 `clients.service` for erasure, a listed boundary breach (`docs/architecture/overview.md` section 2).
 
 Not built yet (stubs in `docs/api/openapi-core.yaml`): per-location networks (`/locations/{id}/networks`),
 subscription billing (`/tenant/subscription`), support access, audit export. The CSV import lives in the
-`imports` context. API keys live in `integrations`, kiosk devices in `access`.
+`imports` context. API keys live in `integrations`, kiosk devices in `access`. Three keys are registered in
+`permissions.py` with no route or service caller yet: `platform.client_session.impersonate`,
+`platform.tenant.transfer_ownership` and `platform.tenant.close`. The `platform.audit.export` and
+`platform.support_access.grant` keys are registered too, for the two stubs above.
 
 ## Known gaps against the specs (acceptance pass, 2026-11-10)
 
@@ -42,26 +47,28 @@ Later modules must not assume these exist.
 - **Guards from other contexts:** archiving a location runs the checks other contexts register with
   `register_location_archive_check`; scheduling refuses with `location-has-future-bookings` while a confirmed
   booking is still to start. `currency` is set at provisioning and `PATCH /tenant` does not accept it (every
-  `_minor` amount is in that currency). Still missing: FKs for `staff_user.linked_resource_id` (resources) and
-  `auth_session.target_client_id` (clients).
+  `_minor` amount is in that currency). Still missing: the FK for `auth_session.target_client_id` (clients).
 
 ## Jobs and retention (Phase 8 K2)
 
 - **Purges** (`retention.py`, `purge_expired`, hourly per tenant): auth sessions 90 days after expiry or
   revocation, auth tokens 30 days after expiry or use (assumption: no spec value), expired idempotency keys,
   published outbox events after 30 days (unpublished never), `processed_event` after 45 days, and audit rows past
-  `retain_until_on` (24 months, 7 years for the long class, fixed at insert). Periods are config `retention`;
+  `retain_until_on` (24 months, 7 years for the long class, fixed at insert). Periods are config `retention`, except
+  audit rows, which use `audit.retention_days` and `retention_days_long`;
   each table loses at most `retention.batch_rows` (10,000) rows per run. Everything purged is tenant-owned, so the
   purge runs under `@tenant_actor` and RLS scopes every delete. Audit rows go through `app.purge_audit_event`, a
   definer function: `fh_app` still has only `SELECT, INSERT` on `audit_event` (migration 1210 says why the caller
-  is `fh_app`, not the `fh_platform` that ADR 0007 names).
-- **Not purged yet:** report result bytes (waits for `files.remove`, K1), webhook deliveries and inbound provider
-  events (ADR 0007 section 9 gives 30 and 90 days; their owning contexts have no purge yet).
+  is `fh_app`, not the `fh_platform` that ADR 0007 names). Report result bytes are purged by `reporting`
+  (`purge_expired_results`), not here.
+- **Not purged yet:** webhook deliveries and inbound provider events (ADR 0007 section 9 gives 30 and 90 days;
+  their owning contexts have no purge yet).
 - **Dead letters** (`failed_job`, ADR 0008 section 7): `core.jobs.FailedJobRecorder` writes one row per message
   that is finally rejected (retries exhausted, or none allowed), in the message's tenant: actor, queue, message
   id, args (ids and dates only, by the actor rule), error class and first line (later lines of a database error
   can quote row values), attempts. An actor that drives a job row registers `core.jobs.on_dead_letter` to
-  mark that row failed in the same transaction (the tenant export does). Operators, not staff, act on them; there
+  mark that row failed in the same transaction (the tenant export and the imports jobs do). Operators, not staff, act
+  on them; there
   is no route:
 
   ```
@@ -147,7 +154,8 @@ bytes of purged rows and logs objects that have no row.
   in the table (kiosk pairing and lookup) fall back to `default` (20/min, open), unchanged behaviour.
 - **Client IP** (5.1): `X-Forwarded-For` is believed only when the socket peer is in `api.trusted_proxies`,
   and then only its right-most hop that is not itself a trusted proxy. Default: no trusted proxies. Outside dev
-  and test, startup refuses an empty list unless `api.exposed_directly: true` (phase 8 S5): behind an unlisted
+  and test, startup refuses an empty list unless `api.exposed_directly: true` (phase 8 S5; the key is absent from
+  `config/app.yaml`, so the default in `core/settings.py`, false, applies): behind an unlisted
   proxy every client would be the proxy (one global sign-in bucket).
 - **Lockout** (5.1): 10 wrong passwords inside a 15-minute window lock password sign-in (and time-clock
   re-authentication and the current-password check of `POST /auth/password`, which since phase 8 S5 also
@@ -230,7 +238,7 @@ Evidence and open questions: `docs/status/phase8-s2-mfa.md`. Migrations `1230`, 
   gate `require()` (when every key the caller holds for the route is a `+` key), refusing with
   `403 step-up-required`. API keys and other non-session principals never satisfy it. The web client handles
   the refusal generically (`StepUpDialog`, prompt once, retry once with the same Idempotency-Key).
-- **Session lifetimes** (`config/app.yaml` `auth.session_lifetimes`): staff web idle 30 min (tenant setting
+- **Session lifetimes** (`config/app.yaml` `auth.sessions`): staff web idle 30 min (tenant setting
   `staff_idle_timeout_min`, 15 to 60) and absolute 12 h; member web idle 30 days and absolute 90 days; mobile
   unchanged. Idle expiry slides on use, never past the absolute limit. Known limit: `client_kind` is chosen
   by the caller, so a staff client that claims `mobile` gets mobile lifetimes (bearer tokens, refresh). The
@@ -252,7 +260,8 @@ in-process fake provider).
   step-up. The issuer is the natural key and cannot be changed after creation, because links are keyed by
   issuer. Saving fetches the issuer's discovery document and refuses a mismatched issuer
   (`oidc-issuer-invalid`). Deleting a provider keeps the links, so adding it back restores them.
-- **Round trip**: `POST /auth/oidc/authorize` (needs the pre-session cookie) returns the provider URL with
+- **Round trip**: `GET /auth/oidc/providers` lists the sign-in buttons. `POST /auth/oidc/authorize` (needs the
+  pre-session cookie) returns the provider URL with
   PKCE S256, `state` and `nonce`; the state is an `fho_` `auth_token` (purpose `oidc_state`, 10 minutes,
   single use, bound to a digest of the pre-session cookie). `POST /auth/oidc/callback` takes the code and
   state, exchanges the code at the token endpoint with the exact redirect URI `<web origin>/auth/oidc/callback`,
@@ -376,7 +385,9 @@ new migration.
   (`security.manage`, audited). On: marketing consent must be express (engagement README), retention uses
   `retention.gdpr_auth_session_days` / `gdpr_auth_token_days` (30 / 7), and every data-subject request shows
   `due_at` (30 days after the request; computed in every mode) and `is_overdue`. The older, unused
-  `location.is_gdpr_mode` column is left in place (owner to confirm dropping it).
+  `location.is_gdpr_mode` column is left in place (owner to confirm dropping it). Data-subject requests are
+  `POST` and `GET /data-subject-requests`, `GET /data-subject-requests/{request_id}` and
+  `POST /data-subject-requests/{request_id}/confirm` (`privacy_router.py`).
 - **Tenant export (IMP-04, `tenant_export.py`).** `POST /tenant-exports` (`tenant.export`, `OO X +`: Owner,
   fresh step-up), one at a time. The chunked `run_tenant_export` job writes one CSV per tenant table (forced RLS
   and readable by `fh_app`; split every 5,000 rows) plus `manifest.json` into a zip, stored through `files`
@@ -393,7 +404,7 @@ new migration.
   from real rows on every read: location address, opening hours edited, resources, a second staff member, an
   active payment provider account, a membership plan or program, a logo. Other contexts register their steps
   from their `__init__` (`onboarding.register_step`; platform may not import them). Dismissal is per staff user
-  (`staff_user.preferences.onboarding_dismissed`, audited).
+  (`staff_user.preferences.onboarding_dismissed`, audited), set by `PUT /onboarding/checklist/dismissal`.
 - **Support requests (ONB-03).** `support_request.create` (Owner, Admin, Manager). A request (category,
   message, optional screenshot uploaded first to `PUT /support-requests/screenshot`) is stored, emailed through
   the notification port to `support.operator_email`, and listed only to its sender, who may close it. The

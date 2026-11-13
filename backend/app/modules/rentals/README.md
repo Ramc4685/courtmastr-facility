@@ -10,7 +10,9 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
 | `domain/pricing.py` | the pure pricing function: rule precedence, bands, discounts, bases, grouping, shares |
 | `service.py` | staff commands, internal settlement, online checkout, plans |
 | `handlers.py` | `scheduling.booking.cancelled` (settle), `scheduling.booking.rescheduled` (copy times), `billing.invoice.paid` (confirm a held checkout) |
-| `router.py` | 32 operations of `openapi-core.yaml` tag rentals; `/public/*` on an anonymous router |
+| `events.py` | `rentals.rental.booked`, `rentals.rental.extended`, `rentals.rental.cancelled`, `rentals.rental_plan.sold`; thin payloads |
+| `subject.py` | client merge (parties, rental charges, plan purchases, plan shares and locker leases move to the survivor; the plan ledger stays a tombstone) and data-subject export and erasure (erasure ends auto-renew and live plan shares) |
+| `router.py` | the rental routes of `openapi-core.yaml` tag rentals; `/public/*` on an anonymous router |
 | `web/src/features/rentals/` | staff screens: `/rentals` (upcoming, unbilled queue, new rental, cancel), `/rentals/setup` (types, rates, plans, plans sold) |
 
 ## Rules
@@ -69,7 +71,7 @@ queue, cancellation settlement, online checkout with a hold, and prepaid rental 
 - A moved rental is not re-priced: its posted charges stay; staff cancel and rebook to re-price.
 - Only recurring rentals can be extended (`not-a-series` otherwise); extension occurrences arrive unbilled.
 - A series above 50 occurrences accepts only `unbilled` or `no_charge`; bill it from the queue once generated.
-- Portal payment is a card token through the PaymentProvider port; stored methods arrive with module 8. A
+- Portal payment is a one-off card token through the PaymentProvider port; confirm takes no stored method. A
   provider `unknown` keeps the hold; `billing.invoice.paid` confirms it only when the whole invoice is paid.
 - Public availability ignores `client_id` (no member pricing) and returns one page of at most 200 slots.
 - Reads of types, rates and plans are `authenticated` (location containment only), as the contract says.
@@ -117,10 +119,11 @@ Assumptions, written down rather than asked:
 
 ## Not built
 
-`updateRental` (P1: move rentals on the calendar), a `refund` charge action on cancel (billing's refund of a specific payment is module 8), rental reports beyond
+`updateRental` (P1: move rentals on the calendar), a `refund` charge action on cancel (billing has payment refunds,
+but the cancel decision does not call them yet), rental reports beyond
 the `rpt_rental_booking` and `rpt_rental_plan_sale` views (RNT-12), the `rentals.locker_lease.expiring`
-event and reminder job, locker sales at the POS, POS rental items (RNT-14 to RNT-16, module 9). Web: no portal booking screen, no extend, move or
-public-schedule control, no tax picker on rates (no tax list endpoint), one resource per rental in the form.
+event and reminder job, locker sales at the POS, POS rental items (RNT-14 to RNT-16, module 9). Web: no extend, move or
+public-schedule control, no tax picker on rates, one resource per rental in the form.
 
 ## Security hardening (wave 1, S-05, S-06)
 

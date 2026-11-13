@@ -334,6 +334,16 @@ def earliest_today(session: Session) -> date:
     return min((now.astimezone(ZoneInfo(zone)).date() for zone in zones), default=now.date())
 
 
+def location_todays(session: Session, location_ids: tuple[UUID, ...] | None = None) -> dict[UUID, date]:
+    """Today's date at each location (every location of the tenant when None). Internal: for per-location
+    date ranges, such as a report period over locations in different zones."""
+    now = clock.now()
+    stmt = select(Location.id, Location.time_zone)
+    if location_ids is not None:
+        stmt = stmt.where(Location.id.in_(location_ids))
+    return {row.id: now.astimezone(ZoneInfo(row.time_zone)).date() for row in session.execute(stmt)}
+
+
 # --- counters ----------------------------------------------------------------------------------------------
 
 

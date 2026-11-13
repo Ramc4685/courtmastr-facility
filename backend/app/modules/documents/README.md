@@ -12,19 +12,23 @@ Build module 7. Feature status: `docs/status/07-waivers-documents.md`. Migration
 | `domain/pdf.py` | The PDF of the signed record (fpdf2), from the stored snapshot only |
 | `service.py` | Every command and query, the internal interface, sweeps, merge and erase handlers |
 | `router.py` | Staff and portal routes; a `public` router for the emailed link and portal terms |
+| `events.py` | The events it emits: `documents.document.sent`, `.accepted`, `.declined` and `.expired`. Ids only |
 
 Files go through `app/ports/storage.py` (local-disk adapter `app/adapters/local_storage.py`, root
-`storage.local_dir`) and the `stored_file` table in `platform/files.py`, which sniffs the type, re-encodes images
-and refuses mismatches (security-baseline 8).
+`storage.local_dir`, or the S3 adapter `app/adapters/s3_storage.py` when `storage.adapter` is `s3`) and the
+`stored_file` table in `platform/files.py`, which sniffs the type, re-encodes images, refuses mismatches and
+scans the bytes for malware (security-baseline 8).
 
 ## Internal interface (no permission check; ADR 0009 section 9)
 
 `requirements_for(session, scope_type, scope_id, client_id, online=, source=)`, `ensure_pending(session,
 binding_id, client_id, location_id)`, `consume(session, document_ids, (context, type, id))`, `status_for(session,
-client_ids)`, `has_valid_waiver(session, client_id)`, `refresh_status`, `issue(...)`, `run_sweeps(session)` and the
-queued `sweep_documents` actor. Selling contexts (memberships, packages, programs, rentals) call
-`requirements_for` before checkout, `ensure_pending` to present the document, and `consume` when the sale completes
-so an `every_purchase` binding asks again next time. `scope_id` is opaque here: the owning context validates it.
+client_ids)`, `has_valid_waiver(session, client_id)`, `settings_row(session)` (memberships reads the waiver rules
+from it), `refresh_status`, `issue(...)`, `run_sweeps(session)` and the queued `sweep_documents` actor. Selling
+contexts (memberships, packages, programs) call `requirements_for` before checkout, `ensure_pending` to present the
+document, and `consume` when the sale completes so an `every_purchase` binding asks again next time. Rentals does not
+call them yet, so a waiver bound to a rental plan is not enforced. `scope_id` is opaque here: the owning context
+validates it.
 
 ## Decisions and assumptions
 
@@ -43,14 +47,15 @@ so an `every_purchase` binding asks again next time. `scope_id` is opaque here: 
 - **Drawn signatures are inline**, base64 PNG of at most about 300 KB in the acceptance body, re-encoded and stored,
   instead of the spec's separate `signature_file_id` upload.
 - **Downloads stream** from `GET .../file` with the caller's session (`Content-Disposition: attachment`, nosniff,
-  no-store) instead of returning a signed URL: the local-disk adapter cannot sign URLs.
+  no-store) instead of returning a signed URL. The S3 adapter can presign, but documents does not use it.
 - **Emailed links**: token in the URL fragment, posted in the body, stored as a hash, single use (any decision
   consumes it), superseded by a resend (410 `token-superseded`), expiry from `document_settings` (default 48 h),
   sent only to confirmed addresses of the client or a guardian. The public routes are rate limited and carry no
   Idempotency-Key: a replayed decision gets 410.
 - **Uploads to a profile**: create a document without a template (a title, `acceptance_method: paper`), then
   `PUT /client-documents/{id}/paper-scan` with the raw bytes (PDF, JPEG or PNG up to `storage.max_upload_bytes`,
-  20 MiB; the body-limit middleware exempts only this route). A paper copy marks the document accepted with a
+  20 MiB; the body-limit middleware exempts this route, with the client photo, client-note attachment and import
+  source routes). A paper copy marks the document accepted with a
   `paper` evidence row witnessed by the uploader; clearing the flag returns it to pending.
 - **Deleted** means soft-deleted for `deleted_recovery_days` (default 30), restorable, then voided by the sweep.
 - **Expiry** is the signing date in the location's zone plus `signature_validity_days`. The indicator applies the
@@ -62,7 +67,8 @@ so an `every_purchase` binding asks again next time. `scope_id` is opaque here: 
 
 ## Known gaps
 
-- Bulk send and the missing-document audit (DOC-07, P1) are not built; `document_bulk_send` does not exist.
+- Bulk send and the missing-document audit (DOC-07, P1) are not built; `document_bulk_send` does not exist. The key
+  `documents.document.bulk_request` is registered for bulk send, but no route uses it.
 - `app/scheduler.py` enqueues `sweep_documents` hourly per tenant; between runs indicator reads stay correct,
   while stored statuses and stale links lag.
 - `is_staff_notified_on_decision` is stored but no staff notification is sent yet (engagement owns that channel).

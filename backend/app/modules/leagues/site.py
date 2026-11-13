@@ -45,6 +45,7 @@ from app.ports import notifications
 SITE, MODERATE, SPONSORS = "leagues.public_site.manage", "leagues.classified.moderate", "leagues.sponsor.manage"
 PHOTO, LOGO = "league_photo", "league_sponsor_logo"
 IMAGE_MAX_BYTES = 900_000  # inside the 1 MiB body cap, like form header images
+PHOTO_CAP = 100  # decision: the public gallery shows at most this many published photos, in display order
 POST_DAYS = 30  # decision: posts expire 30 days after posting
 POST_LIMIT = 5  # live (pending or approved) posts per client at once
 _CLASS_KINDS = ("program", "camp", "clinic", "class_series")
@@ -114,8 +115,10 @@ def get_site(session: Db, principal: Principal) -> dict:
 
 
 def _xact_lock(session: Db, key: str) -> None:
-    """A transaction-scoped advisory lock, for check-then-insert paths a row lock cannot cover (no row yet)."""
-    session.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(key, 0))))
+    """A transaction-scoped advisory lock, for check-then-insert paths a row lock cannot cover (no row yet).
+    Keyed per tenant, so one tenant's saves never queue behind another's."""
+    tenant = func.current_setting("app.tenant_id")
+    session.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(tenant + ":" + key, 0))))
 
 
 def put_site(session: Db, principal: Principal, data: dict) -> dict:
@@ -203,7 +206,7 @@ def _photos(session: Db, published_only: bool = False) -> list[LeagueSitePhoto]:
     stmt = select(LeagueSitePhoto).order_by(LeagueSitePhoto.album.nulls_last(), LeagueSitePhoto.sort_order,
                                             LeagueSitePhoto.created_at)  # fmt: skip
     if published_only:
-        stmt = stmt.where(LeagueSitePhoto.is_published.is_(True)).limit(100)  # shortcut: newest albums later
+        stmt = stmt.where(LeagueSitePhoto.is_published.is_(True)).limit(PHOTO_CAP)  # the README documents the cap
     return list(session.scalars(stmt))
 
 
@@ -440,7 +443,8 @@ def public_player_stats(session: Db, competition_id: UUID) -> list[dict]:
         raise NotFound()
     active = set(session.scalars(
         select(RosterEntry.id).join(CompetitionTeam, CompetitionTeam.id == RosterEntry.competition_team_id)
-        .where(CompetitionTeam.competition_id == competition.id, RosterEntry.status == "active")
+        .where(CompetitionTeam.competition_id == competition.id, CompetitionTeam.status == "active",
+               RosterEntry.status == "active")
     ))  # fmt: skip
     rows = [r for r in depth.player_totals(session, competition) if r["roster_entry_id"] in active]
     names = core._names(session, [r["competition_team_id"] for r in rows])
@@ -618,7 +622,8 @@ def portal_list_posts(session: Db, principal: Principal) -> list[dict]:
 
 
 def portal_create_post(session: Db, principal: Principal, data: dict) -> dict:
-    """Waits for staff approval; shown for 30 days from posting. Errors: post-limit (5 live posts)."""
+    """Waits for staff approval; shown for 30 days from posting, a pickup game until it starts. Errors: post-limit
+    (5 live posts)."""
     me = _me(session, principal)
     _live(session, data["kind"])
     if data["location_id"] not in _locations(session):

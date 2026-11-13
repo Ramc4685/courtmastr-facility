@@ -14,8 +14,10 @@ Feature status against the parity matrix: `docs/status/16-integrations.md`.
 | `transport.py` | resolves and checks a webhook URL, then sends pinned to the checked address (no redirects) |
 | `service.py` | staff commands with both permission gates and audit, then fan-out, delivery, re-evaluation, export, directory |
 | `handlers.py` | the outbox subscriber that fans events out, and the staff-deactivated handler |
-| `jobs.py` | `deliver_webhook` (one attempt, reschedules itself) and an unscheduled sweep |
-| `router.py` | the endpoints in `docs/api/openapi-programs.yaml` tag integrations, all `require()`-gated |
+| `jobs.py` | `deliver_webhook` (one attempt, reschedules itself) and `sweep_webhook_deliveries` (every minute) |
+| `events.py` | `integrations.webhook_endpoint.disabled`, which carries a `reason` and is never delivered to webhooks (`webhook = false`) |
+| `permissions.py` | the module's keys: `api_key.manage` (step-up), `webhook.manage`, `connection.manage`, `sync.run`, `delivery.read`; `calendar_feed.revoke_any` is registered but has no caller until the calendar feed is built |
+| `router.py` | the 22 built endpoints of the 41 operations `docs/api/openapi-programs.yaml` tags integrations, all `require()`-gated; the rest are under Not built |
 
 Ports added: `app/ports/accounting.py` (adapters: `FakeAccounting`, `JsonFileAccounting`, `QuickBooksOnline`)
 and `app/ports/video_meeting.py` (`FakeVideo`, a simulated Zoom). `app/core/crypto.py` seals webhook secrets
@@ -46,8 +48,8 @@ through `service.adapter_for`.
   deliveries, or after 5 days without success: pending deliveries are abandoned, the creator is emailed and
   `integrations.webhook_endpoint.disabled` is published.
 - **SSRF.** HTTPS only and public addresses only. Every resolved address is checked at save time and at send
-  time, and the send is pinned. `integrations.webhook_allow_localhost` (dev only, `config/app.dev.yaml`; startup
-  refuses it elsewhere) allows `http` and loopback for a local receiver. IPv4-mapped addresses are judged by
+  time, and the send is pinned. `integrations.webhook_allow_localhost` (on in dev, `config/app.dev.yaml`; startup
+  refuses it outside dev and test) allows `http` and loopback for a local receiver. IPv4-mapped addresses are judged by
   their IPv4 address; other IPv6 forms that embed IPv4 (NAT64 `64:ff9b::/96`, IPv4-compatible `::/96`, 6to4,
   Teredo) are refused outright as `embedded-ipv4`, because Python 3.12 calls NAT64 and IPv4-compatible
   addresses global (W2-04).
@@ -67,4 +69,6 @@ through `service.adapter_for`.
 - Not built: OAuth client-credentials and the QuickBooks OAuth round trip, `sync_mapping` per object, the
   class/account mapping screen, a `video_meeting` table and entitlement-checked join redirects, the calendar
   feed, the member-realm API, plan entitlement gating, and a mandatory `Idempotency-Key` for machine principals.
+  Also not served yet: reading and updating one external connection, the manual sync and accounting-export retry
+  routes, and the QuickBooks and Zoom webhook receivers.
 - At most 10 webhook endpoints per tenant.

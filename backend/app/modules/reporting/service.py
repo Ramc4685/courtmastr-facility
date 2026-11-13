@@ -10,19 +10,22 @@ from datetime import timedelta
 from uuid import UUID
 
 from pydantic import ValidationError
-from sqlalchemy import or_, select, update
+from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.orm import Session
 
-from app.core import audit, clock, events
+from app.core import audit, clock, events, xlsx
 from app.core.api import CONSTRAINT_CODES
 from app.core.auth import Principal, authorize
 from app.core.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.core.pagination import ListQuery, paginate
+from app.core.settings import get_settings
 from app.modules import platform
-from app.modules.reporting.domain import csv_file, periods
+from app.modules.reporting.catalogue import REGISTRY
+from app.modules.reporting.domain import csv_file, periods, report_files
 from app.modules.reporting.events import ExportCompleted
-from app.modules.reporting.models import ExportJob, ReportRun, RunStatus, SavedReport
-from app.modules.reporting.registry import MAX_ROWS, REGISTRY, ReportSpec, Scope, too_large
+from app.modules.reporting.models import ExportJob, ReportRun, ReportSchedule, RunStatus, SavedReport
+from app.modules.reporting.registry import MAX_ROWS, ReportSpec, Scope, too_large
+from app.ports import notifications
 
 RUN_KEYS = tuple(sorted({spec.permission for spec in REGISTRY.values()}))
 EXPORT = "reporting.report.export"
@@ -30,6 +33,16 @@ RETENTION = timedelta(days=7)
 ROWS_LIMIT = 1000
 
 CONSTRAINT_CODES["uq_saved_report_owner_name"] = "already-exists"
+FORMATS = ("csv", "xlsx", "pdf")  # every spec gets all three: they render from the frozen snapshot
+_CONTENT_TYPES = {"csv": "text/csv; charset=utf-8", "pdf": "application/pdf",
+                  "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}  # fmt: skip
+
+notifications.register_template(
+    "reporting.export_ready",
+    subject="$app: $report is ready",
+    body='Hello,\n\nYour scheduled report "$report" ($format) is ready. Sign in to download it:\n\n$link\n\n'
+    "The file is kept until $expires. It is built with your own permissions and locations.\n",
+)
 
 
 def _staff(principal: Principal) -> UUID:
@@ -65,7 +78,7 @@ def definition_view(spec: ReportSpec) -> dict:
         "params_schema": spec.params.model_json_schema(), "columns": [c.out() for c in spec.columns],
         "total_columns": [c.out() for c in spec.totals],
         "detail_columns": [c.out() for c in spec.detail_columns] if spec.detail_columns else None,
-        "supports_detail": spec.detail_columns is not None, "export_formats": ["csv"], "is_stub": False,
+        "supports_detail": spec.detail_columns is not None, "export_formats": list(FORMATS), "is_stub": False,
         "features": list(spec.features),
     }  # fmt: skip
 
@@ -97,8 +110,9 @@ def _parse(spec: ReportSpec, raw: dict):
 
 
 def resolve(session: Session, principal: Principal, spec: ReportSpec, raw: dict):
-    """Validated, frozen parameters and the row scope. Relative periods and the as-of default resolve against
-    "today" at the one chosen location, or the earliest today across the tenant when several are in play."""
+    """Validated, frozen parameters and the row scope. A relative period resolves at each location in its own
+    zone; explicit-date defaults and the as-of default use the one chosen location's today, or the earliest
+    today across the tenant when several are in play."""
     params = _parse(spec, raw)
     chosen = list(dict.fromkeys(params.location_ids or []))
     for location_id in chosen:
@@ -114,14 +128,23 @@ def resolve(session: Session, principal: Principal, spec: ReportSpec, raw: dict)
     else:
         today = platform.service.earliest_today(session)
     changes: dict = {"location_ids": list(locations) if locations is not None else None}
+    day_ranges = None
     if spec.is_ranged:
         if params.period:
-            start, end = periods.resolve(params.period, today)
+            # Each location's own "today": a single range cut at the earliest one dropped the start of the day
+            # at locations further east. The frozen from/to span every location's range.
+            local = {
+                location_id: periods.resolve(params.period, day)
+                for location_id, day in platform.service.location_todays(session, locations).items()
+            } or {None: periods.resolve(params.period, today)}
+            start, end = min(r[0] for r in local.values()), max(r[1] for r in local.values())
+            if len(set(local.values())) > 1:
+                day_ranges = local
         else:
             start, end = params.from_on or today, params.to_on or today
         if end < start:
             raise ValidationFailed("The end date is before the start date", pointer="/params/to_on")
-        if (end - start).days >= periods.MAX_DAYS:
+        if day_ranges is None and (end - start).days >= periods.MAX_DAYS:  # presets fit by construction
             raise ValidationFailed(f"A report covers at most {periods.MAX_DAYS} days", pointer="/params/to_on")
         changes |= {"from_on": start, "to_on": end}
     if hasattr(params, "as_of_on"):
@@ -131,7 +154,8 @@ def resolve(session: Session, principal: Principal, spec: ReportSpec, raw: dict)
     if own_only and not spec.own_reach:
         raise PermissionDenied(f"Requires {spec.permission} for every row", required=spec.permission)
     own = platform.service.linked_resource_id(session, principal.staff_user_id) if own_only else None
-    return params.model_copy(update=changes), Scope(locations, own_only, own)
+    permitted = None if principal.kind == "system" or principal.location_ids is None else tuple(principal.location_ids)
+    return params.model_copy(update=changes), Scope(locations, own_only, own, day_ranges, permitted)
 
 
 # --- runs ----------------------------------------------------------------------------------------------------
@@ -177,6 +201,17 @@ def _snapshot(spec: ReportSpec, result: dict) -> bytes:
     }, default=str).encode()  # fmt: skip
 
 
+_SNAPSHOT_LOCK = 1601  # advisory lock class; the object is the tenant
+
+
+def _snapshot_lock(session: Session, *, exclusive: bool = False) -> None:
+    """Held until commit. Anything that reads client data into a stored snapshot or export takes it shared; a
+    data subject erasure takes it exclusive. So an erasure waits for runs and export chunks in flight to commit,
+    then purges them too, and nothing started after it reads the erased client or keeps a file it missed."""
+    lock = func.pg_advisory_xact_lock if exclusive else func.pg_advisory_xact_lock_shared
+    session.execute(select(lock(_SNAPSHOT_LOCK, func.hashtext(str(session.info["tenant_id"])))))
+
+
 def create_run(session: Session, principal: Principal, data: dict) -> dict:
     staff_user_id = _staff(principal)
     spec = _spec(principal, data["report_key"])
@@ -191,6 +226,7 @@ def create_run(session: Session, principal: Principal, data: dict) -> dict:
             raise ValidationFailed("The saved report is for another report", pointer="/saved_report_id")
         raw = {**saved.params, **(raw or {})}
     params, scope = resolve(session, principal, spec, raw or {})
+    _snapshot_lock(session)
     started = clock.now()
     result = spec.build(session, params, scope)
     if len(result["rows"]) + len(result["details"] or []) > MAX_ROWS:
@@ -341,6 +377,10 @@ def update_saved(session: Session, principal: Principal, saved_id: UUID, data: d
 
 def delete_saved(session: Session, principal: Principal, saved_id: UUID) -> None:
     saved = _load_saved(session, principal, saved_id, owner=True)
+    for schedule in session.scalars(select(ReportSchedule).where(ReportSchedule.saved_report_id == saved.id)):
+        audit.record(session, "reporting.report_schedule.delete", schedule)  # the schedules go with it
+        session.delete(schedule)
+    session.flush()
     session.execute(update(ReportRun).where(ReportRun.saved_report_id == saved.id).values(saved_report_id=None))
     audit.record(session, "reporting.saved_report.delete", saved)
     session.delete(saved)
@@ -379,8 +419,6 @@ def create_export(session: Session, principal: Principal, data: dict) -> dict:
     staff_user_id = _staff(principal)
     if data.get("source_kind", "report_run") != "report_run":
         raise ValidationFailed("Only report runs can be exported yet", pointer="/source_kind", code="not-supported")
-    if data.get("format", "csv") != "csv":
-        raise ValidationFailed("Only CSV exports are available yet", pointer="/format", code="not-supported")
     if not data.get("report_run_id"):
         raise ValidationFailed("A report run is required", pointer="/report_run_id")
     try:
@@ -390,7 +428,8 @@ def create_export(session: Session, principal: Principal, data: dict) -> dict:
     if run.status != RunStatus.SUCCEEDED or _expired(run.expires_at):
         raise Conflict("The run has no result to export; run the report again")
     job = ExportJob(
-        source_kind="report_run", report_run_id=run.id, source_key=run.report_key, params=run.params, format="csv",
+        source_kind="report_run", report_run_id=run.id, source_key=run.report_key, params=run.params,
+        format=data.get("format", "csv"), notify_on_complete=data.get("notify_on_complete", False),
         includes_details=data.get("includes_details", False), page_size=data.get("page_size"),
         orientation=data.get("orientation"), status=RunStatus.QUEUED, requested_by_staff_user_id=staff_user_id,
         expires_at=run.expires_at,
@@ -450,6 +489,35 @@ def purge_expired_results(session: Session) -> int:
     return removed
 
 
+def erase_client(session: Session, client_id: UUID) -> dict:
+    """Internal, reporting's data subject erase handler (security-baseline 4.2). Snapshot and export rows carry
+    no client id (most reports drop it, or never select it), so a run that names the client cannot be told
+    apart: every live snapshot, export file and partial export in the tenant goes. Runs and exports then read
+    `expired`, queued or running exports fail; rerunning a report rebuilds it without the erased client.
+    shortcut: tenant-wide because a snapshot's rows do not say which clients they hold; store the client ids
+    per run if erasures become frequent enough for the lost cache to matter.
+    Schedules that already ran today lose their claim, so their recipients get fresh links at the next tick."""
+    _snapshot_lock(session, exclusive=True)
+    now, live = clock.now(), (RunStatus.QUEUED, RunStatus.RUNNING)
+    purged = platform.files.purge(
+        session, select(ReportRun.result_file_id).where(ReportRun.result_file_id.is_not(None))
+    )
+    purged += platform.files.purge(session, select(ExportJob.file_id).where(ExportJob.file_id.is_not(None)))
+    for model, column in ((ReportRun, ReportRun.result_file_id), (ExportJob, ExportJob.file_id)):
+        session.execute(update(model).where(column.is_not(None))
+                        .values({column: None, model.expires_at: func.least(model.expires_at, now)}))  # fmt: skip
+    stopped = session.execute(
+        update(ExportJob).where(or_(ExportJob.status.in_(live), ExportJob.partial.is_not(None)))
+        .values(status=case((ExportJob.status.in_(live), RunStatus.FAILED), else_=ExportJob.status),
+                error=case((ExportJob.status.in_(live), "Stopped by a data erasure"), else_=ExportJob.error),
+                partial=None, finished_at=func.coalesce(ExportJob.finished_at, now))
+    ).rowcount  # fmt: skip
+    resent = session.execute(update(ReportSchedule).where(  # a day either side of UTC covers every zone's today
+        ReportSchedule.is_active, ReportSchedule.last_run_on >= now.date() - timedelta(days=1)
+    ).values(last_run_on=None)).rowcount  # fmt: skip
+    return {"purged_files": purged, "stopped_exports": stopped, "resent_schedules": resent}
+
+
 EXPORT_CHUNK_ROWS = 1_000  # rows rendered per job message (ADR 0008 section 3)
 
 
@@ -458,6 +526,7 @@ def render_export_chunk(session: Session, job_id: UUID) -> bool:
     job's CSV from its run snapshot; True while rows remain. The cursor and the bytes so far live on the locked
     job row, so a crash or a redelivery re-renders at most one chunk. A job no longer queued or running is left
     alone."""
+    _snapshot_lock(session)  # before the row lock, in the order erase_client takes them
     job = session.scalars(select(ExportJob).where(ExportJob.id == job_id).with_for_update()).one_or_none()
     if job is None or job.status not in (RunStatus.QUEUED, RunStatus.RUNNING):
         return False
@@ -472,6 +541,17 @@ def render_export_chunk(session: Session, job_id: UUID) -> bool:
     if job.status == RunStatus.QUEUED:
         job.status, job.started_at, job.partial = RunStatus.RUNNING, clock.now(), b""
     currency = platform.service.get_tenant(session).currency
+    if job.format != "csv":
+        # shortcut: XLSX and PDF cannot be appended to across messages, so they render in this one message. The
+        # 50,000-row snapshot cap bounds it; split it into sheet or page chunks if that cap is ever raised.
+        try:
+            data = _render_document(session, job, run, snapshot, currency)
+        except xlsx.TooLarge as error:
+            job.status, job.error, job.finished_at, job.partial = RunStatus.FAILED, str(error), clock.now(), None
+            audit.record(session, "reporting.export_job.fail", job, changes={"status": job.status})
+            return False
+        job.progress = {"next": len(snapshot["rows"]), "total": len(snapshot["rows"])}
+        return _store_export(session, job, run, snapshot, data)
     # One row sequence over two sections: the rows, then after a blank line the detail rows, each with its header.
     sections = [(snapshot["columns"], snapshot["rows"], csv_file.BOM)]
     if job.includes_details and snapshot["details"]:
@@ -487,10 +567,43 @@ def render_export_chunk(session: Session, job_id: UUID) -> bool:
     job.progress = {"next": min(end, offset), "total": offset}
     if end < offset:
         return True
+    return _store_export(session, job, run, snapshot, job.partial)
+
+
+def _cover(session: Session, spec: ReportSpec, run: ReportRun) -> list[tuple[str, object]]:
+    """Parameters and date basis for the XLSX cover sheet and the PDF header (ADR 0010 section 5)."""
+    p = run.params
+    ids = p.get("location_ids")
+    places = ", ".join(platform.service.location_name(session, UUID(i)) for i in ids) if ids else "All locations"
+    lines: list[tuple[str, object]] = [("Report", spec.name), ("Date basis", spec.date_basis.replace("_", " "))]
+    lines += [(label, p[key]) for key, label in (("from_on", "From"), ("to_on", "To"), ("as_of_on", "As of"))
+              if p.get(key)]  # fmt: skip
+    lines.append(("Locations", places))
+    for key, value in p.items():
+        if key not in ("location_ids", "scope", "from_on", "to_on", "as_of_on") and value not in (None, [], ""):
+            shown = ", ".join(map(str, value)) if isinstance(value, list) else str(value)
+            lines.append((key.removesuffix("_minor").replace("_", " ").capitalize(), shown))
+    lines.append(("Run at", run.finished_at.isoformat(timespec="minutes") if run.finished_at else "-"))
+    return lines
+
+
+def _render_document(session: Session, job: ExportJob, run: ReportRun, snapshot: dict, currency: str) -> bytes:
+    spec = REGISTRY[run.report_key]
+    cover = _cover(session, spec, run)
+    totals = [(c.label, c.type, (run.totals or {}).get(c.key)) for c in spec.totals]
+    if job.format == "xlsx":
+        return report_files.to_xlsx(snapshot, cover, totals, details=job.includes_details, currency=currency)
+    return report_files.to_pdf(
+        snapshot, cover, totals, title=spec.name, organization=platform.service.get_tenant(session).name,
+        details=job.includes_details, currency=currency, page_size=job.page_size, orientation=job.orientation,
+    )  # fmt: skip
+
+
+def _store_export(session: Session, job: ExportJob, run: ReportRun, snapshot: dict, data: bytes) -> bool:
+    name = f"{run.report_key}-{run.finished_at.date().isoformat()}.{job.format}"
     stored = platform.files.store(
-        session, job.partial, purpose="report_export", content_type="text/csv; charset=utf-8",
-        uploaded_by=("system", None), original_name=f"{run.report_key}-{run.finished_at.date().isoformat()}.csv",
-        generated=True,
+        session, data, purpose="report_export", content_type=_CONTENT_TYPES[job.format],
+        uploaded_by=("system", None), original_name=name, generated=True,
     )  # fmt: skip
     job.file_id, job.row_count, job.status = stored.id, len(snapshot["rows"]), RunStatus.SUCCEEDED
     job.finished_at, job.partial = clock.now(), None
@@ -499,4 +612,21 @@ def render_export_chunk(session: Session, job_id: UUID) -> bool:
     audit.record(session, "reporting.export_job.complete", job, changes=audit.diff(job))
     event = ExportCompleted(export_job_id=job.id, requested_by_staff_user_id=job.requested_by_staff_user_id)
     events.publish(session, event, job.id)
+    if job.notify_on_complete:
+        _send_link(session, job, REGISTRY[run.report_key])
     return False
+
+
+def _send_link(session: Session, job: ExportJob, spec: ReportSpec) -> None:
+    """The scheduled-delivery email: a link to the export page, where the recipient signs in and the download
+    re-checks their permission and locations. No file and no token: the id alone grants nothing."""
+    email = platform.service.active_staff_emails(session, [job.requested_by_staff_user_id]).get(
+        job.requested_by_staff_user_id
+    )
+    if email is None:
+        return  # deactivated since the schedule ran
+    settings = get_settings().app
+    notifications.send(session, "reporting.export_ready", email, {
+        "app": settings.display_name, "report": spec.name, "format": job.format.upper(),
+        "link": f"{settings.web_base_url}/reports/exports/{job.id}", "expires": job.expires_at.date().isoformat(),
+    })  # fmt: skip

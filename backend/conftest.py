@@ -300,7 +300,7 @@ def populate(client, tenant) -> SimpleNamespace:
     )
     leagues |= _populate_league_site(client, headers, post, tenant, location["id"], person["id"])
     integration = _populate_integrations(client, headers, tenant, post, location, person)
-    reporting = _populate_reporting(post, location["id"])
+    reporting = _populate_reporting(post, location["id"], tenant.owner_id)
     reporting |= _populate_imports(client, headers, tenant, location["id"])
     return SimpleNamespace(
         tenant=tenant, headers=headers, location_id=location["id"], role_id=role["id"], staff_user_id=invited["id"],
@@ -403,13 +403,19 @@ def _populate_imports(client, headers, tenant, location_id) -> dict:
     return {"import_job_id": job_id}
 
 
-def _populate_reporting(post, location_id) -> dict:
-    """Build module 15: a saved report, one run of it, and a (queued) CSV export of that run."""
+def _populate_reporting(post, location_id, owner_id) -> dict:
+    """Build module 15: a saved report, one run of it, a (queued) CSV export of that run, and a daily delivery
+    schedule on the saved report (phase 12 chip A)."""
     params = {"location_ids": [location_id], "from_on": "2020-01-01", "to_on": "2020-12-31"}
     saved = post("/saved-reports", {"report_key": "deposits", "name": "Deposits 2020", "params": params})
     run = post("/report-runs", {"report_key": "deposits", "saved_report_id": saved["id"]})
     export = post("/export-jobs", {"report_run_id": run["id"], "format": "csv"})
-    return {"saved_report_id": saved["id"], "report_run_id": run["id"], "export_job_id": export["id"]}
+    schedule = post("/report-schedules", {
+        "saved_report_id": saved["id"], "location_id": location_id, "frequency": "daily", "send_time": "07:00",
+        "format": "xlsx", "recipient_staff_user_ids": [str(owner_id)],
+    })  # fmt: skip
+    return {"saved_report_id": saved["id"], "report_run_id": run["id"], "export_job_id": export["id"],
+            "report_schedule_id": schedule["id"]}  # fmt: skip
 
 
 def _populate_share_link(tenant, client_id) -> dict:
@@ -791,6 +797,7 @@ def _populate_memberships(
     period = next(p for p in call("GET", f"{url}/billing-schedule") if p["status"] == "scheduled")
     with tenant_session(tenant.id, actor=system_principal("tests")) as session:
         memberships.service.record_visit(session, client_id=person_id, check_in_id=uuid4(), location_id=location_id)
+    call("POST", "/client-packages/complimentary", sale | {"package_plan_id": package_plan["id"]})  # a trial (RPT-24)
     package = call("POST", "/client-packages", sale | {"package_plan_id": package_plan["id"]})
     package_share = call("POST", f"/client-packages/{package['id']}/shares", {"client_id": kid_id})
     recurring = call("POST", "/client-packages", sale | {"package_plan_id": monthly["id"]})

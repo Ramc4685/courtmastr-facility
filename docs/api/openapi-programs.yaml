@@ -1099,7 +1099,7 @@ paths:
       tags: [programs]
       summary: Create or replace a reservation-type override
       x-priority: P0
-      x-permission: scheduling.reservation_type.manage
+      x-permission: [engagement.portal_settings.manage, programs.registration_config.manage]
       x-features: [SSP-03]
       security: [{staffSession: []}, {apiKey: []}]
       parameters: [{$ref: '#/components/parameters/LocationId'}]
@@ -1120,7 +1120,7 @@ paths:
       tags: [programs]
       summary: Remove an override (fall back to the location default)
       x-priority: P0
-      x-permission: scheduling.reservation_type.manage
+      x-permission: [engagement.portal_settings.manage, programs.registration_config.manage]
       x-features: [SSP-03]
       security: [{staffSession: []}, {apiKey: []}]
       parameters: [{$ref: '#/components/parameters/LocationId'}]
@@ -6482,6 +6482,15 @@ paths:
       x-priority: P1
       x-permission: reporting.dashboard.read
       x-features: [RPT-02]
+      parameters:
+      - {name: location_id, in: query, schema: {type: string, format: uuid}, description: One location; omitted means every location the caller can see.}
+      responses:
+        '200':
+          description: Tiles composed from report specs through the runner, per caller reach.
+          content: {application/json: {schema: {type: object, required: [location_id, generated_at, tiles], properties: {location_id: {type: string, format: uuid, nullable: true}, generated_at: {type: string, format: date-time}, tiles: {type: array, items: {type: object, required: [key, name, period, available, totals], properties: {key: {type: string}, name: {type: string}, period: {type: string, nullable: true}, available: {type: boolean, description: 'False when the report has more rows than a run allows; the totals are then null.'}, totals: {type: array, items: {type: object, required: [key, label, type, value], properties: {key: {type: string}, label: {type: string}, type: {type: string}, value: {nullable: true}}}}}}}}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
   /api-keys:
     get:
       operationId: listApiKeys

@@ -35,16 +35,26 @@ apply. These are internal (ADR 0009 section 9: no principal; the import command 
 
 ## Flow
 
+Before a job: `GET /import-templates` lists each type's fields, help and guide, and `GET /import-templates/{kind}`
+returns the template CSV (our header and one example row). `GET /import-jobs` lists jobs newest first, filtered by
+`kind` and `status`.
+
 1. `POST /import-jobs` {kind, location_id}: status `new`.
 2. `PUT /import-jobs/{id}/source`: the raw CSV (UTF-8 with or without a BOM, at most 10 MB and 20,000 rows),
    stored through `platform.files` with purpose `import_source` (scanned). Columns are auto-matched by our key or
    label, without case or punctuation. Status `uploaded`. A new upload replaces the file and clears results.
+   Accepted content types are `text/csv`, `application/csv`, `text/plain` and `application/vnd.ms-excel`. Refusals
+   carry a code: `file-empty`, `file-too-large`, `file-type-mismatch`, `file-not-utf8`, `file-not-csv`,
+   `file-no-header`, `file-duplicate-header`, `file-too-many-rows` and `file-infected`. An upload once the job has
+   started is 409.
 3. `POST /import-jobs/{id}/dry-runs` {column_mapping, date_format}: checks every row. Each row is applied in a
    savepoint that is always rolled back, and any after-commit hooks it queued are dropped, so nothing reaches the
-   database or the outside world. Status `validated`, or `needs_review` when a row has a problem.
+   database or the outside world. Status `validated`, or `needs_review` when a row has a problem. A dry run on a
+   `new` job is 409 "Upload a file first".
 4. `POST /import-jobs/{id}/commits`: applies the rows. A row that fails now (a plan limit, a clash) is `failed`
    with its reason; the rest are imported. Status `completed`. Upload, check and commit load the job with a row
-   lock, and the check records the file it checked: a commit of any other file is 409 `check-stale`.
+   lock, and the check records the file it checked: a commit of any other file is 409 `check-stale`. A commit with
+   no importable row is 409 `nothing-to-import`.
 5. `GET /import-jobs/{id}/error-report`: `Row, Outcome, Column, Problem` for every row not imported, and for
    imported rows that carry a warning ("Imported with a warning"; in a dry run "Would import with a warning").
    Problems are plain words and never quote a cell. Every cell is neutralised against formula injection.
@@ -65,7 +75,8 @@ import of the same file recognises them.
 ## Row outcomes and idempotency
 
 Every non-blank source row becomes one `import_job_row`: `valid` or `invalid` (dry run), `created`, `updated`,
-`skipped` (a duplicate) or `failed`. Row numbers are spreadsheet rows (the header is row 1), not the 1-based data
+`skipped` (a duplicate) or `failed`. A row that hits a database clash with an existing record is `failed` (`invalid`
+in a dry run) with code `already-exists`. Row numbers are spreadsheet rows (the header is row 1), not the 1-based data
 rows of the data model, so they match what a person sees in the spreadsheet.
 
 - `row_key` is a keyed MAC (`core.crypto.mac`, not a plain hash, so member numbers and emails cannot be guessed
@@ -110,7 +121,7 @@ are the job's own problem report, after the rows. Checked by `test_a_dry_run_lea
 
 ## Plan limits
 
-The commit hits `entitlements.enforce_limit` inside `clients._create`, reported per row as `plan-limit-reached`.
+The commit hits `entitlements.enforce_limit` inside `clients.service._create`, reported per row as `plan-limit-reached`.
 A dry run rolls each row back, so it counts instead: rows that would create a client beyond `limit - usage` at the
 start of the check are `invalid` with the same code.
 
