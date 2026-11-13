@@ -1,6 +1,6 @@
 # Feature ledger
 
-Basis: local `main` at `21b6769`, plus unmerged branch `claude/phase11-portal-member-app-d22713` at `a6649a6`. Date 2026-11-13.
+Basis: local `main` at `9f61091`, with Phase 11 (portal and member app) merged at `c24f953`. Date 2026-11-13.
 Master list: every feature id in `docs/discovery/parity-matrix.md` (453 rows; same 453 ids as `feature-inventory.md`).
 VERIFIED = route, service function, report spec or screen found in code (OpenAPI paths, `grep`); CLAIMED = status file only.
 
@@ -17,8 +17,8 @@ VERIFIED = route, service function, report spec or screen found in code (OpenAPI
 
 | State | P0 | P1 | P2 | v2 | Total |
 |---|---|---|---|---|---|
-| DONE | 166 | 156 | 17 | 1 | 340 |
-| DONE-UNMERGED | 12 | 12 | 4 | 0 | 28 |
+| DONE | 178 | 168 | 21 | 1 | 368 |
+| DONE-UNMERGED | 0 | 0 | 0 | 0 | 0 |
 | PARTIAL | 16 | 17 | 5 | 0 | 38 |
 | PARKED | 8 | 8 | 9 | 0 | 25 |
 | DEFERRED-V2 | 0 | 0 | 0 | 20 | 20 |
@@ -36,7 +36,7 @@ Checked: VERIFIED 260, CLAIMED 193.
 | Phase 8 | 11 | 0 | 7 | 3 | 0 | 0 | 21 |
 | Phase 9 | 14 | 0 | 11 | 0 | 0 | 2 | 27 |
 | Phase 10 | 29 | 0 | 3 | 1 | 0 | 0 | 33 |
-| Phase 11 | 1 | 28 | 7 | 0 | 0 | 0 | 36 |
+| Phase 11 | 29 | 0 | 7 | 0 | 0 | 0 | 36 |
 | Phase 12 | 42 | 0 | 3 | 0 | 0 | 0 | 45 |
 | Phase 13 | 0 | 0 | 0 | 16 | 0 | 0 | 16 |
 | Phase 14 | 57 | 0 | 2 | 3 | 0 | 0 | 62 |
@@ -47,7 +47,7 @@ Checked: VERIFIED 260, CLAIMED 193.
 | Id | Feature | Where | State | Missing or reason |
 |---|---|---|---|---|
 | PLT-15 | Cloud delivery and availability commitments | Phase 8 | PARTIAL | Nothing deployed: hosting not chosen (images, proxy `infra/proxy/Caddyfile`, backup drill exist) |
-| RNT-06 | Client online rental search and booking | Phase 11 | DONE-UNMERGED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
+| RNT-06 | Client online rental search and booking | Phase 11 | DONE | routes or screens on main (Phase 11 merge `c24f953`) |
 | CLI-12 | Client photo | Phase 10 | PARTIAL | `/clients/{id}/photo` built; no webcam capture or portal photo edit |
 | CLI-16 | Communication subscriptions | Phase 13 | PARKED | Phase 13 parked: needs email and push provider accounts (phase-features.md); partial: built bar List-Unsubscribe header |
 | MEM-19 | Membership number and member card | Phase 10 | PARTIAL | Printed Code 128 card only; no QR on printed card, no RFID |
@@ -60,9 +60,9 @@ Checked: VERIFIED 260, CLAIMED 193.
 | PAY-10 | ACH / direct debit processing | Phase 9 | PARTIAL | No post-settlement return handling or failed direct-debit report |
 | PAY-11 | Merchant processor integration (native processing and gateways) | Phase 9 | PARTIAL | Stripe test mode only, never live; no platform application fee |
 | POS-10 | POS discounts (preset, custom, client-level) | Phase 9 | PARTIAL | No client-level discount (no `discount_pct` on client). (chip F never ran) |
-| CHK-13 | App member cards, wallet pass and mobile check-in | Phase 11 | PARTIAL | On unmerged branch: wallet pass uses fake adapter (unsigned, no Apple or Google) |
-| REG-10 | Per-group online registration configuration | Phase 11 | DONE-UNMERGED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| REG-12 | Registrant online checkout for groups | Phase 11 | DONE-UNMERGED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
+| CHK-13 | App member cards, wallet pass and mobile check-in | Phase 11 | PARTIAL | Phase 11 on main: wallet pass uses fake adapter (unsigned, no Apple or Google) |
+| REG-10 | Per-group online registration configuration | Phase 11 | DONE | routes or screens on main (Phase 11 merge `c24f953`) |
+| REG-12 | Registrant online checkout for groups | Phase 11 | DONE | routes or screens on main (Phase 11 merge `c24f953`) |
 | MKT-02 | Communication subscriptions per email address | Phase 13 | PARKED | Phase 13 parked: needs email and push provider accounts (phase-features.md); partial: built bar RFC 8058 List-Unsubscribe header |
 | MKT-03 | Email campaign wizard (legacy blast) | Phase 13 | PARKED | Phase 13 parked: needs email and push provider accounts (phase-features.md); partial: plain text only, SMTP adapter |
 | MKT-05 | Email template library | Phase 13 | PARKED | Phase 13 parked: needs email and push provider accounts (phase-features.md); partial: one system template |
@@ -70,16 +70,16 @@ Checked: VERIFIED 260, CLAIMED 193.
 | MKT-08 | Failed-email suppression list | Phase 13 | PARKED | Phase 13 parked: needs email and push provider accounts (phase-features.md); partial: no provider feeds bounces |
 | MKT-14 | Operational notification routing (staff-facing alerts) | Phase 13 | PARKED | Phase 13 parked: needs email and push provider accounts (phase-features.md); partial: no daily summary job |
 | MKT-16 | Push notifications (broadcast) | Phase 13 | PARKED | Phase 13 parked: needs email and push provider accounts (phase-features.md); partial: no push provider |
-| SSP-01 | Portal enablement, public visibility, vanity URL and landing page | Phase 11 | DONE-UNMERGED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| SSP-04 | Online rental booking (defaults and client flow) | Phase 11 | DONE-UNMERGED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| SSP-05 | Public self-registration and account creation | Phase 11 | DONE-UNMERGED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| SSP-08 | Book a session with inline package purchase; online sale flags | Phase 11 | DONE-UNMERGED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| SSP-12 | Portal calendar views | Phase 11 | DONE-UNMERGED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| SSP-14 | Portal design, content and legal text | Phase 11 | DONE-UNMERGED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
+| SSP-01 | Portal enablement, public visibility, vanity URL and landing page | Phase 11 | DONE | routes or screens on main (Phase 11 merge `c24f953`) |
+| SSP-04 | Online rental booking (defaults and client flow) | Phase 11 | DONE | routes or screens on main (Phase 11 merge `c24f953`) |
+| SSP-05 | Public self-registration and account creation | Phase 11 | DONE | routes or screens on main (Phase 11 merge `c24f953`) |
+| SSP-08 | Book a session with inline package purchase; online sale flags | Phase 11 | DONE | routes or screens on main (Phase 11 merge `c24f953`) |
+| SSP-12 | Portal calendar views | Phase 11 | DONE | routes or screens on main (Phase 11 merge `c24f953`) |
+| SSP-14 | Portal design, content and legal text | Phase 11 | DONE | routes or screens on main (Phase 11 merge `c24f953`) |
 | SSP-18 | Virtual sessions (Zoom) through the portal | Phase 11 | PARTIAL | Built in Phase 15: portal join works; Zoom never called live |
-| APP-01 | Member app core (shared multi-tenant app) | Phase 11 | DONE-UNMERGED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| APP-02 | White-label branded app (per-tenant theme) | Phase 11 | DONE-UNMERGED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| APP-19 | In-app purchase and payment | Phase 11 | DONE-UNMERGED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
+| APP-01 | Member app core (shared multi-tenant app) | Phase 11 | DONE | routes or screens on main (Phase 11 merge `c24f953`) |
+| APP-02 | White-label branded app (per-tenant theme) | Phase 11 | DONE | routes or screens on main (Phase 11 merge `c24f953`) |
+| APP-19 | In-app purchase and payment | Phase 11 | DONE | routes or screens on main (Phase 11 merge `c24f953`) |
 | INT-01 | Public REST API platform (auth, docs, realms) | Phase 15 | PARTIAL | API keys, scopes, reference built; no OAuth 2.0 client-credentials |
 | INT-07 | QuickBooks Online sync | Phase 15 | PARTIAL | QuickBooks behind port, simulated only; never called live |
 
@@ -98,9 +98,9 @@ None by the strict test: every id is in a phase or was built before Phase 8. Orp
 | PAY-14 | P1 | NOT-BUILT | Phase 9 chips E/F not started; "stays in remaining-work for a later wave" (phase9-plan.md line 115) |
 | PAY-16 | P1 | NOT-BUILT | Phase 9 chips E/F not started; "stays in remaining-work for a later wave" (phase9-plan.md line 115) |
 | PAY-17 | P1 | PARTIAL | Phase 9 chips E/F not started; "stays in remaining-work for a later wave" (phase9-plan.md line 115) |
-| PLT-10 | P2 | PARKED | Parked to Phase 11 (status/README.md); phase-11.md does not list it |
+| PLT-10 | P2 | PARKED | No owner: status/README.md says moved to Phase 11, but phase-11.md never took it; no phase lists it |
 
-Features with no status row in any status file (assessed from code): PLT-01, PLT-02, PLT-03, PLT-04, PLT-05, PLT-17, POS-04, REL-03, REL-05, SSP-02, SSP-03, SSP-06, SSP-10, SSP-17, SSP-20.
+Orphans with no status row before 2026-11-13 (all now have one): PLT-01, PLT-02, PLT-03, PLT-04, PLT-05, PLT-17, POS-04, REL-03, REL-05, SSP-02, SSP-03, SSP-06, SSP-10, SSP-17, SSP-20.
 
 ## NOT-BUILT
 
@@ -127,7 +127,7 @@ Parked or deferred with nothing built (not counted as NOT-BUILT): MKT-04, MKT-06
 | PAY-10 | ACH / direct debit processing | P0 | Phase 9 | No post-settlement return handling or failed direct-debit report |
 | PAY-11 | Merchant processor integration (native processing and gateways) | P0 | Phase 9 | Stripe test mode only, never live; no platform application fee |
 | POS-10 | POS discounts (preset, custom, client-level) | P0 | Phase 9 | No client-level discount (no `discount_pct` on client). (chip F never ran) |
-| CHK-13 | App member cards, wallet pass and mobile check-in | P0 | Phase 11 | On unmerged branch: wallet pass uses fake adapter (unsigned, no Apple or Google) |
+| CHK-13 | App member cards, wallet pass and mobile check-in | P0 | Phase 11 | Phase 11 on main: wallet pass uses fake adapter (unsigned, no Apple or Google) |
 | SSP-18 | Virtual sessions (Zoom) through the portal | P0 | Phase 11 | Built in Phase 15: portal join works; Zoom never called live |
 | INT-01 | Public REST API platform (auth, docs, realms) | P0 | Phase 15 | API keys, scopes, reference built; no OAuth 2.0 client-credentials |
 | INT-07 | QuickBooks Online sync | P0 | Phase 15 | QuickBooks behind port, simulated only; never called live |
@@ -143,15 +143,15 @@ Parked or deferred with nothing built (not counted as NOT-BUILT): MKT-04, MKT-06
 | PAY-17 | Chargeback and transaction sync | P1 | Phase 9 | Disputes by webhook only; no staff route or screen (no `/disputes` path). (chip E never ran) |
 | POS-22 | Reorder alerts and POS reporting hooks | P1 | Phase 10 | No `rpt_*` read models; POS reports live in `/pos-reports/*` |
 | REG-19 | Form branding (header image, colours, width, font) | P1 | Phase 14 | Header image and accent only; no width or font |
-| APP-13 | Favorites and personalised schedule | P1 | Phase 11 | On unmerged branch: no instructor favourites, no favourite toggle in listings |
-| APP-17 | App engagement analytics | P1 | Phase 11 | On unmerged branch: no install, open or push-open tracking |
+| APP-13 | Favorites and personalised schedule | P1 | Phase 11 | Phase 11 on main: no instructor favourites, no favourite toggle in listings |
+| APP-17 | App engagement analytics | P1 | Phase 11 | Phase 11 on main: no install, open or push-open tracking |
 | RPT-29 | Email Campaign History (delivery analytics) | P1 | Phase 12 | `campaign_history` built; no opens, clicks, bounces (Phase 13 provider webhooks) |
 | RPT-38 | Branded-app analytics | P1 | Phase 12 | `app_devices` only; no screen views or active users (branch adds usage events) |
 | INT-09 | Zoom integration for virtual sessions | P1 | Phase 15 | Zoom simulated only; no `/webhooks/zoom`, no `virtual_room` holds |
 | MEM-23 | Membership onboarding checklist | P2 | Phase 8 | Only one membership step in ONB-01 checklist; no membership checklist |
 | REG-06 | Group page personalisation and member-grid columns | P2 | Phase 14 | Member grid stores columns but roster has no chooser |
-| APP-11 | Tell a friend (referral share) | P2 | Phase 11 | On unmerged branch: share sheet only; hidden without web origin |
-| APP-15 | Social and device integrations | P2 | Phase 11 | On unmerged branch: booking share built; no add-to-calendar |
+| APP-11 | Tell a friend (referral share) | P2 | Phase 11 | Phase 11 on main: share sheet only; hidden without web origin |
+| APP-15 | Social and device integrations | P2 | Phase 11 | Phase 11 on main: booking share built; no add-to-calendar |
 | INT-13 | Google Analytics cross-domain tracking for registration pages | P2 | Phase 15 | Setting and `/public/analytics-config` only; tag not loaded, owner decision needed |
 
 ## Status claims found stale or false
@@ -169,7 +169,7 @@ Parked or deferred with nothing built (not counted as NOT-BUILT): MKT-04, MKT-06
 | docs/status/12-staff.md, 13-assessments.md | STF-08/09 "no CSV/XLSX"; FIT-03 "no chart, no export" | Report engine exports CSV/XLSX/PDF; `TrendChart.tsx` exists |
 | docs/status/11-leagues.md | LGE-20 P1, LGE-24 P2, MKT-18 P2 | Matrix: LGE-20 P2, LGE-24 P1, MKT-18 P1 |
 | docs/status/15-reporting.md | chip C reports tested in "two zones" | One loop checks a second location sees no rows; only check-ins test local days |
-| docs/planning/phase-features.md | Phase 9 "chip D running"; Phases 11, 12, 15 "Not started" | 9 merged without E/F; 12 and 15 merged; 11 built, unmerged |
+| docs/planning/phase-features.md | Phase 9 "chip D running"; Phases 11, 12, 15 "Not started" | 9 merged without E/F; 12 and 15 merged; 11 merged 2026-11-13 (resolved) |
 | Phase 11 branch 03-rentals.md | adds RNT-14 to RNT-18 as "not built" | False: RNT-14-16 done (POS), RNT-17/18 done (Phase 14 C1); merging would regress the doc |
 | docs/status/README.md "Module 1 and Wave 7" | REL-04 parked | Built by Phase 9 chip B (location day in statements and AR) |
 
@@ -179,23 +179,23 @@ Parked or deferred with nothing built (not counted as NOT-BUILT): MKT-04, MKT-06
 
 | Id | Feature | Pri | Phase or module | State | Check | Evidence or note |
 |---|---|---|---|---|---|---|
-| PLT-01 | Tenant account and multi-location organization | P0 | Module 1 (pre-Phase 8) | DONE | VERIFIED | no status row anywhere; route `/locations` exists |
-| PLT-02 | Staff user accounts | P0 | Module 1 (pre-Phase 8) | DONE | VERIFIED | no status row anywhere; route `/staff-users` exists |
-| PLT-03 | Staff password administration | P0 | Module 1 (pre-Phase 8) | DONE | VERIFIED | no status row anywhere; route `/auth/password-resets` exists |
-| PLT-04 | Roles and permission catalogue | P0 | Module 1 (pre-Phase 8) | DONE | VERIFIED | no status row anywhere; route `/roles` exists |
-| PLT-05 | Role assignment and per-user permission overrides | P0 | Module 1 (pre-Phase 8) | DONE | VERIFIED | no status row anywhere; route `override` exists |
+| PLT-01 | Tenant account and multi-location organization | P0 | Module 1 (pre-Phase 8) | DONE | VERIFIED | status row added 2026-11-13 in README.md; route `/locations` exists |
+| PLT-02 | Staff user accounts | P0 | Module 1 (pre-Phase 8) | DONE | VERIFIED | status row added 2026-11-13 in README.md; route `/staff-users` exists |
+| PLT-03 | Staff password administration | P0 | Module 1 (pre-Phase 8) | DONE | VERIFIED | status row added 2026-11-13 in README.md; route `/auth/password-resets` exists |
+| PLT-04 | Roles and permission catalogue | P0 | Module 1 (pre-Phase 8) | DONE | VERIFIED | status row added 2026-11-13 in README.md; route `/roles` exists |
+| PLT-05 | Role assignment and per-user permission overrides | P0 | Module 1 (pre-Phase 8) | DONE | VERIFIED | status row added 2026-11-13 in README.md; route `override` exists |
 | PLT-06 | Email-campaign permission levels | P1 | Phase 8 | DONE | CLAIMED | status/README.md "Module 1 and Wave 7"; phase8-*.md |
 | PLT-07 | IP address restriction for staff access | P1 | Phase 8 | DONE | CLAIMED | status/README.md "Module 1 and Wave 7"; phase8-*.md |
 | PLT-08 | Location branding assets (logos) | P1 | Phase 8 | PARTIAL | CLAIMED | No logos in emails, invoices, receipts; no resized renditions |
 | PLT-09 | UI generation switch and default platform | P2 | Phase 8 | DONE | CLAIMED | status/README.md "Module 1 and Wave 7"; phase8-*.md |
-| PLT-10 | Per-user UI preferences (sidebar, dark mode) | P2 | Phase 8 | PARKED | VERIFIED | status/README.md: "moved to Phase 11"; phase-11.md never took it. Web theme toggle exists locally; `staff_user.preferences` unused by API |
+| PLT-10 | Per-user UI preferences (sidebar, dark mode) | P2 | Phase 8 | PARKED | VERIFIED | No owner: status/README.md says "moved to Phase 11"; phase-11.md never took it. Web theme toggle exists locally; `staff_user.preferences` unused by API |
 | PLT-11 | League-module staff users and access levels | P1 | Phase 14 | DONE | VERIFIED | 11-leagues.md / 06-programs.md / phase14-*.md; route check passed |
 | PLT-12 | League public-site options | P1 | Phase 14 | DONE | VERIFIED | 11-leagues.md / 06-programs.md / phase14-*.md; route check passed |
 | PLT-13 | Branded-app portal users | P1 | Phase 8 | PARTIAL | CLAIMED | No staff-side app permission (manage or notify-only) |
 | PLT-14 | Subscription plans, metered limits and add-on entitlements | P1 | Phase 8 | PARTIAL | CLAIMED | Placeholder plans; no tenant subscription billing, operator screen, seat or resource limits |
 | PLT-15 | Cloud delivery and availability commitments | P0 | Phase 8 | PARTIAL | VERIFIED | Nothing deployed: hosting not chosen (images, proxy `infra/proxy/Caddyfile`, backup drill exist) |
 | PLT-16 | GDPR mode | P1 | Phase 8 | DONE | CLAIMED | status/README.md "Module 1 and Wave 7"; phase8-*.md |
-| PLT-17 | Account activity report (staff audit trail) | P1 | Module 1 (pre-Phase 8) | DONE | VERIFIED | no status row anywhere; route `/audit-events` exists |
+| PLT-17 | Account activity report (staff audit trail) | P1 | Module 1 (pre-Phase 8) | DONE | VERIFIED | status row added 2026-11-13 in README.md; route `/audit-events` exists |
 | IMP-01 | Onboarding import templates (contacts, contracts, POS products) | P1 | Phase 8 | DONE | CLAIMED | status/README.md "Module 1 and Wave 7"; phase8-*.md |
 | IMP-02 | Assisted import submission and migration service | P1 | Phase 8 | PARTIAL | CLAIMED | No operator-run import for a tenant; self-serve only |
 | IMP-03 | Client demographic export | P1 | Phase 12 | DONE | VERIFIED | 15-reporting.md; spec in `reporting/reports/*.py`; `test_every_report_has_rows_against_a_fully_populated_tenant` |
@@ -255,7 +255,7 @@ Parked or deferred with nothing built (not counted as NOT-BUILT): MKT-04, MKT-06
 | RNT-03 | Staff-booked rental reservation (single or recurring, one or many resources) | P0 | Module 3 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | RNT-04 | Extend an existing rental and bill selected occurrences | P1 | Module 3 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | RNT-05 | Online rental policy per rental type (self-service setup) | P0 | Module 3 (pre-Phase 8) | DONE | VERIFIED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
-| RNT-06 | Client online rental search and booking | P0 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
+| RNT-06 | Client online rental search and booking | P0 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
 | RNT-07 | Buffer times on rentals | P1 | Module 3 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | RNT-08 | Remove a rental or a recurring rental from the schedule | P0 | Module 3 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | RNT-09 | Rental plans (prepaid rental balance) | P1 | Phase 14 | DONE | VERIFIED | 11-leagues.md / 06-programs.md / phase14-*.md; route check passed |
@@ -313,7 +313,7 @@ Parked or deferred with nothing built (not counted as NOT-BUILT): MKT-04, MKT-06
 | MEM-06 | Simple (record-only) membership | P2 | Module 5 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | MEM-07 | Staff sale of a membership contract | P0 | Module 5 (pre-Phase 8) | DONE | VERIFIED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | MEM-08 | Contract document acceptance at sale | P1 | Module 5 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
-| MEM-09 | Online membership sales | P1 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
+| MEM-09 | Online membership sales | P1 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
 | MEM-10 | Contract list, status views and edit | P0 | Module 5 (pre-Phase 8) | DONE | VERIFIED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | MEM-11 | Contract renewal | P0 | Module 5 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | MEM-12 | Freeze a contract | P0 | Module 5 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
@@ -336,7 +336,7 @@ Parked or deferred with nothing built (not counted as NOT-BUILT): MKT-04, MKT-06
 | PKG-06 | Package sharing | P1 | Module 5 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | PKG-07 | Staff sale of a package | P0 | Phase 9 | PARTIAL | CLAIMED | No ad-hoc package, per-sale price, coupons or credit pre-apply. (chip F never ran) |
 | PKG-08 | Package sale through point of sale | P1 | Module 5 (pre-Phase 8) | DONE | CLAIMED | status/README.md (fixed at integration); lane doc row stale |
-| PKG-09 | Online package sales | P1 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
+| PKG-09 | Online package sales | P1 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
 | PKG-10 | Member-only package plans | P1 | Module 5 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | PKG-11 | Post-billed packages | P2 | Phase 14 | DONE | VERIFIED | 11-leagues.md / 06-programs.md / phase14-*.md; route check passed |
 | PKG-12 | Session registration, roster and attendance | P0 | Phase 10 | DONE | CLAIMED | status/README.md, 10-checkin.md, 12-staff.md (Phase 10) |
@@ -368,9 +368,9 @@ Parked or deferred with nothing built (not counted as NOT-BUILT): MKT-04, MKT-06
 | REG-07 | Staff-side registration into a group or subgroup | P0 | Module 6 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | REG-08 | Move members between groups / subgroups | P1 | Phase 14 | DONE | VERIFIED | 11-leagues.md / 06-programs.md / phase14-*.md; route check passed |
 | REG-09 | Group waitlist and enrolment promotion | P0 | Module 6 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
-| REG-10 | Per-group online registration configuration | P0 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
+| REG-10 | Per-group online registration configuration | P0 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
 | REG-11 | Account-wide online-registration defaults | P1 | Phase 14 | DONE | VERIFIED | 11-leagues.md / 06-programs.md / phase14-*.md; route check passed |
-| REG-12 | Registrant online checkout for groups | P0 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
+| REG-12 | Registrant online checkout for groups | P0 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
 | REG-13 | Group tools: copy, export, generate | P1 | Phase 14 | DONE | VERIFIED | 11-leagues.md / 06-programs.md / phase14-*.md; route check passed |
 | REG-14 | Publish a group as a league or tournament | P1 | Phase 14 | DONE | VERIFIED | 11-leagues.md / 06-programs.md / phase14-*.md; route check passed |
 | REG-15 | Event form builder: create, copy, publish, list | P1 | Phase 14 | DONE | VERIFIED | 11-leagues.md / 06-programs.md / phase14-*.md; route check passed |
@@ -461,7 +461,7 @@ Parked or deferred with nothing built (not counted as NOT-BUILT): MKT-04, MKT-06
 | POS-01 | POS application launch, access and register selection | P0 | Module 9 (pre-Phase 8) | DONE | VERIFIED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | POS-02 | Cash registers and register favourites | P0 | Module 9 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | POS-03 | Product categories and subcategories | P0 | Module 9 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
-| POS-04 | Product brands and suppliers | P1 | Module 9 (pre-Phase 8) | DONE | VERIFIED | no status row anywhere; route `/product-brands` exists |
+| POS-04 | Product brands and suppliers | P1 | Module 9 (pre-Phase 8) | DONE | VERIFIED | status row added 2026-11-13 in 09-pos-inventory.md; route `/product-brands` exists |
 | POS-05 | Product master data | P0 | Module 9 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | POS-06 | Inventory adjustments and stock tracking | P0 | Module 9 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | POS-07 | Register product browsing and cart building | P0 | Module 9 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
@@ -498,7 +498,7 @@ Parked or deferred with nothing built (not counted as NOT-BUILT): MKT-04, MKT-06
 | CHK-10 | Location access mappings | P1 | Phase 10 | DONE | CLAIMED | status/README.md, 10-checkin.md, 12-staff.md (Phase 10) |
 | CHK-11 | Membership number / credential assignment | P0 | Module 10 (pre-Phase 8) | DONE | VERIFIED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | CHK-12 | ID card templates and generation | P1 | Phase 10 | DONE | VERIFIED | status/README.md, 10-checkin.md, 12-staff.md (Phase 10) |
-| CHK-13 | App member cards, wallet pass and mobile check-in | P0 | Phase 11 | PARTIAL | VERIFIED | On unmerged branch: wallet pass uses fake adapter (unsigned, no Apple or Google) |
+| CHK-13 | App member cards, wallet pass and mobile check-in | P0 | Phase 11 | PARTIAL | VERIFIED | Phase 11 on main: wallet pass uses fake adapter (unsigned, no Apple or Google) |
 | CHK-14 | Barcode scanner input (Bluetooth HID / USB) | P0 | Module 10 (pre-Phase 8) | DONE | CLAIMED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | CHK-15 | Biometric, RFID and cardless credentials (partners) | v2 | Phase 15 | DEFERRED-V2 | CLAIMED | Phase 15 v2 rows parked (overnight-2026-11-13.md); nothing built |
 | CHK-16 | Door access hardware integration (Brivo) | v2 | Phase 15 | DEFERRED-V2 | CLAIMED | Phase 15 v2 rows parked (overnight-2026-11-13.md); nothing built |
@@ -574,7 +574,7 @@ Parked or deferred with nothing built (not counted as NOT-BUILT): MKT-04, MKT-06
 | FIT-02 | Record assessment values on a client | P0 | Module 13 (pre-Phase 8) | DONE | VERIFIED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | FIT-03 | Assessment history and per-client report | P0 | Phase 12 | DONE | VERIFIED | report `assessment_history`, `TrendChart.tsx`; 13-assessments.md note stale |
 | FIT-04 | Assessment Summary report | P1 | Phase 12 | PARTIAL | VERIFIED | `assessment_summary` built; no maximum-age-of-values option |
-| FIT-05 | Client-facing progress sharing | P1 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
+| FIT-05 | Client-facing progress sharing | P1 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
 
 ### 14. Engagement and portal (MKT, SSP)
 
@@ -601,26 +601,26 @@ Parked or deferred with nothing built (not counted as NOT-BUILT): MKT-04, MKT-06
 | MKT-19 | Loyalty/rewards partner integration (Perkville) | v2 | Phase 15 | DEFERRED-V2 | CLAIMED | Phase 15 v2 rows parked (overnight-2026-11-13.md); nothing built |
 | MKT-20 | Automated/triggered marketing sequences and lead follow-up | P1 | Module 14 (pre-Phase 8) | DONE | VERIFIED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
 | MKT-21 | Website/digital-marketing partner (97Display) | v2 | Phase 15 | DEFERRED-V2 | CLAIMED | Phase 15 v2 rows parked (overnight-2026-11-13.md); nothing built |
-| SSP-01 | Portal enablement, public visibility, vanity URL and landing page | P0 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| SSP-02 | Session booking defaults (location level) | P0 | Module 14 (pre-Phase 8) | DONE | VERIFIED | no status row anywhere; route `/session-booking-policies` exists |
-| SSP-03 | Per-reservation-type self-service overrides | P0 | Module 14 (pre-Phase 8) | DONE | VERIFIED | no status row anywhere; route `/session-booking-policies` exists |
-| SSP-04 | Online rental booking (defaults and client flow) | P0 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| SSP-05 | Public self-registration and account creation | P0 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| SSP-06 | Invitations, account status and access recovery | P0 | Module 14 (pre-Phase 8) | DONE | VERIFIED | no status row anywhere; route `/auth/invitations` exists |
-| SSP-07 | Post-registration redirects | P2 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| SSP-08 | Book a session with inline package purchase; online sale flags | P0 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
+| SSP-01 | Portal enablement, public visibility, vanity URL and landing page | P0 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
+| SSP-02 | Session booking defaults (location level) | P0 | Module 14 (pre-Phase 8) | DONE | VERIFIED | status row added 2026-11-13 in 14-engagement.md; route `/session-booking-policies` exists |
+| SSP-03 | Per-reservation-type self-service overrides | P0 | Module 14 (pre-Phase 8) | DONE | VERIFIED | status row added 2026-11-13 in 14-engagement.md; route `/session-booking-policies` exists |
+| SSP-04 | Online rental booking (defaults and client flow) | P0 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
+| SSP-05 | Public self-registration and account creation | P0 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
+| SSP-06 | Invitations, account status and access recovery | P0 | Module 14 (pre-Phase 8) | DONE | VERIFIED | status row added 2026-11-13 in 14-engagement.md; route `/auth/invitations` exists |
+| SSP-07 | Post-registration redirects | P2 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
+| SSP-08 | Book a session with inline package purchase; online sale flags | P0 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
 | SSP-09 | Shared-booking patterns (couples, private links, teams) | P1 | Phase 14 | DONE | VERIFIED | 11-leagues.md / 06-programs.md / phase14-*.md; route check passed |
-| SSP-10 | Customer profile self-management, stored payment method and relationships | P0 | Module 14 (pre-Phase 8) | DONE | VERIFIED | no status row anywhere; route `/portal/payment-methods` exists |
+| SSP-10 | Customer profile self-management, stored payment method and relationships | P0 | Module 14 (pre-Phase 8) | DONE | VERIFIED | status row added 2026-11-13 in 14-engagement.md; route `/portal/payment-methods` exists |
 | SSP-11 | Coupons at portal checkout | P1 | Phase 9 | DONE | VERIFIED | 08-billing-payments.md / 05-memberships-packages.md (Phase 9 chips A to D) |
-| SSP-12 | Portal calendar views | P0 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| SSP-13 | Portal menu configuration | P1 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| SSP-14 | Portal design, content and legal text | P0 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| SSP-15 | Social media links on the portal | P2 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
+| SSP-12 | Portal calendar views | P0 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
+| SSP-13 | Portal menu configuration | P1 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
+| SSP-14 | Portal design, content and legal text | P0 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
+| SSP-15 | Social media links on the portal | P2 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
 | SSP-16 | Video library | P0 | Module 14 (pre-Phase 8) | DONE | VERIFIED | built before Phase 8 (modules 1 to 17); remaining-work.md counts it done |
-| SSP-17 | Publish a group (program) for online registration | P0 | Module 14 (pre-Phase 8) | DONE | VERIFIED | no status row anywhere; route `/program-groups/{program_group_id}/publish` exists |
+| SSP-17 | Publish a group (program) for online registration | P0 | Module 14 (pre-Phase 8) | DONE | VERIFIED | status row added 2026-11-13 in 14-engagement.md; route `/program-groups/{program_group_id}/publish` exists |
 | SSP-18 | Virtual sessions (Zoom) through the portal | P0 | Phase 11 | PARTIAL | VERIFIED | Built in Phase 15: portal join works; Zoom never called live |
 | SSP-19 | Self-service-scope API for portal/app clients | P1 | Phase 15 | DONE | VERIFIED | phase15-api.md; `test_member_realm_is_the_portal_with_a_client_token` |
-| SSP-20 | Account self-service: balances, invoices, documents | P0 | Module 14 (pre-Phase 8) | DONE | VERIFIED | no status row anywhere; route `/portal/invoices` exists |
+| SSP-20 | Account self-service: balances, invoices, documents | P0 | Module 14 (pre-Phase 8) | DONE | VERIFIED | status row added 2026-11-13 in 14-engagement.md; route `/portal/invoices` exists |
 | MKT-23 | SMS campaign centre, audience groups and two-way inbox (partner tool) | v2 | Phase 15 | DEFERRED-V2 | CLAIMED | Phase 15 v2 rows parked (overnight-2026-11-13.md); nothing built |
 
 ### 15. Reporting (RPT)
@@ -693,22 +693,22 @@ Parked or deferred with nothing built (not counted as NOT-BUILT): MKT-04, MKT-06
 
 | Id | Feature | Pri | Phase or module | State | Check | Evidence or note |
 |---|---|---|---|---|---|---|
-| APP-01 | Member app core (shared multi-tenant app) | P0 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| APP-02 | White-label branded app (per-tenant theme) | P0 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
+| APP-01 | Member app core (shared multi-tenant app) | P0 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
+| APP-02 | White-label branded app (per-tenant theme) | P0 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
 | APP-03 | App-store publishing and launch service | v2 | Phase 15 | DEFERRED-V2 | CLAIMED | Phase 15 v2 rows parked (overnight-2026-11-13.md); exists: EAS profiles only |
-| APP-04 | Home-screen designer (layout, styling, captions, global design) | P1 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| APP-05 | Home-screen tile catalogue | P1 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
+| APP-04 | Home-screen designer (layout, styling, captions, global design) | P1 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
+| APP-05 | Home-screen tile catalogue | P1 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
 | APP-06 | Digital membership card (barcode, wallet) | P0 | Phase 11 | DONE | CLAIMED | 17-mobile.md on main (rolling-code card) |
-| APP-07 | In-app News & Info CMS | P1 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| APP-08 | Contact & hours page | P1 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| APP-09 | Services contact list | P2 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| APP-10 | In-app feedback | P2 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| APP-11 | Tell a friend (referral share) | P2 | Phase 11 | PARTIAL | VERIFIED | On unmerged branch: share sheet only; hidden without web origin |
-| APP-12 | Trial pass request form ("Try us") | P1 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| APP-13 | Favorites and personalised schedule | P1 | Phase 11 | PARTIAL | VERIFIED | On unmerged branch: no instructor favourites, no favourite toggle in listings |
-| APP-14 | Announcements, promotions and gallery | P1 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| APP-15 | Social and device integrations | P2 | Phase 11 | PARTIAL | VERIFIED | On unmerged branch: booking share built; no add-to-calendar |
-| APP-16 | Multi-location apps | P1 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| APP-17 | App engagement analytics | P1 | Phase 11 | PARTIAL | VERIFIED | On unmerged branch: no install, open or push-open tracking |
-| APP-18 | App schedule presentation controls | P1 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
-| APP-19 | In-app purchase and payment | P0 | Phase 11 | DONE-UNMERGED | VERIFIED | routes or screens on branch `claude/phase11-portal-member-app-d22713`; status rows there |
+| APP-07 | In-app News & Info CMS | P1 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
+| APP-08 | Contact & hours page | P1 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
+| APP-09 | Services contact list | P2 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
+| APP-10 | In-app feedback | P2 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
+| APP-11 | Tell a friend (referral share) | P2 | Phase 11 | PARTIAL | VERIFIED | Phase 11 on main: share sheet only; hidden without web origin |
+| APP-12 | Trial pass request form ("Try us") | P1 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
+| APP-13 | Favorites and personalised schedule | P1 | Phase 11 | PARTIAL | VERIFIED | Phase 11 on main: no instructor favourites, no favourite toggle in listings |
+| APP-14 | Announcements, promotions and gallery | P1 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
+| APP-15 | Social and device integrations | P2 | Phase 11 | PARTIAL | VERIFIED | Phase 11 on main: booking share built; no add-to-calendar |
+| APP-16 | Multi-location apps | P1 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
+| APP-17 | App engagement analytics | P1 | Phase 11 | PARTIAL | VERIFIED | Phase 11 on main: no install, open or push-open tracking |
+| APP-18 | App schedule presentation controls | P1 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |
+| APP-19 | In-app purchase and payment | P0 | Phase 11 | DONE | VERIFIED | routes or screens on main (Phase 11 merge `c24f953`) |

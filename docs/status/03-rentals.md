@@ -23,7 +23,7 @@ generated tenant-isolation and security tests in `backend/tests/`. Web: `web/src
 | RNT-09 Rental plans | P1 | done | `GET/POST /rental-plans`, `GET/PATCH/DELETE /rental-plans/{id}`, `POST/PATCH /rental-plan-purchases`, list, get, `/ledger`; portal `GET /portal/rental-plans`, `GET/POST /portal/rental-plan-purchases`, opt-out; `plan` charge decision; plans and "Plans sold" tabs, portal Rental plans | `test_rental_plans_full_coverage_credit_and_removal`, `test_auto_renew_autopay_and_day_roll`, `test_portal_purchase_members_only_and_opt_out`; e2e | Append-only ledger, full-coverage debit under lock, credit back on cancel; auto-renew and autopay through billing (hourly day-roll), members-only sales and member price (reads `memberships.is_member`), portal purchase through `secure_online_checkout`. |
 | RNT-10 Share a rental plan | P1 | done | `PUT /rental-plan-purchases/{id}/shares`; "Plans sold" Manage dialog | `test_share_with_related_clients_only`; e2e | Live, active relatives only; one balance; shares carry over to a renewal. |
 | RNT-11 Remove and refund a rental plan | P1 | done | `POST /rental-plan-purchases/{id}/cancel` (reverse or keep billing, reason); "Remove" dialog | `test_rental_plans_full_coverage_credit_and_removal` | Reversal turns paid money into account credit; a card refund is module 8. |
-| RNT-12 Rental Plan Sales report | P1 | partial | read models `rpt_rental_booking`, `rpt_rental_plan_sale` (migration `0102_space_rentals.py`); "Plans sold" list | isolation tests cover the views' base tables | No report screen or CSV/PDF/XLSX export (reports, module 15). |
+| RNT-12 Rental Plan Sales report | P1 | done | read models `rpt_rental_booking`, `rpt_rental_plan_sale` (migration `0102_space_rentals.py`); "Plans sold" list | isolation tests cover the views' base tables | Report `rental_plan_sales` runs in the report center (CSV, XLSX, PDF). |
 | RNT-13 Publish a rental on the public league site | P2 | done | `PUT /rentals/{id}/public-schedule` (`rentals.public_listing.publish`) | `test_permissions_and_validation` | The flag is stored and returned; the public feed that reads it is leagues (module 11). No web control. |
 | RNT-14 Rental equipment catalogue | P0 | done | built as POS-17 (equipment catalogue) | `pos` tests | Point of sale, module 9. |
 | RNT-15 Rent equipment through POS | P0 | done | built as POS-18 (equipment line on a sale) | `pos` tests | Point of sale, module 9. |
@@ -32,15 +32,8 @@ generated tenant-isolation and security tests in `backend/tests/`. Web: `web/src
 | RNT-18 Clear locker assignments | P1 | done | `POST /locker-leases/{id}/clear`, `POST /locker-leases/clear-expired` | `test_clear_renew_and_clear_expired`; e2e | No automatic release: staff clear expired lockers per location or room. |
 
 Counts: P0 9 features: 9 done (RNT-14 to RNT-16 through POS; RNT-06 has the portal Bookings screen, phase 11 B).
-P1 8 features: 7 done, 1 partial (RNT-12). P2 1 feature: done.
-| RNT-14 Rental equipment catalogue | P0 | not built | | | Point of sale, module 9. |
-| RNT-15 Rent equipment through POS | P0 | not built | | | Point of sale, module 9. |
-| RNT-16 Return rented equipment | P0 | not built | | | Point of sale, module 9. |
-| RNT-17 Locker rental to a client | P1 | not built | | | No locker tables exist (RES-07/08 not built). Permission key registered. |
-| RNT-18 Clear locker assignments | P1 | not built | | | As RNT-17. |
+P1 8 features: 8 done (RNT-12 is the rental_plan_sales report). P2 1 feature: done.
 
-Counts: P0 9 features: 6 done, 3 not built (RNT-14 to RNT-16, POS).
-P1 8 features: 3 done, 2 partial (RNT-09, RNT-12), 3 not built (RNT-10, RNT-17, RNT-18). P2 1 feature: done.
 
 ## Definition of done
 
