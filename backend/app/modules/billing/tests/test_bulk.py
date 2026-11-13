@@ -204,3 +204,10 @@ def test_a_job_fails_an_add_item_whose_price_changed_after_it_was_priced(api, sh
     assert [(row["status"], row["error_code"], row["amount_minor"]) for row in rows] == [
         ("failed", "bulk-price-changed", 1000)
     ]
+
+
+def test_a_due_date_that_is_not_a_date_is_a_422(client, shop):
+    body = {"action": "create_invoices", "location_id": str(shop.location_id), "params": {"due_on": "not-a-date"}}
+    refused = client.post(f"{API}/billing-bulk-actions", headers=shop.owner | {"Idempotency-Key": uuid4().hex}, json=body)
+    assert refused.status_code == 422, refused.text
+    assert refused.json()["errors"][0]["pointer"] == "/params/due_on"

@@ -5,8 +5,9 @@ from decimal import Decimal
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import EmailStr, Field, StringConstraints, computed_field
+from pydantic import EmailStr, Field, StringConstraints, computed_field, field_validator
 
+from app.core.errors import ValidationFailed
 from app.core.schemas import In, Out, Page  # noqa: F401  (Page is used by the router as s.Page)
 from app.ports import payment_provider
 
@@ -601,6 +602,16 @@ class BulkActionCreate(In):
     params: dict[str, str | bool | None] = {}
     is_dry_run: bool = False
     preview_id: UUID | None = None  # the dry run this run was previewed as: refused if its amounts changed
+
+    @field_validator("params")
+    @classmethod
+    def _due_on_is_a_date(cls, params: dict) -> dict:
+        if due_on := params.get("due_on"):
+            try:
+                date.fromisoformat(str(due_on))
+            except ValueError:
+                raise ValidationFailed("Give the due date as YYYY-MM-DD.", pointer="/params/due_on") from None
+        return params
 
 
 class BulkActionOut(Out):
