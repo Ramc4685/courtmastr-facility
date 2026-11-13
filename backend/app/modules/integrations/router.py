@@ -349,6 +349,12 @@ def list_portal_enrollment_meetings(ctx: Ctx = Depends(current_ctx)):
     return meetings.portal_meetings(ctx.session, ctx.principal)
 
 
+@router.get("/portal/calendar-feeds", response_model=list[s.PortalCalendarFeedOut])
+def list_portal_calendar_feeds(ctx: Ctx = Depends(current_ctx)):
+    """My schedule feed, if I have one (never its address). Members only."""
+    return feeds.list_member_feeds(ctx.session, ctx.principal)
+
+
 @router.post("/portal/calendar-feeds", response_model=s.CalendarFeedCreated, status_code=201)
 @secret_response
 def create_portal_calendar_feed(body: s.PortalCalendarFeedCreate, ctx: Ctx = Depends(current_ctx)):

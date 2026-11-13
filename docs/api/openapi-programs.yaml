@@ -7246,6 +7246,14 @@ paths:
       x-permission: authenticated
       x-features: [INT-08]
   /portal/calendar-feeds:
+    get:
+      operationId: listPortalCalendarFeeds
+      tags: [integrations]
+      summary: My schedule feed, if I have one (never its address)
+      description: Members only. At most one row, since a new feed retires the old; a revoked feed is gone.
+      x-priority: P1
+      x-permission: client:self
+      x-features: [INT-08, SSP-19]
     post:
       operationId: createPortalCalendarFeed
       tags: [integrations]

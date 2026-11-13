@@ -8955,7 +8955,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List Portal Calendar Feeds
+         * @description My schedule feed, if I have one (never its address). Members only.
+         */
+        get: operations["listPortalCalendarFeeds"];
         put?: never;
         /**
          * Create Portal Calendar Feed
@@ -30427,6 +30431,26 @@ export interface components {
         PortalCalendarFeedCreate: {
             /** Name */
             name?: string | null;
+        };
+        /**
+         * PortalCalendarFeedOut
+         * @description A member's own feed, without the address: that is shown once, when the feed is made.
+         */
+        PortalCalendarFeedOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Fetched At */
+            last_fetched_at: string | null;
+            /** Name */
+            name: string;
         };
         /** PortalCheckoutConfirm */
         PortalCheckoutConfirm: {
@@ -63911,6 +63935,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BillingSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listPortalCalendarFeeds: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional; keys live 24 hours. */
+                "idempotency-key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortalCalendarFeedOut"][];
                 };
             };
             /** @description Validation Error */

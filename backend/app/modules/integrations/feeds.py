@@ -133,13 +133,21 @@ def create_member_feed(session: Session, principal: Principal, data: dict) -> tu
     return row, token
 
 
-def revoke_member_feeds(session: Session, principal: Principal) -> int:
-    """A portal member deletes their own schedule feeds, so every URL they handed out stops working."""
+def _own_member_feeds(principal: Principal) -> Select:
     if principal.kind != "client" or principal.identity_id is None:
         raise PermissionDenied("Members only")
-    rows = session.scalars(
-        select(CalendarFeed).where(CalendarFeed.owner_identity_id == principal.identity_id).with_for_update()
-    ).all()
+    return select(CalendarFeed).where(CalendarFeed.owner_identity_id == principal.identity_id)
+
+
+def list_member_feeds(session: Session, principal: Principal) -> list[CalendarFeed]:
+    """A portal member's own schedule feeds (at most one: a new one retires the old), so the portal knows
+    whether there is a feed to stop. The token is never shown again."""
+    return list(session.scalars(_own_member_feeds(principal).order_by(CalendarFeed.created_at)))
+
+
+def revoke_member_feeds(session: Session, principal: Principal) -> int:
+    """A portal member deletes their own schedule feeds, so every URL they handed out stops working."""
+    rows = session.scalars(_own_member_feeds(principal).with_for_update()).all()
     for row in rows:
         audit.record(session, "integrations.calendar_feed.delete", row)
         session.delete(row)

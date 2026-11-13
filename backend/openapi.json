@@ -46008,6 +46008,45 @@
         "title": "PortalCalendarFeedCreate",
         "type": "object"
       },
+      "PortalCalendarFeedOut": {
+        "description": "A member's own feed, without the address: that is shown once, when the feed is made.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_fetched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Fetched At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "last_fetched_at",
+          "created_at"
+        ],
+        "title": "PortalCalendarFeedOut",
+        "type": "object"
+      },
       "PortalCheckoutConfirm": {
         "additionalProperties": false,
         "properties": {
@@ -126348,6 +126387,61 @@
           }
         },
         "summary": "Revoke Portal Calendar Feeds",
+        "tags": [
+          "integrations"
+        ]
+      },
+      "get": {
+        "description": "My schedule feed, if I have one (never its address). Members only.",
+        "operationId": "listPortalCalendarFeeds",
+        "parameters": [
+          {
+            "description": "Optional; keys live 24 hours.",
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9_.:\\-]{1,255}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional; keys live 24 hours.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PortalCalendarFeedOut"
+                  },
+                  "title": "Response Listportalcalendarfeeds",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Portal Calendar Feeds",
         "tags": [
           "integrations"
         ]

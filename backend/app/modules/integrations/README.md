@@ -104,7 +104,9 @@ through `service.adapter_for`.
   only. Each event carries `LAST-MODIFIED` from the record's `updated_at` and a `DTSTAMP` that does not change
   between fetches. A deactivated staff owner, an inactive member identity or a suspended tenant makes the feed
   404. A member has one feed: creating one deletes their earlier feeds (the old URL stops), and
-  `DELETE /portal/calendar-feeds` revokes it. Any staff user may own a feed
+  `DELETE /portal/calendar-feeds` revokes it; `GET /portal/calendar-feeds` lists the member's own feed (never
+  its address), so the portal offers Stop only while one exists. Member events take `LAST-MODIFIED` from the
+  session's booking (the session view has no `updated_at`). Any staff user may own a feed
   (rbac-matrix section 7); a team feed needs a league game key; `revoke_any` lets a manager see and disable,
   never edit or re-enable, other people's feeds within their locations.
 - **Public schedule.** Off until a location publishes it. Shows only sessions the portal listing would show

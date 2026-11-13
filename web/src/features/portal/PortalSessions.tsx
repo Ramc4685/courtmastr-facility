@@ -94,15 +94,20 @@ export function PortalSessions() {
   })
   const [stopping, setStopping] = useState(false)
   const [feedToken, setFeedToken] = useState<string | null>(null)
+  const feeds = useQuery({ queryKey: ['portal', 'calendar-feeds'], queryFn: () => api.get('/api/v1/portal/calendar-feeds') })
   const makeFeed = useMutation({
     mutationFn: () => api.post('/api/v1/portal/calendar-feeds', { body: {} }),
-    onSuccess: (feed) => setFeedToken(feed.url_token),
+    onSuccess: (feed) => {
+      setFeedToken(feed.url_token)
+      void feeds.refetch()
+    },
     onError: (e) => toast('error', e.message),
   })
   const stopFeed = useMutation({
     mutationFn: () => api.delete('/api/v1/portal/calendar-feeds'),
     onSuccess: () => {
       setStopping(false)
+      void feeds.refetch()
       toast('success', 'Your calendar feed is stopped. Calendars subscribed to it no longer update.')
     },
     onError: (e) => toast('error', e.message),
@@ -223,9 +228,11 @@ export function PortalSessions() {
             <Button size="sm" loading={makeFeed.isPending} onClick={() => makeFeed.mutate()}>
               Get my calendar address
             </Button>
-            <Button size="sm" variant="secondary" onClick={() => setStopping(true)}>
-              Stop my calendar feed
-            </Button>
+            {(feeds.data ?? []).length > 0 && (
+              <Button size="sm" variant="secondary" onClick={() => setStopping(true)}>
+                Stop my calendar feed
+              </Button>
+            )}
           </div>
         </Card>
       </div>

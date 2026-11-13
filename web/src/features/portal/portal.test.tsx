@@ -202,20 +202,27 @@ describe('Portal online sessions and calendar feed', { timeout: 20_000 }, () => 
     expect(calls.filter((c) => c.url.endsWith('/join')).map((c) => c.url)).toEqual(['/api/v1/portal/enrollments/e1/join', '/api/v1/portal/enrollments/e2/join'])
   })
 
-  it('stops the calendar feed after a confirmation', async () => {
+  it('offers to stop the calendar feed only when there is one, and asks first', async () => {
     const user = userEvent.setup()
+    let feeds = [feed]
     const calls = open('/portal/sessions', {
       'GET /api/v1/portal/session-listings': { status: 200, body: [] },
       'GET /api/v1/portal/enrollments': page([]),
       'GET /api/v1/portal/enrollment-meetings': { status: 200, body: [] },
       'GET /api/v1/portal/waitlist-entries': { status: 200, body: [] },
-      'DELETE /api/v1/portal/calendar-feeds': { status: 204 },
+      'GET /api/v1/portal/calendar-feeds': () => ({ status: 200, body: feeds }),
+      'DELETE /api/v1/portal/calendar-feeds': () => {
+        feeds = []
+        return { status: 204 }
+      },
     })
     await user.click(await screen.findByRole('button', { name: 'Stop my calendar feed' }))
     expect(calls.some((c) => c.method === 'DELETE')).toBe(false)
     await user.click(within(await screen.findByRole('dialog', { name: 'Stop your calendar feed?' })).getByRole('button', { name: 'Stop feed' }))
     expect(await screen.findByText(/Your calendar feed is stopped/)).toBeInTheDocument()
     expect(calls.filter((c) => c.method === 'DELETE' && c.url === '/api/v1/portal/calendar-feeds')).toHaveLength(1)
+    await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'Stop my calendar feed' })).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Get my calendar address' })).toBeInTheDocument()
   })
 })
 

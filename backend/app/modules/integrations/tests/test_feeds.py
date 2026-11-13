@@ -271,6 +271,24 @@ def test_staff_and_team_feeds_outlive_a_member_rotating_or_revoking_theirs(clien
         assert (_fetch(client, staff).status_code, _fetch(client, squad).status_code) == (200, 200), step
 
 
+def test_a_member_lists_only_their_own_live_feed(client, tenant, owner):
+    path = f"{API}/portal/calendar-feeds"
+    _, member = _member(client, tenant, owner)
+    _, neighbour = _member(client, tenant, owner)
+    assert ok(client.get(path, headers=member), 200) == []
+    ok(client.post(path, headers=member, json={}))
+    mine = ok(client.post(path, headers=member, json={"name": "Family"}))
+    ok(client.post(path, headers=neighbour, json={}))
+    _feed(client, owner)  # a staff feed is never a member's
+    listed = ok(client.get(path, headers=member), 200)
+    assert [(row["id"], row["name"]) for row in listed] == [(mine["id"], "Family")]  # the rotated one is gone
+    assert "url_token" not in listed[0]
+    assert client.delete(path, headers=member).status_code == 204
+    assert ok(client.get(path, headers=member), 200) == []
+    assert len(ok(client.get(path, headers=neighbour), 200)) == 1
+    assert client.get(path, headers=owner).status_code == 403  # members only
+
+
 def test_the_per_ip_feed_bucket_refuses_once_spent(client, owner, monkeypatch):
     from app.core.settings import get_settings
 

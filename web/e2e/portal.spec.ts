@@ -191,8 +191,15 @@ test('a booked online session offers Join online, the early click is refused, an
 // The join itself depends on the clock (10 minutes before a start), so the Vitest suite covers the opened link.
 test('a member gets a calendar address and stops the feed, and the dialogs pass axe', async ({ page }) => {
   await signIn(page)
+  const listed = page.waitForResponse((r) => r.url().endsWith('/api/v1/portal/calendar-feeds') && r.request().method() === 'GET')
   await page.goto('/portal/sessions')
   await expect(page.getByRole('heading', { name: 'Your calendar' })).toBeVisible()
+  if (((await (await listed).json()) as unknown[]).length > 0) {
+    // a feed left by an earlier run: stop it first, so the button is shown only while a feed exists
+    await page.getByRole('button', { name: 'Stop my calendar feed' }).click()
+    await page.getByRole('dialog', { name: 'Stop your calendar feed?' }).getByRole('button', { name: 'Stop feed' }).click()
+  }
+  await expect(page.getByRole('button', { name: 'Stop my calendar feed' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Get my calendar address' }).click()
   const address = page.getByRole('dialog', { name: 'Your calendar address' }).getByRole('textbox', { name: 'Secret' })
   const url = await address.inputValue()
@@ -200,11 +207,12 @@ test('a member gets a calendar address and stops the feed, and the dialogs pass 
   await scan(page, 'calendar address dialog')
   await page.getByRole('button', { name: 'I have copied it' }).click()
 
-  await page.getByRole('button', { name: 'Stop my calendar feed' }).click()
+  await page.getByRole('button', { name: 'Stop my calendar feed' }).click() // shown now that a feed exists
   await page.emulateMedia({ colorScheme: 'dark' })
   await scan(page, 'stop feed dialog dark')
   await page.getByRole('dialog', { name: 'Stop your calendar feed?' }).getByRole('button', { name: 'Stop feed' }).click()
   await expect(page.getByText(/Your calendar feed is stopped/)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Stop my calendar feed' })).toHaveCount(0)
   expect((await page.request.get(url)).status()).toBe(404)
   await page.emulateMedia({ colorScheme: 'light' })
   await scan(page, 'portal sessions')

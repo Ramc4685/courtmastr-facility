@@ -341,6 +341,15 @@ class CalendarFeedCreated(CalendarFeedOut):
     url_token: str | None = Field(description="Shown once: subscribe to /api/v1/public/calendar-feeds/{url_token}")
 
 
+class PortalCalendarFeedOut(Out):
+    """A member's own feed, without the address: that is shown once, when the feed is made."""
+
+    id: UUID
+    name: str
+    last_fetched_at: datetime | None
+    created_at: datetime
+
+
 class PortalEnrollmentMeetingOut(Out):
     """One of my booked places whose session has an online meeting. The link comes only from the join command."""
 
