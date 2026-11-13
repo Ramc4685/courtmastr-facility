@@ -141379,9 +141379,6 @@
         "summary": "Get Pos Daily Register Report",
         "tags": [
           "pos"
-        ],
-        "x-api-key-scopes": [
-          "pos.sale.read"
         ]
       }
     },
@@ -141444,9 +141441,6 @@
         "summary": "Get Pos Reorder Report",
         "tags": [
           "pos"
-        ],
-        "x-api-key-scopes": [
-          "pos.sale.read"
         ]
       }
     },
@@ -141536,9 +141530,6 @@
         "summary": "Get Pos Returns Report",
         "tags": [
           "pos"
-        ],
-        "x-api-key-scopes": [
-          "pos.sale.read"
         ]
       }
     },
@@ -141646,9 +141637,6 @@
         "summary": "Get Pos Sales Report",
         "tags": [
           "pos"
-        ],
-        "x-api-key-scopes": [
-          "pos.sale.read"
         ]
       }
     },
