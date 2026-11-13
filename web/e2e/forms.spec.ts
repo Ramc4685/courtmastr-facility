@@ -56,7 +56,8 @@ test('a visitor signs up for a free event without an account', async ({ page, br
   await expect(visitor.getByRole('heading', { level: 1, name: 'Club Open Day' })).toBeVisible()
   await scan(visitor, 'public form')
   await visitor.getByRole('textbox', { name: 'Your name' }).fill('Pat Visitor')
-  await visitor.getByRole('textbox', { name: 'Email' }).fill('pat.visitor@example.com')
+  // One sign-up per address and event: a fresh address each run, so the spec can run again on the same database.
+  await visitor.getByRole('textbox', { name: 'Email' }).fill(`pat.visitor-${crypto.randomUUID()}@example.com`)
   for (const group of await visitor.getByRole('group').all()) await group.getByRole('radio').first().check()
   await visitor.getByRole('button', { name: 'Register' }).click()
   await expect(visitor.getByText(/^Confirmation number \d+\.$/)).toBeVisible()
