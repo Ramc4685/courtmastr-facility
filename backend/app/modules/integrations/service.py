@@ -81,9 +81,14 @@ KEY_PERMISSIONS = frozenset({
 })  # fmt: skip
 
 
+# Single keys withheld from a listed context: portal on/off switches and online defaults, a person's decision like
+# engagement's portal settings (which never made the list above).
+KEY_WITHHELD = frozenset({"rentals.portal_setting.manage"})
+
+
 def grantable_to_key(permission: Permission) -> bool:
     listed = permission.context in KEY_CONTEXTS or permission.key in KEY_PERMISSIONS
-    return listed and not set(permission.flags) & _NEVER_FOR_KEYS
+    return listed and permission.key not in KEY_WITHHELD and not set(permission.flags) & _NEVER_FOR_KEYS
 
 
 def _require_person(principal: Principal) -> None:
