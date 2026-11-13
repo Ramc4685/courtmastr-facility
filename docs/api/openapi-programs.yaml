@@ -6355,6 +6355,15 @@ paths:
       x-priority: P1
       x-permission: reporting.dashboard.read
       x-features: [RPT-02]
+      parameters:
+      - {name: location_id, in: query, schema: {type: string, format: uuid}, description: One location; omitted means every location the caller can see.}
+      responses:
+        '200':
+          description: Tiles composed from report specs through the runner, per caller reach.
+          content: {application/json: {schema: {type: object, required: [location_id, generated_at, tiles], properties: {location_id: {type: string, format: uuid, nullable: true}, generated_at: {type: string, format: date-time}, tiles: {type: array, items: {type: object}}}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
   /api-keys:
     get:
       operationId: listApiKeys

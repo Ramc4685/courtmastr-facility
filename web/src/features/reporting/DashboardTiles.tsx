@@ -14,7 +14,7 @@ export function DashboardTiles() {
   const { locationId } = useCurrentLocation()
   const board = useQuery({
     queryKey: ['reporting', 'dashboard', locationId],
-    queryFn: () => api.get('/api/v1/dashboard', { query: { location_id: locationId || undefined } }),
+    queryFn: () => api.get('/api/v1/dashboards/management', { query: { location_id: locationId || undefined } }),
     refetchInterval: 60_000,
   })
   if (board.isPending) return <LoadingState />

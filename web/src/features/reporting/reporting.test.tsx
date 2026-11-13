@@ -138,7 +138,7 @@ describe('report centre, wave 4', SCREEN, () => {
 
   it('shows the dashboard tiles with links to the full reports', async () => {
     renderAsStaff(<DashboardTiles />, ['reporting.dashboard.read', 'reporting.financial.run'], {
-      'GET /api/v1/dashboard': { status: 200, body: { location_id: null, generated_at: '', tiles: [
+      'GET /api/v1/dashboards/management': { status: 200, body: { location_id: null, generated_at: '', tiles: [
         { key: 'revenue_summary', name: 'Revenue summary', period: 'this_month', totals: [{ key: 'net_minor', label: 'Net revenue', type: 'money', value: 9000 }] },
       ] } },
     })

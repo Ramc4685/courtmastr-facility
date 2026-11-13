@@ -141,6 +141,6 @@ def delete_report_schedule(report_schedule_id: UUID, ctx: Export):
     return Response(status_code=204)
 
 
-@router.get("/dashboard", response_model=s.DashboardOut)
-def get_dashboard(ctx: Dashboard, location_id: UUID | None = None):
+@router.get("/dashboards/management", response_model=s.DashboardOut)
+def get_management_dashboard(ctx: Dashboard, location_id: UUID | None = None):
     return dashboard.get_dashboard(ctx.session, ctx.principal, location_id)
