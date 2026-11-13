@@ -1459,10 +1459,12 @@ def _slot_key(slot: dict) -> tuple:
 def slot_page(slots: list[dict], limit: int, cursor: str | None) -> dict:
     """Keyset page over the day's slots (court, then start), so nothing is ever cut off silently."""
     if cursor:
-        try:
+        try:  # anonymous input: exactly [court name, court id, aware start], else 400, never a 500
             name, rid, at = json.loads(base64.urlsafe_b64decode(cursor.encode()))
-            after = (name, rid, datetime.fromisoformat(at))
-        except (ValueError, TypeError):
+            after = (name, str(UUID(rid)), datetime.fromisoformat(at))
+            if not isinstance(name, str) or after[2].tzinfo is None:
+                raise ValueError
+        except (ValueError, TypeError, AttributeError):
             raise DomainError("Invalid cursor", status=400, code="bad-request") from None
         slots = [s for s in slots if _slot_key(s) > after]
     page, more = slots[:limit], len(slots) > limit

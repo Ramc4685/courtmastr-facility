@@ -2,6 +2,8 @@
 staff, portal and recurring rentals), and the minors rule (a minor never holds a rental; a guardian books and
 names the children who play)."""
 
+import base64
+import json
 from datetime import UTC, datetime, timedelta
 from itertools import groupby
 from uuid import uuid4
@@ -215,6 +217,28 @@ def test_open_times_cover_the_whole_day_grouped_by_court_in_pages_never_truncate
         cursor = f"&cursor={page['page']['next_cursor']}"
     assert paged == whole["data"]  # keyset pages add up to the whole day, nothing dropped or repeated
     assert client.get(f"{url}&cursor=not-a-cursor", headers=portal).status_code == 400
+
+
+def _cursor(value) -> str:
+    return base64.urlsafe_b64encode(json.dumps(value).encode()).decode()
+
+
+BAD_CURSORS = [
+    "WzEsMiwiMjAzMS0wNS0wNVQxMDowMDowMCJd",  # [1, 2, "2031-05-05T10:00:00"]: the verifier's 500
+    "!!!", _cursor("abc"), _cursor({"a": 1}), _cursor([None, None, "2031-05-05T15:00:00+00:00"]),
+    _cursor(["Court 1", "not-a-uuid", "2031-05-05T15:00:00+00:00"]),
+    _cursor(["Court 1", str(uuid4()), "2031-05-05T15:00:00"]),  # naive: cannot be compared with a slot's start
+    _cursor(["Court 1", str(uuid4()), 5]), _cursor(["Court 1", str(uuid4())]),
+]
+
+
+@pytest.mark.parametrize("cursor", BAD_CURSORS)
+def test_a_malformed_cursor_is_400_on_both_availability_routes(client, owner, tenant, f, cursor):
+    me, portal = portal_member(client, owner, tenant, f)
+    query = f"rental_type_id={f.rtype}&on=2031-05-05&length_min=60&cursor={cursor}"
+    public = client.get(f"{API}/public/rental-availability?{query}", headers={"X-Tenant-Slug": tenant.slug})
+    mine = client.get(f"{API}/portal/rental-availability?{query}&client_id={me}", headers=portal)
+    assert (public.status_code, mine.status_code) == (400, 400), (public.text, mine.text)
 
 
 def test_open_times_narrow_to_a_court_and_a_time_band(client, owner, tenant, f):
